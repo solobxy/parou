@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pt-PT" dir="ltr">
+  <head>
+    <script>
+      // In AI Studio iframe preview, HMR WebSocket is disabled by system policy.
+      // Suppress Vite connection noise and provide a silent mock WebSocket transport.
+      (function() {
+        const levels = ['log', 'info', 'warn', 'error', 'debug'];
+        levels.forEach(function(level) {
+          const orig = console[level];
+          console[level] = function(...args) {
+            for (let i = 0; i < args.length; i++) {
+              const arg = args[i];
+              if (typeof arg === 'string') {
+                if (arg.includes('[vite]') || arg.includes('[hmr]') || arg.includes('WebSocket') || arg.includes('websocket') || arg.includes('ws://') || arg.includes('wss://')) {
+                  return;
+                }
+              } else if (arg && typeof arg === 'object' && typeof arg.message === 'string') {
+                if (arg.message.includes('[vite]') || arg.message.includes('[hmr]') || arg.message.includes('WebSocket') || arg.message.includes('websocket')) {
+                  return;
+                }
+              }
+            }
+            if (orig) orig.apply(console, args);
+          };
+        });
+
+        window.addEventListener('error', function(e) {
+          const msg = e && e.message ? String(e.message) : '';
+          const src = e && e.filename ? String(e.filename) : '';
+          if (msg.includes('vite') || msg.includes('WebSocket') || msg.includes('websocket') || src.includes('@vite')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          const reason = e && e.reason ? String(e.reason.message || e.reason) : '';
+          if (reason.includes('vite') || reason.includes('WebSocket') || reason.includes('websocket')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        const OrigWebSocket = window.WebSocket;
+        window.WebSocket = function(url, protocols) {
+          const urlStr = String(url || '');
+          const protoStr = Array.isArray(protocols) ? protocols.join(',') : String(protocols || '');
+          if (protoStr.includes('vite') || urlStr.includes('vite') || urlStr.includes('token=') || urlStr.startsWith('ws:') || urlStr.startsWith('wss:')) {
+            const listeners = {};
+            const fakeWs = {
+              readyState: 1,
+              url: urlStr,
+              protocol: protoStr,
+              binaryType: 'blob',
+              bufferedAmount: 0,
+              extensions: '',
+              onopen: null,
+              onclose: null,
+              onerror: null,
+              onmessage: null,
+              send: function() {},
+              close: function() {
+                fakeWs.readyState = 3;
+                if (fakeWs.onclose) fakeWs.onclose({ type: 'close', wasClean: true, code: 1000, reason: '' });
+                if (listeners['close']) {
+                  listeners['close'].forEach(function(fn) {
+                    try { fn({ type: 'close', wasClean: true, code: 1000, reason: '' }); } catch(err) {}
+                  });
+                }
+              },
+              addEventListener: function(event, handler) {
+                listeners[event] = listeners[event] || [];
+                listeners[event].push(handler);
+                if (event === 'open') {
+                  setTimeout(function() {
+                    try { handler({ type: 'open' }); } catch(err) {}
+                  }, 0);
+                }
+              },
+              removeEventListener: function(event, handler) {
+                if (!listeners[event]) return;
+                listeners[event] = listeners[event].filter(function(h) { return h !== handler; });
+              },
+              dispatchEvent: function() { return true; }
+            };
+            setTimeout(function() {
+              if (fakeWs.onopen) fakeWs.onopen({ type: 'open' });
+              if (listeners['open']) {
+                listeners['open'].forEach(function(fn) {
+                  try { fn({ type: 'open' }); } catch(err) {}
+                });
+              }
+            }, 0);
+            return fakeWs;
+          }
+          return new OrigWebSocket(url, protocols);
+        };
+        if (OrigWebSocket) {
+          window.WebSocket.CONNECTING = OrigWebSocket.CONNECTING || 0;
+          window.WebSocket.OPEN = OrigWebSocket.OPEN || 1;
+          window.WebSocket.CLOSING = OrigWebSocket.CLOSING || 2;
+          window.WebSocket.CLOSED = OrigWebSocket.CLOSED || 3;
+          window.WebSocket.prototype = OrigWebSocket.prototype;
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal</title>
+    <meta name="description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://parou.pt/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://parou.pt/" />
+    <meta property="og:site_name" content="PAROU.PT" />
+    <meta property="og:title" content="PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal" />
+    <meta property="og:description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
+    <meta property="og:image" content="https://parou.pt/og-image.png" />
+    <meta property="og:image:secure_url" content="https://parou.pt/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PAROU.PT — Monitorização em tempo real de transportes, atrasos e trânsito em Portugal" />
+    <meta property="og:locale" content="pt_PT" />
+
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@parou_pt" />
+    <meta name="twitter:title" content="PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal" />
+    <meta name="twitter:description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
+    <meta name="twitter:image" content="https://parou.pt/og-image.png" />
+    <meta name="twitter:image:alt" content="PAROU.PT — Monitorização em tempo real de transportes e trânsito em Portugal" />
+
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="theme-color" content="#090e1a" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PAROU.PT" />
+    <meta name="application-name" content="PAROU.PT" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://parou.pt/#website",
+          "url": "https://parou.pt/",
+          "name": "PAROU.PT",
+          "description": "Plataforma comunitária e oficial de monitorização em tempo real de transportes e trânsito em Portugal.",
+          "inLanguage": "pt-PT",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://parou.pt/?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://parou.pt/#organization",
+          "name": "PAROU.PT",
+          "url": "https://parou.pt/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://parou.pt/icon.svg",
+            "width": "512",
+            "height": "512"
+          },
+          "sameAs": []
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://parou.pt/#webapp",
+          "name": "PAROU.PT",
+          "url": "https://parou.pt/",
+          "applicationCategory": "TravelApplication",
+          "operatingSystem": "All",
+          "inLanguage": "pt-PT",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "description": "Informação factual em direto sobre comboios, metro, autocarros, barcos e trânsito rodoviário em Portugal.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "EUR"
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://parou.pt/#breadcrumbs",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Início",
+              "item": "https://parou.pt/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Transportes",
+              "item": "https://parou.pt/transportes"
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": "Ocorrências",
+              "item": "https://parou.pt/ocorrencias"
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": "Atrasos",
+              "item": "https://parou.pt/atrasos"
+            },
+            {
+              "@type": "ListItem",
+              "position": 5,
+              "name": "Greves",
+              "item": "https://parou.pt/greves"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Web Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#080c14] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root">
+      <!-- Semantic Crawler Pre-rendered Content (Indexed by Googlebot, Bingbot before JS hydration) -->
+      <noscript>
+        <div style="padding: 24px; font-family: system-ui, sans-serif; background: #080c14; color: #f8fafc; max-width: 900px; margin: 0 auto;">
+          <h1>PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal</h1>
+          <p>O <strong>PAROU.PT</strong> é a plataforma central em Portugal para consulta em tempo real de perturbações, atrasos, greves, acidentes, avarias e cortes de circulação.</p>
+          <h2>Secções Principais de Informação</h2>
+          <ul>
+            <li><a href="/transportes" style="color: #38bdf8;">Transportes em Portugal</a>: Horários e estado de circulação no Metro de Lisboa, Metro do Porto, CP (Comboios de Portugal), Fertagus, Carris, STCP e Carris Metropolitana.</li>
+            <li><a href="/ocorrencias" style="color: #38bdf8;">Ocorrências e Alertas em Direto</a>: Monitorização 24/7 de perturbações e relatos verificados pela comunidade e entidades oficiais.</li>
+            <li><a href="/atrasos" style="color: #38bdf8;">Atrasos de Transportes</a>: Tempo de espera e demora nas linhas urbanas e regionais.</li>
+            <li><a href="/greves" style="color: #38bdf8;">Greves e Paralisações</a>: Avisos prévios de greves na CP, Metro, Carris e serviços públicos.</li>
+            <li><a href="/acidentes" style="color: #38bdf8;">Acidentes de Trânsito</a>: VCI, 2ª Circular, A1, A2, A5, IC19 e principais vias do país.</li>
+            <li><a href="/avarias" style="color: #38bdf8;">Avarias Técnicas</a>: Falhas de catenária, sinalização e material circulante.</li>
+            <li><a href="/cortes" style="color: #38bdf8;">Cortes e Obras</a>: Vias condicionadas e alternativas de circulação.</li>
+          </ul>
+        </div>
+      </noscript>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

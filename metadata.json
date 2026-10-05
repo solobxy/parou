@@ -1,0 +1,8 @@
+{
+  "name": "PAROU.PT - Ocorrências em Tempo Real em Portugal",
+  "description": "Plataforma colaborativa em tempo real para monitorização de transportes, trânsito, acidentes, greves, avarias e serviços públicos em Portugal.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,332 @@
+import { Occurrence, NotificationPreferences, NotificationLogItem } from '../types';
+
+const STORAGE_KEY_PREFS = 'parou_notification_preferences_v1';
+const STORAGE_KEY_LOGS = 'parou_notification_history_v1';
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled: false,
+  selectedDistrict: 'Todas',
+  importantTransportOnly: true,
+  severeOnly: false,
+  soundEnabled: true,
+  pushSubscribed: false,
+};
+
+// Retrieve stored preferences
+export function getStoredNotificationPreferences(): NotificationPreferences {
+  if (typeof window === 'undefined') return DEFAULT_NOTIFICATION_PREFERENCES;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PREFS);
+    if (!raw) return DEFAULT_NOTIFICATION_PREFERENCES;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...parsed };
+  } catch {
+    return DEFAULT_NOTIFICATION_PREFERENCES;
+  }
+}
+
+// Persist preferences
+export function saveStoredNotificationPreferences(prefs: NotificationPreferences): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
+  } catch (err) {
+    console.warn('Error saving notification preferences:', err);
+  }
+}
+
+// Check native browser notification permission
+export function getNotificationPermissionState(): NotificationPermission | 'unsupported' {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  return Notification.permission;
+}
+
+// Request notification permission from user
+export async function requestNotificationPermission(): Promise<{
+  permission: NotificationPermission | 'unsupported';
+  isPWAReady: boolean;
+}> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return { permission: 'unsupported', isPWAReady: false };
+  }
+
+  try {
+    const perm = await Notification.requestPermission();
+    let isPWAReady = false;
+
+    if (perm === 'granted' && 'serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && 'pushManager' in registration) {
+          isPWAReady = true;
+        }
+      } catch {
+        isPWAReady = false;
+      }
+    }
+
+    return { permission: perm, isPWAReady };
+  } catch (err) {
+    console.error('Error requesting notification permission:', err);
+    return { permission: 'denied', isPWAReady: false };
+  }
+}
+
+// Synthesize pleasant notification chime via Web Audio API (zero audio file dependencies)
+export function playNotificationSound(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    // First bell tone (587.33 Hz - D5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    // Second bell tone (880.00 Hz - A5)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880.00, now + 0.12);
+    gain2.gain.setValueAtTime(0.18, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.55);
+  } catch {
+    // AudioContext blocked by browser policy until user gesture
+  }
+}
+
+// Retrieve notification history
+export function getStoredNotificationHistory(): NotificationLogItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LOGS);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+// Add notification to history
+export function addNotificationToHistory(item: NotificationLogItem): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const logs = getStoredNotificationHistory();
+    const updated = [item, ...logs.filter((l) => l.id !== item.id)].slice(0, 30);
+    localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Error saving notification history:', err);
+  }
+}
+
+// Mark notifications as read or clear
+export function clearStoredNotificationHistory(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_LOGS);
+  } catch (err) {
+    console.warn('Error clearing notification history:', err);
+  }
+}
+
+// Determine if an occurrence represents an important transport change
+export function isImportantTransportDisruption(occ: Occurrence): boolean {
+  if (occ.type === 'GREVE') return true;
+  if (occ.type === 'CORTE') return true;
+  if (occ.type === 'AVARIA' && (occ.severity === 'Grave' || occ.severity === 'Moderada')) return true;
+  if (occ.type === 'SERVICO_PUBLICO' && occ.severity === 'Grave') return true;
+  if (occ.isBreaking) return true;
+
+  // Keyword check in title/company
+  const title = (occ.title || '').toLowerCase();
+  const company = (occ.companyOrService || '').toLowerCase();
+  if (
+    title.includes('linha suspensa') ||
+    title.includes('circulação interrompida') ||
+    title.includes('greve geral') ||
+    title.includes('sem comboios') ||
+    title.includes('sem metro') ||
+    title.includes('ponte 25 de abril') ||
+    title.includes('vasco da gama') ||
+    company.includes('cp') ||
+    company.includes('metro') ||
+    company.includes('carris') ||
+    company.includes('fertagus') ||
+    company.includes('transtejo')
+  ) {
+    return occ.severity === 'Grave' || occ.severity === 'Moderada';
+  }
+
+  return false;
+}
+
+// Evaluation: Does this occurrence match the user's notification preferences?
+export function shouldNotifyOccurrence(
+  occ: Occurrence,
+  prefs: NotificationPreferences
+): boolean {
+  if (!prefs.enabled) return false;
+  if (occ.status === 'Ocultada') return false;
+
+  // Filter 1: Severe only
+  if (prefs.severeOnly && occ.severity !== 'Grave') {
+    return false;
+  }
+
+  // Filter 2: Important transport disruption (greves, cortes de via, avarias)
+  const isImportantDisruption = isImportantTransportDisruption(occ);
+  if (prefs.importantTransportOnly && isImportantDisruption) {
+    return true;
+  }
+
+  // Filter 3: Selected city/district match
+  if (prefs.selectedDistrict === 'Todas') {
+    return true;
+  }
+
+  const selectedLower = prefs.selectedDistrict.trim().toLowerCase();
+  const occDistrictLower = (occ.district || '').trim().toLowerCase();
+  const occConcelhoLower = (occ.concelho || '').trim().toLowerCase();
+
+  return (
+    occDistrictLower === selectedLower ||
+    occConcelhoLower === selectedLower ||
+    occDistrictLower.includes(selectedLower)
+  );
+}
+
+// Send system notification (PWA ServiceWorker or standard Notification)
+export async function sendSystemNotification(
+  title: string,
+  body: string,
+  reportId?: string
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+
+  if (Notification.permission !== 'granted') {
+    return false;
+  }
+
+  const options: NotificationOptions = {
+    body,
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    tag: reportId ? `report-${reportId}` : 'parou-alert',
+    data: {
+      url: reportId ? `/?reportId=${reportId}` : '/',
+      reportId,
+    },
+  };
+
+  // Try service worker registration first (works best with PWA and mobile Android)
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && 'showNotification' in reg) {
+        await reg.showNotification(title, options);
+        return true;
+      }
+    } catch {
+      // Fall through to window Notification
+    }
+  }
+
+  // Fallback to standard web notification
+  try {
+    const notif = new Notification(title, options);
+    notif.onclick = () => {
+      window.focus();
+      if (reportId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('reportId', reportId);
+        window.history.pushState(null, '', url.toString());
+      }
+      notif.close();
+    };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Dispatches an occurrence notification (sound + system notification + history log)
+export async function dispatchOccurrenceNotification(
+  occ: Occurrence,
+  prefs: NotificationPreferences
+): Promise<NotificationLogItem | null> {
+  if (!shouldNotifyOccurrence(occ, prefs)) {
+    return null;
+  }
+
+  // Play subtle sound chime if enabled
+  if (prefs.soundEnabled) {
+    playNotificationSound();
+  }
+
+  const prefix = occ.severity === 'Grave' ? '🚨 [GRAVE] ' : occ.type === 'GREVE' ? '⚠️ [GREVE] ' : '📢 ';
+  const title = `${prefix}${occ.title}`;
+  const body = `${occ.district}${occ.concelho ? ` · ${occ.concelho}` : ''} | ${occ.companyOrService ? `${occ.companyOrService}: ` : ''}${occ.description || 'Acompanhe em direto no PAROU.PT'}`;
+
+  // Try system / PWA push notification
+  await sendSystemNotification(title, body, occ.id);
+
+  const logItem: NotificationLogItem = {
+    id: `notif-${occ.id}-${Date.now()}`,
+    title,
+    body,
+    timestamp: Date.now(),
+    reportId: occ.id,
+    type: occ.type,
+    district: occ.district,
+    read: false,
+  };
+
+  addNotificationToHistory(logItem);
+  return logItem;
+}
+
+// Send test notification to verify audio, browser permission, and toast
+export async function triggerTestNotification(
+  prefs: NotificationPreferences
+): Promise<NotificationLogItem> {
+  if (prefs.soundEnabled) {
+    playNotificationSound();
+  }
+
+  const title = 'PAROU.PT - Notificações Ativas';
+  const body = `O seu dispositivo está configurado para receber alertas em tempo real (${
+    prefs.selectedDistrict === 'Todas' ? 'Todas as regiões' : `Distrito: ${prefs.selectedDistrict}`
+  }).`;
+
+  await sendSystemNotification(title, body);
+
+  const logItem: NotificationLogItem = {
+    id: `test-${Date.now()}`,
+    title,
+    body,
+    timestamp: Date.now(),
+    read: false,
+  };
+
+  addNotificationToHistory(logItem);
+  return logItem;
+}
