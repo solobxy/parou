@@ -1,0 +1,318 @@
+{
+  "entities": {
+    "Report": {
+      "title": "Report",
+      "description": "Uma ocorrência reportada na rede colaborativa PAROU.PT em Portugal.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Título resumido da ocorrência.",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição detalhada do evento ou impacto.",
+          "maxLength": 1000
+        },
+        "type": {
+          "type": "string",
+          "description": "Categoria da ocorrência.",
+          "enum": ["ACIDENTE", "ATRASOS", "AVARIA", "GREVE", "OBRAS", "CORTE", "SERVICO_PUBLICO"]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Nível de gravidade.",
+          "enum": ["Grave", "Moderada", "Informação"]
+        },
+        "district": {
+          "type": "string",
+          "description": "Distrito de Portugal.",
+          "maxLength": 100
+        },
+        "concelho": {
+          "type": "string",
+          "description": "Concelho da ocorrência.",
+          "maxLength": 100
+        },
+        "locationDetails": {
+          "type": "string",
+          "description": "Via, paragem, estação ou rua específica.",
+          "maxLength": 250
+        },
+        "companyOrService": {
+          "type": "string",
+          "description": "Empresa ou serviço afetado (ex: Metro do Porto, CP, Carris, Brisa).",
+          "maxLength": 100
+        },
+        "reportedAt": {
+          "type": "string",
+          "description": "Texto relativo ou hora formatada.",
+          "maxLength": 50
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Timestamp em milissegundos."
+        },
+        "commentsCount": {
+          "type": "number",
+          "description": "Contagem de comentários comunitários."
+        },
+        "imagesCount": {
+          "type": "number",
+          "description": "Contagem de fotografias anexadas."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL ou referência da imagem thumbnail."
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado operacional da ocorrência.",
+          "enum": ["Ativa", "Em resolução", "Resolvida", "Em análise", "Ocultada"]
+        },
+        "upvotes": {
+          "type": "number",
+          "description": "Contador de confirmações da comunidade."
+        },
+        "confirmationsCount": {
+          "type": "number",
+          "description": "Número de votos de confirmação comunitária."
+        },
+        "unconfirmedCount": {
+          "type": "number",
+          "description": "Número de votos de não confirmação."
+        },
+        "confirmedBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs de contas ou dispositivos que confirmaram a ocorrência."
+        },
+        "unconfirmedBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs de contas ou dispositivos que votaram não confirmado."
+        },
+        "reportsCount": {
+          "type": "number",
+          "description": "Número de denúncias de moderação comunitária."
+        },
+        "reportedBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs que denunciaram a ocorrência."
+        },
+        "isCommunityVerified": {
+          "type": "boolean",
+          "description": "Verdadeiro quando o report recebe múltiplas confirmações da comunidade."
+        },
+        "authorId": {
+          "type": "string",
+          "description": "UID do utilizador autor da ocorrência (se registado)."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Nome de exibição do autor da ocorrência."
+        }
+      },
+      "required": ["title", "type", "severity", "district", "status", "timestamp"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Post de reclamação e experiência pessoal sobre empresas, transportes ou serviços públicos.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Título da reclamação.",
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string",
+          "description": "Descrição detalhada da queixa ou testemunho do utilizador.",
+          "maxLength": 2000
+        },
+        "companyOrService": {
+          "type": "string",
+          "description": "Empresa ou operador visado (ex: Carris, CP, Metro de Lisboa, STCP, Brisa).",
+          "maxLength": 100
+        },
+        "serviceType": {
+          "type": "string",
+          "description": "Tipo de transporte ou serviço.",
+          "enum": ["Autocarro", "Comboio", "Metro", "Barco", "Elétrico", "Autoestrada", "Outro"]
+        },
+        "rating": {
+          "type": "number",
+          "description": "Avaliação opcional de 1 a 5 estrelas.",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "district": {
+          "type": "string",
+          "description": "Distrito onde ocorreu o problema.",
+          "maxLength": 100
+        },
+        "concelho": {
+          "type": "string",
+          "description": "Concelho da ocorrência.",
+          "maxLength": 100
+        },
+        "locationDetails": {
+          "type": "string",
+          "description": "Paragem, linha ou estação específica.",
+          "maxLength": 200
+        },
+        "incidentDate": {
+          "type": "string",
+          "description": "Data ou hora do incidente relatado.",
+          "maxLength": 50
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Timestamp de submissão em ms."
+        },
+        "authorId": {
+          "type": "string",
+          "description": "UID do autor (ou anónimo)."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Nome de exibição do autor.",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado da reclamação.",
+          "enum": ["Pública", "Respondida", "Em análise", "Ocultada"]
+        },
+        "commentsCount": {
+          "type": "number",
+          "description": "Número de comentários comunitários."
+        },
+        "upvotes": {
+          "type": "number",
+          "description": "Apoios / concordâncias da comunidade."
+        },
+        "upvotedBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs de votantes."
+        },
+        "reportsCount": {
+          "type": "number",
+          "description": "Número de denúncias de moderação."
+        },
+        "reportedBy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista de IDs que denunciaram o post."
+        },
+        "isOpinion": {
+          "type": "boolean",
+          "description": "Sinalizador explícito para separar opiniões de ocorrências factuais em tempo real."
+        }
+      },
+      "required": ["title", "text", "companyOrService", "district", "timestamp", "isOpinion"]
+    },
+    "ComplaintComment": {
+      "title": "ComplaintComment",
+      "description": "Comentário comunitário em resposta a uma reclamação.",
+      "type": "object",
+      "properties": {
+        "complaintId": {
+          "type": "string",
+          "description": "ID da reclamação pai."
+        },
+        "text": {
+          "type": "string",
+          "description": "Texto do comentário.",
+          "maxLength": 1000
+        },
+        "authorId": {
+          "type": "string",
+          "description": "UID do autor do comentário."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Nome do autor do comentário.",
+          "maxLength": 100
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Timestamp em milissegundos."
+        }
+      },
+      "required": ["complaintId", "text", "authorName", "timestamp"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Perfil de utilizador e reputação de colaborador no PAROU.PT.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Identificador único do utilizador (UID do Firebase Auth)."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nome do utilizador.",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Endereço de email do utilizador.",
+          "maxLength": 150
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL da foto de perfil."
+        },
+        "reputationPoints": {
+          "type": "number",
+          "description": "Pontos de reputação acumulados por reports e confirmações."
+        },
+        "reportsCount": {
+          "type": "number",
+          "description": "Número total de reports submetidos pelo utilizador."
+        },
+        "badge": {
+          "type": "string",
+          "description": "Badge de colaborador (ex: Colaborador Ativo, Sentinela, Embaixador).",
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp de registo do utilizador."
+        }
+      },
+      "required": ["userId", "displayName", "email", "reputationPoints"]
+    }
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": {
+        "$ref": "#/entities/Report"
+      },
+      "description": "Coleção pública de ocorrências em tempo real."
+    },
+    "/complaints/{complaintId}": {
+      "schema": {
+        "$ref": "#/entities/Complaint"
+      },
+      "description": "Coleção pública de reclamações e avaliações comunitárias."
+    },
+    "/complaints/{complaintId}/comments/{commentId}": {
+      "schema": {
+        "$ref": "#/entities/ComplaintComment"
+      },
+      "description": "Comentários em resposta a reclamações."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Perfis públicos de utilizadores registados e reputação."
+    }
+  }
+}

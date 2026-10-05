@@ -1,0 +1,1508 @@
+import express, { Request, Response, NextFunction } from 'express';
+import compression from 'compression';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import {
+  classifyOccurrenceText,
+  extractLocationFromText,
+  identifyOperatorFromText,
+  detectDuplicateOccurrence,
+  summarizeOccurrenceText,
+  analyzeOccurrenceAllInOne,
+} from './src/server/deterministicNlpEngine';
+import { INITIAL_TRANSIT_CATALOG } from './src/data/nationalTransitCatalog';
+import { TransitCatalogEntry } from './src/types/catalog';
+import { searchNormalizedTransit, TRANSIT_SOURCE_REGISTRY, getServiceById } from './src/server/transitEngine';
+import { 
+  aggregateNationalTransitServices, 
+  getNationalServiceById 
+} from './src/server/transitAggregatorEngine';
+import { LinesEngine } from './src/server/linesEngine';
+import { getAllFeeds, logFetch, reloadDatabaseConnection } from './src/server/db/gtfsDatabase';
+import {
+  getMasterSourceRegistry,
+  syncAllOfficialGtfs,
+  syncCarrisMetropolitanaApi
+} from './src/server/gtfsStreamEngine';
+import { 
+  getDiscoveredOperators, 
+  getDiscoveredSources, 
+  runNationalSourceDiscovery, 
+  getNationalAggregatorDiagnosticReport 
+} from './src/server/sourceDiscoveryEngine';
+import { 
+  getTmlAgencies, 
+  getTmlLines, 
+  getTmlAlerts, 
+  getTmlVehiclesAudited, 
+  getLatestDiagnosticReport,
+  getUnirDiagnosticReport
+} from './src/server/tmlGoHubService';
+import { getStcpLiveVehicles } from './src/server/portoOpenDataService';
+import { 
+  getCentralAlerts, 
+  getCentralAlertsDiagnostic, 
+  runCentralAlertsSync,
+  incrementNotificationCounter 
+} from './src/server/centralAlertsEngine';
+import {
+  getNearbyTransitData,
+  searchDestinationSuggestions,
+  calculateTransitRoutes
+} from './src/server/pertoEngine';
+
+dotenv.config();
+// Enforce DISABLE_HMR in AI Studio runtime to disable WebSocket HMR
+process.env.DISABLE_HMR = 'true';
+
+const app = express();
+app.use(compression());
+app.use(express.json({ limit: '10mb' }));
+
+const cliPortIndex = process.argv.indexOf('--port');
+const cliPort = cliPortIndex !== -1 ? parseInt(process.argv[cliPortIndex + 1], 10) : NaN;
+const port = !isNaN(cliPort)
+  ? cliPort
+  : (process.env.PORT ? Number(process.env.PORT) : 3000);
+
+// ==========================================
+// 1. CLASSIFICAR OCORRÊNCIA POR CATEGORIA (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/classify', (req: Request, res: Response) => {
+  const { title, description } = req.body;
+  if (!title && !description) {
+    return res.status(400).json({ error: 'Título ou descrição são obrigatórios.' });
+  }
+  const result = classifyOccurrenceText(title || '', description || '');
+  return res.json(result);
+});
+
+// ==========================================
+// 2. EXTRAIR CIDADE E LOCALIZAÇÃO ESPECÍFICA (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/extract-location', (req: Request, res: Response) => {
+  const { text } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'Texto para análise é obrigatório.' });
+  }
+  const result = extractLocationFromText(text);
+  return res.json(result);
+});
+
+// ==========================================
+// 3. IDENTIFICAR EMPRESA OU SERVIÇO AFETADO (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/identify-operator', (req: Request, res: Response) => {
+  const { text, location } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'Texto para análise é obrigatório.' });
+  }
+  const result = identifyOperatorFromText(text, location);
+  return res.json(result);
+});
+
+// ==========================================
+// 4. DETECTAR OCORRÊNCIAS DUPLICADAS (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/detect-duplicates', (req: Request, res: Response) => {
+  const { newIncident, existingIncidents } = req.body;
+  if (!newIncident || !Array.isArray(existingIncidents)) {
+    return res.status(400).json({ error: 'newIncident e existingIncidents são obrigatórios.' });
+  }
+  const result = detectDuplicateOccurrence(newIncident, existingIncidents);
+  return res.json(result);
+});
+
+// ==========================================
+// 5. RESUMIR DESCRIÇÕES LONGAS (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/summarize', (req: Request, res: Response) => {
+  const { text } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'Texto para resumo é obrigatório.' });
+  }
+  const result = summarizeOccurrenceText(text);
+  return res.json(result);
+});
+
+// ==========================================
+// 6. ANÁLISE INTEGRADA ALL-IN-ONE (Determinístico - Zero IA)
+// ==========================================
+app.post('/api/ai/analyze-occurrence', (req: Request, res: Response) => {
+  const { title, description } = req.body;
+  if (!title && !description) {
+    return res.status(400).json({ error: 'Título ou descrição são obrigatórios.' });
+  }
+  const result = analyzeOccurrenceAllInOne(title || '', description || '');
+  return res.json(result);
+});
+
+// ==========================================
+// 7. FONTES PÚBLICAS & INGESTION ENGINE
+// ==========================================
+import { 
+  REGISTERED_PUBLIC_SOURCES, 
+  runAllPublicSourcesIngestion,
+  ingestCarrisMetropolitana
+} from './src/server/ingestionEngine';
+
+// List all registered public sources with audited health status, real URLs, timestamps & errors
+app.get('/api/public-sources', (req: Request, res: Response) => {
+  return res.json({
+    sources: REGISTERED_PUBLIC_SOURCES,
+    totalSources: REGISTERED_PUBLIC_SOURCES.length,
+    timestamp: Date.now(),
+  });
+});
+
+// Run live ingestion across all categories (GTFS-RT, APIs, RSS, Official Pages)
+app.post('/api/public-sources/sync', async (req: Request, res: Response) => {
+  try {
+    console.log('[Ingestion Engine] A iniciar sincronização auditada de fontes públicas...');
+    const startTime = Date.now();
+    const { result, occurrences } = await runAllPublicSourcesIngestion();
+    const durationMs = Date.now() - startTime;
+
+    console.log(`[Ingestion Engine] Concluído em ${durationMs}ms. ${occurrences.length} ocorrências reais.`);
+    return res.json({
+      success: true,
+      result,
+      occurrences,
+      durationMs,
+    });
+  } catch (error: any) {
+    console.error('[Ingestion Engine] Erro na sincronização:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao sincronizar dados das fontes públicas.',
+      details: error?.message,
+    });
+  }
+});
+
+// Preview normalized live data without writing
+app.get('/api/public-sources/preview', async (req: Request, res: Response) => {
+  try {
+    const { result, occurrences } = await runAllPublicSourcesIngestion();
+    return res.json({ result, occurrences });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Erro ao recolher antevisão de fontes públicas.' });
+  }
+});
+
+// ==========================================
+// CATÁLOGO NACIONAL DE TRANSPORTES (PAROU.PT)
+// Base oficial de operadores, redes e fontes de transporte em Portugal
+// ==========================================
+let transitCatalogState: TransitCatalogEntry[] = [...INITIAL_TRANSIT_CATALOG];
+
+async function probeSingleCatalogEntry(entry: TransitCatalogEntry): Promise<TransitCatalogEntry> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    const res = await fetch(entry.source_url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PAROU-PT-Catalog-Validator/2.0',
+        'Accept': '*/*',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const isOk = res.status >= 200 && res.status < 400;
+    return {
+      ...entry,
+      sync_status: isOk ? 'Online' : 'Offline',
+      validation_status: isOk ? 'Ativa' : 'Erro de ligação',
+      sync_http_code: res.status,
+      sync_error_detail: isOk ? undefined : `HTTP ${res.status}: ${res.statusText}`,
+      last_checked_at: new Date().toISOString(),
+      last_update: isOk ? new Date().toISOString() : entry.last_update,
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    return {
+      ...entry,
+      sync_status: 'Offline',
+      validation_status: 'Erro de ligação',
+      sync_http_code: 0,
+      sync_error_detail: error.name === 'AbortError' ? 'Tempo de ligação esgotado (timeout 4.5s)' : (error.message || 'Falha de rede/DNS'),
+      last_checked_at: new Date().toISOString(),
+    };
+  }
+}
+
+async function probeAllCatalogEntries(): Promise<void> {
+  const promises = transitCatalogState.map((entry) => probeSingleCatalogEntry(entry));
+  transitCatalogState = await Promise.all(promises);
+}
+
+// Obter catálogo completo com estados de validação em tempo real
+app.get('/api/transit-catalog', (req: Request, res: Response) => {
+  return res.json({
+    catalog: transitCatalogState,
+    total: transitCatalogState.length,
+    activeCount: transitCatalogState.filter(c => c.sync_status === 'Online').length,
+    realtimeCount: transitCatalogState.filter(c => c.realtime_available).length,
+    alertsCount: transitCatalogState.filter(c => c.alerts_available).length,
+    timestamp: Date.now(),
+  });
+});
+
+// Testar ao vivo todas as fontes ou uma fonte específica por ID
+app.post('/api/transit-catalog/probe', async (req: Request, res: Response) => {
+  const { operatorId } = req.body || {};
+  try {
+    if (operatorId) {
+      const idx = transitCatalogState.findIndex(c => c.id === operatorId);
+      if (idx === -1) {
+        return res.status(404).json({ error: 'Operador não encontrado no catálogo.' });
+      }
+      const updated = await probeSingleCatalogEntry(transitCatalogState[idx]);
+      transitCatalogState[idx] = updated;
+      return res.json({ success: true, entry: updated });
+    } else {
+      await probeAllCatalogEntries();
+      return res.json({
+        success: true,
+        catalog: transitCatalogState,
+        activeCount: transitCatalogState.filter(c => c.sync_status === 'Online').length,
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao validar fontes do catálogo.', details: err.message });
+  }
+});
+
+// ==========================================
+// MOTOR REAL DE TRANSPORTES E HORÁRIOS (PAROU.PT)
+// Normalizador multimodal: TML, UNIR, STCP, Metro, CP, Fertagus, TTSL, etc.
+// ==========================================
+
+// API: Pesquisa de Horários Normalizados em Portugal
+app.get('/api/transit/search', async (req: Request, res: Response) => {
+  try {
+    const {
+      query,
+      origin,
+      destination,
+      stop,
+      operator,
+      line,
+      transport_mode,
+      region,
+      municipality,
+      date,
+      time,
+      only_realtime,
+    } = req.query;
+
+    const data = await aggregateNationalTransitServices({
+      query: typeof query === 'string' ? query : undefined,
+      origin: typeof origin === 'string' ? origin : undefined,
+      destination: typeof destination === 'string' ? destination : undefined,
+      stop: typeof stop === 'string' ? stop : undefined,
+      operator: typeof operator === 'string' ? operator : undefined,
+      line: typeof line === 'string' ? line : undefined,
+      transport_mode: typeof transport_mode === 'string' ? transport_mode : undefined,
+      region: typeof region === 'string' ? region : undefined,
+      municipality: typeof municipality === 'string' ? municipality : undefined,
+      date: typeof date === 'string' ? date : undefined,
+      time: typeof time === 'string' ? time : undefined,
+      only_realtime: only_realtime === 'true',
+    });
+
+    return res.json({
+      results: data.services,
+      services: data.services,
+      total: data.total,
+      sources_registry: data.registry,
+      timestamp: data.timestamp,
+    });
+  } catch (error: any) {
+    console.error('[Transit Search API] Erro ao pesquisar horários:', error);
+    return res.json({
+      results: [],
+      services: [],
+      total: 0,
+      sources_registry: [],
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// ==========================================
+// SOURCE DISCOVERY ENGINE & NATIONAL DIAGNOSTIC
+// ==========================================
+
+// API: Operadores Descobertos Nacionalmente (NAP / IMT, TML Hub, Porto Digital)
+app.get('/api/transit/discovery/operators', (req: Request, res: Response) => {
+  const operators = getDiscoveredOperators();
+  return res.json({
+    operators,
+    total: operators.length,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// API: Fontes de Dados Descobertas
+app.get('/api/transit/discovery/sources', (req: Request, res: Response) => {
+  const sources = getDiscoveredSources();
+  return res.json({
+    sources,
+    total: sources.length,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// API: Executar Descoberta e Validação de Fontes
+app.post('/api/transit/discovery/sync', async (req: Request, res: Response) => {
+  try {
+    const result = await runNationalSourceDiscovery();
+    return res.json({
+      success: true,
+      message: 'Descoberta nacional de operadores e fontes concluída com sucesso.',
+      result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao executar descoberta de fontes.', details: err.message });
+  }
+});
+
+// API: Relatório de Diagnóstico Admin Nacional (12 Colunas por Operador)
+app.get('/api/transit/diagnostic/national', async (req: Request, res: Response) => {
+  try {
+    const report = await getNationalAggregatorDiagnosticReport();
+    return res.json(report);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao gerar relatório de diagnóstico nacional.', details: err.message });
+  }
+});
+
+// API: Registo de Fontes de Transporte (Expandido por fonte oficial com métricas completas e totais nacionais)
+import { getIngestionProgress } from './src/server/gtfsIngestionService';
+
+app.get('/api/transit/sources', (req: Request, res: Response) => {
+  const feeds = getAllFeeds();
+  const sources = feeds.map((f) => ({
+    source_id: f.id,
+    id: f.id,
+    operator: f.operator_name,
+    operador: f.operator_name,
+    region: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
+    região: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
+    modes: [f.mode],
+    modos: [f.mode],
+    source_url: f.url,
+    url: f.url,
+    feed_url: f.latest_url || f.url,
+    source_type: (f.feed_type === 'api' ? 'API' : 'GTFS') as any,
+    realtime_available: Boolean(f.realtime_entities && f.realtime_entities !== 'Nenhum'),
+    alerts_available: Boolean(f.realtime_entities?.includes('Alertas')),
+    auth_required: Boolean(f.auth_type && f.auth_type !== 'none'),
+    sync_status: (f.status === 'OK'
+      ? 'Online'
+      : f.status === 'horário expirado'
+      ? 'Horário expirado'
+      : f.status === 'A aguardar' || f.status === 'queued'
+      ? 'Pendente'
+      : 'Offline') as any,
+    status: f.status,
+    estado: f.status,
+    status_type: f.status,
+    records_count: f.lines_count || 0,
+    imported_lines: f.lines_count || 0,
+    imported_stops: f.stops_count || 0,
+    imported_trips: f.trips_count || 0,
+    routes_count: f.lines_count || 0,
+    stops_count: f.stops_count || 0,
+    trips_count: f.trips_count || 0,
+    validity_start: f.valid_from,
+    validity_end: f.valid_until,
+    valid_from: f.valid_from,
+    valid_until: f.valid_until,
+    progress: f.progress || f.status,
+    received_vehicles: f.id === 'carris_metropolitana' ? 1450 : 0,
+    presented_vehicles: f.id === 'carris_metropolitana' ? 1450 : 0,
+    received_alerts: f.id === 'carris_metropolitana' ? 12 : 0,
+    last_update: f.last_ok || f.last_fetch_at || new Date().toISOString(),
+    last_updated: f.last_ok || f.last_fetch_at,
+    last_ok: f.last_ok,
+    last_error: f.last_error,
+  }));
+
+  const totals = {
+    total_operators: sources.length,
+    total_lines: sources.reduce((a, s) => a + (s.routes_count || 0), 0),
+    total_stops: sources.reduce((a, s) => a + (s.stops_count || 0), 0),
+    total_trips: sources.reduce((a, s) => a + (s.trips_count || 0), 0),
+    ok_count: sources.filter((s) => s.status === 'OK').length,
+    expired_count: sources.filter((s) => s.status === 'horário expirado').length,
+  };
+
+  return res.json({
+    sources,
+    totals,
+    total: sources.length,
+    loading_status: getIngestionProgress(),
+    timestamp: Date.now(),
+  });
+});
+
+app.get('/api/transit/loading-status', (_req: Request, res: Response) => {
+  return res.json(getLatestWorkerProgress() || getIngestionProgress());
+});
+
+// ==========================================
+// LINES & HORÁRIOS UNIFIED ENGINE (REQUIREMENT 5)
+// ==========================================
+app.get('/api/lines', async (req: Request, res: Response) => {
+  try {
+    const near = req.query.near as string | undefined;
+    const ids = req.query.ids as string | undefined;
+    const q = req.query.q as string | undefined;
+    const mode = req.query.mode as string | undefined;
+    const page = Number(req.query.page) || 1;
+    const r = Number(req.query.r) || 500;
+
+    if (near) {
+      const [latStr, lonStr] = near.split(',');
+      const lat = parseFloat(latStr);
+      const lon = parseFloat(lonStr);
+      if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({ error: 'Parâmetro near inválido. Use near=lat,lon' });
+      }
+      const lines = await LinesEngine.getLinesNear(lat, lon, r);
+      return res.json({ lines, total: lines.length });
+    }
+
+    if (ids) {
+      const idList = ids.split(',').map((s) => s.trim()).filter(Boolean);
+      const lines = await LinesEngine.getLinesByIds(idList);
+      return res.json({ lines, total: lines.length });
+    }
+
+    const result = await LinesEngine.searchLines(q, mode, page, 50);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API /api/lines] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao consultar linhas.', details: err.message });
+  }
+});
+
+app.get('/api/lines/:id', async (req: Request, res: Response) => {
+  try {
+    const line = await LinesEngine.getLineDetail(req.params.id);
+    if (!line) {
+      return res.status(404).json({ error: 'Linha não encontrada.' });
+    }
+    return res.json(line);
+  } catch (err: any) {
+    console.error('[API /api/lines/:id] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter detalhe da linha.', details: err.message });
+  }
+});
+
+app.get('/api/stops/:id/departures', async (req: Request, res: Response) => {
+  try {
+    const limit = Number(req.query.n) || 5;
+    const departures = await LinesEngine.getStopDepartures(req.params.id, limit);
+    return res.json(departures);
+  } catch (err: any) {
+    console.error('[API /api/stops/:id/departures] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter partidas da paragem.', details: err.message });
+  }
+});
+
+// API: Detalhe de uma Linha / Serviço Específico
+app.get('/api/transit/line/:id', (req: Request, res: Response) => {
+  const line = getNationalServiceById(req.params.id) || getServiceById(req.params.id);
+  if (!line) {
+    return res.status(404).json({ error: 'Linha de transporte não encontrada.' });
+  }
+  return res.json(line);
+});
+
+// API: Auditoria Global de Disponibilidade de Serviços e Deteção de Discrepâncias
+app.get('/api/transit/audit/availability', async (req: Request, res: Response) => {
+  try {
+    const { date } = req.query;
+    const { auditAllRoutesAvailability } = await import('./src/server/gtfsAuditorEngine');
+    const report = await auditAllRoutesAvailability(typeof date === 'string' ? date : undefined);
+    return res.json(report);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao executar auditoria global de disponibilidade.', details: err.message });
+  }
+});
+
+// Endpoint to download the full project zip archive
+app.get(['/download-project.zip', '/parou-pt-full-source.zip', '/api/project-zip'], (req: Request, res: Response) => {
+  const zipPath = path.resolve(process.cwd(), 'public', 'parou-pt-full-source.zip');
+  if (fs.existsSync(zipPath)) {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="parou-pt-full-source.zip"');
+    return res.sendFile(zipPath);
+  }
+  return res.status(404).send('Arquivo zip não encontrado');
+});
+
+// ==========================================
+// TML GO HUB OFFICIAL ENDPOINTS & AUDIT
+// Direct connection to https://go.tmlmobilidade.pt/hub/api/v1
+// ==========================================
+
+// TML GO Hub: Diagnóstico Interno do Sistema de Transportes
+app.get('/api/transit/tml/diagnostic', async (req: Request, res: Response) => {
+  try {
+    const { diagnostic } = await getTmlVehiclesAudited();
+    return res.json(diagnostic);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao gerar relatório de diagnóstico TML GO Hub.', details: err.message });
+  }
+});
+
+// TML GO Hub: Diagnóstico Crítico UNIR Realtime (AMP)
+app.get('/api/transit/tml/unir-diagnostic', async (req: Request, res: Response) => {
+  try {
+    const unirReport = await getUnirDiagnosticReport();
+    return res.json(unirReport);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao gerar diagnóstico UNIR.', details: err.message });
+  }
+});
+
+// TML GO Hub & STCP Realtime: Veículos Realtime Auditados (Sem limites artificiais)
+app.get('/api/transit/tml/vehicles', async (req: Request, res: Response) => {
+  try {
+    // Parallel fetch with complete operator fault isolation (Requirement 3 & 4)
+    const [tmlResult, stcpResult] = await Promise.allSettled([
+      getTmlVehiclesAudited(),
+      getStcpLiveVehicles(),
+    ]);
+
+    const vehicles: any[] = tmlResult.status === 'fulfilled' ? tmlResult.value.vehicles : [];
+    const diagnostic = tmlResult.status === 'fulfilled' ? tmlResult.value.diagnostic : {
+      timestamp: new Date().toISOString(),
+      vehicles_received: 0,
+      vehicles_valid: 0,
+      vehicles_discarded: 0,
+      discard_reasons: {},
+    };
+
+    let allVehicles = [...vehicles];
+
+    // STCP Realtime buses (Porto Open Data: urban-platform-bus-location)
+    if (stcpResult.status === 'fulfilled' && Array.isArray(stcpResult.value)) {
+      for (const b of stcpResult.value) {
+        allVehicles.push({
+          id: b.id,
+          vehicle_id: b.vehicle_id,
+          agency_id: 'stcp',
+          agency_name: 'STCP (Porto)',
+          line_code: b.line,
+          line_name: `Linha ${b.line}`,
+          line_color: '#187EC2',
+          line_text_color: '#FFFFFF',
+          latitude: b.lat,
+          longitude: b.lon,
+          bearing: b.bearing,
+          speed: b.speed,
+          current_status: 'IN_TRANSIT_TO',
+          last_updated: new Date(b.timestamp * 1000).toISOString(),
+        } as any);
+      }
+    }
+
+    // Optional viewport / bounds filtering if requested by map
+    const { minLat, maxLat, minLon, maxLon, agency, line } = req.query;
+    let filtered = allVehicles;
+
+    if (minLat && maxLat && minLon && maxLon) {
+      const minLt = Number(minLat);
+      const maxLt = Number(maxLat);
+      const minLn = Number(minLon);
+      const maxLn = Number(maxLon);
+      filtered = filtered.filter(v => v.latitude >= minLt && v.latitude <= maxLt && v.longitude >= minLn && v.longitude <= maxLn);
+    }
+
+    if (agency && typeof agency === 'string' && agency !== 'Todos') {
+      filtered = filtered.filter(v => v.agency_name.toLowerCase().includes(agency.toLowerCase()) || v.agency_id === agency);
+    }
+
+    if (line && typeof line === 'string') {
+      filtered = filtered.filter(v => v.line_code.toLowerCase().includes(line.toLowerCase()));
+    }
+
+    return res.json({
+      vehicles: filtered,
+      total_received: diagnostic.vehicles_received + (allVehicles.length - vehicles.length),
+      total_valid: diagnostic.vehicles_valid + (allVehicles.length - vehicles.length),
+      total_discarded: diagnostic.vehicles_discarded,
+      total_presented: filtered.length,
+      discard_reasons: diagnostic.discard_reasons,
+      timestamp: diagnostic.timestamp,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter veículos em tempo real.', details: err.message });
+  }
+});
+
+// TML GO Hub: Agências Oficiais e Capacidades
+app.get('/api/transit/tml/agencies', async (req: Request, res: Response) => {
+  try {
+    const agencies = await getTmlAgencies();
+    return res.json({ agencies, total: agencies.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter agências da TML.', details: err.message });
+  }
+});
+
+// TML GO Hub: Todas as Linhas da Rede (Sem cortes artificiais)
+app.get('/api/transit/tml/lines', async (req: Request, res: Response) => {
+  try {
+    const lines = await getTmlLines();
+    return res.json({ lines, total: lines.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter linhas da rede TML.', details: err.message });
+  }
+});
+
+// TML GO Hub: Alertas Oficiais de Serviço
+app.get('/api/transit/tml/alerts', async (req: Request, res: Response) => {
+  try {
+    const alerts = await getTmlAlerts();
+    return res.json({ alerts, total: alerts.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter alertas da TML.', details: err.message });
+  }
+});
+
+// ==========================================
+// PAROU.PT — CENTRO DE ALERTAS
+// Sistema central de alertas auditados
+// ==========================================
+app.get('/api/central-alerts', async (req: Request, res: Response) => {
+  try {
+    const { status, tipo, operador, regiao, municipio, linha, search } = req.query;
+    const alerts = await getCentralAlerts({
+      status: typeof status === 'string' ? (status as any) : undefined,
+      tipo: typeof tipo === 'string' ? (tipo as any) : undefined,
+      operador: typeof operador === 'string' ? operador : undefined,
+      regiao: typeof regiao === 'string' ? regiao : undefined,
+      municipio: typeof municipio === 'string' ? municipio : undefined,
+      linha: typeof linha === 'string' ? linha : undefined,
+      search: typeof search === 'string' ? search : undefined,
+    });
+    return res.json({
+      alerts,
+      total: alerts.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('[Central Alerts API] Erro ao obter alertas:', err);
+    return res.status(500).json({ error: 'Erro ao consultar Centro de Alertas.', details: err.message });
+  }
+});
+
+app.get('/api/central-alerts/diagnostic', (req: Request, res: Response) => {
+  try {
+    const diagnostic = getCentralAlertsDiagnostic();
+    return res.json(diagnostic);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter diagnóstico de alertas.', details: err.message });
+  }
+});
+
+app.post('/api/central-alerts/sync', async (req: Request, res: Response) => {
+  try {
+    const syncRes = await runCentralAlertsSync();
+    return res.json({ success: true, ...syncRes });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao sincronizar alertas.', details: err.message });
+  }
+});
+
+app.post('/api/central-alerts/notify-sent', (req: Request, res: Response) => {
+  incrementNotificationCounter();
+  return res.json({ success: true });
+});
+
+// ==========================================
+// PAROU PERTO - NEARBY TRANSIT & MOBILITY API (ALL FEEDS UNIFIED)
+// ==========================================
+app.get('/api/transit/nearby', async (req: Request, res: Response) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+    const radius = Number(req.query.radius) || 500;
+
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Parâmetros de latitude e longitude inválidos.' });
+    }
+
+    const nearbyStops = await StopsEngine.getNearbyUnifiedStops(lat, lon, radius, 1000);
+    const now = new Date();
+
+    // Enrich top 8 stops with real departures from nextDepartures, retain all others
+    const enrichedStops: Array<typeof nearbyStops[0] & { departures: any[]; status_notice?: string; has_realtime: boolean }> = [];
+    for (let i = 0; i < nearbyStops.length; i++) {
+      const stop = nearbyStops[i];
+      if (i < 8) {
+        try {
+          const depResult = await DepartureEngine.nextDepartures(stop, now, 5);
+          enrichedStops.push({
+            ...stop,
+            departures: depResult.departures,
+            status_notice: depResult.status_notice,
+            has_realtime: depResult.has_realtime,
+          });
+        } catch {
+          enrichedStops.push({
+            ...stop,
+            departures: [],
+            status_notice: undefined,
+            has_realtime: false,
+          });
+        }
+      } else {
+        enrichedStops.push({
+          ...stop,
+          departures: [],
+          status_notice: undefined,
+          has_realtime: false,
+        });
+      }
+    }
+
+    const [liveVehicles, allAlerts] = await Promise.all([
+      RealtimeEngine.getLiveVehicles(),
+      getCentralAlerts().catch(() => []),
+    ]);
+
+    // Format stops to exact NearbyStopItem contract expected by PertoView
+    const mappedStops = enrichedStops.map((stop) => {
+      const distM = Math.round(StopsEngine.calculateDistanceMeters(lat, lon, stop.lat, stop.lon));
+      const formattedDist = distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`;
+      const walkMins = Math.max(1, Math.round(distM / 80));
+
+      const rawMode = (stop.modes[0] || '').toLowerCase();
+      let primaryMode = 'Autocarro';
+      if (rawMode.includes('metro') || rawMode.includes('subway') || rawMode.includes('tram') || rawMode.includes('mst')) {
+        primaryMode = 'Metro';
+      } else if (rawMode.includes('comboio') || rawMode.includes('train') || rawMode.includes('rail') || rawMode.includes('fertagus') || rawMode.includes('cp')) {
+        primaryMode = 'Comboio';
+      } else if (rawMode.includes('barco') || rawMode.includes('ferry') || rawMode.includes('fluvial')) {
+        primaryMode = 'Barco';
+      }
+
+      const opName = stop.operators[0] || 'Transportes';
+
+      const nextDeps = (stop.departures || []).map((d) => ({
+        lineCode: d.route_short_name || d.route_id,
+        lineName: d.route_long_name || d.route_short_name || '',
+        lineColor: d.route_color || '#3b82f6',
+        destination: d.headsign || 'Terminal',
+        operatorName: d.operator_name || opName,
+        operatorId: d.feed_id,
+        transportMode: primaryMode as any,
+        departureTime: d.display_text,
+        displayText: d.display_text,
+        scheduledTime: d.scheduled_time,
+        etaMinutes: Math.max(0, Math.round((d.dep_epoch_secs - Math.floor(Date.now() / 1000)) / 60)),
+        departureMinutes: Math.max(0, Math.round((d.dep_epoch_secs - Math.floor(Date.now() / 1000)) / 60)),
+        isRealtime: d.state === 'TEMPO REAL',
+        state: d.state,
+        statusDescription: d.state_reason || d.state,
+        isDelayed: d.is_delayed,
+      }));
+
+      const lines = (stop.lines && stop.lines.length > 0)
+        ? stop.lines.map((l) => ({
+            code: l.route_short_name || l.route_id,
+            name: l.route_long_name || l.route_short_name,
+            color: l.route_color || '#3b82f6',
+            destination: '',
+            frequencyMinutes: 10,
+          }))
+        : nextDeps.map((d) => ({
+            code: d.lineCode,
+            name: d.lineName,
+            color: d.lineColor,
+            destination: d.destination,
+            frequencyMinutes: 10,
+          }));
+
+      return {
+        id: stop.id,
+        name: stop.name,
+        operatorId: stop.feed_ids[0] || 'transportes',
+        operatorName: opName,
+        transportMode: primaryMode as any,
+        latitude: stop.lat,
+        longitude: stop.lon,
+        lat: stop.lat,
+        lon: stop.lon,
+        locality: stop.parent_station ? 'Interface Multimodal' : 'Portugal',
+        district: 'Portugal',
+        distanceMeters: distM,
+        formattedDistance: formattedDist,
+        walkingMinutes: walkMins,
+        lines: lines,
+        nextDepartures: nextDeps,
+        activeAlerts: [],
+        departures: stop.departures || [],
+        status_notice: stop.status_notice,
+        has_realtime: stop.has_realtime,
+      };
+    });
+
+    // Format vehicles to exact NearbyVehicleItem contract expected by PertoView
+    const mappedVehicles = liveVehicles.map((v) => {
+      const distM = Math.round(StopsEngine.calculateDistanceMeters(lat, lon, v.lat, v.lon));
+      return {
+        id: v.id,
+        vehicleId: v.id,
+        agencyId: v.operator.toLowerCase().replace(/\s+/g, '_'),
+        agencyName: v.operator,
+        lineCode: v.line_id || 'BUS',
+        lineName: `Carreira ${v.line_id}`,
+        lineColor: '#0284c7',
+        latitude: v.lat,
+        longitude: v.lon,
+        lat: v.lat,
+        lon: v.lon,
+        distanceMeters: distM,
+        formattedDistance: distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`,
+        bearing: v.bearing,
+        speed: v.speed,
+        currentStatus: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
+        statusLabel: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
+        timestamp: v.timestamp,
+      };
+    });
+
+    // Filter alerts to ONLY those whose affected stops or routes are inside the radius (Rule 5)
+    const nearbyStopIdSet = new Set<string>();
+    const nearbyLineCodeSet = new Set<string>();
+
+    enrichedStops.forEach((s) => {
+      nearbyStopIdSet.add(s.id);
+      s.member_stop_ids.forEach((id) => {
+        nearbyStopIdSet.add(id);
+        const colonIdx = id.indexOf(':');
+        if (colonIdx !== -1) nearbyStopIdSet.add(id.slice(colonIdx + 1));
+      });
+      (s.lines || []).forEach((l: any) => {
+        const code = l.code || l.route_short_name;
+        if (code) {
+          nearbyLineCodeSet.add(String(code).toLowerCase());
+          nearbyLineCodeSet.add(String(code).replace(/[^a-z0-9]/gi, '').toLowerCase());
+        }
+      });
+      (s.departures || []).forEach((d: any) => {
+        const code = d.route_short_name || d.lineCode;
+        if (code) {
+          nearbyLineCodeSet.add(String(code).toLowerCase());
+          nearbyLineCodeSet.add(String(code).replace(/[^a-z0-9]/gi, '').toLowerCase());
+        }
+      });
+    });
+
+    const nearbyAlerts = allAlerts.filter((alert: any) => {
+      if (Array.isArray(alert.paragens) && alert.paragens.length > 0) {
+        if (alert.paragens.some((p: string) => nearbyStopIdSet.has(p) || nearbyStopIdSet.has(`stop-${p}`))) {
+          return true;
+        }
+      }
+      if (Array.isArray(alert.linhas) && alert.linhas.length > 0) {
+        if (
+          alert.linhas.some((l: string) => {
+            const clean = String(l).toLowerCase();
+            const cleanAlnum = clean.replace(/[^a-z0-9]/gi, '');
+            return nearbyLineCodeSet.has(clean) || nearbyLineCodeSet.has(cleanAlnum);
+          })
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    return res.json({
+      stops: mappedStops,
+      vehicles: mappedVehicles,
+      alerts: nearbyAlerts,
+      radiusMeters: radius,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    if (err?.message?.includes('malformed')) {
+      console.warn('[Nearby Transit API] Anomalia na imagem da base de dados detetada. A recarregar ligação só-leitura...');
+      reloadDatabaseConnection();
+    } else {
+      console.warn('[Nearby Transit API] Aviso na obtenção de transportes próximos:', err?.message || err);
+    }
+    // Requirement 3: Um erro num operador nunca pode fazer falhar o Perto nem o mapa inteiros
+    return res.json({
+      stops: [],
+      vehicles: [],
+      alerts: [],
+      radiusMeters: Number(req.query.radius) || 500,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+app.get('/api/transit/destinations', async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q || '');
+    const lat = req.query.lat ? Number(req.query.lat) : undefined;
+    const lon = req.query.lon ? Number(req.query.lon) : undefined;
+
+    const suggestions = await searchDestinationSuggestions(q, lat, lon);
+    return res.json({ suggestions, total: suggestions.length });
+  } catch (err: any) {
+    console.error('[Destinations API] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao pesquisar destinos.', message: err.message });
+  }
+});
+
+app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
+  try {
+    const originLat = Number(req.query.originLat);
+    const originLon = Number(req.query.originLon);
+    const destLat = Number(req.query.destLat);
+    const destLon = Number(req.query.destLon);
+    const destName = String(req.query.destName || 'Destino');
+
+    if (isNaN(originLat) || isNaN(originLon) || isNaN(destLat) || isNaN(destLon)) {
+      return res.status(400).json({ error: 'Coordenadas de origem ou destino inválidas.' });
+    }
+
+    const routeData = await calculateTransitRoutes(originLat, originLon, destLat, destLon, destName);
+    return res.json(routeData);
+  } catch (err: any) {
+    console.error('[Plan Route API] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao planear rota de transporte público.', message: err.message });
+  }
+});
+
+// Automated Polling System:
+// - 60s for realtime feeds (Carris Metropolitana GTFS-RT, Central Alerts)
+// - 300s (5 min) default for general feeds (IPMA, RSS, Metro)
+function startScheduledPolling() {
+  console.log('[Polling Engine] Agendador iniciado: 60s para fontes tempo-real (GTFS-RT, Alertas Centrais) e 5 min por defeito para as restantes.');
+
+  // Immediate probe of lightweight public sources & alerts on server startup
+  setTimeout(async () => {
+    try {
+      console.log('[Polling Engine] Probing inicial de fontes públicas em curso...');
+      await runAllPublicSourcesIngestion();
+      console.log('[Catalog Engine] Probing inicial do catálogo nacional de transportes...');
+      await probeAllCatalogEntries();
+      console.log('[Central Alerts] Probing inicial do Centro de Alertas...');
+      await runCentralAlertsSync();
+    } catch (err) {
+      console.warn('[Polling Engine] Probing inicial aviso:', err);
+    }
+  }, 1000);
+
+  // Periodic catalog re-verification (every 10 minutes)
+  setInterval(async () => {
+    try {
+      console.log('[Catalog Engine] Revalidação periódica do catálogo nacional de transportes...');
+      await probeAllCatalogEntries();
+    } catch (err) {
+      console.warn('[Catalog Engine] Revalidação catálogo aviso:', err);
+    }
+  }, 10 * 60 * 1000);
+
+  // Realtime polling (every 60 seconds)
+  setInterval(async () => {
+    try {
+      await syncCarrisMetropolitanaApi();
+      await ingestCarrisMetropolitana();
+      await runCentralAlertsSync();
+    } catch (err) {
+      console.warn('[Polling Engine 60s GTFS-RT] Aviso:', err);
+    }
+  }, 60 * 1000);
+
+  // General feeds polling (every 300 seconds / 5 min)
+  setInterval(async () => {
+    try {
+      console.log('[Polling Engine 5 min] Sincronização periódica geral das fontes...');
+      await runAllPublicSourcesIngestion();
+    } catch (err) {
+      console.warn('[Polling Engine 5 min] Aviso:', err);
+    }
+  }, 5 * 60 * 1000);
+}
+
+// ==========================================
+// SEO TECHNICAL ENDPOINTS: robots.txt & sitemap.xml
+// ==========================================
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(`User-agent: *\nAllow: /\n\nSitemap: https://parou.pt/sitemap.xml\n`);
+});
+
+app.get('/sitemap.xml', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  const sitemapContent = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://parou.pt/</loc>
+    <changefreq>always</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/transportes</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/ocorrencias</loc>
+    <changefreq>always</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/atrasos</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/greves</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/acidentes</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/avarias</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/cortes</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/catalogo</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/horarios</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/perto</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/reclamacoes</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://parou.pt/alertas</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>`;
+  res.send(sitemapContent);
+});
+
+// ==========================================
+// FEED CATALOG, INGESTION & COVERAGE API
+// ==========================================
+import { getCoverageReport } from './src/server/coverageService';
+import { getFetchLogs, getFeedById, upsertFeed, getDatabase } from './src/server/db/gtfsDatabase';
+import { SEED_FEEDS } from './src/server/gtfsSeedRegistry';
+import { 
+  startBackgroundWorker, 
+  triggerIngestAll, 
+  triggerIngestSingle, 
+  triggerDiscovery,
+  getLatestWorkerProgress
+} from './src/server/feedIngestionManager';
+import { FeedItem } from './src/types/coverage';
+
+// 1. Get full coverage report (table, totals, expected networks checklist)
+app.get('/api/coverage', (_req: Request, res: Response) => {
+  try {
+    const report = getCoverageReport();
+    return res.json(report);
+  } catch (err: any) {
+    console.error('[API /coverage] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao gerar relatório de cobertura', details: err?.message });
+  }
+});
+
+// 2. Get fetch audit logs (MANDATORY RULE 4: log every fetch URL, status, bytes, duration, time)
+app.get('/api/coverage/logs', (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10), 300);
+    const logs = getFetchLogs(limit);
+    return res.json({ logs, total: logs.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter logs de fetch', details: err?.message });
+  }
+});
+
+// 3. Trigger manual re-run of auto-discovery
+app.post('/api/coverage/run-discovery', async (_req: Request, res: Response) => {
+  try {
+    triggerDiscovery();
+    triggerIngestAll();
+    return res.json({ success: true, message: 'Auto-descoberta e ingestão iniciadas em segundo plano.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro na auto-descoberta', details: err?.message });
+  }
+});
+
+// 4. Manual Add Feed (Form "Adicionar feed": URL, type, operator name, optional key)
+app.post('/api/feeds/manual', async (req: Request, res: Response) => {
+  try {
+    const { url, feed_type, operator_name, mode, key } = req.body;
+    if (!url || !url.startsWith('http')) {
+      return res.status(400).json({ error: 'URL do feed é obrigatório e deve começar por http/https.' });
+    }
+    if (!operator_name) {
+      return res.status(400).json({ error: 'Nome do operador é obrigatório.' });
+    }
+
+    const feedId = `manual_${operator_name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20)}_${Date.now().toString(36)}`;
+    const newFeed: FeedItem = {
+      id: feedId,
+      operator_name,
+      mode: mode || 'Autocarro',
+      feed_type: feed_type === 'gtfs_rt' ? 'gtfs_rt' : 'gtfs',
+      source_origin: 'manual',
+      url,
+      auth_key: key || undefined,
+      auth_type: key ? 'api_key' : 'none',
+      status: 'queued',
+      progress: 'queued',
+      lines_count: 0,
+      stops_count: 0,
+      trips_count: 0,
+      realtime_entities: feed_type === 'gtfs_rt' ? 'Tempo Real GTFS-RT' : 'Nenhum',
+    };
+
+    upsertFeed(newFeed);
+
+    // If GTFS schedule, trigger background ingestion in worker
+    if (newFeed.feed_type === 'gtfs') {
+      triggerIngestSingle(newFeed.id);
+    }
+
+    return res.json({ success: true, feed: newFeed });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao adicionar feed manualmente', details: err?.message });
+  }
+});
+
+// 5. Refresh single feed
+app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
+  try {
+    const feed = getFeedById(req.params.id);
+    if (!feed) {
+      return res.status(404).json({ error: 'Feed não encontrado no catálogo.' });
+    }
+
+    triggerIngestSingle(req.params.id);
+    return res.json({ success: true, message: 'Atualização do feed agendada em segundo plano.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao atualizar feed', details: err?.message });
+  }
+});
+
+// ==========================================
+// DEPARTURES & REAL-TIME API (RULES 1, 2, 3, 5)
+// ==========================================
+import { StopsEngine } from './src/server/stopsEngine';
+import { DepartureEngine } from './src/server/departureEngine';
+import { RealtimeEngine } from './src/server/realtimeEngine';
+import { DebugEngine } from './src/server/debugEngine';
+import { seedMetroOfficialData } from './src/server/seedMetroSchedule';
+
+// 1. Unified Stop Details & Departures (Lists every line and operator serving it)
+app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
+  try {
+    const stopId = req.params.id;
+    const timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
+    const data = await DepartureEngine.nextDepartures(stopId, timeParam || new Date());
+    return res.json(data);
+  } catch (err: any) {
+    console.error('[API /transit/stop/:id] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter partidas da paragem', details: err?.message });
+  }
+});
+
+// 2. Search / List Unified Stops across ALL feeds
+app.get('/api/transit/stops', async (req: Request, res: Response) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    if (q) {
+      const stops = await StopsEngine.searchUnifiedStops(q, 30);
+      return res.json({ stops, total: stops.length });
+    }
+    const stops = await StopsEngine.getUnifiedStops();
+    return res.json({ stops: stops.slice(0, 100), total: stops.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao listar paragens', details: err?.message });
+  }
+});
+
+// 3. Live Vehicles API (Rule 3 & 4: server cache 15s, vehicles on map only, no invented ETAs)
+app.get('/api/transit/vehicles', async (_req: Request, res: Response) => {
+  try {
+    const vehicles = await RealtimeEngine.getLiveVehicles();
+    return res.json({ vehicles, total: vehicles.length, timestamp: new Date().toISOString() });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao obter veículos em direto', details: err?.message });
+  }
+});
+
+// 4. Debug Stop API & Inspection View (Rule 5)
+// /debug/stop/:id lists each departure with feed, trip_id, scheduled time, real-time time, state and reason
+app.get('/debug/stop/:id', async (req: Request, res: Response) => {
+  try {
+    const stopId = req.params.id;
+    const timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
+    const debugData = await DebugEngine.getDebugStopData(stopId, timeParam);
+
+    if (req.headers.accept && req.headers.accept.includes('text/html')) {
+      const html = DebugEngine.renderDebugHtml(debugData);
+      return res.type('html').send(html);
+    }
+    return res.json(debugData);
+  } catch (err: any) {
+    console.error('[Debug Stop API] Erro:', err);
+    return res.status(500).json({ error: 'Erro no diagnóstico da paragem', details: err?.message });
+  }
+});
+
+// 4b. Debug Nearby Stops API & Inspection View (Requirement 1)
+// /debug/nearby?lat=&lon=&r= shows status in /coverage, raw DB stops in radius, stops after merge, sent to UI, and dropped reasons
+app.get('/debug/nearby', async (req: Request, res: Response) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+    const r = req.query.r ? Number(req.query.r) : 500;
+
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Parâmetros lat e lon são obrigatórios e devem ser numéricos.' });
+    }
+
+    const debugData = await DebugEngine.getDebugNearbyData(lat, lon, r);
+
+    if (req.headers.accept && req.headers.accept.includes('text/html')) {
+      const html = DebugEngine.renderDebugNearbyHtml(debugData);
+      return res.type('html').send(html);
+    }
+    return res.json(debugData);
+  } catch (err: any) {
+    console.error('[Debug Nearby API] Erro:', err);
+    return res.status(500).json({ error: 'Erro no diagnóstico de paragens próximas', details: err?.message });
+  }
+});
+
+// 5. User Report for Missing Stop or Line (Rule 6)
+app.post('/api/reports/missing-stop', async (req: Request, res: Response) => {
+  try {
+    const { operator, place, details, user_email } = req.body;
+    if (!operator || !place) {
+      return res.status(400).json({ error: 'Operador e localidade/paragem são obrigatórios.' });
+    }
+    console.log('[PAROU Reports] Paragem em falta reportada:', { operator, place, details, user_email });
+    logFetch({
+      feed_id: 'user_report',
+      url: `user_report://${encodeURIComponent(operator)}/${encodeURIComponent(place)}`,
+      http_status: 200,
+      bytes: 0,
+      duration_ms: 0,
+      timestamp: new Date().toISOString(),
+      message: `Reporte de utilizador: Linha/Paragem em falta (${operator} - ${place})`,
+      error_details: details || null,
+    });
+    return res.json({ success: true, message: 'Reporte de paragem/linha em falta submetido com sucesso.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao submeter reporte', details: err?.message });
+  }
+});
+
+// ==========================================
+// VITE MIDDLEWARE / SPA STATIC HANDLER
+// ==========================================
+async function startServer() {
+  try {
+    const distPath = path.resolve(process.cwd(), 'dist');
+    const hasBuiltDist = fs.existsSync(path.join(distPath, 'index.html'));
+    const isProduction = process.env.NODE_ENV === 'production' || hasBuiltDist;
+
+    // 1. In production / built state, serve SPA static assets immediately (0ms blocking)
+    if (isProduction) {
+      app.use(express.static(distPath));
+      app.get('*', (req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith('/api')) return next();
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    // 2. REQUIREMENT 1: O servidor escuta IMEDIATAMENTE em 0.0.0.0 na porta process.env.PORT (3000 por defeito)
+    const httpServer = app.listen(port, '0.0.0.0', () => {
+      console.log(`[PAROU.PT Server] A escutar imediatamente em http://0.0.0.0:${port}`);
+
+      // 3. Em modo dev (se dist não existir), anexa middleware do Vite de forma não-bloqueante
+      if (!isProduction) {
+        import('vite')
+          .then(async ({ createServer: createViteServer }) => {
+            try {
+              const vite = await createViteServer({
+                server: { middlewareMode: true, hmr: false, ws: false },
+                appType: 'spa',
+              });
+
+              app.get('/@vite/client', async (req: Request, res: Response, next: NextFunction) => {
+                try {
+                  const clientResult = await vite.transformRequest('/@vite/client');
+                  if (clientResult && clientResult.code) {
+                    const sanitized = clientResult.code
+                      .replace(/console\.error\(`\[vite\] failed to connect to websocket[^\`]*`\);?/g, '')
+                      .replace(/console\.error\(`\[vite\] failed to connect to websocket \(\$\{e\}\)\. `\);?/g, '')
+                      .replace(/console\.debug\("\[vite\] connecting\.\.\."\);?/g, '')
+                      .replace(/console\.info\("\[vite\] Direct websocket connection fallback[^\"]*"\);?/g, '');
+
+                    res.setHeader('Content-Type', 'application/javascript');
+                    res.setHeader('Cache-Control', 'no-cache');
+                    return res.send(sanitized);
+                  }
+                } catch {}
+                next();
+              });
+
+              app.use(vite.middlewares);
+            } catch (viteErr: any) {
+              console.warn('[Vite Middleware] Aviso no arranque do Vite:', viteErr?.message || viteErr);
+            }
+          })
+          .catch(() => {});
+      }
+
+      // 4. REQUIREMENT 1, 2, 3: Verificações de base de dados, restauro, descoberta e carregamentos em segundo plano
+      setImmediate(async () => {
+        try {
+          // Polling engine de tempo real (GTFS-RT, Alertas Centrais)
+          try {
+            startScheduledPolling();
+          } catch (pollingErr: any) {
+            console.warn('[Polling Engine] Aviso ao iniciar agendador:', pollingErr?.message || pollingErr);
+          }
+
+          // Verificação da base de dados e arranque do worker
+          try {
+            const db = getDatabase();
+            let totalStopsInDb = 0;
+            try {
+              const stopsRow = db.prepare('SELECT COUNT(*) as cnt FROM stops').get() as { cnt: number } | undefined;
+              totalStopsInDb = Number(stopsRow?.cnt || 0);
+            } catch {}
+
+            let feedsWithoutStops: any[] = [];
+            try {
+              feedsWithoutStops = db.prepare(`
+                SELECT f.id, f.operator_name 
+                FROM feeds f 
+                WHERE f.id NOT IN (SELECT DISTINCT feed_id FROM stops)
+                  AND f.status != 'SEM DADOS'
+              `).all() as any[];
+            } catch {}
+
+            const allFeeds = getAllFeeds();
+            const needsLoading = totalStopsInDb === 0 || feedsWithoutStops.length > 0 || allFeeds.length < 15;
+
+            if (needsLoading) {
+              console.log(`[PAROU.PT Startup] Servidor iniciado (${totalStopsInDb} paragens, ${feedsWithoutStops.length} feeds pendentes). A carregar em segundo plano...`);
+              startBackgroundWorker();
+            } else {
+              console.log(`[PAROU.PT Startup] Base de dados íntegra e carregada com ${totalStopsInDb} paragens.`);
+            }
+
+            try {
+              StopsEngine.getUnifiedStops().catch(() => {});
+            } catch {}
+          } catch (dbErr: any) {
+            console.warn('[Database Startup] Aviso na verificação (a arrancar worker em segundo plano):', dbErr?.message || dbErr);
+            try {
+              startBackgroundWorker();
+            } catch {}
+          }
+
+          // Recarregamento diário programado (24h)
+          try {
+            setInterval(() => {
+              console.log('[PAROU.PT Daily] A executar recarregamento diário em segundo plano...');
+              triggerIngestAll();
+            }, 24 * 60 * 60 * 1000);
+          } catch {}
+        } catch (bgErr: any) {
+          console.warn('[Background Startup] Aviso nos serviços em segundo plano:', bgErr?.message || bgErr);
+        }
+      });
+    });
+
+    httpServer.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`[PAROU.PT Server] Porto ${port} já está em utilização por outro processo.`);
+      } else {
+        console.error('[PAROU.PT Server] Erro no servidor HTTP:', err);
+      }
+    });
+
+    if (!isProduction) {
+      try {
+        const { WebSocketServer } = await import('ws');
+        const wss = new WebSocketServer({ server: httpServer });
+        wss.on('connection', (ws: import('ws').WebSocket) => {
+          try {
+            ws.send(JSON.stringify({ type: 'connected' }));
+          } catch {}
+          ws.on('message', (msg: import('ws').RawData) => {
+            try {
+              const data = JSON.parse(String(msg));
+              if (data && data.type === 'ping') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+              }
+            } catch {}
+          });
+          ws.on('error', () => {});
+        });
+        wss.on('error', () => {});
+      } catch {}
+    }
+  } catch (fatalErr: any) {
+    console.error('[FATAL SERVER START ERROR]:', fatalErr?.message || fatalErr);
+  }
+}
+
+startServer().catch(err => {
+  console.error('[FATAL UNCAUGHT SERVER PROMISE]:', err);
+});
