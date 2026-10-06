@@ -91,7 +91,7 @@ export interface LineSummary {
     direction_id: number;
     destination: string;
     time: string;
-    state: 'Tempo Real' | 'Programado' | 'Suprimido';
+    state: 'Tempo Real' | 'Programado' | 'Suprimido' | 'Sem dados';
     countdown_minutes: number;
     displayText: string;
     aviso_horario?: string;
@@ -132,7 +132,7 @@ export interface StopDepartureItem {
   destination: string;
   scheduled_time: string;
   actual_time?: string;
-  state: 'Tempo Real' | 'Programado' | 'Suprimido';
+  state: 'Tempo Real' | 'Programado' | 'Suprimido' | 'Sem dados';
   countdown_minutes: number;
   delay_minutes?: number;
   displayText: string;
@@ -624,10 +624,10 @@ export class LinesEngine {
         departures.push({
           direction_id: 0,
           destination: card.destinations[0] || card.name || 'Destino',
-          time: 'sem horário',
-          state: 'Suprimido',
+          time: '—',
+          state: 'Sem dados',
           countdown_minutes: 99999,
-          displayText: 'sem horário',
+          displayText: 'Horário indisponível',
           ...(avisoHorario ? { aviso_horario: avisoHorario } : {}),
         });
       }
