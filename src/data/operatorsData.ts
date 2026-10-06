@@ -22,7 +22,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'atendimento@metrolisboa.pt',
     status: 'Condicionado',
     statusDescription: 'Linha Amarela com atrasos pontuais (+9 min) no troço Campo Grande ↔ Rato. Linhas Azul, Verde e Vermelha com circulação regular.',
-    activeIncidentsCount: 3,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 2 min',
     lines: [
       { id: 'ml-azul', code: 'Linha Azul', name: 'Linha da Gaivota', origin: 'Reboleira', destination: 'Santa Apolónia', mode: 'Metro', status: 'Normal', color: '#0072CE', routeTypeGtfs: 1 },
@@ -60,7 +60,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'metro@metrodoporto.pt',
     status: 'Gravemente Afetado',
     statusDescription: 'Circulação cortada na Linha A entre Trindade e Campanhã por quebra de catenária. Autocarros de apoio em circulação.',
-    activeIncidentsCount: 8,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 3 min',
     lines: [
       { id: 'mp-a', code: 'Linha A', name: 'Linha Azul', origin: 'Estádio do Dragão', destination: 'Senhor de Matosinhos', mode: 'Metro', status: 'Interrompido', color: '#0070BA', routeTypeGtfs: 1 },
@@ -100,7 +100,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'apoioaocliente@cp.pt',
     status: 'Condicionado',
     statusDescription: 'Atrasos médios de 15 min na Linha de Sintra e no Regional do Algarve. Eixo Norte-Sul (Alfa Pendular e Intercidades) a operar dentro dos tempos regulares.',
-    activeIncidentsCount: 14,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 4 min',
     lines: [
       { id: 'cp-sintra', code: 'Linha de Sintra', name: 'Urbanos de Lisboa', origin: 'Sintra', destination: 'Rossio / Oriente', mode: 'Comboio', status: 'Atrasado', color: '#00835D', routeTypeGtfs: 2 },
@@ -141,7 +141,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'atendimento@carris.pt',
     status: 'Condicionado',
     statusDescription: 'Circulação no Elétrico 28E suspensa entre Graça e Portas do Sol devido a viatura em cima dos carris. Carreiras 728 e 736 com demoras de 12 min na zona ribeirinha.',
-    activeIncidentsCount: 7,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 5 min',
     lines: [
       { id: 'carris-728', code: '728', name: 'Restelo ↔ Portela', origin: 'Restelo (Av. Descobertas)', destination: 'Portela - Rotunda', mode: 'Autocarro', status: 'Atrasado', color: '#E30613', routeTypeGtfs: 3 },
@@ -180,7 +180,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'reclamacoes@stcp.pt',
     status: 'Condicionado',
     statusDescription: 'Linha 205 condicionada por obras na Circunvalação. Linha 500 (marginal fluvial/marítima) a funcionar normalmente.',
-    activeIncidentsCount: 4,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 6 min',
     lines: [
       { id: 'stcp-200', code: '200', name: 'Bolhão ↔ Castelo do Queijo', origin: 'Bolhão', destination: 'Castelo do Queijo', mode: 'Autocarro', status: 'Normal', color: '#0085CA', routeTypeGtfs: 3 },
@@ -252,7 +252,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'apoio.cliente@ttsl.pt',
     status: 'Operacional',
     statusDescription: 'Ligações fluviais entre Cais do Sodré, Terreiro do Paço e a Margem Sul a operar em condições regulares.',
-    activeIncidentsCount: 1,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 8 min',
     lines: [
       { id: 'ttsl-cacilhas', code: 'Cais do Sodré ↔ Cacilhas', name: 'Ligação Cacilhas', origin: 'Cais do Sodré', destination: 'Cacilhas', mode: 'Barco', status: 'Normal', color: '#005596', routeTypeGtfs: 4 },
@@ -290,7 +290,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'contacto@carrismetropolitana.pt',
     status: 'Operacional',
     statusDescription: 'Rede rodoviária intermunicipal da Área Metropolitana de Lisboa com circulação globalmente estável nas 4 áreas operacionais.',
-    activeIncidentsCount: 5,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 15 min',
     lines: [
       { id: 'cm-4701', code: '4701', name: 'Azeitão ↔ Lisboa (Sete Rios)', origin: 'Azeitão', destination: 'Lisboa (Sete Rios)', mode: 'Autocarro', status: 'Normal', color: '#FFCC00', routeTypeGtfs: 3 },
@@ -327,7 +327,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'geral@unirmobilidade.pt',
     status: 'Condicionado',
     statusDescription: 'Adaptações de horários e percursos em curso nos lotes 3 e 4. Linhas troncais com serviço regular.',
-    activeIncidentsCount: 6,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 18 min',
     lines: [
       { id: 'unir-9001', code: '9001', name: 'Porto (Campanhã) ↔ Gondomar', origin: 'Porto (Campanhã)', destination: 'Gondomar (Souto)', mode: 'Autocarro', status: 'Normal', color: '#002B49', routeTypeGtfs: 3 },
@@ -360,7 +360,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'reclamacoes@tub.pt',
     status: 'Condicionado',
     statusDescription: 'Linha 7 com atrasos de 8 min devido a trânsito intenso no nó de acesso à Universidade do Minho (Gualtar).',
-    activeIncidentsCount: 2,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 7 min',
     lines: [
       { id: 'tub-2', code: 'Linha 2', name: 'Ponte de Prado ↔ Bom Jesus', origin: 'Ponte de Prado', destination: 'Bom Jesus do Monte', mode: 'Autocarro', status: 'Normal', color: '#28A745', routeTypeGtfs: 3 },
@@ -394,7 +394,7 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     customerSupportEmail: 'smtuc@smtuc.pt',
     status: 'Operacional',
     statusDescription: 'Circulação normal em todas as carreiras municipais de Coimbra.',
-    activeIncidentsCount: 1,
+    activeIncidentsCount: 0,
     lastStatusUpdate: 'há 12 min',
     lines: [
       { id: 'smtuc-4', code: 'Linha 4', name: 'Arnado ↔ Santo António dos Olivais', origin: 'Arnado', destination: 'Santo António dos Olivais', mode: 'Autocarro', status: 'Normal', color: '#17A2B8', routeTypeGtfs: 3 },

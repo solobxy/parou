@@ -301,9 +301,16 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
 
                           <div className="text-right shrink-0 flex items-center gap-2">
                             {stop.next_arrival && stop.next_arrival !== 'sem horário' ? (
-                              <span className="font-mono text-xs font-bold text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
-                                {stop.next_arrival}
-                              </span>
+                              <div>
+                                <span className="font-mono text-xs font-bold text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
+                                  {stop.next_arrival}
+                                </span>
+                                {line.aviso_horario && (
+                                  <span className="text-[9px] text-amber-400/90 block font-medium mt-0.5" title={line.aviso_horario}>
+                                    {line.aviso_horario}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-[10px] text-slate-500 font-mono">sem horário</span>
                             )}
@@ -352,9 +359,16 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">
-                                      <span className="font-mono font-bold text-white">
-                                        {dep.scheduled_time}
-                                      </span>
+                                      <div className="text-right">
+                                        <span className="font-mono font-bold text-white">
+                                          {dep.scheduled_time}
+                                        </span>
+                                        {(dep.aviso_horario || line.aviso_horario) && (
+                                          <span className="text-[9px] text-amber-400/90 block font-medium" title={dep.aviso_horario || line.aviso_horario}>
+                                            {dep.aviso_horario || line.aviso_horario}
+                                          </span>
+                                        )}
+                                      </div>
                                       <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/40">
                                         {dep.displayText}
                                       </span>

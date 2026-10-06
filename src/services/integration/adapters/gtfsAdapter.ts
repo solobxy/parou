@@ -45,29 +45,10 @@ export class GtfsStaticAdapter implements ExternalSourceAdapter<GtfsStaticPayloa
   }
 
   async fetchRaw(endpointUrl?: string): Promise<GtfsStaticPayload> {
-    // Quando descarregar e processar o arquivo .zip de GTFS estático:
-    // const zip = await fetch(endpointUrl).then(r => r.blob());
-    // parse CSV tables: agency.txt, routes.txt, etc.
-
     return {
-      agencies: [
-        { agency_id: 'PT-ML', agency_name: 'Metro de Lisboa', agency_url: 'https://www.metrolisboa.pt', agency_timezone: 'Europe/Lisbon' },
-        { agency_id: 'PT-CP', agency_name: 'CP - Comboios de Portugal', agency_url: 'https://www.cp.pt', agency_timezone: 'Europe/Lisbon' },
-      ],
-      routes: [
-        { route_id: 'ML-AZUL', agency_id: 'PT-ML', route_short_name: 'Azul', route_long_name: 'Reboleira - Santa Apolónia', route_type: 1, route_color: '0072CE' },
-        { route_id: 'CP-CASCAIS', agency_id: 'PT-CP', route_short_name: 'Cascais', route_long_name: 'Cais do Sodré - Cascais', route_type: 2, route_color: '0270BA' },
-      ],
-      scheduledDisruptions: [
-        {
-          route_id: 'ML-AZUL',
-          agency_id: 'PT-ML',
-          notice_title: 'Obras programadas de melhoria na Estação Baixa-Chiado',
-          description: 'Trabalhos de substituição de escadas rolantes na saída da Rua do Crucifixo.',
-          start_date: '20261001',
-          end_date: '20261015',
-        },
-      ],
+      agencies: [],
+      routes: [],
+      scheduledDisruptions: [],
     };
   }
 

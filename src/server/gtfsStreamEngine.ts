@@ -1345,60 +1345,6 @@ export function getMasterSourceRegistry(): TransitSourceRegistryEntry[] {
     }));
   }
 
-  // 3. UNIR Mobilidade (AMP) via API oficial
-  registry.push(createEntry({
-    source_id: 'unir-mobilidade',
-    operator: 'UNIR Mobilidade (AMP)',
-    region: 'Área Metropolitana do Porto',
-    modes: ['Autocarro'],
-    url: 'https://go.tmlmobilidade.pt/hub/api/v1/network/lines',
-    source_type: 'API',
-    realtime_available: true,
-    alerts_available: true,
-    auth_required: false,
-    sync_status: 'Online',
-    last_update: new Date().toISOString(),
-    records_count: 430,
-    error: null,
-    imported_lines: 430,
-    imported_stops: 6800,
-    imported_trips: 0,
-    received_vehicles: 128,
-    presented_vehicles: 128,
-    received_alerts: 0,
-  }));
-
-  // 4. Restantes Operadores Nacionais (NAP / IMT: https://nap-portugal.imt-ip.pt/)
-  // Quando sem feed público aberto no NAP, assinalar com "Fonte em falta"
-  const NAP_OPERATORS = [
-    { id: 'fertagus', operator: 'Fertagus', region: 'Área Metropolitana de Lisboa', modes: ['Comboio'] as TransitTransportMode[] },
-    { id: 'tub-braga', operator: 'TUB - Transportes Urbanos de Braga', region: 'Cávado / Minho', modes: ['Autocarro'] as TransitTransportMode[] },
-    { id: 'smtuc-coimbra', operator: 'SMTUC - Serviços Municipalizados de Coimbra', region: 'Região de Coimbra', modes: ['Autocarro'] as TransitTransportMode[] },
-    { id: 'aveirobus', operator: 'AveiroBus', region: 'Região de Aveiro', modes: ['Autocarro', 'Barco'] as TransitTransportMode[] },
-    { id: 'proximo-faro', operator: 'Próximo / Mobilidade de Faro', region: 'Algarve', modes: ['Autocarro'] as TransitTransportMode[] },
-    { id: 'tcb-barreiro', operator: 'TCB - Transportes Colectivos do Barreiro', region: 'Área Metropolitana de Lisboa', modes: ['Autocarro'] as TransitTransportMode[] },
-  ];
-
-  for (const nap of NAP_OPERATORS) {
-    registry.push(createEntry({
-      source_id: nap.id,
-      operator: nap.operator,
-      region: nap.region,
-      modes: nap.modes,
-      url: 'https://nap-portugal.imt-ip.pt/',
-      source_type: 'GTFS',
-      realtime_available: false,
-      alerts_available: false,
-      auth_required: true,
-      sync_status: 'Fonte em falta',
-      last_update: new Date().toISOString(),
-      records_count: 0,
-      error: 'Feed GTFS não publicado ou com autenticação restrita no NAP/IMT',
-      imported_lines: 0,
-      imported_stops: 0,
-      imported_trips: 0,
-    }));
-  }
 
   return registry;
 }
@@ -1885,52 +1831,10 @@ export async function searchRealTransitServices(query: TransitSearchQuery): Prom
           let serviceStatus: NormalizedTransitService['service_status'] = lineAlerts.length > 0 ? 'Perturbado' : 'Normal';
           let statusMessage: string | undefined = lineAlerts.length > 0 ? lineAlerts[0].description : undefined;
 
-          // Check operating hours (Daytime: 05:30 - 00:30)
-          const isNightLine = lineCode.endsWith('N') || lineCode.startsWith('24');
-          if (!isNightLine && (searchSecs < 19800 || searchSecs > 88200)) {
-            // Outside daytime operational window
-            serviceStatus = 'Normal';
-            statusMessage = '1.ª partida às 06:00';
-            nextDep = {
-              time: '06:00',
-              scheduled_time: '06:00',
-              is_realtime: false,
-              status: 'No Horário',
-            };
-          } else {
-            // Within operational window
-            if (hasRealtime) {
-              const v = liveVehiclesOnLine[0];
-              const rtTime = formatSecondsToTime(searchSecs);
-              nextDep = {
-                time: rtTime,
-                scheduled_time: rtTime,
-                is_realtime: true,
-                vehicle_id: v.vehicle_id,
-                status: 'No Horário',
-              };
-              upcomingDeps.push(nextDep);
-              statusMessage = 'Em circulação em tempo real';
-            } else {
-              statusMessage = 'Tempo real indisponível';
-            }
-
-            // Combine with scheduled departures at intervals (never hide scheduled departures)
-            for (let offset = (hasRealtime ? 15 : 0); offset <= 75; offset += 15) {
-              const depSecs = searchSecs + offset * 60;
-              if (depSecs <= 88200) {
-                const timeStr = formatSecondsToTime(depSecs);
-                const schedDep: TransitDepartureItem = {
-                  time: timeStr,
-                  scheduled_time: timeStr,
-                  is_realtime: false,
-                  status: 'No Horário',
-                };
-                if (!nextDep) nextDep = schedDep;
-                upcomingDeps.push(schedDep);
-              }
-            }
-          }
+          // Sem horários inventados: a Carris Metropolitana só tem tempos reais por paragem (Perto)
+          statusMessage = hasRealtime
+            ? `${liveVehiclesOnLine.length} veículo(s) em circulação agora`
+            : 'Consulte os próximos autocarros por paragem no Perto';
 
           const originName = stopItems[0]?.name || route.long_name.split('-')[0]?.trim() || lineCode;
           const destName = stopItems[stopItems.length - 1]?.name || route.long_name.split('-')[1]?.trim() || 'Terminal';
@@ -1985,151 +1889,6 @@ export async function searchRealTransitServices(query: TransitSearchQuery): Prom
     }
   }
 
-  // 3. QUERY UNIR MOBILIDADE (AMP)
-  if (matchOperatorFilter('UNIR Mobilidade', 'unir-mobilidade', opFilter)) {
-    if (!modeFilter || modeFilter === 'Autocarro') {
-      if (!regFilter || 'área metropolitana do porto'.includes(regFilter) || regFilter.includes('porto')) {
-        const UNIR_LINES = [
-          {
-            code: '8003',
-            name: 'Gondomar (Souto) - Porto (Estádio do Dragão) via Valbom',
-            origin: 'Gondomar (Souto)',
-            destination: 'Porto (Estádio do Dragão)',
-            stops: [
-              { id: 'unir-8003-1', name: 'Gondomar (Souto - Largo)', sequence: 1, locality: 'Gondomar' },
-              { id: 'unir-8003-2', name: 'Valbom (Igreja)', sequence: 2, locality: 'Gondomar' },
-              { id: 'unir-8003-3', name: 'Gramido', sequence: 3, locality: 'Gondomar' },
-              { id: 'unir-8003-4', name: 'Freixo (Marginal)', sequence: 4, locality: 'Porto' },
-              { id: 'unir-8003-5', name: 'Campanhã (Estação Intermodal)', sequence: 5, locality: 'Porto' },
-              { id: 'unir-8003-6', name: 'Estádio do Dragão (Metro)', sequence: 6, locality: 'Porto' },
-            ],
-            color: '#002B49',
-          },
-          {
-            code: '8006',
-            name: 'Gondomar (Souto) - Valbom - Porto (Campanhã)',
-            origin: 'Gondomar (Souto)',
-            destination: 'Porto (Campanhã)',
-            stops: [
-              { id: 'unir-8006-1', name: 'Gondomar (Souto)', sequence: 1, locality: 'Gondomar' },
-              { id: 'unir-8006-2', name: 'Valbom (Centro)', sequence: 2, locality: 'Gondomar' },
-              { id: 'unir-8006-3', name: 'Campanhã (Terminal Intermodal)', sequence: 3, locality: 'Porto' },
-            ],
-            color: '#002B49',
-          },
-          {
-            code: '9001',
-            name: 'Porto (Campanhã) - Gondomar (Souto)',
-            origin: 'Porto (Campanhã)',
-            destination: 'Gondomar (Souto)',
-            stops: [
-              { id: 'unir-9001-1', name: 'Campanhã (TIC)', sequence: 1, locality: 'Porto' },
-              { id: 'unir-9001-2', name: 'Gondomar (Souto)', sequence: 2, locality: 'Gondomar' },
-            ],
-            color: '#002B49',
-          },
-          {
-            code: '2001',
-            name: 'Gaia (General Torres) - Espinho (Estação)',
-            origin: 'V.N. Gaia (General Torres)',
-            destination: 'Espinho (Estação)',
-            stops: [
-              { id: 'unir-2001-1', name: 'General Torres (Metro/Comboio)', sequence: 1, locality: 'Vila Nova de Gaia' },
-              { id: 'unir-2001-2', name: 'Espinho (Estação CP)', sequence: 2, locality: 'Espinho' },
-            ],
-            color: '#002B49',
-          },
-        ];
-
-        for (const uLine of UNIR_LINES) {
-          if (lineFilter) {
-            const mLine = uLine.code.toLowerCase() === lineFilter || uLine.code.toLowerCase().includes(lineFilter);
-            if (!mLine) continue;
-          }
-          if (qStr) {
-            const mCode = uLine.code.toLowerCase().includes(qStr);
-            const mName = uLine.name.toLowerCase().includes(qStr);
-            const mOp = 'unir mobilidade'.includes(qStr);
-            if (!mCode && !mName && !mOp) continue;
-          }
-
-          if (stopFilter) {
-            const hasStop = uLine.stops.some(s => s.name.toLowerCase().includes(stopFilter) || s.id.toLowerCase().includes(stopFilter));
-            if (!hasStop) continue;
-          }
-
-          if (originFilter && !uLine.origin.toLowerCase().includes(originFilter)) continue;
-          if (destFilter && !uLine.destination.toLowerCase().includes(destFilter)) continue;
-
-          let nextDep: TransitDepartureItem | undefined = undefined;
-          const upcomingDeps: TransitDepartureItem[] = [];
-          let serviceStatus: NormalizedTransitService['service_status'] = 'Normal';
-          let statusMessage: string | undefined = undefined;
-
-          if (searchSecs < 21600 || searchSecs > 86400) {
-            // Outside daytime operational window
-            serviceStatus = 'Normal';
-            statusMessage = '1.ª partida às 06:15';
-            nextDep = {
-              time: '06:15',
-              scheduled_time: '06:15',
-              is_realtime: false,
-              status: 'No Horário',
-            };
-          } else {
-            statusMessage = 'Tempo real indisponível';
-            for (let offset = 0; offset <= 60; offset += 20) {
-              const depSecs = searchSecs + offset * 60;
-              const timeStr = formatSecondsToTime(depSecs);
-              const schedDep: TransitDepartureItem = {
-                time: timeStr,
-                scheduled_time: timeStr,
-                is_realtime: false,
-                status: 'No Horário',
-              };
-              if (!nextDep) nextDep = schedDep;
-              upcomingDeps.push(schedDep);
-            }
-          }
-
-          // UNIR stops without inventing times
-          const stopItemsWithTimes: TransitStopItem[] = uLine.stops.map((s) => ({
-            ...s,
-            scheduled_time: undefined,
-            arrival_time: undefined,
-            offset_minutes: undefined,
-          }));
-
-          results.push({
-            id: `unir-${uLine.code}`,
-            line_code: uLine.code,
-            line_name: uLine.name,
-            operator_id: 'unir-mobilidade',
-            operator_name: 'UNIR Mobilidade (AMP)',
-            transport_mode: 'Autocarro',
-            region: 'Área Metropolitana do Porto',
-            municipalities: ['Porto', 'Gondomar', 'Vila Nova de Gaia', 'Espinho'],
-            origin: uLine.origin,
-            destination: uLine.destination,
-            direction: 'Ida',
-            color: uLine.color,
-            text_color: '#ffffff',
-            frequency_minutes: 20,
-            service_status: serviceStatus,
-            status_message: statusMessage,
-            stops: stopItemsWithTimes,
-            next_departure: nextDep,
-            upcoming_departures: upcomingDeps,
-            alerts: [],
-            data_classification: 'Programado',
-            source_id: 'unir-mobilidade',
-            source_url: 'https://go.tmlmobilidade.pt/hub/api/v1/network/lines',
-            last_updated: new Date().toISOString(),
-          });
-        }
-      }
-    }
-  }
 
   // Filter only_realtime if requested
   const filtered = query.only_realtime
@@ -2322,38 +2081,6 @@ export function getServiceByIdDirect(serviceId: string): NormalizedTransitServic
     }
   }
 
-  // UNIR lookup
-  if (serviceId.includes('unir') || serviceId.includes('8003') || serviceId.includes('8006')) {
-    const code = serviceId.replace('unir-', '');
-    const is8006 = code === '8006';
-    return {
-      id: `unir-${code}`,
-      line_code: code,
-      line_name: is8006 ? 'Gondomar (Souto) - Valbom - Porto (Campanhã)' : 'Gondomar (Souto) - Porto (Estádio do Dragão) via Valbom',
-      operator_id: 'unir-mobilidade',
-      operator_name: 'UNIR Mobilidade (AMP)',
-      transport_mode: 'Autocarro',
-      region: 'Área Metropolitana do Porto',
-      municipalities: ['Porto', 'Gondomar'],
-      origin: 'Gondomar (Souto)',
-      destination: is8006 ? 'Porto (Campanhã)' : 'Porto (Estádio do Dragão)',
-      direction: 'Ida',
-      color: '#002B49',
-      text_color: '#ffffff',
-      service_status: 'Normal',
-      stops: [
-        { id: `unir-${code}-1`, name: 'Gondomar (Souto - Largo)', sequence: 1, locality: 'Gondomar', scheduled_time: undefined, arrival_time: undefined, offset_minutes: undefined },
-        { id: `unir-${code}-2`, name: 'Valbom (Igreja)', sequence: 2, locality: 'Gondomar', scheduled_time: undefined, arrival_time: undefined, offset_minutes: undefined },
-        { id: `unir-${code}-3`, name: 'Campanhã (Terminal)', sequence: 3, locality: 'Porto', scheduled_time: undefined, arrival_time: undefined, offset_minutes: undefined },
-      ],
-      upcoming_departures: [],
-      alerts: [],
-      data_classification: 'Programado',
-      source_id: 'unir-mobilidade',
-      source_url: 'https://go.tmlmobilidade.pt/hub/api/v1/network/lines',
-      last_updated: new Date().toISOString(),
-    };
-  }
 
   return null;
 }

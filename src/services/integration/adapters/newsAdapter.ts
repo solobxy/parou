@@ -31,36 +31,10 @@ export class NewsFeedAdapter implements ExternalSourceAdapter<NewsFeedPayload> {
   }
 
   async fetchRaw(endpointUrl?: string): Promise<NewsFeedPayload> {
-    // Quando ligar ao serviço de notícias/webhook:
-    // return await fetch(endpointUrl).then(r => r.json());
-
     return {
       source: 'Noticiário Nacional de Trânsito e Mobilidade',
-      total_articles: 2,
-      articles: [
-        {
-          article_id: 'news-traffic-4581',
-          source_outlet: 'Agência Lusa',
-          headline: 'Colisão rodoviária na A1 corta duas vias perto de Alverca no sentido Norte-Sul',
-          body: 'Um acidente aparatoso envolvendo dois veículos pesados de mercadorias e um ligeiro de passageiros está a condicionar fortemente a autoestrada do Norte (A1) ao quilómetro 14. Meios do INEM e da Brisa encontram-se no local. Há registo de filas com mais de 7 quilómetros.',
-          url: 'https://www.lusa.pt/artigo/acidente-a1-alverca-transito',
-          published_time: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-          tags: ['A1', 'Acidente', 'Trânsito', 'Alverca', 'Brisa'],
-          location_hint: 'Alverca / Vila Franca de Xira',
-          operator_hint: 'Brisa Autoestradas',
-        },
-        {
-          article_id: 'news-traffic-4582',
-          source_outlet: 'RTP Notícias',
-          headline: 'Avaria elétrica paralisa circulação no Metro do Porto na estação da Trindade',
-          body: 'Uma quebra súbita de energia no túnel central da Trindade deixou dezenas de composições sem tração elétrica durante a hora de ponta. As Linhas A, B e C estão a circular com fortes perturbações e atrasos superiores a 40 minutos.',
-          url: 'https://www.rtp.pt/noticias/pais/metro-do-porto-avaria-trindade',
-          published_time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          tags: ['Metro do Porto', 'Avaria', 'Trindade', 'Porto'],
-          location_hint: 'Trindade, Porto',
-          operator_hint: 'Metro do Porto',
-        },
-      ],
+      total_articles: 0,
+      articles: [],
     };
   }
 

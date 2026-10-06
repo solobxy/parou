@@ -3,7 +3,6 @@ import { ingestAllFeedsSequentially, ingestGtfsZipFeed, ingestCarrisMetropolitan
 import { ingestUnirQiHoras } from '../unirQiHorasService';
 import { getFeedById, getDatabase, upsertFeed, commitWorkerDatabase, saveDatabaseBackup } from '../db/gtfsDatabase';
 import { SEED_FEEDS } from '../gtfsSeedRegistry';
-import { seedMetroOfficialData } from '../seedMetroSchedule';
 
 /**
  * PAROU.PT - Background Feed Ingestion Worker (Child Process)
@@ -24,11 +23,6 @@ function initWorkerDatabase() {
       if (!existing) {
         upsertFeed(seed);
       }
-    }
-    try {
-      seedMetroOfficialData();
-    } catch (err) {
-      console.warn('[Worker Seed] Aviso:', err);
     }
     commitWorkerDatabase();
   } catch (err: any) {

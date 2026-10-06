@@ -1300,7 +1300,6 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine } from './src/server/departureEngine';
 import { DebugEngine } from './src/server/debugEngine';
-import { seedMetroOfficialData } from './src/server/seedMetroSchedule';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)
 app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {

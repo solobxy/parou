@@ -195,14 +195,36 @@ export class RealtimeEngine {
 
       const lineId = arr.line_id || arr.route_id || 'CM';
       const headsign = arr.headsign || arr.trip_headsign || 'Destino Terminal';
-      const scheduledStr = arr.scheduled_arrival ? arr.scheduled_arrival.slice(0, 5) : '10:42';
 
-      let depEpoch = nowEpochSecs;
+      let depEpoch: number | null = null;
       if (arr.scheduled_arrival_unix) {
         depEpoch = arr.scheduled_arrival_unix;
       } else if (arr.scheduled_arrival) {
         const parsed = DateTime.fromISO(arr.scheduled_arrival, { zone: 'Europe/Lisbon' });
         if (parsed.isValid) depEpoch = Math.floor(parsed.toSeconds());
+      }
+
+      let estEpoch: number | null = null;
+      if (arr.estimated_arrival_unix) {
+        estEpoch = arr.estimated_arrival_unix;
+      } else if (arr.estimated_arrival) {
+        const parsed = DateTime.fromISO(arr.estimated_arrival, { zone: 'Europe/Lisbon' });
+        if (parsed.isValid) estEpoch = Math.floor(parsed.toSeconds());
+      }
+
+      // Se a API não devolve horário programado nem hora estimada, ignora esta partida
+      if (depEpoch === null && estEpoch === null) {
+        continue;
+      }
+
+      const scheduledStr = arr.scheduled_arrival
+        ? arr.scheduled_arrival.slice(0, 5)
+        : depEpoch !== null
+        ? DateTime.fromSeconds(depEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm')
+        : DateTime.fromSeconds(estEpoch!, { zone: 'Europe/Lisbon' }).toFormat('HH:mm');
+
+      if (depEpoch === null) {
+        depEpoch = estEpoch!;
       }
 
       let state: DepartureState = 'PROGRAMADO';
@@ -217,12 +239,8 @@ export class RealtimeEngine {
         state = 'SUPRIMIDO';
         stateReason = 'Viagem suprimida pelo operador em tempo real';
         isRealtime = true;
-      } else if (arr.estimated_arrival || arr.estimated_arrival_unix) {
+      } else if (estEpoch !== null) {
         // Live estimated bus
-        const estEpoch = arr.estimated_arrival_unix
-          ? arr.estimated_arrival_unix
-          : Math.floor(DateTime.fromISO(arr.estimated_arrival, { zone: 'Europe/Lisbon' }).toSeconds());
-
         const feedTime = arr.timestamp ? arr.timestamp : nowEpochSecs;
         const isStale = Math.abs(nowEpochSecs - feedTime) > MAX_STALE_AGE_SECS;
 
