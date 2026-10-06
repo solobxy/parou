@@ -142,12 +142,12 @@ export const LineCard: React.FC<LineCardProps> = ({
                       className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
                         dep.state === 'Tempo Real'
                           ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
-                          : dep.state === 'Suprimido'
-                          ? 'bg-red-950 text-red-300 border-red-700/50'
+                          : dep.state === 'Sem dados' || dep.state === 'Suprimido'
+                          ? 'bg-slate-900 text-slate-400 border-slate-700/60'
                           : 'bg-slate-800 text-blue-300 border-blue-500/30'
                       }`}
                     >
-                      {dep.state}
+                      {dep.state === 'Suprimido' ? 'Sem dados' : dep.state}
                     </span>
                   </div>
                 </div>
@@ -161,7 +161,13 @@ export const LineCard: React.FC<LineCardProps> = ({
                       {dep.aviso_horario || line.aviso_horario}
                     </span>
                   )}
-                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/30 inline-block mt-0.5">
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border inline-block mt-0.5 ${
+                      dep.state === 'Sem dados' || dep.state === 'Suprimido'
+                        ? 'text-slate-400 bg-slate-900 border-slate-800'
+                        : 'text-emerald-400 bg-emerald-950/60 border-emerald-800/30'
+                    }`}
+                  >
                     {dep.displayText}
                   </span>
                 </div>

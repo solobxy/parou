@@ -654,7 +654,7 @@ export interface ApiLineItem {
     direction_id: number;
     destination: string;
     time: string;
-    state: 'Tempo Real' | 'Programado' | 'Suprimido';
+    state: 'Tempo Real' | 'Programado' | 'Suprimido' | 'Sem dados';
     countdown_minutes: number;
     displayText: string;
     aviso_horario?: string;
@@ -695,7 +695,7 @@ export interface ApiStopDeparture {
   destination: string;
   scheduled_time: string;
   actual_time?: string;
-  state: 'Tempo Real' | 'Programado' | 'Suprimido';
+  state: 'Tempo Real' | 'Programado' | 'Suprimido' | 'Sem dados';
   countdown_minutes: number;
   delay_minutes?: number;
   displayText: string;

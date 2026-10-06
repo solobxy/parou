@@ -369,7 +369,11 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/40">
+                                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                        dep.state === 'Sem dados' || dep.state === 'Suprimido'
+                                          ? 'text-slate-400 bg-slate-900 border-slate-800'
+                                          : 'text-emerald-400 bg-emerald-950/80 border-emerald-800/40'
+                                      }`}>
                                         {dep.displayText}
                                       </span>
                                     </div>
