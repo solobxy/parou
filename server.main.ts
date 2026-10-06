@@ -1568,3 +1568,10 @@ startServer().catch(err => {
 
 import { iniciarDadosProntos, getEstadoDadosProntos } from './src/server/dadosProntos';
 iniciarDadosProntos();
+
+process.on('uncaughtException', (err: any) => {
+  console.error('[PAROU.PT] Erro não tratado (o servidor continua):', err?.message || err);
+});
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[PAROU.PT] Promessa rejeitada (o servidor continua):', reason?.message || reason);
+});
