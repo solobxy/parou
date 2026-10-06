@@ -1130,6 +1130,7 @@ export class LinesEngine {
           WHERE f.status != 'horário expirado' AND f.status != 'EXPIRED'
             AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
             AND st.departure_secs < ?
+            AND ${filtroServicosHoje('t', new Date(Date.now() + 24 * 60 * 60 * 1000))}
             AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
             AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
           ORDER BY st.departure_secs ASC

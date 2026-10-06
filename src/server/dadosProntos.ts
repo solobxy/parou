@@ -8,7 +8,7 @@ import { DB_FILE, getAppState, reloadDatabaseConnection } from './db/gtfsDatabas
 
 const BASE_URL = process.env.PAROU_DADOS_URL || 'https://github.com/solobxy/parou-dados/releases/download/dados';
 const FICHEIRO_NOVO = `${DB_FILE}.new`;
-const INTERVALO_MS = 6 * 60 * 60 * 1000;
+const INTERVALO_MS = 30 * 60 * 1000;
 const NOVA_TENTATIVA_MS = 5 * 60 * 1000;
 
 export interface EstadoDados {
