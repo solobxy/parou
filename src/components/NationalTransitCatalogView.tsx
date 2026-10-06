@@ -467,12 +467,6 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                       <span>{entry.municipalities.length} concelho{entry.municipalities.length !== 1 ? 's' : ''}</span>
                       <span aria-hidden="true">·</span>
                       <span className="text-slate-300">{entry.transport_modes.join(', ')}</span>
-                      {entry.lines_count_estimate && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span>~{entry.lines_count_estimate} linhas</span>
-                        </>
-                      )}
                     </div>
 
                     {/* Technical Source Info */}

@@ -40,35 +40,13 @@ export class RssFeedAdapter implements ExternalSourceAdapter<RssFeedChannel> {
   }
 
   async fetchRaw(endpointUrl?: string): Promise<RssFeedChannel> {
-    // Quando ligar ao endpoint real (utilizando parser DOM / xml2js):
-    // const res = await fetch(endpointUrl);
-    // const xmlText = await res.text();
-    // parseXml(xmlText);
-
     return {
-      title: 'Avisos e Perturbações - CP',
-      link: 'https://www.cp.pt/passageiros/pt/consultar-horarios/avisos',
-      description: 'Avisos em tempo real da circulação ferroviária nacional',
+      title: 'Avisos e Perturbações',
+      link: '',
+      description: '',
       language: 'pt-pt',
       lastBuildDate: new Date().toUTCString(),
-      items: [
-        {
-          guid: 'cp-aviso-2026-8812',
-          title: 'Greve convocada por sindicatos ferroviários para a próxima sexta-feira',
-          link: 'https://www.cp.pt/passageiros/pt/consultar-horarios/avisos/greve-nacional',
-          description: 'Prevêem-se fortes perturbações na circulação de comboios Urbanos, Regionais e Alfa Pendular. Serviços mínimos decretados pelo Tribunal Arbitral.',
-          pubDate: new Date(Date.now() - 45 * 60 * 1000).toUTCString(),
-          category: 'Greves',
-        },
-        {
-          guid: 'cp-aviso-2026-8813',
-          title: 'Atrasos no Ramal de Tomar devido a trabalhos na infraestrutura',
-          link: 'https://www.cp.pt/passageiros/pt/consultar-horarios/avisos/ramal-tomar',
-          description: 'Trabalhos urgentes na catenária obrigam a transbordo rodoviário entre Lamarosa e Tomar.',
-          pubDate: new Date(Date.now() - 90 * 60 * 1000).toUTCString(),
-          category: 'Obras',
-        },
-      ],
+      items: [],
     };
   }
 

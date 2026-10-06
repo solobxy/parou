@@ -14,6 +14,7 @@ import {
   getTmlAlerts, 
   getTmlVehiclesAudited 
 } from './tmlGoHubService';
+import { getAllFeeds } from './db/gtfsDatabase';
 
 // In-memory registry of discovered operators and sources
 let DISCOVERED_OPERATORS: DiscoveredOperator[] = [];
@@ -245,6 +246,27 @@ async function discoverFromTmlGoHub(): Promise<{ operators: DiscoveredOperator[]
 // 3. PORTO DIGITAL & DIRECT OPERATORS DISCOVERY
 // -------------------------------------------------------------
 function discoverDirectOperators(): DiscoveredOperator[] {
+  const feedsMap = new Map<string, { lines_count: number; stops_count: number }>();
+  try {
+    const feeds = getAllFeeds();
+    for (const f of feeds) {
+      const counts = { lines_count: Number(f.lines_count || 0), stops_count: Number(f.stops_count || 0) };
+      feedsMap.set(f.id.toLowerCase(), counts);
+      const cleanId = f.id.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanId) feedsMap.set(cleanId, counts);
+    }
+  } catch {}
+
+  const getCounts = (keys: string[]) => {
+    for (const k of keys) {
+      const direct = feedsMap.get(k.toLowerCase());
+      if (direct) return direct;
+      const clean = feedsMap.get(k.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      if (clean) return clean;
+    }
+    return { lines_count: 0, stops_count: 0 };
+  };
+
   const directList: DiscoveredOperator[] = [
     {
       operator_id: 'cp-comboios-de-portugal',
@@ -268,8 +290,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 6,
-      stops_count: 24,
+      routes_count: getCounts(['cp', 'cp-comboios-de-portugal']).lines_count,
+      stops_count: getCounts(['cp', 'cp-comboios-de-portugal']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -294,8 +316,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 6,
-      stops_count: 82,
+      routes_count: getCounts(['metro_porto', 'metro-do-porto']).lines_count,
+      stops_count: getCounts(['metro_porto', 'metro-do-porto']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -320,8 +342,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 70,
-      stops_count: 2400,
+      routes_count: getCounts(['stcp', 'stcp-porto']).lines_count,
+      stops_count: getCounts(['stcp', 'stcp-porto']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -346,8 +368,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 4,
-      stops_count: 56,
+      routes_count: getCounts(['metro_lisboa', 'metro-de-lisboa']).lines_count,
+      stops_count: getCounts(['metro_lisboa', 'metro-de-lisboa']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -372,8 +394,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 1,
-      stops_count: 14,
+      routes_count: getCounts(['fertagus']).lines_count,
+      stops_count: getCounts(['fertagus']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -398,8 +420,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 5,
-      stops_count: 10,
+      routes_count: getCounts(['transtejo_soflusa', 'transtejo-soflusa']).lines_count,
+      stops_count: getCounts(['transtejo_soflusa', 'transtejo-soflusa']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -424,8 +446,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 40,
-      stops_count: 1200,
+      routes_count: getCounts(['tub_braga', 'tub-braga']).lines_count,
+      stops_count: getCounts(['tub_braga', 'tub-braga']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -450,8 +472,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 45,
-      stops_count: 1100,
+      routes_count: getCounts(['smtuc', 'smtuc-coimbra']).lines_count,
+      stops_count: getCounts(['smtuc', 'smtuc-coimbra']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -476,8 +498,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 22,
-      stops_count: 450,
+      routes_count: getCounts(['guimabus']).lines_count,
+      stops_count: getCounts(['guimabus']).stops_count,
       active_vehicles_count: 0,
     },
     {
@@ -502,8 +524,8 @@ function discoverDirectOperators(): DiscoveredOperator[] {
       validation_status: 'valid',
       sync_status: 'synced',
       error: null,
-      routes_count: 14,
-      stops_count: 320,
+      routes_count: getCounts(['aveirobus']).lines_count,
+      stops_count: getCounts(['aveirobus']).stops_count,
       active_vehicles_count: 0,
     },
   ];

@@ -39,55 +39,11 @@ export class RestApiAdapter implements ExternalSourceAdapter<RestAlertsPayload> 
   }
 
   async fetchRaw(endpointUrl?: string): Promise<RestAlertsPayload> {
-    // Quando a API real for ativada:
-    // if (endpointUrl) {
-    //   const res = await fetch(endpointUrl);
-    //   return await res.json();
-    // }
-
-    // Simulação robusta para testes locais sem chamadas HTTP externas:
     return {
       version: '1.2.0',
       timestamp: new Date().toISOString(),
-      count: 2,
-      incidents: [
-        {
-          id: 'rest-inc-901',
-          agency_id: 'CM',
-          agency_name: 'Carris Metropolitana',
-          title: 'Supressão parcial na linha 4701 por condicionamento na A2',
-          summary: 'Acidente junto à saída de Corroios causa filas de 4 km e atrasos médios de 25 min no sentido Sul-Norte.',
-          category: 'ACCIDENT',
-          severity_code: 'HIGH',
-          district: 'Setúbal',
-          municipality: 'Almada',
-          location_name: 'A2 km 11, Nó de Corroios',
-          transport_mode: 'BUS',
-          affected_routes: ['4701', '4702'],
-          created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-          status: 'ACTIVE',
-          source_reference_url: 'https://www.carrismetropolitana.pt/avisos/4701',
-          coordinates: { lat: 38.6475, lng: -9.1558 },
-        },
-        {
-          id: 'rest-inc-902',
-          agency_id: 'ML',
-          agency_name: 'Metro de Lisboa',
-          title: 'Atrasos no nó de ligação do Campo Grande',
-          summary: 'Falha momentânea no aparelho de mudança de via causa circulação lenta na Linha Amarela.',
-          category: 'BREAKDOWN',
-          severity_code: 'MEDIUM',
-          district: 'Lisboa',
-          municipality: 'Lisboa',
-          location_name: 'Estação Campo Grande',
-          transport_mode: 'SUBWAY',
-          affected_routes: ['Linha Amarela'],
-          created_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
-          status: 'ACTIVE',
-          source_reference_url: 'https://www.metrolisboa.pt/viajar/estado-das-linhas/',
-          coordinates: { lat: 38.7602, lng: -9.1578 },
-        },
-      ],
+      count: 0,
+      incidents: [],
     };
   }
 

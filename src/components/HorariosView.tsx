@@ -1040,6 +1040,11 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                                 </span>
                               )}
                             </div>
+                            {(service.next_departure.aviso_horario || (service as any).aviso_horario) && (
+                              <div className="text-[9px] text-amber-400/90 font-medium">
+                                {service.next_departure.aviso_horario || (service as any).aviso_horario}
+                              </div>
+                            )}
                             <div className="text-[10px] font-semibold text-emerald-400">
                               {service.next_departure.is_realtime ? 'Tempo Real' : 'Programado'}
                             </div>

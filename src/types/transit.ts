@@ -28,6 +28,7 @@ export interface TransitDepartureItem {
   headsign?: string;
   stop_id?: string;
   status: 'No Horário' | 'Atrasado' | 'Adiantado' | 'Cancelado' | 'Desconhecido';
+  aviso_horario?: string;
 }
 
 export interface GtfsCalendarRecord {

@@ -156,6 +156,11 @@ export const LineCard: React.FC<LineCardProps> = ({
                   <span className="font-mono font-bold text-white text-xs block">
                     {dep.time}
                   </span>
+                  {(dep.aviso_horario || line.aviso_horario) && (
+                    <span className="text-[9px] text-amber-400/90 block leading-tight font-medium mt-0.5" title={dep.aviso_horario || line.aviso_horario}>
+                      {dep.aviso_horario || line.aviso_horario}
+                    </span>
+                  )}
                   <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/30 inline-block mt-0.5">
                     {dep.displayText}
                   </span>
@@ -166,8 +171,15 @@ export const LineCard: React.FC<LineCardProps> = ({
         </div>
       ) : (
         <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-          <span>Toque para ver itinerário e paragens</span>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+          <div className="min-w-0">
+            <span>Toque para ver itinerário e paragens</span>
+            {line.aviso_horario && (
+              <span className="text-[10px] text-amber-400/90 block font-medium mt-0.5">
+                {line.aviso_horario}
+              </span>
+            )}
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
         </div>
       )}
     </div>

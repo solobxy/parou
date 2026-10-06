@@ -81,56 +81,12 @@ export class GtfsRealtimeAdapter implements ExternalSourceAdapter<GtfsRtFeedMess
   }
 
   async fetchRaw(endpointUrl?: string): Promise<GtfsRtFeedMessage> {
-    // Quando a API real for ativada (consumindo Protobuf/JSON binário):
-    // if (endpointUrl) {
-    //   const response = await fetch(endpointUrl);
-    //   const buffer = await response.arrayBuffer();
-    //   return FeedMessage.decode(new Uint8Array(buffer));
-    // }
-
-    // Simulação com dados representativos de operadores portugueses:
     return {
       header: {
         gtfs_realtime_version: '2.0',
         timestamp: Math.floor(Date.now() / 1000),
       },
-      entity: [
-        {
-          id: 'gtfs-rt-alert-001',
-          alert: {
-            cause: GtfsRtCause.TECHNICAL_PROBLEM,
-            effect: GtfsRtEffect.SIGNIFICANT_DELAYS,
-            informed_entity: [
-              { agency_id: 'PT-CP', route_id: 'CP-LINHA-DO-NORTE', route_type: 2 },
-            ],
-            header_text: {
-              translation: [{ text: 'Supressão parcial na Linha do Norte por falha na sinalização', language: 'pt' }],
-            },
-            description_text: {
-              translation: [{ text: 'Comboios suburbanos e regionais entre Entroncamento e Santarém circulam com atrasos médios de 30 minutos.', language: 'pt' }],
-            },
-            active_period: [
-              { start: Math.floor(Date.now() / 1000) - 1800, end: Math.floor(Date.now() / 1000) + 7200 },
-            ],
-          },
-        },
-        {
-          id: 'gtfs-rt-alert-002',
-          alert: {
-            cause: GtfsRtCause.CONSTRUCTION,
-            effect: GtfsRtEffect.DETOUR,
-            informed_entity: [
-              { agency_id: 'PT-STCP', route_id: 'STCP-205', route_type: 3 },
-            ],
-            header_text: {
-              translation: [{ text: 'Desvio de trânsito na linha 205 junto à Circunvalação', language: 'pt' }],
-            },
-            description_text: {
-              translation: [{ text: 'Trabalhos de pavimentação noturnos obrigam ao desvio pela Rua de Francos. Três paragens temporariamente desativadas.', language: 'pt' }],
-            },
-          },
-        },
-      ],
+      entity: [],
     };
   }
 

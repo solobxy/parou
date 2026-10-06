@@ -641,6 +641,7 @@ export interface ApiLineItem {
   operator: string;
   operator_id: string;
   feed_id: string;
+  aviso_horario?: string;
   nearest_stop?: {
     id: string;
     name: string;
@@ -656,6 +657,7 @@ export interface ApiLineItem {
     state: 'Tempo Real' | 'Programado' | 'Suprimido';
     countdown_minutes: number;
     displayText: string;
+    aviso_horario?: string;
   }>;
 }
 
@@ -697,6 +699,7 @@ export interface ApiStopDeparture {
   countdown_minutes: number;
   delay_minutes?: number;
   displayText: string;
+  aviso_horario?: string;
 }
 
 export async function fetchLinesNear(lat: number, lon: number, radius = 500): Promise<ApiLineItem[]> {
