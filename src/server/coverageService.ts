@@ -18,11 +18,11 @@ export function getCoverageReport(): CoverageReport {
         progress = 'Feed GTFS-RT de telemetria ativo';
       }
     } else {
-      // Check expiration first: "Se o calendário de um feed já tiver expirado, marca-o como 'horário expirado'"
+      // Check expiration first: valid_until no passado assinala mas não exclui
       const isExpired = f.status === 'horário expirado' || Boolean(f.valid_until && f.valid_until.replace(/-/g, '') < todayStr);
       if (isExpired) {
         status = 'horário expirado' as any;
-        progress = progress || 'Horário expirado';
+        progress = progress || 'Horário possivelmente desatualizado';
       } else if (f.lines_count > 0 && f.stops_count > 0) {
         status = 'OK';
       } else {
@@ -88,7 +88,7 @@ export function getCoverageReport(): CoverageReport {
     let details = 'Pendente de integração oficial ou feed NAP/IMT';
     if (matched) {
       if ((matched.status as string) === 'horário expirado') {
-        details = `Horário expirado (${matched.valid_until || 'data ultrapassada'}) — ${matched.lines_count} carreiras e ${matched.stops_count} paragens`;
+        details = `Horário possivelmente desatualizado (${matched.valid_until || 'data ultrapassada'}) — ${matched.lines_count} carreiras e ${matched.stops_count} paragens`;
       } else if (matched.status === 'OK') {
         details = `Ativo com ${matched.lines_count} carreiras e ${matched.stops_count} paragens carregadas`;
       } else {

@@ -7,10 +7,10 @@ import { filtroServicosHoje } from './dadosProntos';
 export const VALID_DAY_COLUMNS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 export type ValidDayCol = typeof VALID_DAY_COLUMNS[number];
 
-export function getLisbonDateContext(refDate?: Date) {
+export function getLisbonDateContext(refDate?: Date, timezone = 'Europe/Lisbon') {
   const dt = refDate 
-    ? DateTime.fromJSDate(refDate).setZone('Europe/Lisbon')
-    : DateTime.now().setZone('Europe/Lisbon');
+    ? DateTime.fromJSDate(refDate).setZone(timezone)
+    : DateTime.now().setZone(timezone);
 
   const todayStr = dt.toFormat('yyyyMMdd');
   const todaySeconds = dt.hour * 3600 + dt.minute * 60 + dt.second;
@@ -142,10 +142,18 @@ export interface StopDepartureItem {
 function getFeedsAvisoHorario(db: ReturnType<typeof getDatabase>): Set<string> {
   const outdatedFeeds = new Set<string>();
   try {
-    const rows = db.prepare('SELECT id, last_error FROM feeds').all() as Array<{ id: string; last_error?: string | null }>;
+    const rows = db.prepare('SELECT id, last_error, valid_until FROM feeds').all() as Array<{ id: string; last_error?: string | null; valid_until?: string | null }>;
+    const todayDigits = DateTime.now().setZone('Europe/Lisbon').toFormat('yyyyMMdd');
     for (const r of rows) {
       if (r.last_error && r.last_error.startsWith('O operador não atualizou as datas do calendário')) {
         outdatedFeeds.add(r.id);
+        continue;
+      }
+      if (r.valid_until) {
+        const clean = r.valid_until.replace(/-/g, '').slice(0, 8);
+        if (clean < todayDigits) {
+          outdatedFeeds.add(r.id);
+        }
       }
     }
   } catch {}
@@ -563,8 +571,8 @@ export class LinesEngine {
             lastDepStr = `${String(Math.floor(lastSecs / 3600) % 24).padStart(2, '0')}:${String(Math.floor((lastSecs % 3600) / 60)).padStart(2, '0')}`;
           }
 
-          // Upcoming trips today for this direction (from currentSecs - 120)
-          const upcomingTrips = dirTrips.filter((t) => t.departure_secs >= currentSecs - 120);
+          // Upcoming trips today for this direction (from currentSecs)
+          const upcomingTrips = dirTrips.filter((t) => t.departure_secs >= currentSecs);
 
           if (upcomingTrips.length > 0) {
             // Take up to 2 departures per direction
@@ -586,7 +594,7 @@ export class LinesEngine {
               const depMin = Math.floor((nextT.departure_secs % 3600) / 60);
               const timeStr = `${String(depHour).padStart(2, '0')}:${String(depMin).padStart(2, '0')}`;
 
-              const avisoHorario = feedsAviso.has(card.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+              const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
               departures.push({
                 direction_id: dirId,
@@ -605,7 +613,7 @@ export class LinesEngine {
             const depMin = Math.floor((tomorrowT.departure_secs % 3600) / 60);
             const timeStr = `${String(depHour).padStart(2, '0')}:${String(depMin).padStart(2, '0')}`;
             const diffMins = Math.round(((24 * 3600 - currentSecs) + tomorrowT.departure_secs) / 60);
-            const avisoHorario = feedsAviso.has(card.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+            const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
             departures.push({
               direction_id: dirId,
@@ -620,7 +628,7 @@ export class LinesEngine {
         }
       } else {
         // No schedule found for this line
-        const avisoHorario = feedsAviso.has(card.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+        const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
         departures.push({
           direction_id: 0,
           destination: card.destinations[0] || card.name || 'Destino',
@@ -632,7 +640,7 @@ export class LinesEngine {
         });
       }
 
-      const cardAviso = feedsAviso.has(card.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+      const cardAviso = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
       lineSummaries.push({
         id: card.id,
         code: card.code,
@@ -689,7 +697,7 @@ export class LinesEngine {
 
     return rows.map((r) => {
       const norm = normalizeCpRoute(r);
-      const aviso = feedsAviso.has(r.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+      const aviso = feedsAviso.has(r.feed_id) ? 'horário possivelmente desatualizado' : undefined;
       return {
         id: r.route_id,
         code: norm.code || r.route_short_name || r.route_id,
@@ -776,7 +784,7 @@ export class LinesEngine {
         seenCpNames.add(canonical);
       }
 
-      const aviso = feedsAviso.has(r.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+      const aviso = feedsAviso.has(r.feed_id) ? 'horário possivelmente desatualizado' : undefined;
       lines.push({
         id: r.route_id,
         code: norm.code || r.route_short_name || r.route_id,
@@ -947,7 +955,7 @@ export class LinesEngine {
     } catch {}
 
     const color = route.route_color ? (route.route_color.startsWith('#') ? route.route_color : `#${route.route_color}`) : '#2563EB';
-    const avisoHorario = feedsAviso.has(route.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+    const avisoHorario = feedsAviso.has(route.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
     return {
       id: route.route_id,
@@ -1035,15 +1043,13 @@ export class LinesEngine {
               const estSecs = timeStringToSeconds(a.estimated_arrival);
               const diffSecs = estSecs - currentSecs;
 
-              // If bus already departed > 2 min ago, drop it
-              if (diffSecs < -120) continue;
+              // Partidas com tempo real: filtrar pela hora prevista (horário + atraso)
+              // Se a hora prevista já passou (diffSecs < 0), esconde a partida
+              if (diffSecs < 0) continue;
 
               let diffMins = Math.round(diffSecs / 60);
               let displayText = `daqui a ${diffMins} min`;
-              if (diffSecs <= 0 && diffSecs >= -120) {
-                diffMins = 0;
-                displayText = 'a partir';
-              } else if (diffSecs <= 60) {
+              if (diffSecs <= 60) {
                 diffMins = 0;
                 displayText = 'a chegar';
               }
@@ -1051,7 +1057,7 @@ export class LinesEngine {
               const schedSecs = a.scheduled_arrival ? timeStringToSeconds(a.scheduled_arrival) : estSecs;
               const delayMins = Math.round((estSecs - schedSecs) / 60);
 
-              const cmAviso = (feedsAviso.has('carris_metropolitana') || feedsAviso.has('cm')) ? 'Horário pode não estar atualizado' : undefined;
+              const cmAviso = (feedsAviso.has('carris_metropolitana') || feedsAviso.has('cm')) ? 'horário possivelmente desatualizado' : undefined;
               departures.push({
                 line_id: `cm:${a.line_id}`,
                 line_code: a.line_id,
@@ -1082,10 +1088,9 @@ export class LinesEngine {
 
       const rawStopId = stopId.includes(':') ? stopId.split(':')[1] : stopId;
 
-      // Exclude trips ending at this stop (Requirement 2):
-      // stop_sequence < max(stop_sequence) AND trip_headsign != stopName
-      const rows = db.prepare(`
-        SELECT st.departure_secs, t.trip_id, t.trip_headsign,
+      // 4. Incluir viagens do dia de serviço anterior com horas > 24:00:00 (departure_secs >= 86400)
+      const yesterdayLateRows = db.prepare(`
+        SELECT st.departure_secs - 86400 as departure_secs, t.trip_id, t.trip_headsign,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id,
                0 as is_tomorrow
@@ -1093,15 +1098,16 @@ export class LinesEngine {
         JOIN trips t ON st.trip_id = t.trip_id
         JOIN routes r ON t.route_id = r.route_id
         JOIN feeds f ON r.feed_id = f.id
-        WHERE f.status != 'horário expirado' AND f.status != 'EXPIRED'
+        WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
+          AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
           AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
-          AND st.departure_secs >= ?
-          AND ${filtroServicosHoje('t')}
+          AND st.departure_secs >= ? + 86400
+          AND ${filtroServicosHoje('t', new Date(Date.now() - 24 * 60 * 60 * 1000))}
           AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
         LIMIT ?
-      `).all(stopId, stopId, rawStopId, currentSecs - 120, stopName, remainingLimit * 4) as Array<{
+      `).all(stopId, stopId, rawStopId, currentSecs, stopName, remainingLimit * 2) as Array<{
         departure_secs: number;
         trip_id: string;
         trip_headsign: string;
@@ -1116,7 +1122,29 @@ export class LinesEngine {
         is_tomorrow: number;
       }>;
 
-      let combinedRows = [...rows];
+      // Exclude trips ending at this stop (Requirement 2):
+      // stop_sequence < max(stop_sequence) AND trip_headsign != stopName
+      const rows = db.prepare(`
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign,
+               r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
+               f.operator_name, f.mode as feed_mode, f.id as feed_id,
+               0 as is_tomorrow
+        FROM stop_times st
+        JOIN trips t ON st.trip_id = t.trip_id
+        JOIN routes r ON t.route_id = r.route_id
+        JOIN feeds f ON r.feed_id = f.id
+        WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
+          AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
+          AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
+          AND st.departure_secs >= ?
+          AND ${filtroServicosHoje('t')}
+          AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
+          AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
+        ORDER BY st.departure_secs ASC
+        LIMIT ?
+      `).all(stopId, stopId, rawStopId, currentSecs, stopName, remainingLimit * 4) as typeof yesterdayLateRows;
+
+      let combinedRows = [...yesterdayLateRows, ...rows].sort((a, b) => a.departure_secs - b.departure_secs);
       if (combinedRows.length < remainingLimit) {
         const morningRows = db.prepare(`
           SELECT st.departure_secs, t.trip_id, t.trip_headsign,
@@ -1127,7 +1155,8 @@ export class LinesEngine {
           JOIN trips t ON st.trip_id = t.trip_id
           JOIN routes r ON t.route_id = r.route_id
           JOIN feeds f ON r.feed_id = f.id
-          WHERE f.status != 'horário expirado' AND f.status != 'EXPIRED'
+          WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
+            AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
             AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
             AND st.departure_secs < ?
             AND ${filtroServicosHoje('t', new Date(Date.now() + 24 * 60 * 60 * 1000))}
@@ -1160,16 +1189,13 @@ export class LinesEngine {
           ? (24 * 3600 - currentSecs) + r.departure_secs
           : r.departure_secs - currentSecs;
 
-        // If trip departed more than 2 minutes ago, drop it (Requirement 3: never wrap to tomorrow)
-        if (diffSecs < -120) continue;
+        // Partidas só com horário: esconder quando a hora passa (diffSecs < 0)
+        if (diffSecs < 0) continue;
 
         let diffMinutes = Math.round(diffSecs / 60);
         let displayText = `daqui a ${diffMinutes} min`;
 
-        if (diffSecs <= 0 && diffSecs >= -120) {
-          diffMinutes = 0;
-          displayText = 'a partir';
-        } else if (diffSecs <= 60) {
+        if (diffSecs <= 60) {
           diffMinutes = 0;
           displayText = 'a chegar';
         } else if (r.is_tomorrow === 1) {
@@ -1183,7 +1209,7 @@ export class LinesEngine {
         const depMin = Math.floor((r.departure_secs % 3600) / 60);
         const timeStr = `${String(depHour).padStart(2, '0')}:${String(depMin).padStart(2, '0')}`;
         const color = r.route_color ? (r.route_color.startsWith('#') ? r.route_color : `#${r.route_color}`) : '#2563EB';
-        const avisoHorario = feedsAviso.has(r.feed_id) ? 'Horário pode não estar atualizado' : undefined;
+        const avisoHorario = feedsAviso.has(r.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
         departures.push({
           line_id: r.route_id,

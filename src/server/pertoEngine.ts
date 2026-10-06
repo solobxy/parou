@@ -98,6 +98,9 @@ export async function getNearbyTransitData(
       state: d.state,
       statusDescription: d.state_reason || d.state,
       isDelayed: d.is_delayed,
+      aviso_horario: d.aviso_horario,
+      dep_epoch_secs: d.dep_epoch_secs,
+      realtime_epoch_secs: d.realtime_epoch_secs,
     }));
 
     const lines = (stop.lines && stop.lines.length > 0)

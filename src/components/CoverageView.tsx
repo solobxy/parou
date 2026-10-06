@@ -192,11 +192,12 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
             OK
           </span>
         );
+      case 'horário expirado':
       case 'EXPIRED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30" title="Horário possivelmente desatualizado">
             <AlertTriangle className="w-3 h-3 text-amber-400" />
-            EXPIRED
+            DESATUALIZADO
           </span>
         );
       case 'NEEDS_KEY':
@@ -465,9 +466,23 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
 
                       <td className="py-3 px-3 font-mono text-[11px]">
                         {feed.valid_until ? (
-                          <span className={feed.status === 'EXPIRED' ? 'text-amber-400 font-bold' : 'text-slate-300'}>
-                            {feed.valid_until}
-                          </span>
+                          (() => {
+                            const todayClean = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                            const isPast = feed.valid_until.replace(/-/g, '') < todayClean;
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <span className={isPast ? 'text-amber-400 font-bold' : 'text-slate-300'}>
+                                  {feed.valid_until}
+                                </span>
+                                {isPast && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/30 whitespace-nowrap" title="O prazo do calendário oficial expirou">
+                                    <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                    horário possivelmente desatualizado
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()
                         ) : (
                           <span className="text-slate-500">—</span>
                         )}
