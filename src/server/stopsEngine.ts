@@ -7,8 +7,10 @@ import {
   getAllFeeds,
   queryStopsInBoundingBox,
   queryAllRawStopsInBoundingBox,
-  getDatabase
+  getDatabase,
+  registerCacheClearCallback
 } from './db/gtfsDatabase';
+registerCacheClearCallback(() => StopsEngine.clearCache());
 
 export interface StopLine {
   route_id: string;
@@ -124,6 +126,11 @@ export class StopsEngine {
   private static cachedUnifiedStops: UnifiedStop[] | null = null;
   private static cacheTime = 0;
   private static readonly CACHE_TTL_MS = 60 * 1000; // 60s
+
+  public static clearCache(): void {
+    this.cachedUnifiedStops = null;
+    this.cacheTime = 0;
+  }
 
   public static async getUnifiedStops(): Promise<UnifiedStop[]> {
     const now = Date.now();

@@ -1,7 +1,70 @@
 import { getDatabase } from './db/gtfsDatabase';
 import { getAllFeeds } from './db/gtfsDatabase';
-import { getLisbonTime } from './gtfsStreamEngine';
 import { getStcpLiveVehicles } from './portoOpenDataService';
+import { DateTime } from 'luxon';
+
+export const VALID_DAY_COLUMNS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+export type ValidDayCol = typeof VALID_DAY_COLUMNS[number];
+
+export function getLisbonDateContext(refDate?: Date) {
+  const dt = refDate 
+    ? DateTime.fromJSDate(refDate).setZone('Europe/Lisbon')
+    : DateTime.now().setZone('Europe/Lisbon');
+
+  const todayStr = dt.toFormat('yyyyMMdd');
+  const todaySeconds = dt.hour * 3600 + dt.minute * 60 + dt.second;
+
+  const yesterdayDt = dt.minus({ days: 1 });
+  const yesterdayStr = yesterdayDt.toFormat('yyyyMMdd');
+
+  const tomorrowDt = dt.plus({ days: 1 });
+  const tomorrowStr = tomorrowDt.toFormat('yyyyMMdd');
+
+  const DAY_COL_MAP: Record<number, ValidDayCol> = {
+    1: 'monday',
+    2: 'tuesday',
+    3: 'wednesday',
+    4: 'thursday',
+    5: 'friday',
+    6: 'saturday',
+    7: 'sunday',
+  };
+
+  return {
+    todayStr,
+    todayDayCol: DAY_COL_MAP[dt.weekday],
+    todaySeconds,
+    yesterdayStr,
+    yesterdayDayCol: DAY_COL_MAP[yesterdayDt.weekday],
+    tomorrowStr,
+    tomorrowDayCol: DAY_COL_MAP[tomorrowDt.weekday],
+    currentSeconds: todaySeconds,
+  };
+}
+
+export function getServiceFilterSql(dateStr: string, dayCol: ValidDayCol): string {
+  if (!VALID_DAY_COLUMNS.includes(dayCol)) {
+    throw new Error(`Invalid weekday column: ${dayCol}`);
+  }
+  return `(t.feed_id, t.service_id) IN (
+    SELECT feed_id, service_id FROM calendar
+     WHERE start_date <= '${dateStr}' AND end_date >= '${dateStr}' AND ${dayCol} = 1
+    UNION
+    SELECT feed_id, service_id FROM calendar_dates
+     WHERE date = '${dateStr}' AND exception_type = 1
+    EXCEPT
+    SELECT feed_id, service_id FROM calendar_dates
+     WHERE date = '${dateStr}' AND exception_type = 2
+  )`;
+}
+
+export function getLisbonTime() {
+  const ctx = getLisbonDateContext();
+  return {
+    currentSeconds: ctx.todaySeconds,
+    dateStr: ctx.todayStr,
+  };
+}
 
 export interface LineSummary {
   id: string;

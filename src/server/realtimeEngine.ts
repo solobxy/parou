@@ -1,6 +1,9 @@
 import { UnifiedStop } from './stopsEngine';
 import { DateTime } from 'luxon';
 import { getStcpLiveVehicles } from './portoOpenDataService';
+import { registerCacheClearCallback } from './db/gtfsDatabase';
+
+registerCacheClearCallback(() => RealtimeEngine.clearCaches());
 
 export type DepartureState = 'TEMPO REAL' | 'PROGRAMADO' | 'SUPRIMIDO';
 
@@ -61,6 +64,13 @@ const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
 const MAX_STALE_AGE_SECS = 120;          // Data older than 2 min (120 s) ignored
 
 export class RealtimeEngine {
+  public static clearCaches(): void {
+    vehiclesCache.data = [];
+    vehiclesCache.timestamp = 0;
+    arrivalsCache.clear();
+    metroStatusCache.data = null;
+    metroStatusCache.timestamp = 0;
+  }
   /**
    * 1. Fetch live vehicles (Carris Metropolitana, etc.)
    * Server cache: 15 seconds.

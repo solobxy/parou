@@ -9,6 +9,8 @@
  *    (Endpoint: https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000)
  */
 
+import { updateFeedProgress, logFetch } from './db/gtfsDatabase';
+
 export interface StcpLiveVehicle {
   id: string;
   vehicle_id: string;
@@ -174,12 +176,30 @@ export async function getStcpLiveVehicles(): Promise<StcpLiveVehicle[]> {
 
     if (!res.ok) {
       lastStcpFailTime = now;
+      const errMsg = `HTTP error ${res.status} from Porto Open Data STCP broker`;
+      try {
+        updateFeedProgress('stcp', 'horário expirado', `Erro em tempo real: ${errMsg}`, errMsg);
+        logFetch({
+          feed_id: 'stcp',
+          url: 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000',
+          http_status: res.status,
+          bytes: 0,
+          duration_ms: 0,
+          timestamp: new Date().toISOString(),
+          message: 'Falha real-time STCP',
+          error_details: errMsg,
+        });
+      } catch {}
       return cachedStcpVehicles.vehicles;
     }
 
     const rawList = (await res.json()) as any[];
     if (!Array.isArray(rawList)) {
       lastStcpFailTime = now;
+      const errMsg = 'Invalid JSON response format from STCP broker';
+      try {
+        updateFeedProgress('stcp', 'horário expirado', `Erro em tempo real: ${errMsg}`, errMsg);
+      } catch {}
       return cachedStcpVehicles.vehicles;
     }
 
@@ -226,9 +246,26 @@ export async function getStcpLiveVehicles(): Promise<StcpLiveVehicle[]> {
 
     cachedStcpVehicles = { vehicles, timestamp: now };
     lastStcpFailTime = 0;
+    try {
+      updateFeedProgress('stcp', 'horário expirado', `OK (${vehicles.length} veículos em direto)`);
+    } catch {}
     return vehicles;
   } catch (err: any) {
     lastStcpFailTime = now;
+    const errMsg = err?.message || String(err);
+    try {
+      updateFeedProgress('stcp', 'horário expirado', `Erro em tempo real: ${errMsg}`, errMsg);
+      logFetch({
+        feed_id: 'stcp',
+        url: 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000',
+        http_status: 0,
+        bytes: 0,
+        duration_ms: 0,
+        timestamp: new Date().toISOString(),
+        message: 'Falha de ligação real-time STCP',
+        error_details: errMsg,
+      });
+    } catch {}
     return cachedStcpVehicles.vehicles;
   }
 }

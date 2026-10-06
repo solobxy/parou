@@ -3,20 +3,44 @@ import fs from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { FeedItem, FetchLogItem, FeedStatus } from '../../types/coverage';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+// Cleanup old project data/ db files if they exist
+try {
+  const oldDataDir = path.resolve(process.cwd(), 'data');
+  const filesToDelete = ['gtfs.db', 'gtfs.db.new', 'gtfs.db.gz', 'gtfs.db.bak', 'gtfs.db-wal', 'gtfs.db-shm', 'gtfs.db.tmp-wal', 'gtfs.db.tmp-shm', 'gtfs.db.tmp', 'gtfs.db.bak-shm', 'gtfs.db.bak-wal'];
+  for (const f of filesToDelete) {
+    const p = path.join(oldDataDir, f);
+    if (fs.existsSync(p)) {
+      try { fs.unlinkSync(p); } catch {}
+    }
+  }
+} catch {}
+
+const DATA_DIR = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 if (!fs.existsSync(DATA_DIR)) {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   } catch (err) {
-    console.warn('[SQLite DB] Não foi possível criar pasta data/:', err);
+    console.warn('[SQLite DB] Não foi possível criar pasta /tmp/parou:', err);
   }
 }
 
 export const DB_FILE = path.join(DATA_DIR, 'gtfs.db');
 export const DB_BACKUP_FILE = path.join(DATA_DIR, 'gtfs.db.bak');
-export const DB_TMP_FILE = path.join(DATA_DIR, 'gtfs.db.tmp');
+export const DB_TMP_FILE = path.join(DATA_DIR, 'gtfs.db.new');
 
 let dbInstance: DatabaseSync | null = null;
+
+const cacheClearCallbacks: Array<() => void> = [];
+
+export function registerCacheClearCallback(cb: () => void): void {
+  cacheClearCallbacks.push(cb);
+}
+
+export function clearAllCaches(): void {
+  for (const cb of cacheClearCallbacks) {
+    try { cb(); } catch {}
+  }
+}
 
 function checkFileIntegrity(filePath: string): boolean {
   if (!fs.existsSync(filePath)) return false;
@@ -54,33 +78,43 @@ let isUsingBackupFile = false;
 export function reloadDatabaseConnection(): void {
   if (process.env.IS_WORKER === 'true') return;
   try {
-    if (dbInstance) {
-      try { dbInstance.close(); } catch {}
-      dbInstance = null;
-    }
-
-    if (fs.existsSync(DB_FILE) && !checkFileIntegrity(DB_FILE)) {
-      console.warn('[SQLite DB] Ficheiro gtfs.db inválido/malformed no reload. A remover...');
-      try { fs.unlinkSync(DB_FILE); } catch {}
-      try { if (fs.existsSync(`${DB_FILE}-wal`)) fs.unlinkSync(`${DB_FILE}-wal`); } catch {}
-      try { if (fs.existsSync(`${DB_FILE}-shm`)) fs.unlinkSync(`${DB_FILE}-shm`); } catch {}
-    }
+    let nextDb: DatabaseSync | null = null;
+    let nextIsUsingBackup = false;
 
     if (fs.existsSync(DB_FILE) && checkFileIntegrity(DB_FILE)) {
-      dbInstance = new DatabaseSync(DB_FILE, { readOnly: true });
-      dbInstance.exec('PRAGMA busy_timeout = 10000;');
-      isUsingBackupFile = false;
-      try { lastLoadedDbMtime = fs.statSync(DB_FILE).mtimeMs; } catch {}
-      console.log('[SQLite DB] Ligação só-leitura reaberta com sucesso no gtfs.db íntegro.');
+      try {
+        nextDb = new DatabaseSync(DB_FILE, { readOnly: true });
+        nextDb.exec('PRAGMA busy_timeout = 10000;');
+        nextIsUsingBackup = false;
+        try { lastLoadedDbMtime = fs.statSync(DB_FILE).mtimeMs; } catch {}
+      } catch (err: any) {
+        console.warn('[SQLite DB] Não foi possível abrir nova ligação em gtfs.db, a manter atual:', err?.message || err);
+      }
     } else if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
-      dbInstance = new DatabaseSync(DB_BACKUP_FILE, { readOnly: true });
-      dbInstance.exec('PRAGMA busy_timeout = 10000;');
-      isUsingBackupFile = true;
-      lastRetryDbFileTime = Date.now();
-      console.warn('[SQLite DB] gtfs.db a ser inicializado. A utilizar gtfs.db.bak em segurança.');
+      try {
+        nextDb = new DatabaseSync(DB_BACKUP_FILE, { readOnly: true });
+        nextDb.exec('PRAGMA busy_timeout = 10000;');
+        nextIsUsingBackup = true;
+        lastRetryDbFileTime = Date.now();
+      } catch (err: any) {
+        console.warn('[SQLite DB] Não foi possível abrir ligação em gtfs.db.bak, a manter atual:', err?.message || err);
+      }
+    }
+
+    if (nextDb) {
+      const oldDb = dbInstance;
+      dbInstance = nextDb;
+      isUsingBackupFile = nextIsUsingBackup;
+      if (oldDb && oldDb !== nextDb) {
+        try { oldDb.close(); } catch {}
+      }
+      clearAllCaches();
+      console.log('[SQLite DB] Ligação só-leitura reaberta com sucesso no gtfs.db íntegro e caches limpas.');
+    } else {
+      console.warn('[SQLite DB] Verificação da base falhou ou em escrita. A manter ligação atual.');
     }
   } catch (err: any) {
-    console.warn('[SQLite DB] Aviso ao recarregar ligação só-leitura:', err?.message || err);
+    console.warn('[SQLite DB] Aviso ao recarregar ligação só-leitura (ligação mantida):', err?.message || err);
   }
 }
 
@@ -155,41 +189,52 @@ export function getDatabase(): DatabaseSync {
       dbInstance.prepare('SELECT 1').get();
       return dbInstance;
     } catch {
-      try { dbInstance.close(); } catch {}
-      dbInstance = null;
+      // Se a verificação falhar, tenta restabelecer ou mantém a ligação atual
     }
-  }
-
-  // Self-heal: If DB_FILE exists but is not intact, delete it
-  if (fs.existsSync(DB_FILE) && !checkFileIntegrity(DB_FILE)) {
-    console.warn('[SQLite DB] gtfs.db corrompido/malformed no arranque. A recriar...');
-    try { fs.unlinkSync(DB_FILE); } catch {}
-    try { if (fs.existsSync(`${DB_FILE}-wal`)) fs.unlinkSync(`${DB_FILE}-wal`); } catch {}
-    try { if (fs.existsSync(`${DB_FILE}-shm`)) fs.unlinkSync(`${DB_FILE}-shm`); } catch {}
-  }
-  if (fs.existsSync(DB_BACKUP_FILE) && !checkFileIntegrity(DB_BACKUP_FILE)) {
-    try { fs.unlinkSync(DB_BACKUP_FILE); } catch {}
   }
 
   if (!isWorker) {
     // SERVER PROCESS (Reader):
     if (fs.existsSync(DB_FILE) && checkFileIntegrity(DB_FILE)) {
       try {
-        dbInstance = new DatabaseSync(DB_FILE, { readOnly: true });
-        dbInstance.exec('PRAGMA busy_timeout = 10000;');
+        const nextDb = new DatabaseSync(DB_FILE, { readOnly: true });
+        nextDb.exec('PRAGMA busy_timeout = 10000;');
         isUsingBackupFile = false;
+        if (dbInstance && dbInstance !== nextDb) {
+          try { dbInstance.close(); } catch {}
+        }
+        dbInstance = nextDb;
+        clearAllCaches();
         return dbInstance;
-      } catch {}
+      } catch (err) {
+        console.warn('[SQLite DB] Aviso ao abrir gtfs.db (mantém ligação se existir):', err);
+        if (dbInstance) return dbInstance;
+      }
     }
 
     // Fallback to DB_BACKUP_FILE if DB_FILE is missing or corrupt
     if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
       try {
-        fs.copyFileSync(DB_BACKUP_FILE, DB_FILE);
-        dbInstance = new DatabaseSync(DB_FILE, { readOnly: true });
-        dbInstance.exec('PRAGMA busy_timeout = 10000;');
+        if (!fs.existsSync(DB_FILE)) {
+          fs.copyFileSync(DB_BACKUP_FILE, DB_FILE);
+        }
+        const nextDb = new DatabaseSync(DB_FILE, { readOnly: true });
+        nextDb.exec('PRAGMA busy_timeout = 10000;');
+        if (dbInstance && dbInstance !== nextDb) {
+          try { dbInstance.close(); } catch {}
+        }
+        dbInstance = nextDb;
+        clearAllCaches();
         return dbInstance;
-      } catch {}
+      } catch (err) {
+        console.warn('[SQLite DB] Aviso ao abrir gtfs.db via backup (mantém ligação se existir):', err);
+        if (dbInstance) return dbInstance;
+      }
+    }
+
+    // Se já temos uma ligação aberta, mantém-na e tenta mais tarde
+    if (dbInstance) {
+      return dbInstance;
     }
 
     // Fresh server: initialize empty DB_FILE with schema
@@ -202,6 +247,7 @@ export function getDatabase(): DatabaseSync {
       dbInstance.exec('PRAGMA busy_timeout = 10000;');
       return dbInstance;
     } catch {
+      if (dbInstance) return dbInstance;
       return new DatabaseSync(':memory:');
     }
   }
@@ -210,26 +256,21 @@ export function getDatabase(): DatabaseSync {
   try {
     if (!fs.existsSync(DB_FILE)) {
       if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
-        fs.copyFileSync(DB_BACKUP_FILE, DB_FILE);
+        try { fs.copyFileSync(DB_BACKUP_FILE, DB_FILE); } catch {}
       }
     }
 
-    dbInstance = new DatabaseSync(DB_FILE);
-    dbInstance.exec('PRAGMA journal_mode = WAL;');
-    dbInstance.exec('PRAGMA busy_timeout = 10000;');
-    dbInstance.exec('PRAGMA synchronous = NORMAL;');
-    initSchema(dbInstance);
+    const nextDb = new DatabaseSync(DB_FILE);
+    nextDb.exec('PRAGMA journal_mode = WAL;');
+    nextDb.exec('PRAGMA busy_timeout = 10000;');
+    nextDb.exec('PRAGMA synchronous = NORMAL;');
+    initSchema(nextDb);
+    dbInstance = nextDb;
     return dbInstance;
   } catch (err: any) {
-    console.warn('[Worker DB] Erro ao abrir gtfs.db:', err?.message);
-    try {
-      if (fs.existsSync(DB_FILE)) fs.unlinkSync(DB_FILE);
-      if (fs.existsSync(`${DB_FILE}-wal`)) fs.unlinkSync(`${DB_FILE}-wal`);
-      if (fs.existsSync(`${DB_FILE}-shm`)) fs.unlinkSync(`${DB_FILE}-shm`);
-    } catch {}
-    dbInstance = new DatabaseSync(DB_FILE);
-    initSchema(dbInstance);
-    return dbInstance;
+    console.warn('[Worker DB] Erro ao abrir gtfs.db (mantém ligação se existir):', err?.message);
+    if (dbInstance) return dbInstance;
+    throw err;
   }
 }
 
