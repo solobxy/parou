@@ -11,6 +11,7 @@ import {
 import { StopsEngine, UnifiedStop } from './stopsEngine';
 import { RealtimeEngine, LiveDeparture } from './realtimeEngine';
 import { getUnirStopDepartures } from './unirQiHorasService';
+import { getFeedTimezone } from './dadosProntos';
 
 export interface DepartureResult {
   stop: {
@@ -31,6 +32,32 @@ export interface DepartureResult {
 }
 
 const LISBON_ZONE = 'Europe/Lisbon';
+
+export function isFeedExcluded(feed?: any): boolean {
+  if (!feed) return false;
+  const status = (feed.status || '').toLowerCase();
+  if (['importing', 'downloading', 'parsing'].includes(status)) {
+    return true;
+  }
+  const hasImportedData = (feed.lines_count > 0 || feed.trips_count > 0 || Boolean(feed.last_ok));
+  if (!hasImportedData && ['error', 'unavailable', 'needs_key', 'needs_auth', 'falhou'].includes(status)) {
+    return true;
+  }
+  return false;
+}
+
+export function isFeedOutdated(feed?: any, todayDateStr?: string): boolean {
+  if (!feed) return false;
+  if (feed.valid_until) {
+    const validClean = feed.valid_until.replace(/-/g, '').slice(0, 8);
+    const todayClean = (todayDateStr || DateTime.now().setZone('Europe/Lisbon').toFormat('yyyyMMdd')).replace(/-/g, '').slice(0, 8);
+    if (validClean < todayClean) return true;
+  }
+  if (feed.last_error && feed.last_error.startsWith('O operador não atualizou as datas do calendário')) {
+    return true;
+  }
+  return false;
+}
 
 function formatDisplayMinutes(diffSecs: number): string {
   const mins = Math.max(0, Math.round(diffSecs / 60));
@@ -114,52 +141,54 @@ export class DepartureEngine {
       scheduledSecs: number;
       frequencyLabel?: string;
       dayLabel: string;
+      avisoHorario?: string;
     }[] = [];
 
     // Map to keep track of first/last departures of the day
     let firstDepToday: string | undefined;
     let lastDepToday: string | undefined;
 
-    // Evaluate each day offset
-    for (const d of testDayOffsets) {
-      const serviceDay = lisbonNow.plus({ days: d });
-      const dateStr = serviceDay.toFormat('yyyyLLdd');
-      const dayOfWeekName = serviceDay.toFormat('cccc').toLowerCase();
+    // Evaluate member stops and day offsets in each feed's agency_timezone
+    for (const memberStopId of stop.member_stop_ids) {
+      const colonIdx = memberStopId.indexOf(':');
+      const feedId = colonIdx !== -1 ? memberStopId.slice(0, colonIdx) : memberStopId;
+      const feed = feedsMap.get(feedId);
 
-      // Real time = service-day start (local noon minus 12 h in Europe/Lisbon) + seconds
-      // Using Luxon to never add 24h by hand and respect daylight saving transitions
-      const noon = DateTime.fromObject(
-        { year: serviceDay.year, month: serviceDay.month, day: serviceDay.day, hour: 12, minute: 0, second: 0 },
-        { zone: LISBON_ZONE }
-      );
-      const serviceDayStart = noon.minus({ hours: 12 });
-      const serviceDayStartSecs = Math.floor(serviceDayStart.toSeconds());
+      // 1. Exclui apenas feeds que nunca importaram com sucesso ou estão a meio de importação
+      if (isFeedExcluded(feed)) continue;
 
-      let dayLabel = 'hoje';
-      if (d === -1) dayLabel = 'ontem';
-      else if (d === 1) dayLabel = 'amanhã';
-      else if (d > 1) dayLabel = serviceDay.setLocale('pt-PT').toFormat('cccc');
+      // 2. agency_timezone do feed, nunca UTC
+      const feedZone = getFeedTimezone(feedId);
+      const feedNow = (typeof nowInput === 'string' ? DateTime.fromISO(nowInput) : DateTime.fromJSDate(nowInput)).setZone(feedZone);
+      const feedNowEpochSecs = Math.floor(feedNow.toSeconds());
 
-      // For yesterday (-1), we only consider trips passing 24:00 (i.e. departure_secs >= 86400)
-      // that arrive in the early morning of today (e.g. 04:10).
-      // For today (0), start querying from right now minus 2 minutes so upcoming evening departures are NOT cut off by LIMIT.
-      // For future days (> 0), start from 00:00:00 (0).
-      const currentSecsOfDay = lisbonNow.hour * 3600 + lisbonNow.minute * 60 + lisbonNow.second;
-      const minSecs = d === -1 ? 86400 : (d === 0 ? Math.max(0, currentSecsOfDay - 120) : 0);
-      const maxSecs = d === -1 ? 86400 + 43200 : 86400 * 2; // up to 48h to catch overnight services
+      // 3. valid_until no passado gera aviso sem excluir
+      const isOutdated = isFeedOutdated(feed, feedNow.toFormat('yyyyMMdd'));
+      const avisoHorario = isOutdated ? 'horário possivelmente desatualizado' : undefined;
 
-      // Query departures for all member stops and their respective feeds
-      for (const memberStopId of stop.member_stop_ids) {
-        const colonIdx = memberStopId.indexOf(':');
-        const feedId = colonIdx !== -1 ? memberStopId.slice(0, colonIdx) : memberStopId;
+      for (const d of testDayOffsets) {
+        const serviceDay = feedNow.plus({ days: d });
+        const dateStr = serviceDay.toFormat('yyyyLLdd');
+        const dayOfWeekName = serviceDay.toFormat('cccc').toLowerCase();
 
-        // Regra: se o horário de um feed já tiver expirado, marca-o como "horário expirado" e não mostres partidas desse feed.
-        const feed = feedsMap.get(feedId);
-        if (feed && (feed.status === 'horário expirado' || feed.status === 'EXPIRED' || (feed.valid_until && feed.valid_until.replace(/-/g, '') < dateStr))) {
-          continue;
-        }
+        const noon = DateTime.fromObject(
+          { year: serviceDay.year, month: serviceDay.month, day: serviceDay.day, hour: 12, minute: 0, second: 0 },
+          { zone: feedZone }
+        );
+        const serviceDayStart = noon.minus({ hours: 12 });
+        const serviceDayStartSecs = Math.floor(serviceDayStart.toSeconds());
 
-        // Active services per date: calendar.txt (range + weekday), then calendar_dates.txt (1=add, 2=remove)
+        let dayLabel = 'hoje';
+        if (d === -1) dayLabel = 'hoje'; // Viagens após 24:00 do dia anterior partem hoje de madrugada
+        else if (d === 1) dayLabel = 'amanhã';
+        else if (d > 1) dayLabel = serviceDay.setLocale('pt-PT').toFormat('cccc');
+
+        // Para ontem (-1): incluir viagens do dia anterior com horas > 24:00:00 (departure_secs >= 86400)
+        // Para hoje (0): a partir do segundo atual
+        const currentSecsOfDay = feedNow.hour * 3600 + feedNow.minute * 60 + feedNow.second;
+        const minSecs = d === -1 ? 86400 : (d === 0 ? currentSecsOfDay : 0);
+        const maxSecs = d === -1 ? 86400 + 43200 : 86400 * 2;
+
         const activeServiceIds = getActiveServiceIds(feedId, dateStr, dayOfWeekName);
         if (activeServiceIds.size === 0) continue;
 
@@ -172,16 +201,13 @@ export class DepartureEngine {
         );
 
         for (const row of rawRows) {
-          // Rule: Skip the last stop of a trip and pickup_type = 1
           if (row.pickup_type === 1) continue;
 
           const maxSeq = getMaxStopSequence(feedId, row.trip_id);
           if (row.stop_sequence >= maxSeq && maxSeq > 1) {
-            // Last stop of trip, drop-off only
             continue;
           }
 
-          // Rule: frequencies.txt handling (start_time + intervalo + tempo até esta paragem)
           const freqs = getFrequenciesForTrip(feedId, row.trip_id);
           if (freqs.length > 0) {
             const db = getDatabase();
@@ -193,19 +219,17 @@ export class DepartureEngine {
               const exactTimes = f.exact_times === 1;
               const freqLabel = !exactTimes ? `a cada ${Math.round(f.headway_secs / 60)} min` : undefined;
 
-              // Expand frequency: start + k * headway_secs + travelTimeToStop until end_time + travelTimeToStop
               for (let tSecs = f.start_time_secs; tSecs < f.end_time_secs; tSecs += f.headway_secs) {
                 const depSecs = tSecs + travelTimeToStop;
                 const depEpoch = serviceDayStartSecs + depSecs;
 
-                if (d === 0) {
+                if (d === 0 || (d === -1 && depSecs >= 86400)) {
                   const timeFormatted = secondsToTimeString(depSecs);
                   if (!firstDepToday) firstDepToday = timeFormatted;
                   lastDepToday = timeFormatted;
                 }
 
-                // If departure is in future or within last 2 minutes
-                if (depEpoch >= nowEpochSecs - 120) {
+                if (depEpoch >= feedNowEpochSecs) {
                   collectedCandidates.push({
                     raw: row,
                     serviceDay,
@@ -214,22 +238,21 @@ export class DepartureEngine {
                     scheduledSecs: depSecs,
                     frequencyLabel: freqLabel,
                     dayLabel,
+                    avisoHorario,
                   });
                 }
               }
             }
           } else {
-            // Standard stop_times schedule
             const depEpoch = serviceDayStartSecs + row.departure_secs;
 
-            if (d === 0) {
+            if (d === 0 || (d === -1 && row.departure_secs >= 86400)) {
               const timeFormatted = secondsToTimeString(row.departure_secs);
               if (!firstDepToday) firstDepToday = timeFormatted;
               lastDepToday = timeFormatted;
             }
 
-            // At 04:10, include yesterday's trips after 24:00 (depEpoch >= nowEpochSecs - 120)
-            if (depEpoch >= nowEpochSecs - 120) {
+            if (depEpoch >= feedNowEpochSecs) {
               collectedCandidates.push({
                 raw: row,
                 serviceDay,
@@ -237,15 +260,11 @@ export class DepartureEngine {
                 depEpochSecs: depEpoch,
                 scheduledSecs: row.departure_secs,
                 dayLabel,
+                avisoHorario,
               });
             }
           }
         }
-      }
-
-      // If we already have enough departures for today, we don't need to gather all 7 days
-      if (d >= 0 && collectedCandidates.length >= maxResults * 2) {
-        break;
       }
     }
 
@@ -314,8 +333,8 @@ export class DepartureEngine {
 
     // Initial LiveDeparture items (PROGRAMADO state initially)
     const initialDepartures: LiveDeparture[] = [
-      ...cmDirectDepartures,
-      ...unirDirectDepartures,
+      ...cmDirectDepartures.filter((d) => ((d.is_realtime && d.realtime_epoch_secs !== undefined) ? d.realtime_epoch_secs : d.dep_epoch_secs) >= nowEpochSecs),
+      ...unirDirectDepartures.filter((d) => ((d.is_realtime && d.realtime_epoch_secs !== undefined) ? d.realtime_epoch_secs : d.dep_epoch_secs) >= nowEpochSecs),
       ...topCandidates.map((c) => {
         const scheduledTimeStr = secondsToTimeString(c.scheduledSecs);
         const diffSecs = c.depEpochSecs - nowEpochSecs;
@@ -343,10 +362,14 @@ export class DepartureEngine {
           is_realtime: false,
           frequency_label: c.frequencyLabel,
           day_label: c.dayLabel,
+          realtime_epoch_secs: undefined,
           display_text: formatProgrammedText(scheduledTimeStr, diffSecs, c.dayLabel),
-        };
+          aviso_horario: (c as any).avisoHorario,
+        } as LiveDeparture;
       })
-    ].slice(0, maxResults);
+    ]
+      .sort((a, b) => ((a.is_realtime && a.realtime_epoch_secs !== undefined) ? a.realtime_epoch_secs : a.dep_epoch_secs) - ((b.is_realtime && b.realtime_epoch_secs !== undefined) ? b.realtime_epoch_secs : b.dep_epoch_secs))
+      .slice(0, maxResults);
 
     // 4. Enrich with Real-time merge (Carris Metropolitana, GTFS-RT, Metro de Lisboa, CP flag)
     const enrichedDepartures = await RealtimeEngine.mergeRealtimeData(
@@ -355,8 +378,18 @@ export class DepartureEngine {
       nowEpochSecs
     );
 
+    // Filter out any departures whose time has already passed:
+    // Partidas com tempo real: filtrar pela hora prevista (horário + atraso).
+    // Partidas só com horário: esconder quando a hora passa.
+    const activeDepartures = enrichedDepartures.filter((d) => {
+      const targetEpoch = (d.is_realtime && d.realtime_epoch_secs !== undefined)
+        ? d.realtime_epoch_secs
+        : d.dep_epoch_secs;
+      return targetEpoch >= nowEpochSecs;
+    });
+
     // Re-format display text strictly conforming to rules
-    for (const d of enrichedDepartures) {
+    for (const d of activeDepartures) {
       const diffSecs = (d.realtime_epoch_secs || d.dep_epoch_secs) - nowEpochSecs;
 
       if (d.state === 'TEMPO REAL') {
@@ -376,10 +409,10 @@ export class DepartureEngine {
     // 5. Handling "Nothing left today" and "Fora de serviço"
     let statusNotice: string | undefined;
 
-    if (enrichedDepartures.length === 0) {
+    if (activeDepartures.length === 0) {
       statusNotice = 'Sem partidas · Sem serviço programado nos próximos 7 dias para esta paragem.';
     } else {
-      const nextDep = enrichedDepartures[0];
+      const nextDep = activeDepartures[0];
       const isToday = nextDep.day_label === 'hoje' || !nextDep.day_label;
 
       if (!isToday) {
@@ -392,7 +425,7 @@ export class DepartureEngine {
       }
     }
 
-    const hasRealtime = enrichedDepartures.some((d) => d.state === 'TEMPO REAL');
+    const hasRealtime = activeDepartures.some((d) => d.state === 'TEMPO REAL');
 
     return {
       stop: {
@@ -405,7 +438,7 @@ export class DepartureEngine {
         member_stop_ids: stop.member_stop_ids,
       },
       now_lisbon: lisbonNow.toISO() || '',
-      departures: enrichedDepartures,
+      departures: activeDepartures,
       status_notice: statusNotice,
       has_realtime: hasRealtime,
       first_departure_today: firstDepToday,

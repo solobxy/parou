@@ -14,6 +14,9 @@ export interface NextDeparture {
   isRealtime: boolean; // true = Realtime feed; false = Programado
   statusDescription: string; // "Em circulação ao vivo", "No horário programado", "+4 min de atraso"
   vehicleId?: string;
+  aviso_horario?: string;
+  dep_epoch_secs?: number;
+  realtime_epoch_secs?: number;
 }
 
 export interface NearbyStopItem {

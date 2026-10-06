@@ -34,6 +34,7 @@ export interface LiveDeparture {
   day_label?: string;
   display_text: string;
   vehicle_id?: string;
+  aviso_horario?: string;
 }
 
 export interface LiveVehicle {
@@ -244,7 +245,7 @@ export class RealtimeEngine {
         const feedTime = arr.timestamp ? arr.timestamp : nowEpochSecs;
         const isStale = Math.abs(nowEpochSecs - feedTime) > MAX_STALE_AGE_SECS;
 
-        if (!isStale && estEpoch >= nowEpochSecs - 60) {
+        if (!isStale && estEpoch >= nowEpochSecs) {
           state = 'TEMPO REAL';
           isRealtime = true;
           rtTime = DateTime.fromSeconds(estEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm');
@@ -378,7 +379,7 @@ export class RealtimeEngine {
             const feedTime = liveMatch.timestamp ? liveMatch.timestamp : nowEpochSecs;
             const isStale = Math.abs(nowEpochSecs - feedTime) > MAX_STALE_AGE_SECS;
 
-            if (!isStale && estEpoch >= nowEpochSecs - 60) {
+            if (!isStale && estEpoch >= nowEpochSecs) {
               mergedDep.state = 'TEMPO REAL';
               mergedDep.is_realtime = true;
               mergedDep.realtime_epoch_secs = estEpoch;

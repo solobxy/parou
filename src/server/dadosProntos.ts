@@ -4,6 +4,7 @@ import zlib from 'zlib';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { DatabaseSync } from 'node:sqlite';
+import { DateTime } from 'luxon';
 import { DB_FILE, getAppState, reloadDatabaseConnection } from './db/gtfsDatabase';
 
 const BASE_URL = process.env.PAROU_DADOS_URL || 'https://github.com/solobxy/parou-dados/releases/download/dados';
@@ -93,13 +94,19 @@ export function iniciarDadosProntos(): void {
   setInterval(() => { void atualizarDados(); }, INTERVALO_MS);
 }
 
-const COLUNAS_DIA = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+export function getFeedTimezone(feedId?: string): string {
+  if (!feedId) return 'Europe/Lisbon';
+  const clean = feedId.toLowerCase();
+  if (clean.includes('acores') || clean.includes('azores') || clean.includes('terceira') || clean.includes('saomiguel') || clean.includes('pico') || clean.includes('faial')) {
+    return 'Atlantic/Azores';
+  }
+  return 'Europe/Lisbon';
+}
 
-export function filtroServicosHoje(alias = 't', data: Date = new Date()): string {
-  const lisboa = data.toLocaleString('sv-SE', { timeZone: 'Europe/Lisbon' });
-  const [ano, mes, dia] = lisboa.slice(0, 10).split('-').map(Number);
-  const d = `${ano}${String(mes).padStart(2, '0')}${String(dia).padStart(2, '0')}`;
-  const coluna = COLUNAS_DIA[new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()];
+export function filtroServicosHoje(alias = 't', data: Date = new Date(), timezone = 'Europe/Lisbon'): string {
+  const dt = DateTime.fromJSDate(data).setZone(timezone);
+  const d = dt.toFormat('yyyyMMdd');
+  const coluna = dt.toFormat('cccc').toLowerCase();
   return `((${alias}.feed_id, ${alias}.service_id) IN (`
     + `SELECT feed_id, service_id FROM calendar WHERE start_date <= '${d}' AND end_date >= '${d}' AND ${coluna} = 1 `
     + `UNION SELECT feed_id, service_id FROM calendar_dates WHERE date = '${d}' AND exception_type = 1 `

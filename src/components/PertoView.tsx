@@ -1706,8 +1706,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 {(() => {
                   const nowSecs = Math.floor(Date.now() / 1000);
                   const activeDepartures = (selectedStop.nextDepartures || []).filter((dep: any) => {
-                    // Retira partidas que já passaram
-                    if (dep.dep_epoch_secs && dep.dep_epoch_secs < nowSecs - 60) return false;
+                    const isRt = dep.isRealtime || dep.state === 'TEMPO REAL' || dep.state === 'Tempo Real';
+                    // Partidas com tempo real: filtrar pela hora prevista (horário + atraso)
+                    if (isRt) {
+                      const estEpoch = dep.realtime_epoch_secs ?? (dep.dep_epoch_secs ? dep.dep_epoch_secs + (dep.delay_seconds || 0) : undefined);
+                      if (estEpoch !== undefined && estEpoch < nowSecs) return false;
+                    } else {
+                      // Partidas só com horário: esconder quando a hora passa
+                      if (dep.dep_epoch_secs && dep.dep_epoch_secs < nowSecs) return false;
+                    }
                     if (typeof dep.etaMinutes === 'number' && dep.etaMinutes < 0) return false;
                     if (typeof dep.departureMinutes === 'number' && dep.departureMinutes < 0) return false;
                     if (typeof dep.countdown_minutes === 'number' && dep.countdown_minutes < 0) return false;
@@ -1771,6 +1778,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
                             {displayText || 'sem horário'}
                           </span>
                         </div>
+
+                        {dep.aviso_horario && (
+                          <div className="pl-7 text-[9px] text-amber-400 font-medium">
+                            {dep.aviso_horario}
+                          </div>
+                        )}
                       </div>
                     );
                   });
