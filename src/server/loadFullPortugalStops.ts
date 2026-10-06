@@ -21,7 +21,7 @@ export async function ensureFullPortugalStopsLoaded(): Promise<void> {
   const pythonScript = `
 import sqlite3, zipfile, urllib.request, json, os
 
-con = sqlite3.connect('data/gtfs.db')
+con = sqlite3.connect('/tmp/parou/gtfs.db')
 cur = con.cursor()
 
 # 1. Metro do Porto

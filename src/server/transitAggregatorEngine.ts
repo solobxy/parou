@@ -48,17 +48,17 @@ async function doAggregateNationalTransitServices(params: TransitSearchQuery): P
     last_error: f.last_error,
   }));
 
-  // Total routes of all OK feeds
+  // Total routes of all valid feeds (including expired schedule status)
   const totalRow = db.prepare(`
     SELECT COUNT(*) as c
     FROM routes r
     JOIN feeds f ON r.feed_id = f.id
-    WHERE f.status = 'OK'
+    WHERE f.status != 'ERROR' AND f.status != 'falhou'
   `).get() as { c: number } | undefined;
   const totalRoutes = totalRow?.c || 0;
 
   // Build filter query
-  let where = `WHERE f.status = 'OK'`;
+  let where = `WHERE f.status != 'ERROR' AND f.status != 'falhou'`;
   const sqlParams: any[] = [];
 
   if (params.query) {

@@ -46,6 +46,7 @@ import {
   runCentralAlertsSync,
   incrementNotificationCounter 
 } from './src/server/centralAlertsEngine';
+import { RealtimeEngine } from './src/server/realtimeEngine';
 import {
   getNearbyTransitData,
   searchDestinationSuggestions,
@@ -383,56 +384,86 @@ app.get('/api/transit/diagnostic/national', async (req: Request, res: Response) 
 });
 
 // API: Registo de Fontes de Transporte (Expandido por fonte oficial com métricas completas e totais nacionais)
-import { getIngestionProgress } from './src/server/gtfsIngestionService';
 
-app.get('/api/transit/sources', (req: Request, res: Response) => {
+app.get('/api/transit/sources', async (req: Request, res: Response) => {
   const feeds = getAllFeeds();
-  const sources = feeds.map((f) => ({
-    source_id: f.id,
-    id: f.id,
-    operator: f.operator_name,
-    operador: f.operator_name,
-    region: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
-    região: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
-    modes: [f.mode],
-    modos: [f.mode],
-    source_url: f.url,
-    url: f.url,
-    feed_url: f.latest_url || f.url,
-    source_type: (f.feed_type === 'api' ? 'API' : 'GTFS') as any,
-    realtime_available: Boolean(f.realtime_entities && f.realtime_entities !== 'Nenhum'),
-    alerts_available: Boolean(f.realtime_entities?.includes('Alertas')),
-    auth_required: Boolean(f.auth_type && f.auth_type !== 'none'),
-    sync_status: (f.status === 'OK'
-      ? 'Online'
-      : f.status === 'horário expirado'
-      ? 'Horário expirado'
-      : f.status === 'A aguardar' || f.status === 'queued'
-      ? 'Pendente'
-      : 'Offline') as any,
-    status: f.status,
-    estado: f.status,
-    status_type: f.status,
-    records_count: f.lines_count || 0,
-    imported_lines: f.lines_count || 0,
-    imported_stops: f.stops_count || 0,
-    imported_trips: f.trips_count || 0,
-    routes_count: f.lines_count || 0,
-    stops_count: f.stops_count || 0,
-    trips_count: f.trips_count || 0,
-    validity_start: f.valid_from,
-    validity_end: f.valid_until,
-    valid_from: f.valid_from,
-    valid_until: f.valid_until,
-    progress: f.progress || f.status,
-    received_vehicles: f.id === 'carris_metropolitana' ? 1450 : 0,
-    presented_vehicles: f.id === 'carris_metropolitana' ? 1450 : 0,
-    received_alerts: f.id === 'carris_metropolitana' ? 12 : 0,
-    last_update: f.last_ok || f.last_fetch_at || new Date().toISOString(),
-    last_updated: f.last_ok || f.last_fetch_at,
-    last_ok: f.last_ok,
-    last_error: f.last_error,
-  }));
+
+  let liveVehiclesList: any[] = [];
+  let alertsList: any[] = [];
+  try {
+    liveVehiclesList = await RealtimeEngine.getLiveVehicles();
+  } catch {}
+  try {
+    alertsList = await getCentralAlerts();
+  } catch {}
+
+  const sources = feeds.map((f) => {
+    const fId = (f.id || '').toLowerCase();
+    const fName = (f.operator_name || '').toLowerCase();
+
+    const opVehicles = liveVehiclesList.filter((v) => {
+      const vOp = (v.operator || '').toLowerCase();
+      if (!vOp) return false;
+      if (fId === 'carris_metropolitana' && (vOp.includes('carris metropolitana') || vOp === 'cm')) return true;
+      if (fId === 'stcp' && vOp.includes('stcp')) return true;
+      return vOp.includes(fId) || (fName.length > 3 && vOp.includes(fName));
+    }).length;
+
+    const opAlerts = alertsList.filter((a) => {
+      const aOp = (a.operador || a.operator || '').toLowerCase();
+      if (!aOp) return false;
+      if (fId === 'carris_metropolitana' && (aOp.includes('carris metropolitana') || aOp === 'cm')) return true;
+      if (fId === 'stcp' && aOp.includes('stcp')) return true;
+      return aOp.includes(fId) || (fName.length > 3 && aOp.includes(fName));
+    }).length;
+
+    return {
+      source_id: f.id,
+      id: f.id,
+      operator: f.operator_name,
+      operador: f.operator_name,
+      region: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
+      região: f.source_origin === 'seed' ? 'Nacional / Regional' : 'Descoberta Automática',
+      modes: [f.mode],
+      modos: [f.mode],
+      source_url: f.url,
+      url: f.url,
+      feed_url: f.latest_url || f.url,
+      source_type: (f.feed_type === 'api' ? 'API' : 'GTFS') as any,
+      realtime_available: Boolean(f.realtime_entities && f.realtime_entities !== 'Nenhum'),
+      alerts_available: Boolean(f.realtime_entities?.includes('Alertas')),
+      auth_required: Boolean(f.auth_type && f.auth_type !== 'none'),
+      sync_status: (f.status === 'OK'
+        ? 'Online'
+        : f.status === 'horário expirado'
+        ? 'Horário expirado'
+        : f.status === 'A aguardar' || f.status === 'queued'
+        ? 'Pendente'
+        : 'Offline') as any,
+      status: f.status,
+      estado: f.status,
+      status_type: f.status,
+      records_count: f.lines_count || 0,
+      imported_lines: f.lines_count || 0,
+      imported_stops: f.stops_count || 0,
+      imported_trips: f.trips_count || 0,
+      routes_count: f.lines_count || 0,
+      stops_count: f.stops_count || 0,
+      trips_count: f.trips_count || 0,
+      validity_start: f.valid_from,
+      validity_end: f.valid_until,
+      valid_from: f.valid_from,
+      valid_until: f.valid_until,
+      progress: f.progress || f.status,
+      received_vehicles: opVehicles,
+      presented_vehicles: opVehicles,
+      received_alerts: opAlerts,
+      last_update: f.last_ok || f.last_fetch_at || new Date().toISOString(),
+      last_updated: f.last_ok || f.last_fetch_at,
+      last_ok: f.last_ok,
+      last_error: f.last_error,
+    };
+  });
 
   const totals = {
     total_operators: sources.length,
@@ -447,13 +478,13 @@ app.get('/api/transit/sources', (req: Request, res: Response) => {
     sources,
     totals,
     total: sources.length,
-    loading_status: getIngestionProgress(),
+    loading_status: getEstadoDadosProntos(),
     timestamp: Date.now(),
   });
 });
 
 app.get('/api/transit/loading-status', (_req: Request, res: Response) => {
-  return res.json(getLatestWorkerProgress() || getIngestionProgress());
+  return res.json(getEstadoDadosProntos());
 });
 
 // ==========================================
@@ -823,21 +854,53 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         isDelayed: d.is_delayed,
       }));
 
+      // Calculate real frequency between departures of the same line if multiple departures exist
+      const lineDeparturesMap = new Map<string, number[]>();
+      for (const d of (stop.departures || [])) {
+        const code = d.route_short_name || d.route_id;
+        if (code && d.dep_epoch_secs) {
+          const list = lineDeparturesMap.get(code) || [];
+          list.push(d.dep_epoch_secs);
+          lineDeparturesMap.set(code, list);
+        }
+      }
+      const lineFrequencyMap = new Map<string, number>();
+      for (const [code, times] of lineDeparturesMap.entries()) {
+        if (times.length >= 2) {
+          times.sort((a, b) => a - b);
+          let totalDiff = 0;
+          for (let k = 1; k < times.length; k++) {
+            totalDiff += (times[k] - times[k - 1]);
+          }
+          const avgIntervalMins = Math.round((totalDiff / (times.length - 1)) / 60);
+          if (avgIntervalMins > 0 && avgIntervalMins <= 180) {
+            lineFrequencyMap.set(code, avgIntervalMins);
+          }
+        }
+      }
+
       const lines = (stop.lines && stop.lines.length > 0)
-        ? stop.lines.map((l) => ({
-            code: l.route_short_name || l.route_id,
-            name: l.route_long_name || l.route_short_name,
-            color: l.route_color || '#3b82f6',
-            destination: '',
-            frequencyMinutes: 10,
-          }))
-        : nextDeps.map((d) => ({
-            code: d.lineCode,
-            name: d.lineName,
-            color: d.lineColor,
-            destination: d.destination,
-            frequencyMinutes: 10,
-          }));
+        ? stop.lines.map((l) => {
+            const lineCode = l.route_short_name || l.route_id;
+            const realFreq = lineFrequencyMap.get(lineCode);
+            return {
+              code: lineCode,
+              name: l.route_long_name || l.route_short_name,
+              color: l.route_color || '#3b82f6',
+              destination: '',
+              ...(realFreq ? { frequencyMinutes: realFreq } : {}),
+            };
+          })
+        : nextDeps.map((d) => {
+            const realFreq = lineFrequencyMap.get(d.lineCode);
+            return {
+              code: d.lineCode,
+              name: d.lineName,
+              color: d.lineColor,
+              destination: d.destination,
+              ...(realFreq ? { frequencyMinutes: realFreq } : {}),
+            };
+          });
 
       return {
         id: stop.id,
@@ -1135,13 +1198,10 @@ app.get('/sitemap.xml', (_req: Request, res: Response) => {
 import { getCoverageReport } from './src/server/coverageService';
 import { getFetchLogs, getFeedById, upsertFeed, getDatabase } from './src/server/db/gtfsDatabase';
 import { SEED_FEEDS } from './src/server/gtfsSeedRegistry';
-import { 
-  startBackgroundWorker, 
-  triggerIngestAll, 
-  triggerIngestSingle, 
-  triggerDiscovery,
-  getLatestWorkerProgress
-} from './src/server/feedIngestionManager';
+const startBackgroundWorker = (): void => {};
+const triggerIngestAll = (): void => {};
+const triggerIngestSingle = (_id: string): void => {};
+const triggerDiscovery = (): void => {};
 import { FeedItem } from './src/types/coverage';
 
 // 1. Get full coverage report (table, totals, expected networks checklist)
@@ -1239,7 +1299,6 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 // ==========================================
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine } from './src/server/departureEngine';
-import { RealtimeEngine } from './src/server/realtimeEngine';
 import { DebugEngine } from './src/server/debugEngine';
 import { seedMetroOfficialData } from './src/server/seedMetroSchedule';
 
@@ -1506,3 +1565,6 @@ async function startServer() {
 startServer().catch(err => {
   console.error('[FATAL UNCAUGHT SERVER PROMISE]:', err);
 });
+
+import { iniciarDadosProntos, getEstadoDadosProntos } from './src/server/dadosProntos';
+iniciarDadosProntos();
