@@ -418,6 +418,7 @@ function streamZipFile(zipPath: string, fileName: string, onLine: (line: string)
   return new Promise((resolve) => {
     // Check if zip contains subfolder, e.g. "Horarios GTFS_09.09.2024/stops.txt"
     const listProc = spawn('unzip', ['-Z1', zipPath]);
+    listProc.on('error', () => resolve(false));
     let fileList = '';
     listProc.stdout.on('data', (d) => { fileList += d.toString(); });
     listProc.on('close', () => {
@@ -1148,6 +1149,10 @@ export async function syncAllOfficialGtfs(): Promise<void> {
   
   // 1. Carris Metropolitana API v2
   await syncCarrisMetropolitanaApi();
+  if (process.env.PAROU_GTFS_EM_MEMORIA !== '1') {
+    console.log('[GTFS Engine] Os horários GTFS vêm da base pronta; não se descarregam ZIPs no servidor.');
+    return;
+  }
 
   // 2. GTFS official archives
   for (const config of OFFICIAL_GTFS_SOURCES) {
