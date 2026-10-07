@@ -277,6 +277,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           departureTime: d.display_text,
           displayText: d.display_text,
           scheduledTime: d.scheduled_time,
+          expectedTime: d.is_realtime && d.realtime_time ? d.realtime_time : undefined,
           etaMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
           departureMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
           isRealtime: d.state === 'TEMPO REAL',
