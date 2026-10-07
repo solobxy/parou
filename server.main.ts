@@ -852,7 +852,15 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Parâmetros de latitude e longitude inválidos.' });
     }
 
-    const nearbyStops = await StopsEngine.getNearbyUnifiedStops(lat, lon, radius, 1000);
+    let nearbyStops = await StopsEngine.getNearbyUnifiedStops(lat, lon, radius, 1000);
+    // Em zonas com poucas paragens, se não houver nenhuma no raio pedido alarga até 2 km e
+    // depois 3 km, para mostrar sempre as mais próximas (com a distância real a pé).
+    let raioUsado = radius;
+    for (const raio of [2000, 3000]) {
+      if (nearbyStops.length > 0 || raio <= raioUsado) continue;
+      nearbyStops = await StopsEngine.getNearbyUnifiedStops(lat, lon, raio, 1000);
+      raioUsado = raio;
+    }
     const now = new Date();
 
     // Enrich top 8 stops with real departures from nextDepartures in parallel, retain all others
@@ -1080,7 +1088,7 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       stops: mappedStops,
       vehicles: mappedVehicles,
       alerts: nearbyAlerts,
-      radiusMeters: radius,
+      radiusMeters: raioUsado,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
