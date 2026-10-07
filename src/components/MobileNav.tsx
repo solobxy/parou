@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, AlertTriangle, Compass, Clock, Star } from 'lucide-react';
+import { MapPin, TriangleAlert, Compass, Clock, Star } from 'lucide-react';
 
 export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes';
 
@@ -15,12 +15,11 @@ interface MobileNavProps {
 export const MobileNav: React.FC<MobileNavProps> = ({
   activeMobileView,
   onMobileViewChange,
-  totalAlertsCount,
   favoritesCount = 0,
 }) => {
-  const tabs = [
+  const tabs: Array<{ id: MobileTab; label: string; icon: React.ElementType; count?: number }> = [
     { id: 'mapa' as MobileTab, label: 'Mapa', icon: MapPin },
-    { id: 'reports' as MobileTab, label: 'Reports', icon: AlertTriangle, count: totalAlertsCount },
+    { id: 'alertas' as MobileTab, label: 'Alertas', icon: TriangleAlert },
     { id: 'perto' as MobileTab, label: 'Perto', icon: Compass },
     { id: 'horarios' as MobileTab, label: 'Horários', icon: Clock },
     { id: 'favoritos' as MobileTab, label: 'Favoritos', icon: Star, count: favoritesCount },
@@ -34,7 +33,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       <div className="grid grid-cols-5 items-center h-16 max-w-lg mx-auto px-1.5 gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeMobileView === tab.id;
+          // As ocorrências da comunidade vivem dentro do Mapa
+          const isActive = activeMobileView === tab.id || (tab.id === 'mapa' && activeMobileView === 'reports');
 
           return (
             <button

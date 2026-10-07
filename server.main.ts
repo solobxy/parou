@@ -48,6 +48,7 @@ import {
   incrementNotificationCounter 
 } from './src/server/centralAlertsEngine';
 import { RealtimeEngine } from './src/server/realtimeEngine';
+import { obterAlertas, aquecerAlertas } from './src/server/alertasEngine';
 import {
   getNearbyTransitData,
   searchDestinationSuggestions,
@@ -768,6 +769,25 @@ app.get('/api/transit/tml/alerts', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Erro ao obter alertas da TML.', details: err.message });
   }
 });
+
+// ==========================================
+// PAROU.PT — ALERTAS (tempo, avisos IPMA, feriados, greves, perturbações, notícias)
+// ==========================================
+app.get('/api/alertas', async (req: Request, res: Response) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+    const area = typeof req.query.area === 'string' ? req.query.area.toUpperCase().slice(0, 4) : undefined;
+    const valido = Number.isFinite(lat) && Number.isFinite(lon) && lat > 29 && lat < 44 && lon > -32 && lon < -5;
+    const dados = await obterAlertas(valido ? { lat, lon } : { area });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(dados);
+  } catch (err: any) {
+    console.error('[Alertas API] Erro:', err);
+    return res.status(500).json({ error: 'Não foi possível obter os alertas.' });
+  }
+});
+aquecerAlertas();
 
 // ==========================================
 // PAROU.PT — CENTRO DE ALERTAS

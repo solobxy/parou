@@ -20,7 +20,12 @@ import {
   LocateFixed,
   CornerDownRight,
   Footprints,
-  MapPin
+  MapPin,
+  MapPinOff,
+  Maximize2,
+  Minimize2,
+  TrainFront,
+  Navigation
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { 
@@ -92,7 +97,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
   initialDestination,
   onClearInitialDestination,
 }) => {
-  const { coords: userCoords, status: gpsStatus, activateLocation } = useUserLocation();
+  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation } = useUserLocation();
+  // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
+  const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
+  const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
+  const [pesquisarLocal, setPesquisarLocal] = useState<boolean>(false);
+  const [pedidoLento, setPedidoLento] = useState<boolean>(false);
+  // Coordenadas arredondadas (~100 m): evita pedir paragens a cada atualização do GPS
+  const chaveCoords = userCoords ? `${userCoords.latitude.toFixed(3)},${userCoords.longitude.toFixed(3)}` : '';
+  const coordsRef = useRef(userCoords);
+  coordsRef.current = userCoords;
   const [stops, setStops] = useState<NearbyStopItem[]>(lastNearbyStops);
   const [vehicles, setVehicles] = useState<NearbyVehicleItem[]>(lastNearbyVehicles);
   const [contextualAlerts, setContextualAlerts] = useState<CentralAlert[]>(lastNearbyAlerts);
@@ -100,6 +114,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
   const [dbLoadingMessage, setDbLoadingMessage] = useState<string>('A carregar horários…');
   const [selectedRadius, setSelectedRadius] = useState<number>(1000);
+  const [raioUsado, setRaioUsado] = useState<number>(0);
   const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>('todos');
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
@@ -121,7 +136,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const userMarkerRef = useRef<L.Marker | null>(null);
   const stopsMarkersRef = useRef<L.Marker[]>([]);
   const [followMode, setFollowMode] = useState<boolean>(true);
-  const [bottomSheetState, setBottomSheetState] = useState<'collapsed' | 'half' | 'full'>('collapsed');
   const hasCenteredInitiallyRef = useRef<boolean>(false);
   const isFetchingNearbyRef = useRef<boolean>(false);
   const retryAttemptRef = useRef<number>(0);
@@ -131,8 +145,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   }, []);
 
   const loadNearbyData = useCallback(async () => {
-    const lat = userCoords?.latitude ?? 38.7253;
-    const lon = userCoords?.longitude ?? -9.1500;
+    const lat = coordsRef.current?.latitude ?? 38.7253;
+    const lon = coordsRef.current?.longitude ?? -9.1500;
     if (!isValidCoordinate(lat, lon)) return;
     if (isFetchingNearbyRef.current) return;
     isFetchingNearbyRef.current = true;
@@ -150,6 +164,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           lastNearbyStops = data.stops;
           setStops(data.stops);
         }
+        if (typeof data.radiusMeters === 'number' && data.radiusMeters > 0) setRaioUsado(data.radiusMeters);
         if (data.vehicles) {
           lastNearbyVehicles = data.vehicles;
           setVehicles(data.vehicles);
@@ -165,7 +180,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
       setIsLoadingNearby(false);
       isFetchingNearbyRef.current = false;
     }
-  }, [userCoords, selectedRadius]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveCoords, selectedRadius]);
+
+  // Pedido de localização que demora: ao fim de 12 s mostra "Tentar outra vez"
+  useEffect(() => {
+    if (gpsStatus !== 'requesting') {
+      setPedidoLento(false);
+      return;
+    }
+    const t = setTimeout(() => setPedidoLento(true), 12000);
+    return () => clearTimeout(t);
+  }, [gpsStatus]);
 
   // Polling e retry backoff: 5 s, depois 10 s, depois 20 s (Regra 5, 30s atualização automática)
   useEffect(() => {
@@ -233,7 +259,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
       setCalculatedRoutes(routes);
       if (routes.length > 0) {
         setSelectedRoute(routes[0]);
-        setBottomSheetState('half');
       }
     } catch (err) {
       console.warn('[PertoView] Erro ao calcular rotas:', err);
@@ -243,6 +268,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   const handleSelectDestination = (sug: DestinationSuggestion) => {
+    // Sem GPS (ou a escolher um local): o local escolhido passa a ser o ponto de partida
+    if (!localizacaoPronta || pesquisarLocal) {
+      setManualLocation(sug.latitude, sug.longitude, sug.title);
+      setDestinationQuery('');
+      setSuggestions([]);
+      setSearchFocused(false);
+      setPesquisarLocal(false);
+      setFollowMode(true);
+      return;
+    }
     setSelectedDestination(sug);
     setDestinationQuery(sug.title);
     setSuggestions([]);
@@ -448,56 +483,167 @@ export const PertoView: React.FC<PertoViewProps> = ({
     });
   }, [filteredStops, selectedStop]);
 
-  // Resize map when bottom sheet changes
+  // Ajusta o mapa quando muda de altura
   useEffect(() => {
     const timer = setTimeout(() => {
       mapRef.current?.invalidateSize();
-    }, 200);
+    }, 320);
     return () => clearTimeout(timer);
-  }, [bottomSheetState]);
+  }, [mapaExpandido]);
 
   // Primary short alert
   const topAlert = contextualAlerts[0] || null;
 
+  const raio = raioUsado || selectedRadius;
+  const raioTexto = raio >= 1000 ? `${(raio / 1000).toLocaleString('pt-PT')} km` : `${raio} m`;
+  const subtitulo = !localizacaoPronta
+    ? (gpsStatus === 'requesting' ? 'A obter a tua localização…' : 'À espera da tua localização')
+    : isDbLoading && filteredStops.length === 0
+      ? (dbLoadingMessage || 'A carregar horários…')
+      : userCoords?.isManual
+        ? `Perto de ${userCoords.locationLabel || 'local escolhido'}`
+        : `${filteredStops.length} ${filteredStops.length === 1 ? 'paragem' : 'paragens'} até ${raioTexto}`;
+
+  const iconeModo = (modo: string) => {
+    const m = normalizeTransportMode(modo);
+    if (m === 'Metro' || m === 'Comboio') return TrainFront;
+    if (m === 'Barco') return Ship;
+    return Bus;
+  };
+
+  // Lista de sugestões (pesquisa de destino ou de local)
+  const listaSugestoes = (compacta: boolean) => (
+    <div className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[12px] shadow-lg divide-y divide-[#E6E6E3] overflow-y-auto ${compacta ? 'max-h-48' : 'max-h-56'}`}>
+      {suggestions.map((sug, sIdx) => (
+        <button
+          key={`sug-${sug.id}-${sIdx}`}
+          onClick={() => handleSelectDestination(sug)}
+          className="w-full text-left px-3 py-2.5 hover:bg-[#F4F4F2] active:bg-[#F4F4F2] transition-colors flex items-center gap-2.5 cursor-pointer min-h-[44px]"
+        >
+          <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-[#111111] truncate">{sug.title}</div>
+            {sug.subtitle && <div className="text-[11px] text-[#6B6B6B] truncate">{sug.subtitle}</div>}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
+  // Convite para ativar a localização (por cima do mapa desfocado)
+  const conviteLocalizacao = () => {
+    if (pesquisarLocal) {
+      return (
+        <div className="w-full max-w-[360px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] p-3.5 text-left">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-bold text-[#111111]">Procurar um local</span>
+            <button
+              onClick={() => { setPesquisarLocal(false); setDestinationQuery(''); }}
+              className="text-[12px] font-semibold text-[#6B6B6B] cursor-pointer px-1 py-1"
+            >
+              Voltar
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
+            <input
+              autoFocus
+              type="text"
+              value={destinationQuery}
+              onChange={(e) => setDestinationQuery(e.target.value)}
+              placeholder="Rua, localidade ou paragem"
+              className="w-full pl-9 pr-3 h-11 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111]"
+            />
+          </div>
+          {suggestions.length > 0 && <div className="mt-2">{listaSugestoes(true)}</div>}
+        </div>
+      );
+    }
+
+    const aPedir = gpsStatus === 'requesting' && !pedidoLento;
+    const bloqueada = gpsStatus === 'denied';
+    const semSinal = gpsStatus === 'unavailable' || (gpsStatus === 'requesting' && pedidoLento);
+
+    return (
+      <div className="w-full max-w-[340px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] px-5 pt-5 pb-4 text-center">
+        <div className="relative mx-auto w-14 h-14 flex items-center justify-center">
+          {!bloqueada && !semSinal && <span className="absolute inset-0 rounded-full bg-[#FF6B1A]/25 animate-ping" />}
+          <span className={`relative w-14 h-14 rounded-full flex items-center justify-center ${bloqueada || semSinal ? 'bg-[#F4F4F2] text-[#111111]' : 'bg-[#FF6B1A] text-[#111111]'}`}>
+            {aPedir ? (
+              <RefreshCw className="w-6 h-6 stroke-[2.25] animate-spin" />
+            ) : bloqueada || semSinal ? (
+              <MapPinOff className="w-6 h-6 stroke-[2.25]" />
+            ) : (
+              <Navigation className="w-6 h-6 stroke-[2.25]" />
+            )}
+          </span>
+        </div>
+        <h3 className="mt-3 text-[18px] font-bold text-[#111111] leading-tight">
+          {aPedir ? 'A localizar…' : bloqueada ? 'Localização bloqueada' : semSinal ? 'Sem sinal de GPS' : 'Vê o que passa perto de ti'}
+        </h3>
+        <p className="mt-1.5 text-[13px] text-[#6B6B6B] leading-snug">
+          {aPedir
+            ? 'Se o telemóvel perguntar, toca em Permitir.'
+            : bloqueada
+              ? 'Toca no cadeado (ou no ⓘ) ao lado do endereço, permite a Localização e volta a tentar.'
+              : semSinal
+                ? 'Não conseguimos obter a tua posição. Confirma que a localização do telemóvel está ligada.'
+                : 'Ativa a localização para veres as paragens à tua volta e quando chega o próximo autocarro, metro ou comboio, em tempo real.'}
+        </p>
+        {!aPedir && (
+          <button
+            onClick={() => activateLocation(true)}
+            data-teste="ativar-localizacao"
+            className="mt-4 w-full h-12 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform cursor-pointer"
+          >
+            <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />
+            {bloqueada || semSinal ? 'Tentar outra vez' : 'Ativar localização'}
+          </button>
+        )}
+        <button
+          onClick={() => { setPesquisarLocal(true); setDestinationQuery(''); }}
+          className="mt-2 w-full h-10 text-[13px] font-semibold text-[#111111] underline-offset-2 hover:underline cursor-pointer"
+        >
+          Ou escolhe um local
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="relative flex flex-col lg:flex-row w-full h-[calc(100dvh-3.5rem-4rem-env(safe-area-inset-bottom))] lg:h-[calc(100vh-3.5rem)] bg-[#FFFFFF] overflow-hidden">
-      {/* Side Panel: Stops & Departures */}
-      <aside className={`
-        z-30 flex flex-col bg-[#FFFFFF] border-r border-[#E6E6E3]
-        transition-all duration-200 ease-in-out
-        w-full lg:w-[460px] shrink-0
-        ${
-          bottomSheetState === 'collapsed'
-            ? 'h-14 overflow-hidden'
-            : bottomSheetState === 'half'
-            ? 'h-[50vh] lg:h-full'
-            : 'h-[85vh] lg:h-full'
-        }
-        absolute lg:relative bottom-0 lg:bottom-auto left-0 right-0 lg:right-auto
-        shadow-[0_-4px_16px_rgba(0,0,0,0.06)] lg:shadow-none
-      `}>
-        {/* Mobile Header / Drag Toggle */}
-        <div 
-          onClick={() => {
-            setBottomSheetState((prev) => (prev === 'collapsed' ? 'half' : prev === 'half' ? 'full' : 'collapsed'));
-          }}
-          className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-[#E6E6E3] bg-[#FFFFFF] cursor-pointer select-none"
-        >
-          <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-[#FF6B1A] stroke-[2]" />
-            <span className="font-['Barlow_Condensed'] font-bold text-sm tracking-wide uppercase text-[#111111]">
-              {isDbLoading && filteredStops.length === 0
-                ? (dbLoadingMessage || 'A carregar horários…')
-                : `${filteredStops.length} próximas paragens`}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B]">
-            <span>{bottomSheetState === 'collapsed' ? 'Expandir' : 'Recolher'}</span>
-            {bottomSheetState === 'collapsed' ? (
-              <ChevronUp className="w-4 h-4 stroke-[2]" />
+      {/* Painel: Transportes perto */}
+      <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
+        {/* Cabeçalho (telemóvel) */}
+        <div className="lg:hidden shrink-0 px-4 pt-2 pb-2.5">
+          <button
+            onClick={() => setMapaExpandido((v) => !v)}
+            className="block mx-auto w-10 h-1.5 rounded-full bg-[#E6E6E3] cursor-pointer"
+            aria-label={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
+          />
+          <div className="mt-2.5 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="font-['Barlow_Condensed'] text-[22px] leading-none font-bold uppercase tracking-[0.03em] text-[#111111]">
+                Transportes perto
+              </h2>
+              <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{subtitulo}</p>
+            </div>
+            {localizacaoPronta && (userCoords?.isManual ? (
+              <button
+                onClick={() => activateLocation(true)}
+                className="shrink-0 h-8 px-3 rounded-full bg-[#111111] text-[#FFFFFF] text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> Usar GPS
+              </button>
             ) : (
-              <ChevronDown className="w-4 h-4 stroke-[2]" />
-            )}
+              <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#F4F4F2] text-[11px] font-bold uppercase tracking-wide text-[#111111]">
+                <span className="relative flex w-2 h-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-60 animate-ping" />
+                  <span className="relative inline-flex w-2 h-2 rounded-full bg-[#16A34A]" />
+                </span>
+                Ao vivo
+              </span>
+            ))}
           </div>
         </div>
 
@@ -506,9 +652,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <div className="flex items-center justify-between">
             <Logo />
             <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${gpsStatus === 'active' ? 'bg-[#FF6B1A]' : 'bg-[#6B6B6B]'}`} />
+              <span className={`w-2 h-2 rounded-full ${gpsStatus === 'active' ? 'bg-[#16A34A]' : 'bg-[#6B6B6B]'}`} />
               <span className="text-xs text-[#6B6B6B] font-medium">
-                {gpsStatus === 'active' ? 'GPS Ativo' : 'A localizar...'}
+                {gpsStatus === 'active' ? (userCoords?.isManual ? 'Local escolhido' : 'GPS ativo') : gpsStatus === 'requesting' ? 'A localizar…' : 'Localização desligada'}
               </span>
             </div>
           </div>
@@ -520,8 +666,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
               type="text"
               value={destinationQuery}
               onChange={(e) => setDestinationQuery(e.target.value)}
-              placeholder="Para onde vais?"
-              className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
+              placeholder={localizacaoPronta ? 'Para onde vais?' : 'Procurar um local'}
+              className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
             />
             {destinationQuery && (
               <button
@@ -532,33 +678,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 <X className="w-3.5 h-3.5 stroke-[2]" />
               </button>
             )}
-
-            {/* Suggestions Dropdown */}
-            {suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] shadow-lg z-50 divide-y divide-[#E6E6E3] max-h-60 overflow-y-auto">
-                {suggestions.map((sug, idx) => (
-                  <button
-                    key={`${sug.id}-${idx}`}
-                    onClick={() => handleSelectDestination(sug)}
-                    className="w-full text-left p-3 hover:bg-[#F4F4F2] transition-colors flex items-center gap-2.5 cursor-pointer min-h-[44px]"
-                  >
-                    <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-[#111111] truncate">{sug.title}</div>
-                      {sug.subtitle && (
-                        <div className="text-xs text-[#6B6B6B] truncate">{sug.subtitle}</div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
+            {suggestions.length > 0 && !pesquisarLocal && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50">{listaSugestoes(false)}</div>
             )}
           </div>
         </div>
 
         {/* Contextual Alert Banner */}
-        {topAlert && (
-          <div className="px-4 py-2 bg-[#FFF7ED] border-b border-[#FFEDD5] flex items-center justify-between text-xs text-[#9A3412]">
+        {topAlert && localizacaoPronta && (
+          <div className="mx-3 mb-2 lg:mx-0 lg:mb-0 px-3 py-2 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none flex items-center justify-between text-xs text-[#9A3412] shrink-0">
             <div className="flex items-center gap-2 truncate">
               <AlertTriangle className="w-3.5 h-3.5 text-[#EA580C] shrink-0 stroke-[2]" />
               <span className="font-semibold truncate">{topAlert.título || (topAlert as any).title}</span>
@@ -569,16 +697,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         )}
 
-        {/* Filter Tabs */}
-        <div className="flex items-center px-4 py-2 border-b border-[#E6E6E3] gap-1.5 overflow-x-auto bg-[#FFFFFF] shrink-0">
+        {/* Filtros por modo */}
+        <div className="flex items-center px-3 lg:px-4 pb-2 lg:py-2 lg:border-b lg:border-[#E6E6E3] gap-1.5 overflow-x-auto shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['todos', 'autocarro', 'metro', 'comboio', 'barco', 'favoritos'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveFilterTab(tab)}
-              className={`px-3 py-1 text-xs font-semibold rounded-[6px] capitalize whitespace-nowrap transition-colors cursor-pointer min-h-[32px] ${
+              disabled={!localizacaoPronta}
+              className={`shrink-0 h-8 px-3 text-[13px] font-semibold rounded-full capitalize whitespace-nowrap transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default ${
                 activeFilterTab === tab
                   ? 'bg-[#111111] text-[#FFFFFF]'
-                  : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
+                  : 'bg-[#F4F4F2] text-[#111111]'
               }`}
             >
               {tab === 'todos' ? 'Todos' : tab === 'favoritos' ? 'Favoritas' : tab}
@@ -588,17 +717,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* Route Planning Result Panel (if destination active) */}
         {selectedDestination && calculatedRoutes.length > 0 && (
-          <div className="p-4 border-b border-[#E6E6E3] bg-[#F4F4F2]/50 space-y-3 shrink-0">
+          <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 space-y-3 shrink-0 max-h-[45%] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CornerDownRight className="w-4 h-4 text-[#FF6B1A] stroke-[2]" />
-                <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide">
-                  Opções de Rota para {selectedDestination.title}
+              <div className="flex items-center gap-2 min-w-0">
+                <CornerDownRight className="w-4 h-4 text-[#FF6B1A] stroke-[2] shrink-0" />
+                <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide truncate">
+                  Como chegar a {selectedDestination.title}
                 </span>
               </div>
               <button 
                 onClick={handleClearDestination}
-                className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer"
+                className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0"
               >
                 Cancelar
               </button>
@@ -611,7 +740,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <div
                     key={route.id}
                     onClick={() => setSelectedRoute(route)}
-                    className={`p-3 rounded-[8px] border transition-all cursor-pointer ${
+                    className={`p-3 rounded-[12px] border transition-all cursor-pointer ${
                       isSel 
                         ? 'bg-[#FFFFFF] border-[#111111] shadow-xs' 
                         : 'bg-[#FFFFFF] border-[#E6E6E3] hover:border-[#6B6B6B]'
@@ -624,7 +753,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         </span>
                         <span className="text-xs text-[#6B6B6B]">· Chegada ~{route.arrivalTime}</span>
                       </div>
-                      <span className="text-xs font-bold font-['Barlow_Condensed'] text-[#FF6B1A] uppercase tracking-wide">
+                      <span className="text-xs font-bold font-['Barlow_Condensed'] text-[#C2410C] uppercase tracking-wide">
                         {route.walkingDistanceMeters}m a pé
                       </span>
                     </div>
@@ -656,23 +785,39 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         )}
 
-        {/* Stops List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-[#E6E6E3]">
-          {isDbLoading && filteredStops.length === 0 ? (
+        {/* Lista de paragens */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-4 lg:px-3 lg:pt-3 space-y-2">
+          {!localizacaoPronta ? (
+            <div className="space-y-2" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="rounded-[14px] border border-[#E6E6E3] p-3.5" style={{ opacity: 1 - i * 0.28 }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className={`h-4 w-1/2 rounded bg-[#F4F4F2] ${gpsStatus === 'requesting' ? 'animate-pulse' : ''}`} />
+                    <div className={`h-5 w-12 rounded-full bg-[#F4F4F2] ${gpsStatus === 'requesting' ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2.5">
+                    <div className="h-7 w-9 rounded-[4px] bg-[#F4F4F2]" />
+                    <div className="h-3.5 flex-1 rounded bg-[#F4F4F2]" />
+                    <div className="h-6 w-12 rounded bg-[#F4F4F2]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : isDbLoading && filteredStops.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2]" />
               <span>{dbLoadingMessage || 'A carregar horários…'}</span>
             </div>
-          ) : isLoadingNearby ? (
+          ) : isLoadingNearby && filteredStops.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin stroke-[2]" />
-              <span>A procurar paragens próximas...</span>
+              <span>A procurar paragens próximas…</span>
             </div>
           ) : filteredStops.length > 0 ? (
             filteredStops.map((stop) => {
-              const normMode = normalizeTransportMode(stop.transportMode);
               const isSelected = selectedStop?.id === stop.id;
               const stopDeps = stop.nextDepartures || [];
+              const IconeModo = iconeModo(stop.transportMode);
 
               // Detetar aviso de desatualizado uma única vez por grupo/operador
               const outdatedDeps = stopDeps.filter((d: any) => parseDepartureTime(d).isOutdated);
@@ -686,65 +831,58 @@ export const PertoView: React.FC<PertoViewProps> = ({
               return (
                 <div
                   key={stop.id}
-                  className={`p-4 transition-colors ${
-                    isSelected ? 'bg-[#F4F4F2]' : 'bg-[#FFFFFF] hover:bg-[#F4F4F2]/50'
+                  data-teste="paragem-perto"
+                  className={`rounded-[14px] border p-3.5 transition-colors cursor-pointer ${
+                    isSelected ? 'border-[#111111] bg-[#F4F4F2]/60' : 'border-[#E6E6E3] bg-[#FFFFFF] active:bg-[#F4F4F2]'
                   }`}
                   onClick={() => {
                     setSelectedStop(stop);
                     const lat = Number(stop.latitude);
                     const lon = Number(stop.longitude);
                     if (isValidCoordinate(lat, lon)) {
+                      setFollowMode(false);
                       safeFlyTo(mapRef.current, lat, lon, 16.5);
                     }
                   }}
                 >
-                  {/* Stop Header */}
-                  <div className="flex items-baseline justify-between gap-2 mb-2">
-                    <h3 className="text-[18px] font-semibold text-[#111111] leading-snug truncate">
-                      {formatTransitName(stop.name)}
-                    </h3>
-                    <div className="text-sm text-[#6B6B6B] font-medium shrink-0">
-                      {normMode} · {stop.formattedDistance}
+                  {/* Cabeçalho da paragem */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <IconeModo className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
+                      <h3 className="text-[16px] font-semibold text-[#111111] leading-snug truncate">
+                        {formatTransitName(stop.name)}
+                      </h3>
                     </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-['Barlow_Condensed'] text-[13px] font-bold text-[#111111] tabular-nums">
+                      <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
+                      {stop.formattedDistance}
+                    </span>
                   </div>
 
-                  {/* Departures List */}
+                  {/* Partidas */}
                   {stopDeps.length > 0 ? (
-                    <div className="divide-y divide-[#E6E6E3] border-t border-[#E6E6E3]">
-                      {/* Aviso discreto por operador uma só vez no topo do grupo */}
+                    <div className="mt-2 divide-y divide-[#E6E6E3]">
                       {outdatedNotice && (
-                        <div className="py-1 px-1 bg-[#F4F4F2] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
+                        <div className="py-1 px-1 mb-1 bg-[#F4F4F2] rounded-[6px] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
                           <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
                           <span>Horários {outdatedNotice} podem estar desatualizados</span>
                         </div>
                       )}
 
-                      {sortDepartures(stopDeps).slice(0, 5).map((dep: any, dIdx: number) => {
+                      {sortDepartures(stopDeps).slice(0, 3).map((dep: any, dIdx: number) => {
                         const parsed = parseDepartureTime(dep);
                         const lineCode = dep.lineCode || dep.route_short_name || stop.lines?.[0]?.code || '—';
                         const lineColor = dep.lineColor || stop.lines?.[0]?.color;
                         const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
-                        const stopName = formatTransitName(stop.name);
 
                         return (
-                          <div
-                            key={dIdx}
-                            className="py-2.5 flex items-center justify-between gap-3"
-                          >
-                            {/* Left: Line Chip + Destination & stop name */}
+                          <div key={dIdx} className="py-2 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <LineChip number={lineCode} color={lineColor} />
-                              <div className="min-w-0">
-                                <div className="text-[16px] font-medium text-[#111111] leading-tight truncate">
-                                  {destination}
-                                </div>
-                                <div className="text-xs text-[#6B6B6B] truncate mt-0.5">
-                                  {stopName}
-                                </div>
+                              <div className="text-[15px] font-medium text-[#111111] leading-tight truncate">
+                                {destination}
                               </div>
                             </div>
-
-                            {/* Right: Minutos em grande e hora exata por baixo */}
                             <div className="shrink-0 flex flex-col items-end text-right pl-2">
                               <div className="flex items-center gap-1">
                                 {parsed.isRealtime && (
@@ -754,7 +892,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   />
                                 )}
                                 <span 
-                                  className={`font-['Barlow_Condensed'] text-[24px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
+                                  className={`font-['Barlow_Condensed'] text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
                                   style={{ color: parsed.textColor }}
                                 >
                                   {parsed.bigText}
@@ -771,8 +909,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                       })}
                     </div>
                   ) : (
-                    <div className="text-xs text-[#6B6B6B] pt-1">
-                      Sem partidas previstas.
+                    <div className="text-[13px] text-[#6B6B6B] pt-2">
+                      Toca para ver as próximas partidas.
                     </div>
                   )}
                 </div>
@@ -786,207 +924,196 @@ export const PertoView: React.FC<PertoViewProps> = ({
         </div>
       </aside>
 
-      {/* Main Map Canvas */}
-      <main className="relative flex-1 h-full min-h-[360px] bg-[#F4F4F2] overflow-hidden select-none">
-        {/* Mobile Top Floating Search Bar */}
-        <div className="lg:hidden absolute top-3 left-3 right-16 z-20">
-          <div className="relative flex items-center bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] shadow-sm">
-            <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
-            <input
-              type="text"
-              value={destinationQuery}
-              onChange={(e) => setDestinationQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              placeholder="Para onde vais?"
-              className="w-full pl-9 pr-8 py-2 bg-transparent text-xs sm:text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
-            />
-            {destinationQuery && (
-              <button
-                onClick={handleClearDestination}
-                className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
-                aria-label="Limpar pesquisa"
-              >
-                <X className="w-3.5 h-3.5 stroke-[2]" />
-              </button>
-            )}
-          </div>
-          {/* Mobile Suggestions Dropdown */}
-          {searchFocused && suggestions.length > 0 && (
-            <div className="mt-1 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] shadow-lg divide-y divide-[#E6E6E3] max-h-56 overflow-y-auto">
-              {suggestions.map((sug, sIdx) => (
+      {/* Mapa */}
+      <main
+        className={`perto-mapa relative order-first lg:order-none w-full shrink-0 lg:shrink lg:flex-1 lg:h-full lg:max-h-none bg-[#F4F4F2] overflow-hidden select-none transition-[height] duration-300 ${
+          mapaExpandido ? 'h-[68%]' : 'h-[42%] min-h-[230px] max-h-[400px]'
+        }`}
+      >
+        {/* Pesquisa por cima do mapa (telemóvel) */}
+        {localizacaoPronta && (
+          <div className="lg:hidden absolute top-3 left-3 right-[60px] z-20">
+            <div className="relative flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
+              <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
+              <input
+                type="text"
+                value={destinationQuery}
+                onChange={(e) => setDestinationQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                placeholder="Para onde vais?"
+                className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
+              />
+              {destinationQuery && (
                 <button
-                  key={`mob-${sug.id}-${sIdx}`}
-                  onClick={() => handleSelectDestination(sug)}
-                  className="w-full text-left p-2.5 hover:bg-[#F4F4F2] transition-colors flex items-center gap-2 cursor-pointer min-h-[44px]"
+                  onClick={handleClearDestination}
+                  className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
+                  aria-label="Limpar pesquisa"
                 >
-                  <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#111111] truncate">{sug.title}</div>
-                    {sug.subtitle && (
-                      <div className="text-[10px] text-[#6B6B6B] truncate">{sug.subtitle}</div>
-                    )}
-                  </div>
+                  <X className="w-3.5 h-3.5 stroke-[2]" />
                 </button>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Aviso quando não há localização (recusada ou GPS sem sinal) */}
-        {(gpsStatus === 'denied' || gpsStatus === 'unavailable') && (
-          <div className="absolute left-4 right-4 bottom-28 z-20 mx-auto max-w-md bg-[#111111] text-[#FFFFFF] rounded-[8px] px-4 py-3 flex items-center gap-3 shadow-md">
-            <span className="text-xs leading-snug flex-1">
-              {gpsStatus === 'denied'
-                ? 'A localização está bloqueada. Permite-a nas definições do browser para este site.'
-                : 'Não foi possível obter a tua localização.'}
-            </span>
-            <button
-              onClick={() => activateLocation(true)}
-              className="shrink-0 px-3 py-2 rounded-[8px] bg-[#FF6B1A] text-[#111111] text-xs font-bold min-h-[40px]"
-            >
-              Tentar outra vez
-            </button>
+            {searchFocused && suggestions.length > 0 && <div className="mt-1">{listaSugestoes(true)}</div>}
           </div>
         )}
 
         {/* Leaflet OSM Tile Container */}
         <div 
           ref={mapContainerRef} 
-          className="absolute inset-0 w-full h-full z-0"
+          className={`absolute inset-0 w-full h-full z-0 transition-[filter] duration-500 ${localizacaoPronta ? '' : 'blur-[5px] scale-[1.04]'}`}
         />
 
-        {/* Map Controls */}
-        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
-          {/* Recenter Primary Button */}
-          <button
-            onClick={handleRecenterClick}
-            className="px-3 py-2 rounded-[8px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-xs flex items-center gap-1.5 min-h-[44px] shadow-sm cursor-pointer"
-            title="Centrar posição"
-          >
-            <LocateFixed className="w-4 h-4 stroke-[2]" />
-            <span className="hidden sm:inline">Centrar</span>
-          </button>
-
-          {/* Zoom In / Out Controls */}
-          <div className="flex flex-col bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] shadow-sm overflow-hidden">
+        {/* Controlos do mapa */}
+        {localizacaoPronta && (
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
             <button
-              onClick={() => mapRef.current?.zoomIn()}
-              className="p-2 hover:bg-[#F4F4F2] text-[#111111] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer border-b border-[#E6E6E3]"
-              title="Aproximar mapa"
-              aria-label="Aproximar mapa"
+              onClick={handleRecenterClick}
+              className={`w-11 h-11 rounded-[12px] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer transition-colors ${
+                followMode ? 'bg-[#FF6B1A] text-[#111111]' : 'bg-[#FFFFFF] text-[#111111]'
+              }`}
+              title="Centrar na minha posição"
+              aria-label="Centrar na minha posição"
             >
-              <ZoomIn className="w-4 h-4 stroke-[2]" />
+              <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />
             </button>
+            <div className="hidden sm:flex flex-col bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)] overflow-hidden">
+              <button
+                onClick={() => mapRef.current?.zoomIn()}
+                className="w-11 h-11 hover:bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer border-b border-[#E6E6E3]"
+                title="Aproximar mapa"
+                aria-label="Aproximar mapa"
+              >
+                <ZoomIn className="w-4 h-4 stroke-[2]" />
+              </button>
+              <button
+                onClick={() => mapRef.current?.zoomOut()}
+                className="w-11 h-11 hover:bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer"
+                title="Afastar mapa"
+                aria-label="Afastar mapa"
+              >
+                <ZoomOut className="w-4 h-4 stroke-[2]" />
+              </button>
+            </div>
             <button
-              onClick={() => mapRef.current?.zoomOut()}
-              className="p-2 hover:bg-[#F4F4F2] text-[#111111] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-              title="Afastar mapa"
-              aria-label="Afastar mapa"
+              onClick={() => setMapaExpandido((v) => !v)}
+              className="lg:hidden w-11 h-11 rounded-[12px] bg-[#FFFFFF] text-[#111111] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer"
+              title={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
+              aria-label={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
             >
-              <ZoomOut className="w-4 h-4 stroke-[2]" />
+              {mapaExpandido ? <Minimize2 className="w-4 h-4 stroke-[2]" /> : <Maximize2 className="w-4 h-4 stroke-[2]" />}
             </button>
           </div>
-        </div>
+        )}
 
-        {/* Stop Detail Floating Drawer (if stop selected) */}
-        {selectedStop && (
-          <div className="absolute bottom-[4.5rem] lg:bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-[35] bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] p-4 shadow-xl">
-            <div className="flex items-start justify-between gap-2 border-b border-[#E6E6E3] pb-2">
-              <div>
-                <h4 className="font-semibold text-base text-[#111111] leading-tight">
+        {/* Convite para ativar a localização (mapa desfocado por trás) */}
+        {!localizacaoPronta && (
+          <div className="absolute inset-0 z-[25] bg-[#FFFFFF]/35 flex items-center justify-center px-4 pb-6 pt-3">
+            {conviteLocalizacao()}
+          </div>
+        )}
+      </main>
+
+      {/* Detalhe da paragem escolhida */}
+      {selectedStop && (
+        <div className="absolute inset-x-0 bottom-0 lg:left-auto lg:right-4 lg:bottom-4 lg:w-96 z-[35] max-h-[72%] flex flex-col bg-[#FFFFFF] border border-[#E6E6E3] rounded-t-[20px] lg:rounded-[16px] shadow-[0_-12px_32px_rgba(17,17,17,0.16)]">
+          <div className="shrink-0 px-4 pt-2 pb-3 border-b border-[#E6E6E3]">
+            <div className="lg:hidden mx-auto w-10 h-1.5 rounded-full bg-[#E6E6E3] mb-2.5" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className="font-semibold text-[17px] text-[#111111] leading-tight truncate">
                   {formatTransitName(selectedStop.name)}
                 </h4>
                 <div className="text-xs text-[#6B6B6B] mt-0.5">
                   {normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
+                  {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
                 </div>
               </div>
               <button
                 onClick={() => setSelectedStop(null)}
-                className="text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
+                className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer"
                 aria-label="Fechar detalhes da paragem"
               >
-                <X className="w-5 h-5 stroke-[2]" />
+                <X className="w-4 h-4 stroke-[2.25]" />
               </button>
             </div>
+          </div>
 
-            {/* Departures in selected stop modal */}
-            <div className="mt-2 divide-y divide-[#E6E6E3] max-h-56 overflow-y-auto">
-              {(() => {
-                const proprias = selectedStop.nextDepartures || [];
-                const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
-                const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
-                const sorted = sortDepartures(deps).slice(0, 6);
-                if (sorted.length === 0) {
-                  return (
-                    <div className="py-3 text-sm text-[#6B6B6B]">
-                      {extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
-                    </div>
-                  );
-                }
-                const outdatedDeps = sorted.filter((d: any) => parseDepartureTime(d).isOutdated);
-                const outdatedOps = Array.from(new Set(
-                  outdatedDeps.map((d: any) => d.agency_name || d.operator || d.operatorName || '').filter(Boolean)
-                ));
-                const outdatedNotice = outdatedOps.length > 0
-                  ? outdatedOps.join(' e ')
-                  : (outdatedDeps.length > 0 ? (selectedStop.operatorName || 'STCP') : null);
-
+          {/* Partidas da paragem */}
+          <div className="px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain">
+            {(() => {
+              const proprias = selectedStop.nextDepartures || [];
+              const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
+              const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
+              const sorted = sortDepartures(deps).slice(0, 8);
+              if (sorted.length === 0) {
                 return (
-                  <>
-                    {outdatedNotice && (
-                      <div className="py-1 px-1 bg-[#F4F4F2] text-[11px] text-[#6B6B6B] flex items-center gap-1.5 mb-1">
-                        <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
-                        <span>Horários {outdatedNotice} podem estar desatualizados</span>
-                      </div>
-                    )}
-                    {sorted.map((dep: any, dIdx: number) => {
-                      const parsed = parseDepartureTime(dep);
-                      const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
-                      const stopName = formatTransitName(selectedStop.name);
-                      return (
-                        <div key={dIdx} className="py-2 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-[#111111] truncate">
-                                {destination}
-                              </div>
-                              <div className="text-xs text-[#6B6B6B] truncate">
-                                {stopName}
-                              </div>
+                  <div className="py-4 text-sm text-[#6B6B6B]">
+                    {extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
+                  </div>
+                );
+              }
+              const outdatedDeps = sorted.filter((d: any) => parseDepartureTime(d).isOutdated);
+              const outdatedOps = Array.from(new Set(
+                outdatedDeps.map((d: any) => d.agency_name || d.operator || d.operatorName || '').filter(Boolean)
+              ));
+              const outdatedNotice = outdatedOps.length > 0
+                ? outdatedOps.join(' e ')
+                : (outdatedDeps.length > 0 ? (selectedStop.operatorName || 'STCP') : null);
+
+              return (
+                <>
+                  {outdatedNotice && (
+                    <div className="py-1 px-1 mt-2 bg-[#F4F4F2] rounded-[6px] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
+                      <span>Horários {outdatedNotice} podem estar desatualizados</span>
+                    </div>
+                  )}
+                  {sorted.map((dep: any, dIdx: number) => {
+                    const parsed = parseDepartureTime(dep);
+                    const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
+                    return (
+                      <div key={dIdx} className="py-2.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
+                          <div className="min-w-0">
+                            <div className="text-[15px] font-medium text-[#111111] truncate">
+                              {destination}
                             </div>
-                          </div>
-                          <div className="shrink-0 flex flex-col items-end text-right">
-                            <div className="flex items-center gap-1">
-                              {parsed.isRealtime && (
-                                <Radio 
-                                  className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                                  style={{ color: parsed.textColor }}
-                                />
-                              )}
-                              <span 
-                                className={`font-['Barlow_Condensed'] text-xl font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                                style={{ color: parsed.textColor }}
-                              >
-                                {parsed.bigText}
-                              </span>
-                            </div>
-                            {parsed.exactTime && (
-                              <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                                {parsed.exactTime}
-                              </span>
+                            {dep.operatorName && (
+                              <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>
                             )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </div>
+                        <div className="shrink-0 flex flex-col items-end text-right">
+                          <div className="flex items-center gap-1">
+                            {parsed.isRealtime && (
+                              <Radio 
+                                className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
+                                style={{ color: parsed.textColor }}
+                              />
+                            )}
+                            <span 
+                              className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                              style={{ color: parsed.textColor }}
+                            >
+                              {parsed.bigText}
+                            </span>
+                          </div>
+                          {parsed.exactTime && (
+                            <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                              {parsed.exactTime}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 };

@@ -71,12 +71,12 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isMoreTabActive = ['favoritos', 'alertas', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab);
+  const isMoreTabActive = ['favoritos', 'reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab);
 
   const getMoreTabLabel = () => {
     switch (activeTab) {
       case 'favoritos': return 'Favoritos';
-      case 'alertas': return 'Alertas';
+      case 'reports': return 'Ocorrências';
       case 'catalogo': return 'Catálogo';
       case 'reclamacoes': return 'Reclamações';
       case 'coverage': return 'Cobertura';
@@ -114,15 +114,15 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => onTabChange('reports')}
+              onClick={() => onTabChange('alertas')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
-                activeTab === 'reports'
+                activeTab === 'alertas'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
               <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>Reports</span>
+              <span>Alertas</span>
             </button>
 
             <button
@@ -218,15 +218,15 @@ export const Header: React.FC<HeaderProps> = ({
 
                     <button
                       onClick={() => {
-                        onTabChange('alertas');
+                        onTabChange('reports');
                         setIsMoreMenuOpen(false);
                       }}
                       className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors cursor-pointer min-h-[44px] ${
-                        activeTab === 'alertas' ? 'font-semibold text-[#111111] bg-[#F4F4F2]' : 'text-[#111111] hover:bg-[#F4F4F2]'
+                        activeTab === 'reports' ? 'font-semibold text-[#111111] bg-[#F4F4F2]' : 'text-[#111111] hover:bg-[#F4F4F2]'
                       }`}
                     >
                       <ShieldAlert className="w-4 h-4 stroke-[2]" />
-                      <span>Alertas</span>
+                      <span>Ocorrências</span>
                     </button>
 
                     <button

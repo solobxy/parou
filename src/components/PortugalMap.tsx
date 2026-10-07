@@ -6,7 +6,8 @@ import {
   RotateCcw, 
   Maximize2, 
   Minimize2, 
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { Occurrence, SeverityLevel } from '../types';
 import { ACCURATE_PORTUGAL_DISTRICTS } from '../data/portugalDistrictsGeo';
@@ -45,6 +46,8 @@ interface PortugalMapProps {
   occurrences?: Occurrence[];
   onSelectOccurrence?: (occurrence: Occurrence) => void;
   className?: string;
+  /** Botão "Reportar" encaixado no canto do mapa */
+  onReport?: () => void;
 }
 
 export const PortugalMap: React.FC<PortugalMapProps> = ({
@@ -56,6 +59,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   occurrences = [],
   onSelectOccurrence,
   className = '',
+  onReport,
 }) => {
   const [activeArchipelago, setActiveArchipelago] = useState<'continental' | 'madeira' | 'acores' | 'tudo'>('continental');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -380,7 +384,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   return (
     <>
       <div 
-        className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] flex flex-col relative overflow-hidden transition-all duration-300 ${
+        className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] flex flex-col relative isolate overflow-hidden transition-all duration-300 ${
           isFullscreen 
             ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' 
             : 'h-[460px] sm:h-[520px] md:h-[580px] w-full'
@@ -464,7 +468,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         <div className="relative flex-1 w-full h-full bg-[#F4F4F2] overflow-hidden">
           <div 
             ref={containerRef}
-            className="absolute inset-0 w-full h-full"
+            className="absolute inset-0 w-full h-full z-0"
           />
 
           {/* Map Floating Controls */}
@@ -494,6 +498,18 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
               <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
             </button>
           </div>
+
+          {/* Reportar ocorrência — encaixado no canto do mapa */}
+          {onReport && (
+            <button
+              onClick={onReport}
+              className="absolute bottom-7 right-3 z-20 h-11 pl-3 pr-4 rounded-full bg-[#FF6B1A] text-[#111111] font-bold text-[13px] flex items-center gap-1.5 shadow-[0_6px_16px_rgba(255,107,26,0.35)] active:scale-[0.97] transition-transform cursor-pointer"
+              aria-label="Reportar ocorrência"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Reportar</span>
+            </button>
+          )}
 
           {/* Quick Legend at Bottom-Left */}
           <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">

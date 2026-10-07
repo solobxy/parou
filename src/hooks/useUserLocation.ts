@@ -19,6 +19,13 @@ export interface UserCoords {
   source?: 'gps_high' | 'gps_low' | 'manual' | 'ip';
 }
 
+// Lembra que o utilizador já deu a localização (para browsers sem Permissions API)
+const CHAVE_LOCALIZACAO_OK = 'parou_localizacao_ok';
+
+function jaDeuLocalizacao(): boolean {
+  try { return localStorage.getItem(CHAVE_LOCALIZACAO_OK) === '1'; } catch { return false; }
+}
+
 export function useUserLocation() {
   const [status, setStatus] = useState<LocationPermissionStatus>('idle');
   const [coords, setCoords] = useState<UserCoords | null>(null);
@@ -84,6 +91,7 @@ export function useUserLocation() {
       setStatus('active');
       setErrorMessage(null);
       previousCoordsRef.current = newCoords;
+      try { localStorage.setItem(CHAVE_LOCALIZACAO_OK, '1'); } catch {}
     };
 
     // Primary attempt: high accuracy with tight fallback
@@ -248,37 +256,36 @@ export function useUserLocation() {
     }
   }, [coords, status, activateLocation, refreshHighAccuracyLocation]);
 
-  // Ao abrir: pede a localização logo (se já foi autorizada, ou se o browser ainda não perguntou).
-  // Só não pede se o utilizador recusou. Guarda o PermissionStatus numa ref para o browser não o
-  // descartar (sem isso o onchange pode nunca disparar).
+  // Ao abrir: só liga o GPS sozinho se a permissão já foi dada. Se o browser ainda não
+  // perguntou, fica 'idle' e a página mostra o convite "Ativar localização" (o pedido
+  // nasce de um toque do utilizador, como os browsers recomendam). Guarda o
+  // PermissionStatus numa ref para o browser não o descartar (senão o onchange não dispara).
   const permissionStatusRef = useRef<PermissionStatus | null>(null);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!('permissions' in navigator)) {
-      activateLocation(true);
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    if (!('permissions' in navigator) || !navigator.permissions?.query) {
+      if (jaDeuLocalizacao()) activateLocation(true);
       return;
     }
-    {
-      navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
-        permissionStatusRef.current = result;
-        if (result.state === 'granted' || result.state === 'prompt') {
+    navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
+      permissionStatusRef.current = result;
+      if (result.state === 'granted') {
+        activateLocation(true);
+      } else if (result.state === 'denied') {
+        setStatus('denied');
+        setErrorMessage('Permissão de localização recusada no navegador.');
+      }
+      result.onchange = () => {
+        if (result.state === 'granted') {
           activateLocation(true);
         } else if (result.state === 'denied') {
           setStatus('denied');
-          setErrorMessage('Permissão de localização recusada no navegador.');
         }
-        result.onchange = () => {
-          if (result.state === 'granted') {
-            activateLocation(true);
-          } else if (result.state === 'denied') {
-            setStatus('denied');
-          }
-        };
-      }).catch(() => {
-        // Sem Permissions API para geolocalização (ex.: Safari antigo): pede diretamente
-        activateLocation(true);
-      });
-    }
+      };
+    }).catch(() => {
+      // Sem Permissions API para geolocalização (ex.: Safari antigo)
+      if (jaDeuLocalizacao()) activateLocation(true);
+    });
   }, [activateLocation]);
 
   // Clean up watcher on unmount
