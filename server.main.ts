@@ -20,7 +20,7 @@ import {
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection } from './src/server/db/gtfsDatabase';
-import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto } from './src/server/dadosProntos';
+import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados } from './src/server/dadosProntos';
 import {
   getMasterSourceRegistry,
   syncAllOfficialGtfs,
@@ -1274,7 +1274,7 @@ import { getFetchLogs, getFeedById, upsertFeed, getDatabase } from './src/server
 import { SEED_FEEDS } from './src/server/gtfsSeedRegistry';
 import { seedFeedsIfEmpty } from './src/server/db/gtfsDatabase';
 import { triggerIngestAll, triggerIngestSingle, isIngestionRunning } from './src/server/gtfsIngestionService';
-const startBackgroundWorker = (): void => { triggerIngestAll(); };
+const startBackgroundWorker = (): void => {};
 const triggerDiscovery = (): void => {};
 import { FeedItem } from './src/types/coverage';
 
@@ -1315,22 +1315,22 @@ app.get('/api/coverage/logs', (req: Request, res: Response) => {
   }
 });
 
-// 3. Trigger manual re-run of all feeds import (Requirement 3: O botão "Atualizar" da /coverage volta a importar todos os feeds)
+// 3. Trigger manual re-run of all feeds import
 app.post('/api/coverage/reingest-all', async (_req: Request, res: Response) => {
   try {
-    triggerIngestAll();
-    return res.json({ success: true, message: 'Importação de todos os feeds iniciada em segundo plano.' });
+    void atualizarDados();
+    return res.json({ success: true, message: 'A verificar se há dados novos.' });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erro ao iniciar importação', details: err?.message });
+    return res.status(500).json({ error: 'Erro ao verificar dados novos', details: err?.message });
   }
 });
 
 app.post('/api/coverage/run-discovery', async (_req: Request, res: Response) => {
   try {
-    triggerIngestAll();
-    return res.json({ success: true, message: 'Importação sequencial de todos os feeds iniciada em segundo plano.' });
+    void atualizarDados();
+    return res.json({ success: true, message: 'A verificar se há dados novos.' });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erro ao iniciar importação', details: err?.message });
+    return res.status(500).json({ error: 'Erro ao verificar dados novos', details: err?.message });
   }
 });
 
@@ -1364,12 +1364,6 @@ app.post('/api/feeds/manual', async (req: Request, res: Response) => {
     };
 
     upsertFeed(newFeed);
-
-    // If GTFS schedule, trigger background ingestion in worker
-    if (newFeed.feed_type === 'gtfs') {
-      triggerIngestSingle(newFeed.id);
-    }
-
     return res.json({ success: true, feed: newFeed });
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao adicionar feed manualmente', details: err?.message });
@@ -1384,8 +1378,8 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Feed não encontrado no catálogo.' });
     }
 
-    triggerIngestSingle(req.params.id);
-    return res.json({ success: true, message: 'Atualização do feed agendada em segundo plano.' });
+    void atualizarDados();
+    return res.json({ success: true, message: 'A verificar se há dados novos.' });
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao atualizar feed', details: err?.message });
   }

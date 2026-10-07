@@ -29,6 +29,7 @@ let estado: EstadoDados = {
 };
 let emCurso = false;
 let iniciado = false;
+let basePronta = false;
 let manifestData: any = null;
 let manifestFeedsMap = new Map<string, any>();
 
@@ -113,8 +114,7 @@ export function getManifestFeedsMap(): Map<string, any> {
 }
 
 export function isDadosProntosPronto(): boolean {
-  if (estado.isLoading && !fs.existsSync(DB_FILE)) return false;
-  return fs.existsSync(DB_FILE) && baseValida(DB_FILE);
+  return basePronta;
 }
 
 function baseValida(ficheiro: string): boolean {
@@ -154,7 +154,8 @@ export async function atualizarDados(): Promise<void> {
 
     const atual = getAppState<string>('dataset_built_at');
     const builtAt = manifest?.built_at || atual;
-    if (atual && atual === manifest.built_at && baseValida(DB_FILE)) {
+    if (atual && atual === manifest.built_at && (basePronta || baseValida(DB_FILE))) {
+      basePronta = true;
       estado = { ...estado, ...totais, dataset_built_at: builtAt, isLoading: false, message: 'Todos os operadores carregados', updatedAt: new Date().toISOString() };
       return;
     }
@@ -182,6 +183,7 @@ export async function atualizarDados(): Promise<void> {
 
     clearServicesCache();
     reloadDatabaseConnection();
+    basePronta = true;
     try { if (builtAt) setAppState('dataset_built_at', builtAt); } catch {}
     estado = { ...estado, ...totais, dataset_built_at: builtAt, isLoading: false, message: 'Todos os operadores carregados', updatedAt: new Date().toISOString() };
     console.log(`[Dados prontos] Base de ${manifest.built_at} ativa (${totais.loadedOperators}/${totais.totalOperators} operadores).`);
@@ -189,7 +191,10 @@ export async function atualizarDados(): Promise<void> {
     console.warn('[Dados prontos] Não foi possível atualizar:', err?.message || err);
     try { if (fs.existsSync(FICHEIRO_NOVO)) fs.unlinkSync(FICHEIRO_NOVO); } catch {}
     try { if (fs.existsSync(`${DB_FILE}.bak`)) fs.unlinkSync(`${DB_FILE}.bak`); } catch {}
-    const temBase = baseValida(DB_FILE);
+    const temBase = basePronta || baseValida(DB_FILE);
+    if (temBase) {
+      basePronta = true;
+    }
     estado = { ...estado, isLoading: !temBase, message: temBase ? 'A usar os dados anteriores' : 'A carregar horários… (tentando novamente)', updatedAt: new Date().toISOString() };
     if (!temBase) setTimeout(() => { void atualizarDados(); }, 5000);
   } finally {

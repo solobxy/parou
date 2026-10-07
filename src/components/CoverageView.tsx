@@ -71,7 +71,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 2500);
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
 
