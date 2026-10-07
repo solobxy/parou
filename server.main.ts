@@ -20,6 +20,7 @@ import {
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection } from './src/server/db/gtfsDatabase';
+import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto } from './src/server/dadosProntos';
 import {
   getMasterSourceRegistry,
   syncAllOfficialGtfs,
@@ -60,6 +61,16 @@ process.env.DISABLE_HMR = 'true';
 const app = express();
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
+
+// ==========================================
+// 0. HEALTH CHECK (Responde 200 de imediato para verificações de URL e probes Cloud Run)
+// ==========================================
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).send('OK');
+});
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
 
 const cliPortIndex = process.argv.indexOf('--port');
 const cliPort = cliPortIndex !== -1 ? parseInt(process.argv[cliPortIndex + 1], 10) : NaN;
@@ -286,6 +297,21 @@ app.post('/api/transit-catalog/probe', async (req: Request, res: Response) => {
 // API: Pesquisa de Horários Normalizados em Portugal
 app.get('/api/transit/search', async (req: Request, res: Response) => {
   try {
+    if (!isDadosProntosPronto()) {
+      const estado = getEstadoDadosProntos();
+      return res.json({
+        status: 'loading',
+        isLoading: true,
+        message: estado.message || 'A carregar horários…',
+        totalOperators: estado.totalOperators,
+        loadedOperators: estado.loadedOperators,
+        results: [],
+        total: 0,
+        sources_registry: [],
+        timestamp: Date.now(),
+      });
+    }
+
     const {
       query,
       origin,
@@ -492,6 +518,21 @@ app.get('/api/transit/loading-status', (_req: Request, res: Response) => {
 // ==========================================
 app.get('/api/lines', async (req: Request, res: Response) => {
   try {
+    if (!isDadosProntosPronto()) {
+      const estado = getEstadoDadosProntos();
+      return res.json({
+        status: 'loading',
+        isLoading: true,
+        message: estado.message || 'A carregar horários…',
+        totalOperators: estado.totalOperators,
+        loadedOperators: estado.loadedOperators,
+        lines: [],
+        total: 0,
+        page: 1,
+        total_pages: 1,
+      });
+    }
+
     const near = req.query.near as string | undefined;
     const ids = req.query.ids as string | undefined;
     const q = req.query.q as string | undefined;
@@ -526,6 +567,13 @@ app.get('/api/lines', async (req: Request, res: Response) => {
 
 app.get('/api/lines/:id', async (req: Request, res: Response) => {
   try {
+    if (!isDadosProntosPronto()) {
+      return res.status(503).json({
+        status: 'loading',
+        isLoading: true,
+        message: 'A carregar horários…',
+      });
+    }
     const line = await LinesEngine.getLineDetail(req.params.id);
     if (!line) {
       return res.status(404).json({ error: 'Linha não encontrada.' });
@@ -539,6 +587,16 @@ app.get('/api/lines/:id', async (req: Request, res: Response) => {
 
 app.get('/api/stops/:id/departures', async (req: Request, res: Response) => {
   try {
+    if (!isDadosProntosPronto()) {
+      return res.json({
+        status: 'loading',
+        isLoading: true,
+        message: 'A carregar horários…',
+        stop_id: req.params.id,
+        stop_name: '',
+        departures: [],
+      });
+    }
     const limit = Number(req.query.n) || 5;
     const departures = await LinesEngine.getStopDepartures(req.params.id, limit);
     return res.json(departures);
@@ -769,6 +827,22 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+
+    if (!isDadosProntosPronto()) {
+      const estado = getEstadoDadosProntos();
+      return res.json({
+        status: 'loading',
+        isLoading: true,
+        message: estado.message || 'A carregar horários…',
+        totalOperators: estado.totalOperators,
+        loadedOperators: estado.loadedOperators,
+        stops: [],
+        vehicles: [],
+        alerts: [],
+        radiusMeters: Number(req.query.radius) || 500,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     const lat = Number(req.query.lat);
     const lon = Number(req.query.lon);
@@ -1195,12 +1269,12 @@ app.get('/sitemap.xml', (_req: Request, res: Response) => {
 // ==========================================
 // FEED CATALOG, INGESTION & COVERAGE API
 // ==========================================
-import { getCoverageReport } from './src/server/coverageService';
+import { getCoverageReport, testFeedConnection } from './src/server/coverageService';
 import { getFetchLogs, getFeedById, upsertFeed, getDatabase } from './src/server/db/gtfsDatabase';
 import { SEED_FEEDS } from './src/server/gtfsSeedRegistry';
-const startBackgroundWorker = (): void => {};
-const triggerIngestAll = (): void => {};
-const triggerIngestSingle = (_id: string): void => {};
+import { seedFeedsIfEmpty } from './src/server/db/gtfsDatabase';
+import { triggerIngestAll, triggerIngestSingle, isIngestionRunning } from './src/server/gtfsIngestionService';
+const startBackgroundWorker = (): void => { triggerIngestAll(); };
 const triggerDiscovery = (): void => {};
 import { FeedItem } from './src/types/coverage';
 
@@ -1215,6 +1289,21 @@ app.get('/api/coverage', (_req: Request, res: Response) => {
   }
 });
 
+// 1b. Test feed connection & validate GTFS zip (Requirement 1)
+app.post('/api/coverage/test-connection', async (req: Request, res: Response) => {
+  try {
+    const { feedId, url } = req.body;
+    if (!feedId && !url) {
+      return res.status(400).json({ error: 'feedId ou url é obrigatório para testar ligação.' });
+    }
+    const result = await testFeedConnection(feedId || 'manual', url);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API /coverage/test-connection] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao testar ligação', details: err?.message });
+  }
+});
+
 // 2. Get fetch audit logs (MANDATORY RULE 4: log every fetch URL, status, bytes, duration, time)
 app.get('/api/coverage/logs', (req: Request, res: Response) => {
   try {
@@ -1226,14 +1315,22 @@ app.get('/api/coverage/logs', (req: Request, res: Response) => {
   }
 });
 
-// 3. Trigger manual re-run of auto-discovery
+// 3. Trigger manual re-run of all feeds import (Requirement 3: O botão "Atualizar" da /coverage volta a importar todos os feeds)
+app.post('/api/coverage/reingest-all', async (_req: Request, res: Response) => {
+  try {
+    triggerIngestAll();
+    return res.json({ success: true, message: 'Importação de todos os feeds iniciada em segundo plano.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao iniciar importação', details: err?.message });
+  }
+});
+
 app.post('/api/coverage/run-discovery', async (_req: Request, res: Response) => {
   try {
-    triggerDiscovery();
     triggerIngestAll();
-    return res.json({ success: true, message: 'Auto-descoberta e ingestão iniciadas em segundo plano.' });
+    return res.json({ success: true, message: 'Importação sequencial de todos os feeds iniciada em segundo plano.' });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erro na auto-descoberta', details: err?.message });
+    return res.status(500).json({ error: 'Erro ao iniciar importação', details: err?.message });
   }
 });
 
@@ -1317,6 +1414,18 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
 // 2. Search / List Unified Stops across ALL feeds
 app.get('/api/transit/stops', async (req: Request, res: Response) => {
   try {
+    if (!isDadosProntosPronto()) {
+      const estado = getEstadoDadosProntos();
+      return res.json({
+        status: 'loading',
+        isLoading: true,
+        message: estado.message || 'A carregar horários…',
+        totalOperators: estado.totalOperators,
+        loadedOperators: estado.loadedOperators,
+        stops: [],
+        total: 0,
+      });
+    }
     const q = typeof req.query.q === 'string' ? req.query.q : '';
     if (q) {
       const stops = await StopsEngine.searchUnifiedStops(q, 30);
@@ -1420,12 +1529,12 @@ async function startServer() {
     if (isProduction) {
       app.use(express.static(distPath));
       app.get('*', (req: Request, res: Response, next: NextFunction) => {
-        if (req.path.startsWith('/api')) return next();
+        if (req.path.startsWith('/api') || req.path === '/health') return next();
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
 
-    // 2. REQUIREMENT 1: O servidor escuta IMEDIATAMENTE em 0.0.0.0 na porta process.env.PORT (3000 por defeito)
+    // 2. REQUIREMENT 1: O servidor escuta IMEDIATAMENTE em 0.0.0.0 na porta process.env.PORT antes de qualquer importação
     const httpServer = app.listen(port, '0.0.0.0', () => {
       console.log(`[PAROU.PT Server] A escutar imediatamente em http://0.0.0.0:${port}`);
 
@@ -1475,52 +1584,15 @@ async function startServer() {
             console.warn('[Polling Engine] Aviso ao iniciar agendador:', pollingErr?.message || pollingErr);
           }
 
-          // Verificação da base de dados e arranque do worker
+          // Em produção, a única fonte de horários é o parou-dados (dadosProntos.ts).
+          // No arranque NÃO chames startBackgroundWorker nem triggerIngestAll, e remove o recarregamento automático de 24h.
+          // O worker de importação só corre se for pedido manualmente na /coverage. (Regra 1)
           try {
-            const db = getDatabase();
-            let totalStopsInDb = 0;
-            try {
-              const stopsRow = db.prepare('SELECT COUNT(*) as cnt FROM stops').get() as { cnt: number } | undefined;
-              totalStopsInDb = Number(stopsRow?.cnt || 0);
-            } catch {}
-
-            let feedsWithoutStops: any[] = [];
-            try {
-              feedsWithoutStops = db.prepare(`
-                SELECT f.id, f.operator_name 
-                FROM feeds f 
-                WHERE f.id NOT IN (SELECT DISTINCT feed_id FROM stops)
-                  AND f.status != 'SEM DADOS'
-              `).all() as any[];
-            } catch {}
-
-            const allFeeds = getAllFeeds();
-            const needsLoading = totalStopsInDb === 0 || feedsWithoutStops.length > 0 || allFeeds.length < 15;
-
-            if (needsLoading) {
-              console.log(`[PAROU.PT Startup] Servidor iniciado (${totalStopsInDb} paragens, ${feedsWithoutStops.length} feeds pendentes). A carregar em segundo plano...`);
-              startBackgroundWorker();
-            } else {
-              console.log(`[PAROU.PT Startup] Base de dados íntegra e carregada com ${totalStopsInDb} paragens.`);
-            }
-
-            try {
-              StopsEngine.getUnifiedStops().catch(() => {});
-            } catch {}
+            seedFeedsIfEmpty();
+            console.log('[PAROU.PT Startup] Gestão de base de dados delegada exclusivamente a parou-dados (dadosProntos).');
           } catch (dbErr: any) {
-            console.warn('[Database Startup] Aviso na verificação (a arrancar worker em segundo plano):', dbErr?.message || dbErr);
-            try {
-              startBackgroundWorker();
-            } catch {}
+            console.warn('[Database Startup] Aviso na verificação:', dbErr?.message || dbErr);
           }
-
-          // Recarregamento diário programado (24h)
-          try {
-            setInterval(() => {
-              console.log('[PAROU.PT Daily] A executar recarregamento diário em segundo plano...');
-              triggerIngestAll();
-            }, 24 * 60 * 60 * 1000);
-          } catch {}
         } catch (bgErr: any) {
           console.warn('[Background Startup] Aviso nos serviços em segundo plano:', bgErr?.message || bgErr);
         }
@@ -1565,7 +1637,6 @@ startServer().catch(err => {
   console.error('[FATAL UNCAUGHT SERVER PROMISE]:', err);
 });
 
-import { iniciarDadosProntos, getEstadoDadosProntos } from './src/server/dadosProntos';
 iniciarDadosProntos();
 
 process.on('uncaughtException', (err: any) => {

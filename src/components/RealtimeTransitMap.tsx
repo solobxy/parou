@@ -299,31 +299,27 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
   }, [visibleVehicles, zoomLevel]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#080c14] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FFFFFF] relative overflow-hidden select-none text-[#111111]">
       {/* Top Telemetry & Audit Diagnostic Ribbon */}
-      <div className="bg-slate-950/90 border-b border-slate-800/80 p-3 sm:p-4 z-20 backdrop-blur-md">
+      <div className="bg-[#FFFFFF] border-b border-[#E6E6E3] p-3 sm:p-4 z-20">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Title & Live Status */}
           <div className="flex items-center gap-3">
-            <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
-              <Radio className="w-5 h-5 animate-pulse" />
+            <span className="p-2 rounded-[8px] bg-[#F4F4F2] text-[#C2410C] border border-[#E6E6E3] flex items-center justify-center">
+              <Radio className="w-5 h-5 stroke-[2]" />
             </span>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
-                  Radar Realtime TML GO Hub (AML & UNIR Porto)
+                <h2 className="text-sm sm:text-base font-bold text-[#111111] tracking-tight">
+                  Radar Realtime
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  Atualização a cada 3s
+                <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#C2410C] border border-[#E6E6E3] text-xs font-semibold flex items-center gap-1">
+                  Tempo real
                 </span>
                 {isUpdating && (
-                  <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 text-[#111111] animate-spin stroke-[2]" />
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
-                Posições GPS e telemetria de autocarros e transportes em circulação em Portugal Continental.
-              </p>
             </div>
           </div>
 
@@ -334,12 +330,12 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                 setDiagnosticTab('unir');
                 setShowDiagnosticModal(true);
               }}
-              className="px-3 py-1.5 rounded-xl bg-blue-950/80 hover:bg-blue-900/80 border border-blue-600/60 text-xs text-blue-200 hover:text-white flex items-center gap-1.5 font-bold transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-xs text-[#111111] flex items-center gap-1.5 font-bold transition-colors cursor-pointer"
             >
-              <Activity className="w-3.5 h-3.5 text-blue-400" />
+              <Activity className="w-3.5 h-3.5 text-[#FF6B1A] stroke-[2]" />
               <span>Auditoria UNIR</span>
               {unirDiagnostic && (
-                <span className="px-1.5 py-0.2 rounded bg-blue-500/30 text-blue-200 text-[10px] font-mono">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-[#FFFFFF] text-[#111111] border border-[#E6E6E3] text-[10px] font-mono tabular-nums font-semibold">
                   {unirDiagnostic.veiculos_recebidos} ativos
                 </span>
               )}
@@ -350,12 +346,12 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                 setDiagnosticTab('global');
                 setShowDiagnosticModal(true);
               }}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-xs text-slate-300 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-xs text-[#111111] flex items-center gap-2 font-medium transition-colors cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-[#111111] stroke-[2]" />
               <span>Auditoria TML Global</span>
               {diagnostic && (
-                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-[#FFFFFF] text-[#111111] border border-[#E6E6E3] text-[10px] font-mono tabular-nums font-semibold">
                   {diagnostic.vehicles_valid}/{diagnostic.vehicles_received} OK
                 </span>
               )}
@@ -364,50 +360,50 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
             <button
               onClick={() => loadData(false)}
               disabled={isLoading || isUpdating}
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+              className="p-2 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] transition-colors cursor-pointer disabled:opacity-50"
               title="Forçar atualização agora"
             >
-              <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin text-blue-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 stroke-[2] ${isUpdating ? 'animate-spin text-[#FF6B1A]' : ''}`} />
             </button>
           </div>
         </div>
 
         {/* Live Audit Counters Strip with Region Switcher */}
-        <div className="max-w-7xl mx-auto mt-2.5 pt-2.5 border-t border-slate-800/60 flex items-center justify-between flex-wrap gap-2 text-[11px]">
+        <div className="max-w-7xl mx-auto mt-2.5 pt-2.5 border-t border-[#E6E6E3] flex items-center justify-between flex-wrap gap-2 text-[11px]">
           {/* Quick Region Switcher Buttons */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-slate-400 font-semibold text-[10px] uppercase mr-1">Região no Radar:</span>
+            <span className="text-[#6B6B6B] font-semibold text-[10px] uppercase tracking-wider mr-1">Região no Radar:</span>
             <button
               onClick={() => handleSelectRegion('nacional')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-[8px] text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeRegion === 'nacional' && !selectedDistrictName
-                  ? 'bg-emerald-600 text-white shadow shadow-emerald-600/30'
-                  : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                  ? 'bg-[#FF6B1A] text-[#111111] font-bold border border-[#FF6B1A] brand-chamfer'
+                  : 'bg-[#FFFFFF] text-[#6B6B6B] hover:text-[#111111] border border-[#E6E6E3]'
               }`}
             >
               <span>Portugal Inteiro (Mapa Nacional)</span>
             </button>
             <button
               onClick={() => handleSelectRegion('aml')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-[8px] text-[11px] transition-all cursor-pointer ${
                 activeRegion === 'aml' && !selectedDistrictName
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-[#FF6B1A] text-[#111111] font-bold border border-[#FF6B1A] brand-chamfer'
+                  : 'bg-[#FFFFFF] text-[#6B6B6B] hover:text-[#111111] border border-[#E6E6E3]'
               }`}
             >
               Lisboa (AML)
             </button>
             <button
               onClick={() => handleSelectRegion('porto')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-[8px] text-[11px] transition-all cursor-pointer flex items-center gap-1 ${
                 activeRegion === 'porto' && !selectedDistrictName
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'bg-slate-900 text-blue-300 hover:text-white border border-blue-900/60'
+                  ? 'bg-[#FF6B1A] text-[#111111] font-bold border border-[#FF6B1A] brand-chamfer'
+                  : 'bg-[#FFFFFF] text-[#6B6B6B] hover:text-[#111111] border border-[#E6E6E3]'
               }`}
             >
               <span>Porto (UNIR)</span>
               {unirDiagnostic && (
-                <span className="px-1 py-0.1 text-[9px] rounded bg-blue-400/20 text-blue-300 font-mono">
+                <span className="px-1 py-0.2 text-[9px] rounded-[4px] bg-[#F4F4F2] text-[#111111] font-mono tabular-nums border border-[#E6E6E3]">
                   {unirDiagnostic.veiculos_recebidos}
                 </span>
               )}
@@ -421,7 +417,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                   const d = ACCURATE_PORTUGAL_DISTRICTS.find(x => x.name === e.target.value);
                   if (d) handleFlyToDistrict(d);
                 }}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700 focus:outline-none focus:border-blue-500 cursor-pointer"
+                className="px-2.5 py-1 rounded-[8px] text-[11px] font-semibold bg-[#FFFFFF] text-[#111111] border border-[#E6E6E3] hover:border-[#111111] focus:outline-none focus:border-[#FF6B1A] cursor-pointer"
               >
                 <option value="">Focar Distrito...</option>
                 {ACCURATE_PORTUGAL_DISTRICTS.map((d) => (
@@ -433,21 +429,21 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
             </div>
 
             {selectedDistrictName && (
-              <span className="px-2 py-0.5 rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-300 text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] text-[10px] font-bold">
                 Distrito: {selectedDistrictName}
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap text-slate-300">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap text-[#6B6B6B] font-mono tabular-nums text-[11px]">
             <span>
-              Total Apresentados: <strong className="text-emerald-400">{visibleVehicles.length}</strong>
+              Total Apresentados: <strong className="text-[#111111] font-bold">{visibleVehicles.length}</strong>
             </span>
             <span>
-              UNIR Ativos: <strong className="text-blue-400">{unirDiagnostic?.veiculos_recebidos || 0}</strong>
+              UNIR Ativos: <strong className="text-[#111111] font-bold">{unirDiagnostic?.veiculos_recebidos || 0}</strong>
             </span>
             <span>
-              Sincronizado: <span className="text-slate-400">{lastRefreshed}</span>
+              Sincronizado: <span className="text-[#6B6B6B]">{lastRefreshed}</span>
             </span>
           </div>
         </div>
@@ -455,7 +451,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
       {/* Map Canvas with Interactive Controls */}
       <div 
-        className="flex-1 relative cursor-grab active:cursor-grabbing overflow-hidden bg-[#070b12]"
+        className="flex-1 relative cursor-grab active:cursor-grabbing overflow-hidden bg-[#F4F4F2]"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -464,20 +460,20 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
         <div className="absolute top-3 left-3 z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-xl w-[calc(100%-24px)]">
           {/* Line Search */}
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[#6B6B6B] absolute left-3 top-1/2 -translate-y-1/2 stroke-[2]" />
             <input
               type="text"
               value={searchLine}
               onChange={(e) => setSearchLine(e.target.value)}
               placeholder="Filtrar por carreira (ex: 5102, 6017, 3304, 2336, 1715)..."
-              className="w-full pl-8 pr-8 py-2 bg-slate-950/90 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 backdrop-blur-md shadow-lg"
+              className="w-full pl-8 pr-8 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] shadow-sm"
             />
             {searchLine && (
               <button
                 onClick={() => setSearchLine('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111]"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5 stroke-[2]" />
               </button>
             )}
           </div>
@@ -486,7 +482,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
           <select
             value={selectedAgency}
             onChange={(e) => handleAgencyChange(e.target.value)}
-            className="px-3 py-2 bg-slate-950/90 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 backdrop-blur-md shadow-lg"
+            className="px-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] focus:outline-none focus:border-[#111111] shadow-sm cursor-pointer"
           >
             {availableAgencies.map((ag) => (
               <option key={ag} value={ag}>
@@ -500,24 +496,24 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
         <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5">
           <button
             onClick={handleZoomIn}
-            className="p-2.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-slate-800 text-slate-200 hover:text-white shadow-xl backdrop-blur-md transition-colors cursor-pointer"
+            className="p-2.5 rounded-[8px] bg-[#FFFFFF] hover:bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] shadow-sm transition-colors cursor-pointer"
             title="Aumentar Zoom"
           >
-            <ZoomIn className="w-4 h-4" />
+            <ZoomIn className="w-4 h-4 stroke-[2]" />
           </button>
           <button
             onClick={handleZoomOut}
-            className="p-2.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-slate-800 text-slate-200 hover:text-white shadow-xl backdrop-blur-md transition-colors cursor-pointer"
+            className="p-2.5 rounded-[8px] bg-[#FFFFFF] hover:bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] shadow-sm transition-colors cursor-pointer"
             title="Diminuir Zoom"
           >
-            <ZoomOut className="w-4 h-4" />
+            <ZoomOut className="w-4 h-4 stroke-[2]" />
           </button>
           <button
             onClick={() => handleSelectRegion(activeRegion)}
-            className="p-2.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-slate-800 text-slate-200 hover:text-white shadow-xl backdrop-blur-md transition-colors cursor-pointer"
+            className="p-2.5 rounded-[8px] bg-[#FFFFFF] hover:bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] shadow-sm transition-colors cursor-pointer"
             title="Recentrar Vista"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-4 h-4 stroke-[2]" />
           </button>
         </div>
 
@@ -531,16 +527,16 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
           {/* Background Grid & Coordinate Lines */}
           <defs>
             <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-              <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1e293b" strokeWidth="0.5" strokeOpacity="0.4" />
+              <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#E6E6E3" strokeWidth="0.5" strokeOpacity="0.8" />
             </pattern>
             <radialGradient id="vehicleGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+              <stop offset="0%" stopColor="#FF6B1A" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FF6B1A" stopOpacity="0" />
             </radialGradient>
           </defs>
 
           {/* Base Ocean Canvas */}
-          <rect width="1000" height="700" fill="#060a14" />
+          <rect width="1000" height="700" fill="#EDEDEA" />
 
           {/* Geographically Accurate Mainland Portugal Map & All 18 Districts */}
           <g id="radar-portugal-districts" transform={portugalTransform.matrix}>
@@ -563,11 +559,11 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                   {/* District Landmass Polygon */}
                   <path
                     d={dist.d}
-                    fill={isSelected ? '#1e3a8a' : isHovered ? '#1e293b' : '#0c1526'}
-                    fillOpacity={isSelected ? 0.85 : isHovered ? 0.75 : 0.6}
-                    stroke={isSelected ? '#60a5fa' : isHovered ? '#38bdf8' : '#1e3a5f'}
-                    strokeWidth={isSelected ? portugalTransform.strokeWidth * 1.8 : isHovered ? portugalTransform.strokeWidth * 1.4 : portugalTransform.strokeWidth}
-                    strokeOpacity={isSelected ? 1 : isHovered ? 0.9 : 0.7}
+                    fill={isSelected ? '#FFE8DC' : isHovered ? '#FFFFFF' : '#FDFCFA'}
+                    fillOpacity={1}
+                    stroke={isSelected ? '#FF6B1A' : isHovered ? '#C2410C' : '#D0D0CE'}
+                    strokeWidth={isSelected ? portugalTransform.strokeWidth * 2 : isHovered ? portugalTransform.strokeWidth * 1.5 : portugalTransform.strokeWidth}
+                    strokeOpacity={1}
                     strokeLinejoin="round"
                     strokeLinecap="round"
                     className="transition-colors duration-150"
@@ -583,13 +579,10 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                         x="0"
                         y="-1.2"
                         textAnchor="middle"
-                        fill={isSelected ? '#93c5fd' : isHovered ? '#ffffff' : '#94a3b8'}
+                        fill={isSelected ? '#C2410C' : isHovered ? '#111111' : '#6B6B6B'}
                         fontSize="3.8"
                         fontWeight="800"
                         letterSpacing="0.4"
-                        style={{
-                          textShadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 2px rgba(0,0,0,0.8)',
-                        }}
                       >
                         {dist.code}
                       </text>
@@ -600,12 +593,9 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                           x="0"
                           y="3.8"
                           textAnchor="middle"
-                          fill={count > 30 ? '#4ade80' : '#38bdf8'}
+                          fill={isSelected ? '#111111' : '#6B6B6B'}
                           fontSize="3.2"
                           fontWeight="800"
-                          style={{
-                            textShadow: '0 1px 2px rgba(0,0,0,0.95)',
-                          }}
                         >
                           {count}v
                         </text>
@@ -636,20 +626,20 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               >
                 <circle
                   r={Math.min(32, 16 + c.count * 1.2)}
-                  fill="#0284c7"
-                  fillOpacity="0.35"
+                  fill="#FF6B1A"
+                  fillOpacity="0.25"
                   className="animate-pulse"
                 />
                 <circle
                   r={Math.min(22, 12 + c.count * 0.8)}
-                  fill="#0369a1"
-                  stroke="#38bdf8"
+                  fill="#FF6B1A"
+                  stroke="#111111"
                   strokeWidth="2"
                 />
                 <text
                   textAnchor="middle"
                   dy="4"
-                  fill="#ffffff"
+                  fill="#111111"
                   fontSize="11"
                   fontWeight="bold"
                 >
@@ -689,7 +679,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                     <g transform={`rotate(${angle})`}>
                       <polygon
                         points="0,-16 -5,-9 5,-9"
-                        fill={isSelected ? '#38bdf8' : (isUnir ? '#60a5fa' : '#34d399')}
+                        fill={isSelected ? '#FF6B1A' : (isUnir ? '#111111' : '#6B6B6B')}
                       />
                     </g>
                   )}
@@ -697,10 +687,10 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                   {/* Vehicle Body Dot */}
                   <circle
                     r={isSelected ? 11 : 8}
-                    fill={v.line_color || (isUnir ? '#003399' : '#2563eb')}
-                    stroke={isSelected ? '#38bdf8' : '#ffffff'}
+                    fill={v.line_color || (isUnir ? '#003399' : '#111111')}
+                    stroke={isSelected ? '#FF6B1A' : '#ffffff'}
                     strokeWidth={isSelected ? 3 : 1.5}
-                    className="shadow-lg transition-transform group-hover:scale-125"
+                    className="shadow transition-transform group-hover:scale-125"
                   />
 
                   {/* Line code label */}
@@ -721,23 +711,23 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
         {/* Selected Vehicle Inspector Drawer */}
         {selectedVehicle && (
-          <div className="absolute bottom-4 left-4 z-20 max-w-sm w-[calc(100%-32px)] bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl p-4 backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="absolute bottom-4 left-4 z-20 max-w-sm w-[calc(100%-32px)] bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] shadow-xl p-4 text-[#111111] animate-in slide-in-from-bottom-3 duration-200">
+            <div className="flex items-start justify-between gap-3 border-b border-[#E6E6E3] pb-3">
               <div className="flex items-center gap-2.5">
                 <div
-                  className="px-2.5 py-1 rounded-lg font-black text-sm shadow"
+                  className="px-2.5 py-1 rounded-[6px] font-black text-sm shadow-sm"
                   style={{
-                    backgroundColor: selectedVehicle.line_color || '#2563eb',
+                    backgroundColor: selectedVehicle.line_color || '#111111',
                     color: selectedVehicle.line_text_color || '#ffffff',
                   }}
                 >
                   {selectedVehicle.line_code}
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white leading-tight">
+                  <h4 className="text-sm font-bold text-[#111111] leading-tight">
                     {selectedVehicle.line_name || `Carreira ${selectedVehicle.line_code}`}
                   </h4>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-[#6B6B6B]">
                     {selectedVehicle.agency_name}
                   </div>
                 </div>
@@ -745,68 +735,68 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
               <button
                 onClick={() => setSelectedVehicle(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="text-[#6B6B6B] hover:text-[#111111] p-1 rounded-[6px] hover:bg-[#F4F4F2]"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 stroke-[2]" />
               </button>
             </div>
 
             {/* Vehicle Telemetry Details */}
             <div className="py-3 grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold">Veículo / Frota</span>
-                <div className="font-mono text-white font-bold">{selectedVehicle.vehicle_id}</div>
+              <div className="p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-0.5">
+                <span className="text-[10px] text-[#6B6B6B] uppercase font-semibold">Veículo / Frota</span>
+                <div className="font-mono text-[#111111] font-bold tabular-nums">{selectedVehicle.vehicle_id}</div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold">Estado do Serviço</span>
-                <div className="text-emerald-400 font-semibold">{selectedVehicle.current_status}</div>
+              <div className="p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-0.5">
+                <span className="text-[10px] text-[#6B6B6B] uppercase font-semibold">Estado do Serviço</span>
+                <div className="text-[#111111] font-semibold">{selectedVehicle.current_status}</div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold flex items-center gap-1">
-                  <Gauge className="w-3 h-3" /> Velocidade
+              <div className="p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-0.5">
+                <span className="text-[10px] text-[#6B6B6B] uppercase font-semibold flex items-center gap-1">
+                  <Gauge className="w-3 h-3 stroke-[2]" /> Velocidade
                 </span>
-                <div className="text-white font-bold">
+                <div className="text-[#111111] font-bold font-mono tabular-nums">
                   {selectedVehicle.speed !== undefined ? `${selectedVehicle.speed} km/h` : 'N/D'}
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold flex items-center gap-1">
-                  <Compass className="w-3 h-3" /> Rumo (Bearing)
+              <div className="p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-0.5">
+                <span className="text-[10px] text-[#6B6B6B] uppercase font-semibold flex items-center gap-1">
+                  <Compass className="w-3 h-3 stroke-[2]" /> Rumo (Bearing)
                 </span>
-                <div className="text-white font-bold">
+                <div className="text-[#111111] font-bold font-mono tabular-nums">
                   {selectedVehicle.bearing !== undefined ? `${selectedVehicle.bearing}°` : 'N/D'}
                 </div>
               </div>
             </div>
 
             {/* Next Stop & Realtime ETA */}
-            <div className="p-2.5 rounded-xl bg-blue-950/40 border border-blue-800/40 mb-3 space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-blue-400" />
+            <div className="p-2.5 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] mb-3 space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#C2410C] flex items-center gap-1">
+                <MapPin className="w-3 h-3 stroke-[2]" />
                 <span>Próxima Paragem / ETA</span>
               </div>
-              <div className="text-xs font-bold text-white">
+              <div className="text-xs font-bold text-[#111111]">
                 {selectedVehicle.stop_name || (selectedVehicle.stop_id ? `Paragem #${selectedVehicle.stop_id}` : 'Tempo real — ETA indisponível')}
               </div>
               {selectedVehicle.eta_seconds !== undefined ? (
-                <div className="text-[11px] text-emerald-300 font-semibold flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
+                <div className="text-[11px] text-[#111111] font-semibold flex items-center gap-1 font-mono tabular-nums">
+                  <Clock className="w-3 h-3 stroke-[2] text-[#FF6B1A]" />
                   <span>
                     Chegada em {Math.max(0, Math.round(selectedVehicle.eta_seconds / 60))} min ({selectedVehicle.eta_seconds}s)
                   </span>
                 </div>
               ) : (
-                <div className="text-[10px] text-slate-400 italic">
+                <div className="text-[10px] text-[#6B6B6B] italic">
                   Tempo real — ETA indisponível no feed
                 </div>
               )}
             </div>
 
             {/* GPS Coordinates & Trip ID */}
-            <div className="space-y-0.5 text-[10px] text-slate-500 font-mono mb-3">
+            <div className="space-y-0.5 text-[10px] text-[#6B6B6B] font-mono tabular-nums mb-3">
               <div>GPS: {selectedVehicle.latitude.toFixed(6)}, {selectedVehicle.longitude.toFixed(6)}</div>
               {selectedVehicle.trip_id && <div className="truncate">Trip: {selectedVehicle.trip_id}</div>}
             </div>
@@ -816,7 +806,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               {onSelectLineInSchedules && (
                 <button
                   onClick={() => onSelectLineInSchedules(selectedVehicle.line_code)}
-                  className="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors cursor-pointer text-center"
+                  className="flex-1 py-2 px-3 rounded-[8px] bg-[#FF6B1A] hover:opacity-90 text-[#111111] font-bold text-xs brand-chamfer transition-colors cursor-pointer text-center"
                 >
                   Consultar Horários
                 </button>
@@ -825,10 +815,10 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               {onOpenReportModal && (
                 <button
                   onClick={() => onOpenReportModal(selectedVehicle.agency_name, selectedVehicle.line_code)}
-                  className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs border border-slate-700 transition-colors cursor-pointer"
+                  className="py-2 px-3 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] font-bold text-xs border border-[#E6E6E3] transition-colors cursor-pointer"
                   title="Reportar ocorrência neste veículo"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <AlertTriangle className="w-3.5 h-3.5 stroke-[2] text-[#FF6B1A]" />
                 </button>
               )}
             </div>
@@ -838,16 +828,16 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
       {/* Internal Audit Diagnostic Modal (Global + UNIR Dedicated) */}
       {showDiagnosticModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-[#111111]">
+            <div className="p-4 border-b border-[#E6E6E3] flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  <ShieldCheck className="w-5 h-5" />
+                <div className="p-2 rounded-[8px] bg-[#F4F4F2] text-[#111111] border border-[#E6E6E3]">
+                  <ShieldCheck className="w-5 h-5 stroke-[2]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Relatório Técnico de Auditoria TML GO Hub</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-base font-bold text-[#111111]">Relatório Técnico de Auditoria TML GO Hub</h3>
+                  <p className="text-xs text-[#6B6B6B]">
                     Inspeção aprofundada de feeds oficiais, UNIR Realtime e motivos de descarte
                   </p>
                 </div>
@@ -855,23 +845,23 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
               {/* Modal Tabs: Global vs UNIR Crítico */}
               <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center bg-[#F4F4F2] p-1 rounded-[8px] border border-[#E6E6E3]">
                   <button
                     onClick={() => setDiagnosticTab('unir')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-[6px] text-xs font-bold transition-all cursor-pointer ${
                       diagnosticTab === 'unir'
-                        ? 'bg-blue-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-[#FF6B1A] text-[#111111] brand-chamfer'
+                        : 'text-[#6B6B6B] hover:text-[#111111]'
                     }`}
                   >
                     Diagnóstico UNIR
                   </button>
                   <button
                     onClick={() => setDiagnosticTab('global')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-[6px] text-xs font-bold transition-all cursor-pointer ${
                       diagnosticTab === 'global'
-                        ? 'bg-blue-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-[#FF6B1A] text-[#111111] brand-chamfer'
+                        : 'text-[#6B6B6B] hover:text-[#111111]'
                     }`}
                   >
                     TML Global (AML)
@@ -880,9 +870,9 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
                 <button
                   onClick={() => setShowDiagnosticModal(false)}
-                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="p-2 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 stroke-[2]" />
                 </button>
               </div>
             </div>
@@ -892,79 +882,79 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               {diagnosticTab === 'unir' && unirDiagnostic && (
                 <div className="space-y-4">
                   {/* UNIR Summary Box */}
-                  <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-800/60 space-y-3">
+                  <div className="p-4 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="text-sm font-bold text-white flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-blue-400" />
+                      <div className="text-sm font-bold text-[#111111] flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-[#FF6B1A] stroke-[2]" />
                         <span>Auditoria Crítica UNIR — Área Metropolitana do Porto (AMP)</span>
                       </div>
-                      <span className="text-[10px] text-blue-300 font-mono">
+                      <span className="text-[10px] text-[#6B6B6B] font-mono">
                         Fonte: go.tmlmobilidade.pt/hub/api/v1
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Veículos UNIR Recebidos</div>
-                        <div className="text-xl font-black text-blue-400 mt-0.5">{unirDiagnostic.veiculos_recebidos}</div>
-                        <div className="text-[9px] text-emerald-400">Em circulação agora</div>
+                      <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                        <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Veículos UNIR Recebidos</div>
+                        <div className="text-xl font-black text-[#111111] mt-0.5 font-mono tabular-nums">{unirDiagnostic.veiculos_recebidos}</div>
+                        <div className="text-[9px] text-[#6B6B6B]">Em circulação agora</div>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Viagens UNIR em ETA</div>
-                        <div className="text-xl font-black text-cyan-400 mt-0.5">{unirDiagnostic.viagens_recebidas}</div>
-                        <div className="text-[9px] text-slate-400">Previsões ativas em /eta</div>
+                      <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                        <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Viagens UNIR em ETA</div>
+                        <div className="text-xl font-black text-[#111111] mt-0.5 font-mono tabular-nums">{unirDiagnostic.viagens_recebidas}</div>
+                        <div className="text-[9px] text-[#6B6B6B]">Previsões ativas em /eta</div>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Linha 8003 no Feed</div>
-                        <div className="text-xl font-black mt-0.5">
+                      <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                        <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Linha 8003 no Feed</div>
+                        <div className="text-xl font-black mt-0.5 font-mono tabular-nums">
                           {unirDiagnostic.linha_8003_encontrada ? (
-                            <span className="text-emerald-400">SIM ({unirDiagnostic.veiculos_8003})</span>
+                            <span className="text-[#111111]">SIM ({unirDiagnostic.veiculos_8003})</span>
                           ) : (
-                            <span className="text-amber-400">NÃO (0)</span>
+                            <span className="text-[#6B6B6B]">NÃO (0)</span>
                           )}
                         </div>
-                        <div className="text-[9px] text-slate-400">Lote 4 (VZAS3)</div>
+                        <div className="text-[9px] text-[#6B6B6B]">Lote 4 (VZAS3)</div>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase">Linha 8006 no Feed</div>
-                        <div className="text-xl font-black mt-0.5">
+                      <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                        <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Linha 8006 no Feed</div>
+                        <div className="text-xl font-black mt-0.5 font-mono tabular-nums">
                           {unirDiagnostic.linha_8006_encontrada ? (
-                            <span className="text-emerald-400">SIM ({unirDiagnostic.veiculos_8006})</span>
+                            <span className="text-[#111111]">SIM ({unirDiagnostic.veiculos_8006})</span>
                           ) : (
-                            <span className="text-amber-400">NÃO (0)</span>
+                            <span className="text-[#6B6B6B]">NÃO (0)</span>
                           )}
                         </div>
-                        <div className="text-[9px] text-slate-400">Lote 4 (VZAS3)</div>
+                        <div className="text-[9px] text-[#6B6B6B]">Lote 4 (VZAS3)</div>
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
-                      <div className="font-bold text-white flex items-center gap-1.5">
-                        <Info className="w-4 h-4 text-blue-400" />
+                    <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-xs text-[#111111] space-y-1">
+                      <div className="font-bold text-[#111111] flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-[#111111] stroke-[2]" />
                         <span>Estado das Linhas UNIR 8003 e 8006:</span>
                       </div>
-                      <p className="leading-relaxed text-slate-300">
+                      <p className="leading-relaxed text-[#111111]">
                         {unirDiagnostic.motivo_descarte}
                       </p>
-                      <p className="text-[11px] text-slate-400">
-                        Ambas as carreiras 8003 e 8006 estão catalogadas no PAROU.PT com os seus horários e paragens completas. Quando um veículo começar a transmitir posições GPS no feed da TML, o motor PAROU apresentará automaticamente o veículo com a etiqueta "Tempo Real".
+                      <p className="text-[11px] text-[#6B6B6B]">
+                        Ambas as carreiras 8003 e 8006 estão catalogadas no PAROU com os seus horários e paragens completas. Quando um veículo começar a transmitir posições GPS no feed da TML, o motor PAROU apresentará automaticamente o veículo com a etiqueta "Tempo Real".
                       </p>
                     </div>
                   </div>
 
                   {/* 12-Column Table of All Active UNIR Vehicles */}
                   <div className="space-y-2">
-                    <div className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center justify-between">
+                    <div className="font-bold text-[#111111] text-[11px] uppercase tracking-wider flex items-center justify-between">
                       <span>Lista Completa de Veículos UNIR Ativos no Momento ({unirDiagnostic.veiculos_auditados.length})</span>
-                      <span className="text-[10px] text-emerald-400 font-semibold">100% Apresentados no PAROU</span>
+                      <span className="text-[10px] text-[#111111] font-semibold font-mono tabular-nums">100% Apresentados no PAROU</span>
                     </div>
 
-                    <div className="border border-slate-800 rounded-xl overflow-x-auto">
+                    <div className="border border-[#E6E6E3] rounded-[8px] overflow-x-auto">
                       <table className="w-full text-left text-[10px] whitespace-nowrap">
-                        <thead className="bg-slate-950 text-slate-400 uppercase font-bold border-b border-slate-800">
+                        <thead className="bg-[#F4F4F2] text-[#6B6B6B] uppercase font-bold border-b border-[#E6E6E3]">
                           <tr>
                             <th className="p-2">#</th>
                             <th className="p-2">Operador</th>
@@ -980,27 +970,27 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                             <th className="p-2">Descarte</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/60 font-mono">
+                        <tbody className="divide-y divide-[#E6E6E3] font-mono text-[#111111] tabular-nums">
                           {unirDiagnostic.veiculos_auditados.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-slate-800/30">
-                              <td className="p-2 text-slate-500">{idx + 1}</td>
-                              <td className="p-2 font-bold text-white">{item.operador_recebido}</td>
-                              <td className="p-2 text-slate-400 truncate max-w-[120px]" title={item.route_id}>{item.route_id}</td>
-                              <td className="p-2 font-bold text-blue-400">{item.route_short_name}</td>
-                              <td className="p-2 text-slate-400 truncate max-w-[140px]" title={item.trip_id}>{item.trip_id}</td>
-                              <td className="p-2 text-slate-200">{item.vehicle_id}</td>
-                              <td className="p-2 text-slate-300">{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</td>
-                              <td className="p-2 text-emerald-400 font-bold">SIM</td>
+                            <tr key={idx} className="hover:bg-[#F4F4F2]">
+                              <td className="p-2 text-[#6B6B6B]">{idx + 1}</td>
+                              <td className="p-2 font-bold text-[#111111]">{item.operador_recebido}</td>
+                              <td className="p-2 text-[#6B6B6B] truncate max-w-[120px]" title={item.route_id}>{item.route_id}</td>
+                              <td className="p-2 font-bold text-[#111111]">{item.route_short_name}</td>
+                              <td className="p-2 text-[#6B6B6B] truncate max-w-[140px]" title={item.trip_id}>{item.trip_id}</td>
+                              <td className="p-2 text-[#111111]">{item.vehicle_id}</td>
+                              <td className="p-2 text-[#111111]">{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</td>
+                              <td className="p-2 text-[#111111] font-bold">SIM</td>
                               <td className="p-2">
                                 {item.eta_recebida ? (
-                                  <span className="text-cyan-400 font-bold">SIM ({item.eta_seconds}s)</span>
+                                  <span className="text-[#111111] font-bold">SIM ({item.eta_seconds}s)</span>
                                 ) : (
-                                  <span className="text-slate-500">NÃO</span>
+                                  <span className="text-[#6B6B6B]">NÃO</span>
                                 )}
                               </td>
-                              <td className="p-2 text-slate-300 truncate max-w-[140px]" title={item.stop_name}>{item.stop_name || 'N/D'}</td>
-                              <td className="p-2 text-emerald-400 font-bold">SIM</td>
-                              <td className="p-2 text-slate-500">{item.motivo_descarte || 'Nenhum'}</td>
+                              <td className="p-2 text-[#111111] truncate max-w-[140px]" title={item.stop_name}>{item.stop_name || 'N/D'}</td>
+                              <td className="p-2 text-[#111111] font-bold">SIM</td>
+                              <td className="p-2 text-[#6B6B6B]">{item.motivo_descarte || 'Nenhum'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1015,46 +1005,46 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
                 <div className="space-y-4">
                   {/* Summary Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Operadores</div>
-                      <div className="text-lg font-black text-white mt-0.5">{diagnostic.agencies_received}</div>
-                      <div className="text-[9px] text-emerald-400">Catálogo oficial ativo</div>
+                    <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                      <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Operadores</div>
+                      <div className="text-lg font-black text-[#111111] mt-0.5 font-mono tabular-nums">{diagnostic.agencies_received}</div>
+                      <div className="text-[9px] text-[#6B6B6B]">Catálogo oficial ativo</div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Veículos Recebidos</div>
-                      <div className="text-lg font-black text-blue-400 mt-0.5">{diagnostic.vehicles_received}</div>
-                      <div className="text-[9px] text-slate-400">Total do feed /positions</div>
+                    <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                      <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Veículos Recebidos</div>
+                      <div className="text-lg font-black text-[#111111] mt-0.5 font-mono tabular-nums">{diagnostic.vehicles_received}</div>
+                      <div className="text-[9px] text-[#6B6B6B]">Total do feed /positions</div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Veículos Válidos</div>
-                      <div className="text-lg font-black text-emerald-400 mt-0.5">{diagnostic.vehicles_valid}</div>
-                      <div className="text-[9px] text-emerald-400">Coordenadas GPS confirmadas</div>
+                    <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                      <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Veículos Válidos</div>
+                      <div className="text-lg font-black text-[#111111] mt-0.5 font-mono tabular-nums">{diagnostic.vehicles_valid}</div>
+                      <div className="text-[9px] text-[#6B6B6B]">Coordenadas GPS confirmadas</div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Veículos Descartados</div>
-                      <div className="text-lg font-black text-amber-400 mt-0.5">{diagnostic.vehicles_discarded}</div>
-                      <div className="text-[9px] text-slate-400">Sem coordenadas / NaN</div>
+                    <div className="p-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
+                      <div className="text-[10px] text-[#6B6B6B] font-semibold uppercase">Veículos Descartados</div>
+                      <div className="text-lg font-black text-[#6B6B6B] mt-0.5 font-mono tabular-nums">{diagnostic.vehicles_discarded}</div>
+                      <div className="text-[9px] text-[#6B6B6B]">Sem coordenadas / NaN</div>
                     </div>
                   </div>
 
                   {/* Discard Reasons Breakdown */}
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="font-bold text-white text-[11px] uppercase tracking-wider">
+                  <div className="p-3.5 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] space-y-1.5">
+                    <div className="font-bold text-[#111111] text-[11px] uppercase tracking-wider">
                       Motivo de Descarte de Veículos
                     </div>
                     {Object.keys(diagnostic.discard_reasons).length === 0 ? (
-                      <div className="text-emerald-400 font-medium">
+                      <div className="text-[#111111] font-medium">
                         ✓ Nenhum veículo foi descartado por filtros arbitrários. Todos os veículos recebidos com coordenadas válidas são apresentados.
                       </div>
                     ) : (
                       <div className="space-y-1">
                         {Object.entries(diagnostic.discard_reasons).map(([reason, count]) => (
-                          <div key={reason} className="flex items-center justify-between text-slate-300">
+                          <div key={reason} className="flex items-center justify-between text-[#111111]">
                             <span>{reason}</span>
-                            <strong className="text-amber-400 font-mono">{count}</strong>
+                            <strong className="text-[#111111] font-mono tabular-nums">{count}</strong>
                           </div>
                         ))}
                       </div>
@@ -1063,35 +1053,35 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
                   {/* Feed Capacities per Agency Table */}
                   <div className="space-y-2">
-                    <div className="font-bold text-white text-[11px] uppercase tracking-wider">
+                    <div className="font-bold text-[#111111] text-[11px] uppercase tracking-wider">
                       Operadores Oficiais & Capacidades Técnicas
                     </div>
-                    <div className="border border-slate-800 rounded-xl overflow-hidden">
-                      <div className="grid grid-cols-12 gap-1 p-2 bg-slate-950 text-slate-400 font-semibold text-[10px] border-b border-slate-800">
+                    <div className="border border-[#E6E6E3] rounded-[8px] overflow-hidden">
+                      <div className="grid grid-cols-12 gap-1 p-2 bg-[#F4F4F2] text-[#6B6B6B] font-semibold text-[10px] border-b border-[#E6E6E3]">
                         <span className="col-span-5">Operador</span>
                         <span className="col-span-2 text-center">Posições</span>
                         <span className="col-span-2 text-center">ETA</span>
                         <span className="col-span-3 text-right">Veículos Ativos</span>
                       </div>
-                      <div className="max-h-52 overflow-y-auto divide-y divide-slate-800/60">
+                      <div className="max-h-52 overflow-y-auto divide-y divide-[#E6E6E3]">
                         {diagnostic.agencies_summary.map((ag) => (
-                          <div key={ag.code + ag.name} className="grid grid-cols-12 gap-1 p-2 items-center text-[11px] hover:bg-slate-800/30">
-                            <span className="col-span-5 font-medium text-white truncate">{ag.name}</span>
+                          <div key={ag.code + ag.name} className="grid grid-cols-12 gap-1 p-2 items-center text-[11px] hover:bg-[#F4F4F2]">
+                            <span className="col-span-5 font-medium text-[#111111] truncate">{ag.name}</span>
                             <span className="col-span-2 text-center">
                               {ag.positions_enabled ? (
-                                <span className="text-emerald-400 font-bold">Sim</span>
+                                <span className="text-[#111111] font-bold">Sim</span>
                               ) : (
-                                <span className="text-slate-600">-</span>
+                                <span className="text-[#6B6B6B]">-</span>
                               )}
                             </span>
                             <span className="col-span-2 text-center">
                               {ag.eta_enabled ? (
-                                <span className="text-cyan-400 font-bold">Sim</span>
+                                <span className="text-[#111111] font-bold">Sim</span>
                               ) : (
-                                <span className="text-slate-600">-</span>
+                                <span className="text-[#6B6B6B]">-</span>
                               )}
                             </span>
-                            <span className="col-span-3 text-right font-mono font-bold text-white">
+                            <span className="col-span-3 text-right font-mono font-bold text-[#111111] tabular-nums">
                               {ag.active_vehicles_count}
                             </span>
                           </div>
@@ -1103,11 +1093,11 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+            <div className="p-4 border-t border-[#E6E6E3] bg-[#F4F4F2] flex items-center justify-between text-xs text-[#6B6B6B]">
               <span>Timestamp: {lastRefreshed}</span>
               <button
                 onClick={() => setShowDiagnosticModal(false)}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-[8px] bg-[#111111] hover:bg-black text-[#FFFFFF] font-bold transition-colors cursor-pointer"
               >
                 Fechar Auditoria
               </button>

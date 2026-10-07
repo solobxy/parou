@@ -107,8 +107,8 @@
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal</title>
-    <meta name="description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
+    <title>PAROU.PT - Ocorrências em Tempo Real em Portugal</title>
+    <meta name="description" content="Plataforma colaborativa em tempo real para monitorização de transportes, trânsito, acidentes, greves, avarias e serviços públicos em Portugal." />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://parou.pt/" />
 
@@ -116,34 +116,34 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://parou.pt/" />
     <meta property="og:site_name" content="PAROU.PT" />
-    <meta property="og:title" content="PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal" />
-    <meta property="og:description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
+    <meta property="og:title" content="PAROU.PT - Ocorrências em Tempo Real em Portugal" />
+    <meta property="og:description" content="Plataforma colaborativa em tempo real para monitorização de transportes, trânsito, acidentes, greves, avarias e serviços públicos em Portugal." />
     <meta property="og:image" content="https://parou.pt/og-image.png" />
     <meta property="og:image:secure_url" content="https://parou.pt/og-image.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="PAROU.PT — Monitorização em tempo real de transportes, atrasos e trânsito em Portugal" />
+    <meta property="og:image:alt" content="PAROU — Monitorização em tempo real de transportes, atrasos e trânsito em Portugal" />
     <meta property="og:locale" content="pt_PT" />
 
     <!-- Twitter / X Cards -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@parou_pt" />
-    <meta name="twitter:title" content="PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal" />
+    <meta name="twitter:title" content="PAROU" />
     <meta name="twitter:description" content="Acompanhe em tempo real o estado dos transportes em Portugal: atrasos, greves, acidentes, avarias e cortes de trânsito no Metro, Comboios de Portugal (CP), Carris e estradas." />
     <meta name="twitter:image" content="https://parou.pt/og-image.png" />
-    <meta name="twitter:image:alt" content="PAROU.PT — Monitorização em tempo real de transportes e trânsito em Portugal" />
+    <meta name="twitter:image:alt" content="PAROU — Monitorização em tempo real de transportes e trânsito em Portugal" />
 
     <!-- PWA & Mobile Web App Meta -->
-    <meta name="theme-color" content="#090e1a" />
+    <meta name="theme-color" content="#FFFFFF" />
     <meta name="color-scheme" content="dark light" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="PAROU.PT" />
-    <meta name="application-name" content="PAROU.PT" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <meta name="apple-mobile-web-app-title" content="PAROU" />
+    <meta name="application-name" content="PAROU" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
 
     <!-- Schema.org Structured Data (JSON-LD) -->
     <script type="application/ld+json">
@@ -154,7 +154,7 @@
           "@type": "WebSite",
           "@id": "https://parou.pt/#website",
           "url": "https://parou.pt/",
-          "name": "PAROU.PT",
+          "name": "PAROU",
           "description": "Plataforma comunitária e oficial de monitorização em tempo real de transportes e trânsito em Portugal.",
           "inLanguage": "pt-PT",
           "potentialAction": {
@@ -166,7 +166,7 @@
         {
           "@type": "Organization",
           "@id": "https://parou.pt/#organization",
-          "name": "PAROU.PT",
+          "name": "PAROU",
           "url": "https://parou.pt/",
           "logo": {
             "@type": "ImageObject",
@@ -179,7 +179,7 @@
         {
           "@type": "WebApplication",
           "@id": "https://parou.pt/#webapp",
-          "name": "PAROU.PT",
+          "name": "PAROU",
           "url": "https://parou.pt/",
           "applicationCategory": "TravelApplication",
           "operatingSystem": "All",
@@ -232,18 +232,21 @@
     }
     </script>
     
-    <!-- Web Typography -->
+    <!-- Leaflet CSS for OpenStreetMap Raster Tiles -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Web Typography: Barlow & Barlow Condensed -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-[#080c14] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+  <body class="bg-[#FFFFFF] text-[#111111] antialiased selection:bg-[#FF6B1A] selection:text-[#111111]">
     <div id="root">
       <!-- Semantic Crawler Pre-rendered Content (Indexed by Googlebot, Bingbot before JS hydration) -->
       <noscript>
         <div style="padding: 24px; font-family: system-ui, sans-serif; background: #080c14; color: #f8fafc; max-width: 900px; margin: 0 auto;">
           <h1>PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal</h1>
-          <p>O <strong>PAROU.PT</strong> é a plataforma central em Portugal para consulta em tempo real de perturbações, atrasos, greves, acidentes, avarias e cortes de circulação.</p>
+          <p>O <strong>PAROU</strong> é a plataforma central em Portugal para consulta em tempo real de perturbações, atrasos, greves, acidentes, avarias e cortes de circulação.</p>
           <h2>Secções Principais de Informação</h2>
           <ul>
             <li><a href="/transportes" style="color: #38bdf8;">Transportes em Portugal</a>: Horários e estado de circulação no Metro de Lisboa, Metro do Porto, CP (Comboios de Portugal), Fertagus, Carris, STCP e Carris Metropolitana.</li>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, Shield, Award, Sparkles, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, AlertCircle, Loader2 } from 'lucide-react';
 import { signInWithGoogle, loginWithEmail, registerWithEmail } from '../services/firebase';
 
 interface LoginModalProps {
@@ -26,8 +26,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      console.error('Google Sign In error:', err);
-      setErrorMsg(err.message || 'Falha ao autenticar com a Google. Tenta novamente.');
+      setErrorMsg(err.message || 'Falha ao autenticar com a Google.');
     } finally {
       setLoading(false);
     }
@@ -38,7 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     setErrorMsg('');
 
     if (!email.trim() || !password.trim()) {
-      setErrorMsg('Por favor preenche todos os campos.');
+      setErrorMsg('Preencha todos os campos.');
       return;
     }
 
@@ -51,7 +50,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
     try {
       if (mode === 'register') {
         if (!name.trim()) {
-          setErrorMsg('Por favor insere o teu nome.');
+          setErrorMsg('Insira o seu nome.');
           setLoading(false);
           return;
         }
@@ -62,16 +61,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      console.error('Auth error:', err);
-      let message = 'Ocorreu um erro ao processar o pedido.';
+      let message = 'Erro ao processar o pedido.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         message = 'Email ou palavra-passe incorretos.';
       } else if (err.code === 'auth/email-already-in-use') {
-        message = 'Este email já se encontra associado a uma conta.';
+        message = 'Este email já está associado a uma conta.';
       } else if (err.code === 'auth/invalid-email') {
         message = 'Formato de email inválido.';
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        message = 'A janela de autenticação foi fechada.';
       }
       setErrorMsg(message);
     } finally {
@@ -80,64 +76,54 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-md rounded-3xl bg-[#0b1220] border border-slate-700/80 p-5 sm:p-7 shadow-2xl text-slate-100 my-8 animate-in fade-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] p-5 shadow-lg text-[#111111]"
         role="dialog"
         aria-modal="true"
       >
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+          className="absolute right-3.5 top-3.5 p-1 text-[#6B6B6B] hover:text-[#111111] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
           aria-label="Fechar"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 stroke-[2]" />
         </button>
 
-        {/* Brand Kicker */}
-        <div className="text-center pb-2">
-          <div className="inline-flex p-3 rounded-2xl bg-blue-600/15 text-blue-400 border border-blue-500/30 mb-3 shadow-lg shadow-blue-500/10">
-            <Award className="w-6 h-6 text-blue-400" />
-          </div>
-
-          <h3 className="text-xl font-bold text-white tracking-tight">
-            {mode === 'login' ? 'Entrar no PAROU.PT' : 'Criar Conta de Colaborador'}
+        <div className="pb-3 border-b border-[#E6E6E3]">
+          <h3 className="text-lg font-bold text-[#111111]">
+            {mode === 'login' ? 'Iniciar sessão' : 'Criar conta'}
           </h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-            {mode === 'login'
-              ? 'Acede ao teu perfil, histórico e pontos de reputação.'
-              : 'Ganha 50 pontos de boas-vindas e badges ao reportar ocorrências.'}
-          </p>
         </div>
 
-        {/* Segmented Mode Switcher */}
-        <div className="flex rounded-xl bg-slate-900/90 p-1 border border-slate-800 my-4 text-xs font-semibold">
+        {/* Mode Switcher */}
+        <div className="flex rounded-[8px] bg-[#F4F4F2] p-1 border border-[#E6E6E3] my-3.5 text-xs font-semibold">
           <button
             type="button"
             onClick={() => { setMode('login'); setErrorMsg(''); }}
-            className={`flex-1 py-1.5 rounded-lg transition-all ${
-              mode === 'login' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            className={`flex-1 py-1.5 rounded-[6px] transition-colors cursor-pointer min-h-[36px] ${
+              mode === 'login' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            Iniciar Sessão
+            Iniciar sessão
           </button>
           <button
             type="button"
             onClick={() => { setMode('register'); setErrorMsg(''); }}
-            className={`flex-1 py-1.5 rounded-lg transition-all ${
-              mode === 'register' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            className={`flex-1 py-1.5 rounded-[6px] transition-colors cursor-pointer min-h-[36px] ${
+              mode === 'register' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            Criar Conta (+50 pts)
+            Criar conta
           </button>
         </div>
 
-        {/* Google One-Click Auth */}
+        {/* Google Auth */}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
           type="button"
-          className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 text-white text-xs sm:text-sm font-semibold transition-all shadow-sm disabled:opacity-60 cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[44px] cursor-pointer disabled:opacity-50"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
@@ -160,53 +146,50 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           <span>Continuar com o Google</span>
         </button>
 
-        {/* Divider */}
-        <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 h-px bg-slate-800" />
-          <span className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">ou com email</span>
-          <div className="flex-1 h-px bg-slate-800" />
+        <div className="flex items-center gap-3 my-3">
+          <div className="flex-1 h-px bg-[#E6E6E3]" />
+          <span className="text-[11px] text-[#6B6B6B]">ou</span>
+          <div className="flex-1 h-px bg-[#E6E6E3]" />
         </div>
 
-        {/* Error message banner */}
         {errorMsg && (
-          <div className="mb-3.5 p-2.5 rounded-xl bg-red-950/70 border border-red-800/80 text-xs text-red-200 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <div className="mb-3 p-2.5 rounded-[8px] bg-[#F4F4F2] border border-[#D92D20] text-xs text-[#D92D20] flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 stroke-[2] shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Email & Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-2.5">
           {mode === 'register' && (
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Nome completo ou de exibição
+              <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
+                Nome
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: João Ferreira"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+                placeholder="O seu nome"
+                className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-              Endereço de email
+            <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
+              Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="exemplo@email.pt"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               Palavra-passe
             </label>
             <input
@@ -214,43 +197,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mínimo 6 caracteres"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
             />
           </div>
 
+          {/* Primary Action Button: Brand chamfer */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold transition-all shadow-md shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            className="w-full mt-3 py-2.5 px-4 rounded-[8px] brand-chamfer bg-[#FF6B1A] text-[#111111] text-xs font-bold min-h-[44px] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin stroke-[2]" />
                 <span>A processar...</span>
               </>
             ) : mode === 'login' ? (
-              <span>Iniciar Sessão</span>
+              <span>Entrar</span>
             ) : (
-              <span>Criar Conta e Ganhar 50 Pts</span>
+              <span>Criar conta</span>
             )}
           </button>
         </form>
-
-        {/* Reputation Perks Banner */}
-        <div className="mt-4 p-3 rounded-2xl bg-blue-950/40 border border-blue-900/40 text-[11px] text-slate-300 space-y-1">
-          <div className="flex items-center gap-1.5 font-bold text-blue-400">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Vantagens de Utilizador Registado</span>
-          </div>
-          <p className="text-slate-400">
-            Acumula <strong>+20 pts</strong> por cada report criado e <strong>+5 pts</strong> quando outros passageiros confirmam a tua ocorrência. Desbloqueia badges oficiais de colaborador.
-          </p>
-        </div>
-
-        {/* Anonymous Disclaimer */}
-        <div className="text-center mt-3 pt-2 text-[11px] text-slate-500">
-          Reports anónimos continuam sempre permitidos sem necessidade de conta.
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 interface LoadingStatus {
   isLoading: boolean;
@@ -28,10 +28,8 @@ export const TopLoadingBanner: React.FC = () => {
       } catch {}
     };
 
-    // Initial check
     checkStatus();
 
-    // Fast polling while loading, slow polling when idle
     const interval = setInterval(() => {
       checkStatus();
     }, status?.isLoading ? 2500 : 10000);
@@ -42,17 +40,16 @@ export const TopLoadingBanner: React.FC = () => {
     };
   }, [status?.isLoading]);
 
-  // Requirement 4: Indicador pequeno que desaparece quando acabar
   if (!status || !status.isLoading || status.totalOperators === 0 || status.loadedOperators >= status.totalOperators) {
     return null;
   }
 
   return (
     <div className="fixed top-3 right-4 z-50 pointer-events-none transition-all duration-300">
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 text-slate-200 border border-slate-700/80 shadow-lg backdrop-blur-md text-xs font-medium tracking-wide">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] text-[#111111] border border-[#E6E6E3] shadow-sm text-xs font-medium">
+        <RefreshCw className="w-3.5 h-3.5 animate-spin stroke-[2] shrink-0 text-[#111111]" />
         <span>
-          A atualizar dados · {status.loadedOperators}/{status.totalOperators}
+          A atualizar dados · <strong className="font-['Barlow_Condensed'] font-bold tabular-nums">{status.loadedOperators}/{status.totalOperators}</strong>
         </span>
       </div>
     </div>

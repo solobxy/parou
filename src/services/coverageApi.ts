@@ -1,9 +1,22 @@
-import { CoverageReport, FetchLogItem, ManualFeedInput, FeedItem } from '../types/coverage';
+import { CoverageReport, FetchLogItem, ManualFeedInput, FeedItem, TestResult } from '../types/coverage';
 
 export async function fetchCoverageReport(): Promise<CoverageReport> {
   const res = await fetch('/api/coverage');
   if (!res.ok) {
     throw new Error(`Erro ao obter cobertura de feeds (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function testFeedConnection(feedId: string, url?: string): Promise<TestResult> {
+  const res = await fetch('/api/coverage/test-connection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedId, url }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || `Erro ao testar ligação (${res.status})`);
   }
   return res.json();
 }
@@ -33,6 +46,14 @@ export async function refreshFeed(feedId: string): Promise<{ success: boolean; f
   const res = await fetch(`/api/feeds/${feedId}/refresh`, { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Erro ao atualizar feed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function reingestAllFeeds(): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/coverage/reingest-all', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`Erro ao reiniciar importação de todos os feeds (${res.status})`);
   }
   return res.json();
 }

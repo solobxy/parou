@@ -1,8 +1,19 @@
-export type FeedStatus = 'OK' | 'EXPIRED' | 'horário expirado' | 'ERROR' | 'falhou' | 'NEEDS_KEY' | 'NOT_FOUND' | 'TOO_LARGE' | 'queued' | 'A aguardar' | 'SEM DADOS' | 'downloading' | 'parsing';
+export type FeedStatus = 'OK' | 'EXPIRED' | 'horário expirado' | 'Desatualizado' | 'ERROR' | 'falhou' | 'NEEDS_KEY' | 'NOT_FOUND' | 'TOO_LARGE' | 'queued' | 'A aguardar' | 'SEM DADOS' | 'downloading' | 'parsing';
 
 export type FeedType = 'gtfs' | 'gtfs_rt' | 'api';
 
 export type FeedSourceOrigin = 'seed' | 'discovery' | 'manual' | 'AMP QiHoras (não oficial)' | string;
+
+export interface TestResult {
+  tested_at: string;
+  success: boolean;
+  valid_gtfs: boolean;
+  http_status?: number;
+  bytes?: number;
+  duration_ms?: number;
+  files_found?: string[];
+  message: string;
+}
 
 export interface FeedItem {
   id: string;
@@ -24,10 +35,13 @@ export interface FeedItem {
   trips_count: number;
   valid_from?: string;
   valid_until?: string;
+  is_expired?: boolean;
   realtime_entities: string;
+  realtime_source?: string;
   last_ok?: string;
   last_error?: string;
   last_fetch_at?: string;
+  last_test?: TestResult;
 }
 
 export interface FetchLogItem {
@@ -65,6 +79,30 @@ export interface CoverageReport {
   feeds: FeedItem[];
   checklist: NetworkChecklistItem[];
   lastSync: string;
+  dataset_built_at?: string;
+  loadingStatus?: {
+    isLoading: boolean;
+    totalOperators: number;
+    loadedOperators: number;
+    currentOperator?: string;
+    currentFeedId?: string;
+    message?: string;
+    updatedAt?: string;
+    dataset_built_at?: string;
+  };
+  ingestion?: {
+    isRunning: boolean;
+    workerProgress?: {
+      isLoading: boolean;
+      totalOperators: number;
+      loadedOperators: number;
+      currentOperator: string;
+      currentFeedId: string;
+      message: string;
+      updatedAt: string;
+      dataset_built_at?: string;
+    };
+  };
 }
 
 export interface ManualFeedInput {

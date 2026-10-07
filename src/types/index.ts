@@ -31,6 +31,8 @@ export interface Occurrence {
   concelho: string;
   locationDetails: string;
   companyOrService?: string;
+  transporte?: string; // alias for companyOrService
+  isPublicSource?: boolean;
   reportedAt: string; // e.g. "há 12 min"
   timestamp: number;
   updatedAt?: number; // Exact last update / confirmation timestamp
@@ -62,6 +64,7 @@ export interface Occurrence {
 
 export interface UserProfile {
   userId: string;
+  uid?: string;
   displayName: string;
   email: string;
   photoURL?: string;
@@ -153,6 +156,7 @@ export interface Complaint {
   title: string;
   text: string;
   companyOrService: string;
+  company?: string; // alias
   serviceType?: string;
   rating?: number; // 1 a 5 estrelas (opcional)
   district: string;
@@ -162,9 +166,10 @@ export interface Complaint {
   timestamp: number;
   authorId?: string;
   authorName: string;
-  status: 'Pública' | 'Respondida' | 'Em análise' | 'Ocultada';
+  status: 'Pública' | 'Respondida' | 'Em análise' | 'Ocultada' | 'Publicada';
   commentsCount: number;
   upvotes: number;
+  upvoters?: string[];
   upvotedBy?: string[];
   reportsCount: number;
   reportedBy?: string[];
@@ -239,6 +244,7 @@ export interface TransitOperator {
 export interface NotificationPreferences {
   enabled: boolean;
   selectedDistrict: string; // 'Todas' or specific district (e.g. 'Lisboa', 'Porto', 'Setúbal', etc.)
+  districts?: string[];
   importantTransportOnly: boolean; // Greves, cortes de via, linhas paradas
   severeOnly: boolean; // Apenas ocorrências 'Grave'
   soundEnabled: boolean; // Efeito sonoro
@@ -251,6 +257,7 @@ export interface NotificationLogItem {
   body: string;
   timestamp: number;
   reportId?: string;
+  occurrenceId?: string;
   type?: OccurrenceType;
   district?: string;
   read: boolean;

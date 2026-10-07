@@ -15,6 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { Header } from './components/Header';
+import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { PortugalMap } from './components/PortugalMap';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
@@ -79,9 +80,9 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  // Navigation & View state
-  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage'>('mapa');
-  const [activeMobileView, setActiveMobileView] = useState<MobileTab>('mapa');
+  // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
+  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage'>('perto');
+  const [activeMobileView, setActiveMobileView] = useState<MobileTab>('perto');
   const [mapViewMode, setMapViewMode] = useState<'cidades' | 'concelhos' | 'distritos'>('cidades');
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
@@ -501,9 +502,9 @@ export default function App() {
     else setActiveMobileView('mapa');
 
     const pathMap: Record<string, string> = {
-      mapa: '/',
+      perto: '/',
+      mapa: '/mapa',
       reports: '/ocorrencias',
-      perto: '/perto',
       horarios: '/transportes',
       favoritos: '/favoritos',
       catalogo: '/catalogo',
@@ -521,9 +522,9 @@ export default function App() {
     }
 
     const titlesMap: Record<string, string> = {
+      perto: 'Transportes Perto de Mim — Radar em Tempo Real | PAROU',
       mapa: 'PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal',
       reports: 'Ocorrências e Perturbações em Direto em Portugal | PAROU',
-      perto: 'Transportes Perto de Mim — Radar em Tempo Real | PAROU',
       horarios: 'Transportes em Portugal — Linhas e Horários em Direto | PAROU',
       favoritos: 'Os Meus Favoritos — Transportes e Paragens | PAROU',
       catalogo: 'Catálogo Nacional de Operadores de Transporte | PAROU',
@@ -546,7 +547,11 @@ export default function App() {
     const pathname = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
     setIsNotFound(false);
 
-    if (pathname === '/' || pathname === '') {
+    if (pathname === '/' || pathname === '' || pathname === '/perto') {
+      setActiveNavTab('perto');
+      setActiveMobileView('perto');
+      document.title = 'Transportes Perto de Mim — Radar em Tempo Real | PAROU';
+    } else if (pathname === '/mapa') {
       setActiveNavTab('mapa');
       setActiveMobileView('mapa');
       document.title = 'PAROU — Transportes, Atrasos, Greves e Ocorrências em Portugal';
@@ -609,10 +614,10 @@ export default function App() {
       document.title = 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU';
     } else if (pathname === '/404') {
       setIsNotFound(true);
-      document.title = 'Página Não Encontrada (404) | PAROU.PT';
+      document.title = 'Página Não Encontrada (404) | PAROU';
     } else {
       setIsNotFound(true);
-      document.title = 'Página Não Encontrada (404) | PAROU.PT';
+      document.title = 'Página Não Encontrada (404) | PAROU';
     }
 
     const canonicalLink = document.querySelector('link[rel="canonical"]');
@@ -632,7 +637,7 @@ export default function App() {
   }, [resolveRouteFromPath]);
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col antialiased w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-hidden">
       {/* Top Background Loading Banner */}
       <TopLoadingBanner />
 
@@ -662,32 +667,33 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6 overflow-x-hidden">
-        {/* Real-time synchronization indicator & dynamic counters */}
-        <LiveSyncBar
-          lastUpdated={lastUpdated}
-          totalAlertsCount={totalAlertsCount}
-          severeCount={severeCount}
-          districtsWithAlertsCount={districtsWithAlertsCount}
-          verifiedCount={verifiedCount}
-          isSyncing={isSyncing}
-          publicCount={publicReportsCount}
-          onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
-          isOffline={isOffline}
-          offlineCount={offlineCount}
-        />
+      <main className={`flex-1 w-full mx-auto overflow-x-hidden ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6'}`}>
+        {/* Bloco de "Tempo Real", ocorrências, filtros e reportar ocorrência — visível EXCLUSIVAMENTE na aba Mapa */}
+        {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
+          <>
+            <LiveSyncBar
+              lastUpdated={lastUpdated}
+              totalAlertsCount={totalAlertsCount}
+              severeCount={severeCount}
+              districtsWithAlertsCount={districtsWithAlertsCount}
+              verifiedCount={verifiedCount}
+              isSyncing={isSyncing}
+              publicCount={publicReportsCount}
+              onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
+              isOffline={isOffline}
+              offlineCount={offlineCount}
+            />
 
-        {/* Global Expanded 7-Dimensional Search & Filters Bar */}
-        {!selectedOccurrence && !isNotFound && activeNavTab !== 'coverage' && (
-          <ExpandedFiltersBar
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onResetFilters={handleResetFilters}
-            reportsCount={matchingReportsCount}
-            transitCount={matchingTransitCount}
-            activeView={activeNavTab}
-            onViewChange={handleTabSelect}
-          />
+            <ExpandedFiltersBar
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onResetFilters={handleResetFilters}
+              reportsCount={matchingReportsCount}
+              transitCount={matchingTransitCount}
+              activeView={activeNavTab}
+              onViewChange={handleTabSelect}
+            />
+          </>
         )}
 
         {isNotFound ? (
@@ -725,9 +731,8 @@ export default function App() {
               />
             </div>
           ) : activeNavTab === 'perto' ? (
-            <div className="w-full mx-auto py-2">
+            <div className="w-full h-[calc(100vh-3.5rem)]">
               <PertoView
-                onOpenReportModal={() => setIsReportModalOpen(true)}
                 initialDestination={pertoInitialDestination}
                 onClearInitialDestination={() => setPertoInitialDestination(null)}
                 onSelectLineInSchedules={(lineCode) => {
@@ -739,7 +744,6 @@ export default function App() {
           ) : activeNavTab === 'horarios' ? (
             <div className="max-w-5xl mx-auto py-2">
               <HorariosView 
-                onOpenReportModal={() => setIsReportModalOpen(true)}
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}
@@ -831,10 +835,10 @@ export default function App() {
                 {/* Primary Action Button */}
                 <button
                   onClick={() => setIsReportModalOpen(true)}
-                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl shadow-blue-600/30 transition-all duration-200 border border-blue-400/30 cursor-pointer"
+                  className="w-full h-12 rounded-[8px] brand-chamfer bg-[#FF6B1A] hover:brightness-105 active:scale-[0.99] text-[#111111] font-bold text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
-                  <AlertTriangle className="w-5 h-5 fill-white/20" />
-                  <span>Reportar uma ocorrência</span>
+                  <AlertTriangle className="w-4 h-4 stroke-[2]" />
+                  <span>Reportar ocorrência</span>
                 </button>
 
                 {/* Quick Filters Panel */}
@@ -858,15 +862,17 @@ export default function App() {
         </div>
 
         {/* Mobile View with Bottom Tab Navigation (Mapa, Reports, +, Horários, Filtros) */}
-        <div className="lg:hidden space-y-3.5 pb-28">
-          {/* Mobile Top Emergency Action Button */}
-          <button
-            onClick={() => setIsReportModalOpen(true)}
-            className="w-full h-11 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 border border-blue-400/30"
-          >
-            <AlertTriangle className="w-4 h-4 fill-white/20" />
-            <span>Reportar uma ocorrência</span>
-          </button>
+        <div className={`lg:hidden ${activeMobileView === 'perto' ? 'p-0 pb-16' : 'space-y-3.5 pb-28'}`}>
+          {/* Mobile Top Emergency Action Button — Apenas na aba Mapa */}
+          {activeMobileView === 'mapa' && (
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="w-full h-11 rounded-[8px] brand-chamfer bg-[#FF6B1A] active:scale-[0.99] text-[#111111] font-bold text-xs flex items-center justify-center gap-2"
+            >
+              <AlertTriangle className="w-4 h-4 stroke-[2]" />
+              <span>Reportar ocorrência</span>
+            </button>
+          )}
 
           {/* 1. Tab Mapa */}
           {activeMobileView === 'mapa' && (
@@ -884,13 +890,13 @@ export default function App() {
               {selectedDistrictOnMap ? (
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                    <h3 className="text-xs font-bold text-[#111111] flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 stroke-[2] text-[#111111]" />
                       <span>Ocorrências em {selectedDistrictOnMap} ({filteredRecentOccurrences.length})</span>
                     </h3>
                     <button
                       onClick={() => handleDistrictSelectFromMap(null)}
-                      className="text-xs text-blue-400 hover:text-white underline cursor-pointer"
+                      className="text-xs text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer"
                     >
                       Ver todas
                     </button>
@@ -938,9 +944,8 @@ export default function App() {
 
           {/* 3. Tab Perto (Substitui botão + na hotbar com radar e transportes locais) */}
           {activeMobileView === 'perto' && (
-            <div className="space-y-3.5">
+            <div className="w-full h-[calc(100dvh-7.5rem)]">
               <PertoView
-                onOpenReportModal={() => setIsReportModalOpen(true)}
                 initialDestination={pertoInitialDestination}
                 onClearInitialDestination={() => setPertoInitialDestination(null)}
                 onSelectLineInSchedules={(lineCode) => {
@@ -955,7 +960,6 @@ export default function App() {
           {activeMobileView === 'horarios' && (
             <div className="space-y-3.5">
               <HorariosView 
-                onOpenReportModal={() => setIsReportModalOpen(true)}
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}
@@ -1025,11 +1029,11 @@ export default function App() {
 
               <div className="pt-1">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-[#6B6B6B]">
                     Resultados ({filteredRecentOccurrences.length})
                   </h4>
                   {filters.cidade !== 'Todas' && (
-                    <span className="text-[11px] text-blue-400 font-semibold">
+                    <span className="text-xs text-[#111111] font-semibold">
                       Filtrado por: {filters.cidade}
                     </span>
                   )}
@@ -1053,10 +1057,63 @@ export default function App() {
               />
             </div>
           )}
+
+          {/* View Cobertura (/coverage) no mobile */}
+          {activeNavTab === 'coverage' && (
+            <div className="space-y-3.5 pb-10">
+              <CoverageView onBackToMap={() => handleTabSelect('mapa')} />
+            </div>
+          )}
         </div>
         </>
       )}
       </main>
+
+      {/* Footer Nacional de Transportes com Link para /coverage */}
+      <footer className="w-full border-t border-[#E6E6E3] bg-[#F4F4F2] mt-auto py-5 pb-24 lg:pb-6 px-4 text-xs text-[#6B6B6B]">
+        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <Logo size={20} className="text-[#111111]" />
+            <span>·</span>
+            <span>Informação em direto de transportes em Portugal</span>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-medium text-xs">
+            <button
+              onClick={() => handleTabSelect('perto')}
+              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
+            >
+              Perto
+            </button>
+            <button
+              onClick={() => handleTabSelect('horarios')}
+              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
+            >
+              Horários
+            </button>
+            <button
+              onClick={() => handleTabSelect('reports')}
+              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
+            >
+              Reports
+            </button>
+            <button
+              onClick={() => handleTabSelect('catalogo')}
+              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
+            >
+              Catálogo
+            </button>
+            <button
+              onClick={() => handleTabSelect('coverage')}
+              className={`font-bold transition-colors cursor-pointer ${
+                activeNavTab === 'coverage' ? 'text-[#111111]' : 'text-[#6B6B6B] hover:text-[#111111]'
+              }`}
+            >
+              <span>Cobertura</span>
+            </button>
+          </div>
+        </div>
+      </footer>
 
       {/* Modals & Dialogs */}
       <ReportModal
