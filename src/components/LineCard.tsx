@@ -72,9 +72,9 @@ export const LineCard: React.FC<LineCardProps> = ({
                   {bigDisplay}
                 </span>
               </div>
-              {!showExactTimeAsBig && parsed.exactTime && (
+              {!showExactTimeAsBig && parsed.subText && (
                 <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                  {parsed.exactTime}
+                  {parsed.subText}
                 </span>
               )}
             </div>

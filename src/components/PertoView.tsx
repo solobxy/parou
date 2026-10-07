@@ -144,12 +144,23 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setFavoriteStopIds(getFavoriteStopIds());
   }, []);
 
+  const repetirPedidoRef = useRef<boolean>(false);
   const loadNearbyData = useCallback(async () => {
-    const lat = coordsRef.current?.latitude ?? 38.7253;
-    const lon = coordsRef.current?.longitude ?? -9.1500;
+    // Sem posição não há "perto": a página mostra o convite para ativar a localização
+    if (!coordsRef.current) {
+      setIsLoadingNearby(false);
+      return;
+    }
+    const lat = coordsRef.current.latitude;
+    const lon = coordsRef.current.longitude;
     if (!isValidCoordinate(lat, lon)) return;
-    if (isFetchingNearbyRef.current) return;
+    if (isFetchingNearbyRef.current) {
+      // Já há um pedido a decorrer (ex.: posição antiga): repete quando acabar
+      repetirPedidoRef.current = true;
+      return;
+    }
     isFetchingNearbyRef.current = true;
+    if (lastNearbyStops.length === 0) setIsLoadingNearby(true);
 
     try {
       const data = await fetchNearbyTransit(lat, lon, selectedRadius, AbortSignal.timeout(15000));
@@ -179,9 +190,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
     } finally {
       setIsLoadingNearby(false);
       isFetchingNearbyRef.current = false;
+      if (repetirPedidoRef.current) {
+        repetirPedidoRef.current = false;
+        setTimeout(() => loadNearbyDataRef.current?.(), 0);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveCoords, selectedRadius]);
+  const loadNearbyDataRef = useRef(loadNearbyData);
+  loadNearbyDataRef.current = loadNearbyData;
 
   // Pedido de localização que demora: ao fim de 12 s mostra "Tentar outra vez"
   useEffect(() => {
@@ -898,9 +915,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {parsed.bigText}
                                 </span>
                               </div>
-                              {parsed.exactTime && (
+                              {parsed.subText && (
                                 <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                                  {parsed.exactTime}
+                                  {parsed.subText}
                                 </span>
                               )}
                             </div>
@@ -957,11 +974,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         )}
 
-        {/* Leaflet OSM Tile Container */}
-        <div 
-          ref={mapContainerRef} 
-          className={`absolute inset-0 w-full h-full z-0 transition-[filter] duration-500 ${localizacaoPronta ? '' : 'blur-[5px] scale-[1.04]'}`}
-        />
+        {/* Mapa Leaflet. O desfoque fica num invólucro: a className do contentor do Leaflet não
+            pode mudar depois de criado (o React apagaria as classes "leaflet-*" e os mosaicos
+            ficavam com largura 0). */}
+        <div className={`absolute inset-0 z-0 transition-[filter] duration-500 ${localizacaoPronta ? '' : 'blur-[5px] scale-[1.04]'}`}>
+          <div 
+            ref={mapContainerRef} 
+            className="absolute inset-0 w-full h-full"
+          />
+        </div>
 
         {/* Controlos do mapa */}
         {localizacaoPronta && (
@@ -1099,9 +1120,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               {parsed.bigText}
                             </span>
                           </div>
-                          {parsed.exactTime && (
+                          {parsed.subText && (
                             <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                              {parsed.exactTime}
+                              {parsed.subText}
                             </span>
                           )}
                         </div>

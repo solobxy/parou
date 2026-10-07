@@ -173,6 +173,17 @@ const ROTULOS_COMUNIDADE: Record<string, string> = {
   SERVICO_PUBLICO: 'Serviço',
 };
 
+const ROTULOS_TIPO: Record<string, string> = {
+  'outros alertas oficiais': 'Aviso',
+  'atraso significativo': 'Atrasos',
+  'alteração de horário': 'Novo horário',
+  'alteração de percurso': 'Desvio',
+  'paragem encerrada': 'Paragem fechada',
+  'linha suspensa': 'Linha suspensa',
+  'reforço de serviço': 'Reforço',
+  'novo horário': 'Novo horário',
+};
+
 const CATEGORIAS_NOTICIA: Record<string, { rotulo: string; filtro: Exclude<Filtro, 'tudo'> }> = {
   greve: { rotulo: 'Greve', filtro: 'greves' },
   transportes: { rotulo: 'Transportes', filtro: 'rede' },
@@ -266,7 +277,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         ? (futuro ? `Greve · ${dataCurta(o.inicio)}` : 'Greve · a decorrer')
         : o.categoria === 'obras'
           ? 'Obras'
-          : (o.tipo ? o.tipo.charAt(0).toUpperCase() + o.tipo.slice(1) : 'Perturbação');
+          : (ROTULOS_TIPO[o.tipo] || (o.tipo ? o.tipo.charAt(0).toUpperCase() + o.tipo.slice(1) : 'Perturbação'));
       itens.push({
         id: `o:${o.id}`,
         filtro: filtroItem,
@@ -530,7 +541,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           <div className="space-y-2">
             {(verMaisDestaques ? destaquesFiltrados : destaquesFiltrados.slice(0, 6)).map((d) => {
               const Wrapper: React.ElementType = d.onClick ? 'button' : d.url ? 'a' : 'div';
-              const wrapperProps = d.onClick
+              const wrapperProps: Record<string, unknown> = d.onClick
                 ? { onClick: d.onClick, type: 'button' }
                 : d.url
                   ? { href: d.url, target: '_blank', rel: 'noopener noreferrer' }
@@ -625,7 +636,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       </section>
 
       <p className="text-[11px] text-[#6B6B6B] leading-relaxed pt-2">
-        Fontes: IPMA e Open-Meteo (tempo), operadores de transportes (perturbações), RTP, Público, Observador e Correio da Manhã (notícias) e a comunidade PAROU.
+        Fontes: IPMA e Open-Meteo (tempo), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.
         As notícias abrem no site de origem.
       </p>
     </div>

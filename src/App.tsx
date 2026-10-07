@@ -83,6 +83,17 @@ export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
   const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage'>('perto');
   const [activeMobileView, setActiveMobileView] = useState<MobileTab>('perto');
+  // Ecrã grande (computador) ou telemóvel: só um dos dois layouts é montado
+  const [ecraGrande, setEcraGrande] = useState<boolean>(() => {
+    try { return window.matchMedia('(min-width: 1024px)').matches; } catch { return false; }
+  });
+  useEffect(() => {
+    let mq: MediaQueryList;
+    try { mq = window.matchMedia('(min-width: 1024px)'); } catch { return; }
+    const mudar = () => setEcraGrande(mq.matches);
+    mq.addEventListener?.('change', mudar);
+    return () => mq.removeEventListener?.('change', mudar);
+  }, []);
   const [mapViewMode, setMapViewMode] = useState<'cidades' | 'concelhos' | 'distritos'>('cidades');
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
@@ -713,7 +724,9 @@ export default function App() {
           />
         ) : (
           <>
-            {/* Desktop View Routing */}
+            {/* Desktop View Routing (só no ecrã grande: assim o Perto, os mapas e os pedidos
+                não ficam duplicados escondidos no telemóvel) */}
+            {ecraGrande && (
             <div className="hidden lg:block">
           {activeNavTab === 'reports' ? (
             /* Dedicated Reports Page on Desktop */
@@ -857,8 +870,10 @@ export default function App() {
             </div>
           )}
         </div>
+            )}
 
-        {/* Mobile View with Bottom Tab Navigation (Mapa, Reports, +, Horários, Filtros) */}
+        {/* Mobile View with Bottom Tab Navigation (Mapa, Alertas, Perto, Horários, Favoritos) */}
+        {!ecraGrande && (
         <div className={`lg:hidden ${activeMobileView === 'perto' ? 'p-0 pb-16' : 'space-y-3.5 pb-28'}`}>
           {/* 1. Tab Mapa */}
           {activeMobileView === 'mapa' && (
@@ -1049,6 +1064,7 @@ export default function App() {
             </div>
           )}
         </div>
+        )}
         </>
       )}
       </main>

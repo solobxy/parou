@@ -274,9 +274,9 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                   {parsed.bigText}
                                                 </span>
                                               </div>
-                                              {parsed.exactTime && (
+                                              {parsed.subText && (
                                                 <span className="font-['Barlow_Condensed'] text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
-                                                  {parsed.exactTime}
+                                                  {parsed.subText}
                                                 </span>
                                               )}
                                             </div>
