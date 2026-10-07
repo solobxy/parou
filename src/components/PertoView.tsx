@@ -257,9 +257,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   const handleRecenterClick = () => {
     setFollowMode(true);
-    const lat = userCoords?.latitude ?? 38.7253;
-    const lon = userCoords?.longitude ?? -9.1500;
-    safeFlyTo(mapRef.current, lat, lon, 16);
+    // Sem GPS ativo: pede a localização ao browser (o mapa centra-se quando ela chegar)
+    if (gpsStatus !== 'active' || !userCoords || userCoords.isManual) {
+      activateLocation(true);
+      return;
+    }
+    safeFlyTo(mapRef.current, userCoords.latitude, userCoords.longitude, 16);
   };
 
   // Inicializar Mapa Leaflet com Mosaicos Raster OpenStreetMap
@@ -792,6 +795,23 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Aviso quando não há localização (recusada ou GPS sem sinal) */}
+        {(gpsStatus === 'denied' || gpsStatus === 'unavailable') && (
+          <div className="absolute left-4 right-4 bottom-28 z-20 mx-auto max-w-md bg-[#111111] text-[#FFFFFF] rounded-[8px] px-4 py-3 flex items-center gap-3 shadow-md">
+            <span className="text-xs leading-snug flex-1">
+              {gpsStatus === 'denied'
+                ? 'A localização está bloqueada. Permite-a nas definições do browser para este site.'
+                : 'Não foi possível obter a tua localização.'}
+            </span>
+            <button
+              onClick={() => activateLocation(true)}
+              className="shrink-0 px-3 py-2 rounded-[8px] bg-[#FF6B1A] text-[#111111] text-xs font-bold min-h-[40px]"
+            >
+              Tentar outra vez
+            </button>
+          </div>
+        )}
 
         {/* Leaflet OSM Tile Container */}
         <div 

@@ -248,12 +248,24 @@ export function useUserLocation() {
     }
   }, [coords, status, activateLocation, refreshHighAccuracyLocation]);
 
-  // Check permissions on mount and auto-activate if already permitted
+  // Ao abrir: pede a localização logo (se já foi autorizada, ou se o browser ainda não perguntou).
+  // Só não pede se o utilizador recusou. Guarda o PermissionStatus numa ref para o browser não o
+  // descartar (sem isso o onchange pode nunca disparar).
+  const permissionStatusRef = useRef<PermissionStatus | null>(null);
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'permissions' in navigator) {
+    if (typeof window === 'undefined') return;
+    if (!('permissions' in navigator)) {
+      activateLocation(true);
+      return;
+    }
+    {
       navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
-        if (result.state === 'granted') {
+        permissionStatusRef.current = result;
+        if (result.state === 'granted' || result.state === 'prompt') {
           activateLocation(true);
+        } else if (result.state === 'denied') {
+          setStatus('denied');
+          setErrorMessage('Permissão de localização recusada no navegador.');
         }
         result.onchange = () => {
           if (result.state === 'granted') {
@@ -263,7 +275,8 @@ export function useUserLocation() {
           }
         };
       }).catch(() => {
-        // Query not supported, do not block
+        // Sem Permissions API para geolocalização (ex.: Safari antigo): pede diretamente
+        activateLocation(true);
       });
     }
   }, [activateLocation]);
