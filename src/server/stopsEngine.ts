@@ -125,7 +125,7 @@ export class StopsEngine {
   public static calculateDistanceMeters = calculateDistanceMeters;
   private static cachedUnifiedStops: UnifiedStop[] | null = null;
   private static cacheTime = 0;
-  private static readonly CACHE_TTL_MS = 60 * 1000; // 60s
+  private static readonly CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
   public static clearCache(): void {
     this.cachedUnifiedStops = null;

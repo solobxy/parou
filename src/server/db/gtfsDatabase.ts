@@ -1240,10 +1240,11 @@ export function queryDeparturesForStop(
   }
 }
 
-export function getMaxStopSequence(feedId: string, tripId: string): number {
+export function getMaxStopSequence(feedId: string, tripId?: string): number {
+  const actualTripId = tripId || feedId;
   try {
     const db = getDatabase();
-    const row = db.prepare('SELECT MAX(stop_sequence) as max_seq FROM stop_times WHERE feed_id = ? AND trip_id = ?').get(feedId, tripId) as any;
+    const row = db.prepare('SELECT MAX(stop_sequence) as max_seq FROM stop_times WHERE trip_id = ?').get(actualTripId) as any;
     return row?.max_seq || 0;
   } catch (err: any) {
     if (err?.message?.includes('malformed')) reloadDatabaseConnection();
