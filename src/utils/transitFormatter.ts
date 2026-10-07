@@ -62,6 +62,7 @@ export interface FormattedDeparture {
   minutesDiff: number;
   bigText: string;    // "4 min" ou "a chegar"
   exactTime: string;  // "14:44"
+  subText: string;    // texto pequeno por baixo de bigText (hora exata, "em 2 h" ou "amanhã")
   isRealtime: boolean;
   isOutdated: boolean;
   isUrgent: boolean;  // minutos até 5 min (urgência)
@@ -82,6 +83,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
       minutesDiff: 999,
       bigText: '—',
       exactTime: '',
+      subText: '',
       isRealtime: false,
       isOutdated: false,
       isUrgent: false,
@@ -207,9 +209,29 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     });
   }
 
+  // Até 1 hora: minutos em grande ("12 min"). Mais longe: a hora em grande ("23:56"),
+  // porque "1392 min" não diz nada a ninguém.
+  const longe = effectiveMinutes !== null && effectiveMinutes >= 60 && Boolean(exactTime);
   const bigText = effectiveMinutes === null 
     ? (exactTime || '—') 
-    : (effectiveMinutes < 1 ? 'a chegar' : `${effectiveMinutes} min`);
+    : longe
+      ? exactTime
+      : (effectiveMinutes < 1 ? 'a chegar' : `${effectiveMinutes} min`);
+
+  // Texto pequeno por baixo: a hora exata, ou "em 2 h 10" / "amanhã" quando a hora já está em grande
+  let subText = exactTime;
+  if (longe && effectiveMinutes !== null) {
+    const depDate = new Date(now.getTime() + effectiveMinutes * 60000);
+    const diaDep = depDate.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
+    const diaHoje = now.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
+    if (diaDep !== diaHoje) {
+      subText = 'amanhã';
+    } else {
+      const h = Math.floor(effectiveMinutes / 60);
+      const m = effectiveMinutes % 60;
+      subText = m > 0 ? `em ${h} h ${m}` : `em ${h} h`;
+    }
+  }
 
   // 4. Detetar aviso de desatualizado para qualquer feed cuja validade expirou
   let isOutdated = Boolean(
@@ -239,6 +261,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     minutesDiff: effectiveMinutes !== null ? effectiveMinutes : 999,
     bigText,
     exactTime,
+    subText,
     isRealtime,
     isOutdated,
     isUrgent,

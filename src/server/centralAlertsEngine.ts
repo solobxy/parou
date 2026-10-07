@@ -124,8 +124,10 @@ export function extractGeoEntities(text: string, operator: string): {
 
   const foundMunicipios: string[] = [];
 
+  // Palavra inteira: "transporte" não pode contar como "Porto"
+  const temPalavra = (c: string) => new RegExp(`(^|[^a-zà-ÿ])${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-zà-ÿ])`).test(lower);
   for (const c of [...concelhosPorto, ...concelhosLisboa, ...concelhosBraga, ...concelhosCoimbra, ...concelhosAlgarve]) {
-    if (lower.includes(c)) {
+    if (temPalavra(c)) {
       const formatted = c.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       if (!foundMunicipios.includes(formatted)) {
         foundMunicipios.push(formatted);
@@ -200,9 +202,9 @@ async function ingestTmlAlerts(): Promise<number> {
       // Check if alert belongs to UNIR or Carris Metropolitana based on lines or title
       let operador = 'Carris Metropolitana';
       const full = `${title} ${desc} ${lines.join(' ')}`.toLowerCase();
-      if (full.includes('unir') || lines.some(l => l.startsWith('3') || l.startsWith('5') || l.startsWith('8') || l.startsWith('9')) && full.includes('porto')) {
-        operador = 'UNIR Mobilidade';
-      } else if (full.includes('fertagus')) {
+      // O TML GO Hub é da Área Metropolitana de Lisboa: nunca são alertas da UNIR (Porto).
+      // (Antes, "transporte" contém "porto" e linhas 3xxx de Sesimbra/Setúbal passavam por UNIR.)
+      if (full.includes('fertagus')) {
         operador = 'Fertagus';
       } else if (full.includes('transtejo') || full.includes('soflusa')) {
         operador = 'Transtejo Soflusa';

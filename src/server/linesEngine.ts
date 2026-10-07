@@ -357,6 +357,7 @@ async function aplicarTempoRealStcpNasLinhas(linhas: LineSummary[], paragemDaPar
     const mins = Math.max(0, Math.round(Number(a.arrival_minutes)));
     partida.state = 'Tempo Real';
     delete partida.aviso_horario;
+    delete linha.aviso_horario; // há autocarros a circular: o aviso de horário antigo não ajuda
     partida.time = horaLisboaDaquiA(mins);
     partida.countdown_minutes = mins;
     partida.displayText = formatCountdown(mins);

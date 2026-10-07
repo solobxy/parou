@@ -36,6 +36,8 @@ async function emCache<T>(chave: string, ttlMs: number, fn: () => Promise<T>, re
         cache.set(chave, { t: Date.now() - ttlMs + 60_000, v: c.v });
         return c.v as T;
       }
+      // Fonte em baixo: não volta a tentar durante 5 min (para não atrasar cada pedido)
+      cache.set(chave, { t: Date.now() - ttlMs + 5 * 60_000, v: recurso });
       return recurso;
     } finally {
       emCurso.delete(chave);
@@ -102,7 +104,7 @@ const DISTRITOS_RECURSO: DistritoIpma[] = [
   { area: 'LRA', nome: 'Leiria', globalIdLocal: 1100900, lat: 39.7473, lon: -8.8069, idRegiao: 1 },
   { area: 'LSB', nome: 'Lisboa', globalIdLocal: 1110600, lat: 38.766, lon: -9.1286, idRegiao: 1 },
   { area: 'PTG', nome: 'Portalegre', globalIdLocal: 1121400, lat: 39.2967, lon: -7.4284, idRegiao: 1 },
-  { area: 'PRT', nome: 'Porto', globalIdLocal: 1131200, lat: 41.158, lon: -8.6294, idRegiao: 1 },
+  { area: 'PTO', nome: 'Porto', globalIdLocal: 1131200, lat: 41.158, lon: -8.6294, idRegiao: 1 },
   { area: 'STR', nome: 'Santarém', globalIdLocal: 1141600, lat: 39.2362, lon: -8.685, idRegiao: 1 },
   { area: 'STB', nome: 'Setúbal', globalIdLocal: 1151200, lat: 38.5246, lon: -8.8856, idRegiao: 1 },
   { area: 'VCT', nome: 'Viana do Castelo', globalIdLocal: 1160900, lat: 41.6952, lon: -8.8365, idRegiao: 1 },
@@ -423,8 +425,7 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
     const daRegiao =
       (regiao === 'lisboa' && /lisboa|setubal|almada|seixal|barreiro|sintra|cascais|oeiras|amadora|loures|odivelas|moita|montijo|palmela|sesimbra|mafra|vila franca/.test(textoRegiao)) ||
       (regiao === 'porto' && /porto|gaia|matosinhos|maia|gondomar|valongo|vila do conde|povoa|espinho|santo tirso|trofa|paredes|braga|aveiro/.test(textoRegiao)) ||
-      semAcentos(textoRegiao).includes(semAcentos(distrito)) ||
-      /nacional|portugal/.test(textoRegiao);
+      new RegExp(`\\b${semAcentos(distrito)}\\b`).test(textoRegiao);
     const greve = a.tipo === 'greve';
     if (!daRegiao && !greve) continue;
     const categoria: OcorrenciaOficial['categoria'] = greve ? 'greve' : a.tipo === 'obras' ? 'obras' : 'rede';
@@ -462,9 +463,14 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
 // ---------------------------------------------------------------------------------
 const FONTES_RSS = [
   { nome: 'RTP Notícias', url: 'https://www.rtp.pt/noticias/rss/pais' },
+  { nome: 'RTP Notícias', url: 'https://www.rtp.pt/noticias/rss' },
   { nome: 'Público', url: 'https://feeds.feedburner.com/PublicoRSS' },
+  { nome: 'Público', url: 'https://feeds.feedburner.com/PublicoLocal' },
+  { nome: 'Público', url: 'https://feeds.feedburner.com/PublicoSociedade' },
   { nome: 'Observador', url: 'https://observador.pt/feed/' },
   { nome: 'Correio da Manhã', url: 'https://www.cmjornal.pt/rss' },
+  { nome: 'Diário de Notícias', url: 'https://www.dn.pt/feed' },
+  { nome: 'SAPO 24', url: 'https://24.sapo.pt/rss' },
 ];
 
 export interface Noticia {
@@ -504,7 +510,7 @@ function campo(item: string, nome: string): string {
 }
 
 const RE_GREVE = /\bgreve|\bparalisac|servicos minimos|plenario de trabalhadores/;
-const RE_TRANSPORTES = /\b(comboios?|ferrovi\w*|cp\b|metro\b|metropolitano|carris|stcp|autocarros?|transportes?|fertagus|transtejo|soflusa|travessia|navegante|andante|unir\b|metrobus|brt\b|alta velocidade|aeroporto|ryanair|tap\b|easyjet|maquinistas|revisores|motoristas)/;
+const RE_TRANSPORTES = /\b(comboios?|ferrovi\w*|cp\b|metro\b|metropolitano|carris|stcp|autocarros?|transportes? publicos?|fertagus|transtejo|soflusa|travessia do tejo|navegante|andante|metrobus|brt\b|alta velocidade|aeroporto|ryanair|tap\b|easyjet|maquinistas|revisores|motoristas)/;
 const RE_TRANSITO_FORTE = /\b(transito(?! em julgado)|estrada cortada|cortad[ao]s? ao transito|corte de estrada|condicionamento de transito|engarrafamento|filas de transito|ponte 25 de abril|ponte vasco da gama|ponte da arrabida|ponte do freixo|ponte do infante|vci\b|segunda circular|eixo norte-sul|crel|cril|autoestrada|auto-estrada)\b/;
 const RE_ACIDENTE = /\b(acidente|despiste|colisao|capotou|atropel\w*)/;
 const RE_VIA = /\b(estrada|viacao|rodoviari\w*|a\d{1,2}\b|ic\d{1,2}\b|ip\d{1,2}\b|en\s?\d{1,3}\b|ponte|autoestrada|auto-estrada|camiao|carro|automovel|mota|motociclo|veiculo|comboio|autocarro|eletrico)/;
@@ -516,12 +522,13 @@ function classificarNoticia(titulo: string, resumo: string): Noticia['categoria'
   const t = semAcentos(`${titulo} ${resumo}`);
   const tt = semAcentos(titulo);
   if (RE_EXCLUIR.test(tt)) return null;
-  const transportes = RE_TRANSPORTES.test(t);
+  // "UNIR" (rede de autocarros do Porto) só conta em maiúsculas — "unir" é um verbo
+  const transportes = RE_TRANSPORTES.test(t) || /\bUNIR\b/.test(`${titulo} ${resumo}`);
   if (RE_GREVE.test(tt) && transportes) return 'greve';
   if (RE_TEMPO.test(tt)) return 'tempo';
   if (RE_TRANSITO_FORTE.test(tt) || (RE_ACIDENTE.test(tt) && RE_VIA.test(t))) return 'transito';
   if (RE_OBRAS.test(tt) && (transportes || RE_VIA.test(t))) return 'obras';
-  if (RE_TRANSPORTES.test(tt)) return 'transportes';
+  if (RE_TRANSPORTES.test(tt) || /\bUNIR\b/.test(titulo)) return 'transportes';
   return null;
 }
 
@@ -558,7 +565,7 @@ async function lerFeed(fonte: { nome: string; url: string }): Promise<Array<Omit
 
 const TERMOS_REGIAO: Record<Regiao, RegExp> = {
   lisboa: /\b(lisboa|setubal|almada|seixal|barreiro|sintra|cascais|oeiras|amadora|loures|odivelas|ponte 25 de abril|vasco da gama|cril|crel|ic19|ic17|segunda circular|fertagus|transtejo|soflusa|carris|metro de lisboa)\b/,
-  porto: /\b(porto|gaia|matosinhos|maia|gondomar|valongo|vila do conde|povoa de varzim|espinho|stcp|metro do porto|vci|arrabida|freixo|unir|andante|braga|aveiro)\b/,
+  porto: /\b(porto|gaia|matosinhos|maia|gondomar|valongo|vila do conde|povoa de varzim|espinho|stcp|metro do porto|vci|arrabida|freixo|andante|braga|aveiro)\b/,
   outra: /$^/,
 };
 
@@ -644,6 +651,6 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
 export function aquecerAlertas(): void {
   setTimeout(() => {
     obterAlertas({ area: 'LSB' }).catch(() => {});
-    obterAlertas({ area: 'PRT' }).catch(() => {});
+    obterAlertas({ area: 'PTO' }).catch(() => {});
   }, 15_000);
 }
