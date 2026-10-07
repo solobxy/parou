@@ -1208,30 +1208,32 @@ export function queryDeparturesForStop(
         r.route_long_name,
         r.route_type,
         r.route_color
-      FROM stop_times st
-      JOIN trips t ON st.trip_id = t.trip_id
-      JOIN routes r ON t.route_id = r.route_id
-      WHERE st.feed_id = ?
-        AND (
-          st.stop_id = ?
-          OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?)
+      FROM stop_times st INDEXED BY idx_stop_times_stop
+      CROSS JOIN trips t ON st.trip_id = t.trip_id
+      CROSS JOIN routes r ON t.route_id = r.route_id
+      WHERE st.stop_id IN (
+          SELECT ? UNION SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station IN (?, ?)
         )
-        AND st.pickup_type != 1
         AND st.departure_secs >= ?
         AND st.departure_secs <= ?
+        AND st.feed_id = ?
+        AND st.pickup_type != 1
         AND t.service_id IN (${placeholders})
         AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
       ORDER BY st.departure_secs ASC
       LIMIT 60
     `;
+    // Plano fixo: começa SEMPRE pelo índice (paragem, hora) e só depois vai às viagens.
+    // Sem isto, algumas versões do SQLite começavam pelas viagens do serviço e cada
+    // consulta demorava ~0,6 s (36 s para o "Perto" em Lisboa, com o servidor bloqueado).
 
     return db.prepare(query).all(
-      feedId,
       stopId,
       stopId,
       rawStopId,
       minSecs,
       maxSecs,
+      feedId,
       ...activeServiceIds
     ) as unknown as RawDepartureRow[];
   } catch (err: any) {
