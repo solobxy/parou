@@ -61,6 +61,9 @@ const metroStatusCache: { data: any; timestamp: number } = { data: null, timesta
 // TTLs in Milliseconds strictly according to Rule 4
 const VEHICLES_CACHE_TTL_MS = 15 * 1000; // 15 s
 const ARRIVALS_CACHE_TTL_MS = 30 * 1000; // 30 s
+// STCP: chegadas em tempo real por paragem (https://stcp.pt/api/stops/{código}/realtime)
+const STCP_CACHE_TTL_MS = 30 * 1000; // 30 s por paragem
+const stcpArrivalsCache = new Map<string, { data: any[]; timestamp: number }>();
 const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
 const MAX_STALE_AGE_SECS = 120;          // Data older than 2 min (120 s) ignored
 
@@ -345,6 +348,36 @@ export class RealtimeEngine {
    * Evaluates Carris Metropolitana live arrivals, GTFS-RT delays and trip suppression,
    * Metro de Lisboa, and CP feature flag.
    */
+  /**
+   * Chegadas em tempo real de uma paragem STCP (GPS dos autocarros), com cache de 30 s.
+   * Devolve [] se a STCP não responder em 2,5 s ou se os dados não forem de tempo real.
+   */
+  public static async getStcpArrivals(stopId: string): Promise<any[]> {
+    const code = stopId.replace(/^stcp:/, '').trim();
+    if (!code) return [];
+    const now = Date.now();
+    const cached = stcpArrivalsCache.get(code);
+    if (cached && now - cached.timestamp < STCP_CACHE_TTL_MS) return cached.data;
+    try {
+      const res = await fetch(`https://stcp.pt/api/stops/${encodeURIComponent(code)}/realtime`, {
+        headers: { 'User-Agent': 'PAROU.PT/2.0 (+https://parou.pt)', Accept: 'application/json' },
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!res.ok) {
+        stcpArrivalsCache.set(code, { data: [], timestamp: now });
+        return [];
+      }
+      const json: any = await res.json();
+      const data = json?.data_source === 'realtime' && Array.isArray(json?.arrivals) ? json.arrivals : [];
+      stcpArrivalsCache.set(code, { data, timestamp: now });
+      return data;
+    } catch {
+      const fallback = cached?.data || [];
+      stcpArrivalsCache.set(code, { data: fallback, timestamp: now });
+      return fallback;
+    }
+  }
+
   public static async mergeRealtimeData(
     departures: LiveDeparture[],
     stop: UnifiedStop,
@@ -354,6 +387,64 @@ export class RealtimeEngine {
 
     // Metro de Lisboa real-time state check
     const metroStatus = await this.getMetroLisboaStatus();
+
+    // STCP em tempo real: cada chegada com GPS substitui a partida programada da mesma linha
+    // mais próxima (até 6 min); as que não têm correspondência entram como partidas novas.
+    const stcpTempoReal = new Map<LiveDeparture, { estEpoch: number; vehicleId?: string; cancelada: boolean }>();
+    const stcpNovas: LiveDeparture[] = [];
+    const paragensStcp = (stop.member_stop_ids || []).filter((id) => id.startsWith('stcp:')).slice(0, 3);
+    for (const sid of paragensStcp) {
+      const chegadas = await this.getStcpArrivals(sid);
+      for (const a of chegadas) {
+        const mins = Number(a?.arrival_minutes);
+        if (!Number.isFinite(mins) || mins < 0 || mins > 180) continue;
+        const linha = String(a.route_short_name || '').trim();
+        if (!linha) continue;
+        const estEpoch = nowEpochSecs + Math.round(mins * 60);
+        const atrasoMin = Number(a.delay_minutes);
+        const progEpoch = Number.isFinite(atrasoMin) ? estEpoch - Math.round(atrasoMin * 60) : estEpoch;
+        const cancelada = /CANCEL/i.test(String(a.status || ''));
+        let melhor: LiveDeparture | null = null;
+        let melhorDif = 6 * 60 + 1;
+        for (const d of departures) {
+          if (d.feed_id !== 'stcp' || stcpTempoReal.has(d)) continue;
+          if (String(d.route_short_name || '').trim().toUpperCase() !== linha.toUpperCase()) continue;
+          const dif = Math.abs(d.dep_epoch_secs - progEpoch);
+          if (dif < melhorDif) { melhor = d; melhorDif = dif; }
+        }
+        if (melhor) {
+          stcpTempoReal.set(melhor, { estEpoch, vehicleId: a.vehicle_id || undefined, cancelada });
+        } else if (!cancelada) {
+          const atraso = estEpoch - progEpoch;
+          stcpNovas.push({
+            trip_id: String(a.trip_id || `stcp-rt:${linha}:${estEpoch}`),
+            route_id: `stcp:${linha}`,
+            route_short_name: linha,
+            route_long_name: a.route_long_name || '',
+            route_type: 3,
+            route_color: a.route_color || '',
+            headsign: a.trip_headsign || '',
+            operator_name: 'STCP (Porto)',
+            feed_id: 'stcp',
+            stop_id: sid,
+            stop_sequence: 0,
+            scheduled_time: DateTime.fromSeconds(progEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm'),
+            scheduled_time_iso: DateTime.fromSeconds(progEpoch, { zone: 'Europe/Lisbon' }).toISO() || '',
+            scheduled_seconds: 0,
+            dep_epoch_secs: progEpoch,
+            realtime_time: DateTime.fromSeconds(estEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm'),
+            realtime_epoch_secs: estEpoch,
+            state: 'TEMPO REAL',
+            state_reason: atraso > 90 ? `Atraso de ${Math.round(atraso / 60)} min transmitido por GPS do autocarro` : 'Hora estimada em direto pelo GPS do autocarro (STCP)',
+            delay_seconds: atraso,
+            is_realtime: true,
+            is_delayed: atraso > 90,
+            display_text: '',
+            vehicle_id: a.vehicle_id || undefined,
+          } as LiveDeparture);
+        }
+      }
+    }
 
     // Check CP feature flag (Rule 3: CP real-time unofficial endpoints only behind feature flag, OFF by default)
     const cpRealtimeEnabled = process.env.ENABLE_CP_REALTIME === 'true';
@@ -414,6 +505,28 @@ export class RealtimeEngine {
         }
       }
 
+      // Case A2: STCP com chegada em tempo real
+      else if (dep.feed_id === 'stcp' && stcpTempoReal.has(dep)) {
+        const rt = stcpTempoReal.get(dep)!;
+        if (rt.cancelada) {
+          mergedDep.state = 'SUPRIMIDO';
+          mergedDep.state_reason = 'Viagem suprimida pela STCP';
+          mergedDep.is_realtime = true;
+        } else {
+          const atraso = rt.estEpoch - dep.dep_epoch_secs;
+          mergedDep.state = 'TEMPO REAL';
+          mergedDep.is_realtime = true;
+          mergedDep.realtime_epoch_secs = rt.estEpoch;
+          mergedDep.realtime_time = DateTime.fromSeconds(rt.estEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm');
+          mergedDep.delay_seconds = atraso;
+          mergedDep.is_delayed = atraso > 90;
+          mergedDep.vehicle_id = rt.vehicleId;
+          mergedDep.state_reason = mergedDep.is_delayed
+            ? `Atraso de ${Math.round(atraso / 60)} min transmitido por GPS do autocarro`
+            : 'Hora estimada em direto pelo GPS do autocarro (STCP)';
+        }
+      }
+
       // Case B: Metro de Lisboa
       else if (dep.feed_id === 'metro_lisboa') {
         const lineKey = dep.route_short_name.toLowerCase().includes('azul')
@@ -447,6 +560,12 @@ export class RealtimeEngine {
       }
 
       result.push(mergedDep);
+    }
+
+    if (stcpNovas.length > 0) {
+      result.push(...stcpNovas);
+      const quando = (d: LiveDeparture) => (d.is_realtime && d.realtime_epoch_secs !== undefined ? d.realtime_epoch_secs : d.dep_epoch_secs);
+      result.sort((a, b) => quando(a) - quando(b));
     }
 
     return result;
