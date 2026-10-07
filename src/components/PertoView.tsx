@@ -83,15 +83,20 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
   }
 }
 
+// Cache ao nível do módulo para manter os últimos dados ao trocar de aba
+let lastNearbyStops: NearbyStopItem[] = [];
+let lastNearbyVehicles: NearbyVehicleItem[] = [];
+let lastNearbyAlerts: CentralAlert[] = [];
+
 export const PertoView: React.FC<PertoViewProps> = ({
   initialDestination,
   onClearInitialDestination,
 }) => {
   const { coords: userCoords, status: gpsStatus, activateLocation } = useUserLocation();
-  const [stops, setStops] = useState<NearbyStopItem[]>([]);
-  const [vehicles, setVehicles] = useState<NearbyVehicleItem[]>([]);
-  const [contextualAlerts, setContextualAlerts] = useState<CentralAlert[]>([]);
-  const [isLoadingNearby, setIsLoadingNearby] = useState<boolean>(true);
+  const [stops, setStops] = useState<NearbyStopItem[]>(lastNearbyStops);
+  const [vehicles, setVehicles] = useState<NearbyVehicleItem[]>(lastNearbyVehicles);
+  const [contextualAlerts, setContextualAlerts] = useState<CentralAlert[]>(lastNearbyAlerts);
+  const [isLoadingNearby, setIsLoadingNearby] = useState<boolean>(lastNearbyStops.length === 0);
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
   const [dbLoadingMessage, setDbLoadingMessage] = useState<string>('A carregar horários…');
   const [selectedRadius, setSelectedRadius] = useState<number>(1000);
@@ -139,9 +144,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
       } else {
         setIsDbLoading(false);
         retryAttemptRef.current = 0;
-        setStops(data.stops || []);
-        setVehicles(data.vehicles || []);
-        setContextualAlerts(data.alerts || []);
+        if (data.stops) {
+          lastNearbyStops = data.stops;
+          setStops(data.stops);
+        }
+        if (data.vehicles) {
+          lastNearbyVehicles = data.vehicles;
+          setVehicles(data.vehicles);
+        }
+        if (data.alerts) {
+          lastNearbyAlerts = data.alerts;
+          setContextualAlerts(data.alerts);
+        }
       }
     } catch (err) {
       console.warn('[PertoView] Erro ao carregar paragens:', err);
@@ -151,7 +165,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     }
   }, [userCoords, selectedRadius]);
 
-  // Polling e retry backoff: 5 s, depois 10 s, depois 20 s (Regra 5)
+  // Polling e retry backoff: 5 s, depois 10 s, depois 20 s (Regra 5, 30s atualização automática)
   useEffect(() => {
     loadNearbyData();
     let timer: NodeJS.Timeout;
@@ -160,7 +174,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const RETRY_DELAYS = [5000, 10000, 20000];
       const delay = isDbLoading 
         ? RETRY_DELAYS[Math.min(retryAttemptRef.current++, RETRY_DELAYS.length - 1)]
-        : 15000;
+        : 30000;
       timer = setTimeout(async () => {
         await loadNearbyData();
         scheduleNext();

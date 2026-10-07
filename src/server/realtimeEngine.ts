@@ -164,10 +164,13 @@ export class RealtimeEngine {
     try {
       const res = await fetch(`https://api.carrismetropolitana.pt/v2/arrivals/by_stop/${stopId}`, {
         headers: { 'User-Agent': 'PAROU.PT/2.0' },
+        signal: AbortSignal.timeout(2500),
       });
 
       if (!res.ok) {
-        return [];
+        const fallback = cached?.data || [];
+        arrivalsCache.set(stopId, { data: fallback, timestamp: now });
+        return fallback;
       }
 
       const data = (await res.json()) as any[];
@@ -175,7 +178,9 @@ export class RealtimeEngine {
       arrivalsCache.set(stopId, { data: arrivalsList, timestamp: now });
       return arrivalsList;
     } catch {
-      return [];
+      const fallback = cached?.data || [];
+      arrivalsCache.set(stopId, { data: fallback, timestamp: now });
+      return fallback;
     }
   }
 
@@ -314,6 +319,7 @@ export class RealtimeEngine {
     try {
       const res = await fetch('https://app.metrolisboa.pt/status/getLinhas.php', {
         headers: { 'User-Agent': 'PAROU.PT/2.0' },
+        signal: AbortSignal.timeout(2500),
       });
       if (res.ok) {
         const json = await res.json();
@@ -322,9 +328,16 @@ export class RealtimeEngine {
         metroStatusCache.timestamp = now;
         return resp;
       }
-    } catch {}
-
-    return metroStatusCache.data || {};
+      const fallback = metroStatusCache.data || {};
+      metroStatusCache.data = fallback;
+      metroStatusCache.timestamp = now;
+      return fallback;
+    } catch {
+      const fallback = metroStatusCache.data || {};
+      metroStatusCache.data = fallback;
+      metroStatusCache.timestamp = now;
+      return fallback;
+    }
   }
 
   /**
