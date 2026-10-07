@@ -1,8 +1,20 @@
-import { getDatabase } from './db/gtfsDatabase';
-import { getAllFeeds } from './db/gtfsDatabase';
+import { getDatabase, getAllFeeds, getFeedCalendarBounds } from './db/gtfsDatabase';
 import { getStcpLiveVehicles } from './portoOpenDataService';
 import { DateTime } from 'luxon';
-import { filtroServicosHoje } from './dadosProntos';
+import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
+
+// Cache em memória de 30 segundos (Regra 4)
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+const nearLinesCache = new Map<string, CacheEntry<LineSummary[]>>();
+const stopDeparturesCache = new Map<string, CacheEntry<any>>();
+
+export function clearLinesEngineCache(): void {
+  nearLinesCache.clear();
+  stopDeparturesCache.clear();
+}
 
 export const VALID_DAY_COLUMNS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 export type ValidDayCol = typeof VALID_DAY_COLUMNS[number];
@@ -142,17 +154,28 @@ export interface StopDepartureItem {
 function getFeedsAvisoHorario(db: ReturnType<typeof getDatabase>): Set<string> {
   const outdatedFeeds = new Set<string>();
   try {
-    const rows = db.prepare('SELECT id, last_error, valid_until FROM feeds').all() as Array<{ id: string; last_error?: string | null; valid_until?: string | null }>;
     const todayDigits = DateTime.now().setZone('Europe/Lisbon').toFormat('yyyyMMdd');
+    const rows = db.prepare('SELECT id, last_error, valid_until FROM feeds').all() as Array<{ id: string; last_error?: string | null; valid_until?: string | null }>;
     for (const r of rows) {
       if (r.last_error && r.last_error.startsWith('O operador não atualizou as datas do calendário')) {
         outdatedFeeds.add(r.id);
         continue;
       }
       if (r.valid_until) {
-        const clean = r.valid_until.replace(/-/g, '').slice(0, 8);
-        if (clean < todayDigits) {
+        const clean = r.valid_until.replace(/\D/g, '').slice(0, 8);
+        if (clean && clean < todayDigits) {
           outdatedFeeds.add(r.id);
+        }
+      }
+    }
+
+    // Verifica limites reais em calendar e calendar_dates para qualquer feed
+    const bounds = getFeedCalendarBounds();
+    for (const [feedId, bound] of bounds.entries()) {
+      if (bound.lastDay) {
+        const clean = bound.lastDay.replace(/\D/g, '').slice(0, 8);
+        if (clean && clean < todayDigits) {
+          outdatedFeeds.add(feedId);
         }
       }
     }
@@ -280,6 +303,15 @@ export class LinesEngine {
    * - next 2 departures per direction at nearest stop with state and "daqui a X min"
    */
   static async getLinesNear(userLat: number, userLon: number, requestedRadius = 500): Promise<LineSummary[]> {
+    // Cache de 30 segundos: chave arredondada a cerca de 100 m (0.001 grau)
+    const latRounded = Math.round(userLat * 1000) / 1000;
+    const lonRounded = Math.round(userLon * 1000) / 1000;
+    const cacheKey = `${latRounded}_${lonRounded}_${requestedRadius}`;
+    const cached = nearLinesCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const db = getDatabase();
     const feedsAviso = getFeedsAvisoHorario(db);
     const lisbon = getLisbonTime();
@@ -399,10 +431,16 @@ export class LinesEngine {
       }>;
     }>();
 
-    // Query non-terminating departures for each nearby stop
+    // Conjunto de serviços ativos em memória (Regras 1, 2 e 3)
+    const activeToday = getActiveServices(new Date(), 'Europe/Lisbon');
+    const activeYesterday = getActiveServices(new Date(Date.now() - 24 * 3600 * 1000), 'Europe/Lisbon');
+    const minSecs = Math.max(0, currentSecs - 120);
+    const maxSecs = currentSecs + 10800; // agora + 3h
+
+    // Query non-terminating departures for each nearby stop com janela de tempo e EXISTS
     for (const stop of nearbyStops) {
-      const departures = db.prepare(`
-        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id,
+      const departuresRaw = db.prepare(`
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id
         FROM stop_times st
@@ -410,15 +448,17 @@ export class LinesEngine {
         JOIN routes r ON t.route_id = r.route_id
         JOIN feeds f ON r.feed_id = f.id
         WHERE st.stop_id = ?
-          AND ${filtroServicosHoje('t')}
-          AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
+          AND st.departure_secs BETWEEN ? AND ?
+          AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
-      `).all(stop.stop_id, stop.stop_name) as Array<{
+        LIMIT 60
+      `).all(stop.stop_id, minSecs, maxSecs, stop.stop_name) as Array<{
         departure_secs: number;
         trip_id: string;
         trip_headsign: string;
         direction_id: number;
+        service_id: string;
         route_id: string;
         route_short_name: string;
         route_long_name: string;
@@ -428,6 +468,32 @@ export class LinesEngine {
         feed_mode: string;
         feed_id: string;
       }>;
+
+      // Filtrar em JS com o conjunto de serviços ativos de hoje (Regra 1)
+      const todayDeps = departuresRaw.filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeToday));
+
+      // Viagens de madrugada do dia de serviço anterior (> 24:00:00)
+      const yesterdayLateQuery = db.prepare(`
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id,
+               r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
+               f.operator_name, f.mode as feed_mode, f.id as feed_id
+        FROM stop_times st
+        JOIN trips t ON st.trip_id = t.trip_id
+        JOIN routes r ON t.route_id = r.route_id
+        JOIN feeds f ON r.feed_id = f.id
+        WHERE st.stop_id = ?
+          AND st.departure_secs BETWEEN ? AND ?
+          AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
+          AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
+        ORDER BY st.departure_secs ASC
+        LIMIT 30
+      `).all(stop.stop_id, (currentSecs + 86400) - 120, (currentSecs + 86400) + 10800, stop.stop_name) as typeof departuresRaw;
+
+      const yesterdayDeps = yesterdayLateQuery
+        .filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeYesterday))
+        .map(dep => ({ ...dep, departure_secs: dep.departure_secs - 86400 }));
+
+      const departures = [...yesterdayDeps, ...todayDeps].sort((a, b) => a.departure_secs - b.departure_secs);
 
       for (const dep of departures) {
         const isCp = dep.feed_id === 'cp';
@@ -666,6 +732,11 @@ export class LinesEngine {
       return distA - distB;
     });
 
+    nearLinesCache.set(cacheKey, {
+      data: lineSummaries,
+      expiresAt: Date.now() + 30000,
+    });
+
     return lineSummaries;
   }
 
@@ -876,16 +947,38 @@ export class LinesEngine {
           stop_lon: number;
         }>;
 
+        const activeToday = getActiveServices(new Date(), 'Europe/Lisbon');
+        const minArrSecs = Math.max(0, currentSecs - 120);
+        const maxArrSecs = currentSecs + 10800; // 3h
+
         for (const sr of stopRows) {
-          // Look up next scheduled arrival at this stop for this route
-          const nextArr = db.prepare(`
-            SELECT departure_secs
+          // Look up next scheduled arrival at this stop for this route (janela de tempo + filtro em JS)
+          const nextArrCandidates = db.prepare(`
+            SELECT st.departure_secs, t.service_id, f.id as feed_id
             FROM stop_times st
             JOIN trips t ON st.trip_id = t.trip_id
-            WHERE st.stop_id = ? AND t.route_id = ? AND st.departure_secs >= ? AND ${filtroServicosHoje('t')}
+            JOIN routes r ON t.route_id = r.route_id
+            JOIN feeds f ON r.feed_id = f.id
+            WHERE st.stop_id = ? AND t.route_id = ? AND st.departure_secs BETWEEN ? AND ?
             ORDER BY st.departure_secs ASC
-            LIMIT 1
-          `).get(sr.stop_id, lineId, currentSecs - 60) as { departure_secs: number } | undefined;
+            LIMIT 20
+          `).all(sr.stop_id, lineId, minArrSecs, maxArrSecs) as Array<{ departure_secs: number; service_id: string; feed_id: string }>;
+
+          let nextArr = nextArrCandidates.find(a => isServiceActive(a.feed_id, a.service_id, activeToday));
+
+          if (!nextArr) {
+            const laterCandidates = db.prepare(`
+              SELECT st.departure_secs, t.service_id, f.id as feed_id
+              FROM stop_times st
+              JOIN trips t ON st.trip_id = t.trip_id
+              JOIN routes r ON t.route_id = r.route_id
+              JOIN feeds f ON r.feed_id = f.id
+              WHERE st.stop_id = ? AND t.route_id = ? AND st.departure_secs >= ?
+              ORDER BY st.departure_secs ASC
+              LIMIT 20
+            `).all(sr.stop_id, lineId, maxArrSecs) as Array<{ departure_secs: number; service_id: string; feed_id: string }>;
+            nextArr = laterCandidates.find(a => isServiceActive(a.feed_id, a.service_id, activeToday));
+          }
 
           let nextArrivalStr = 'sem horário';
           if (nextArr) {
@@ -982,6 +1075,12 @@ export class LinesEngine {
     stop_name: string;
     departures: StopDepartureItem[];
   }> {
+    const cacheKey = `${stopId}_${limit}`;
+    const cached = stopDeparturesCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const db = getDatabase();
     const feedsAviso = getFeedsAvisoHorario(db);
     const stop = db.prepare('SELECT stop_id, stop_name, feed_id FROM stops WHERE stop_id = ?').get(stopId) as {
@@ -993,6 +1092,13 @@ export class LinesEngine {
     const stopName = stop?.stop_name || 'Paragem';
     const lisbon = getLisbonTime();
     const currentSecs = lisbon.currentSeconds;
+
+    // Conjunto de serviços ativos em memória (Regras 1, 2 e 3)
+    const activeToday = getActiveServices(new Date(), 'Europe/Lisbon');
+    const activeYesterday = getActiveServices(new Date(Date.now() - 24 * 3600 * 1000), 'Europe/Lisbon');
+    const activeTomorrow = getActiveServices(new Date(Date.now() + 24 * 3600 * 1000), 'Europe/Lisbon');
+    const minSecs = Math.max(0, currentSecs - 120);
+    const maxSecs = currentSecs + 10800; // agora + 3h
 
     // 1. Real-time source (Requirement 5): For Carris Metropolitana stops, query /v2/arrivals/by_stop/:id
     const departures: StopDepartureItem[] = [];
@@ -1088,9 +1194,9 @@ export class LinesEngine {
 
       const rawStopId = stopId.includes(':') ? stopId.split(':')[1] : stopId;
 
-      // 4. Incluir viagens do dia de serviço anterior com horas > 24:00:00 (departure_secs >= 86400)
-      const yesterdayLateRows = db.prepare(`
-        SELECT st.departure_secs - 86400 as departure_secs, t.trip_id, t.trip_headsign,
+      // 4. Viagens de madrugada do dia de serviço anterior (> 24:00:00)
+      const yesterdayLateQuery = db.prepare(`
+        SELECT st.departure_secs - 86400 as departure_secs, t.trip_id, t.trip_headsign, t.service_id,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id,
                0 as is_tomorrow
@@ -1101,16 +1207,16 @@ export class LinesEngine {
         WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
           AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
           AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
-          AND st.departure_secs >= ? + 86400
-          AND ${filtroServicosHoje('t', new Date(Date.now() - 24 * 60 * 60 * 1000))}
-          AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
+          AND st.departure_secs BETWEEN ? AND ?
+          AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
-        LIMIT ?
-      `).all(stopId, stopId, rawStopId, currentSecs, stopName, remainingLimit * 2) as Array<{
+        LIMIT 60
+      `).all(stopId, stopId, rawStopId, (currentSecs + 86400) - 120, (currentSecs + 86400) + 10800, stopName) as Array<{
         departure_secs: number;
         trip_id: string;
         trip_headsign: string;
+        service_id: string;
         route_id: string;
         route_short_name: string;
         route_long_name: string;
@@ -1122,10 +1228,11 @@ export class LinesEngine {
         is_tomorrow: number;
       }>;
 
-      // Exclude trips ending at this stop (Requirement 2):
-      // stop_sequence < max(stop_sequence) AND trip_headsign != stopName
-      const rows = db.prepare(`
-        SELECT st.departure_secs, t.trip_id, t.trip_headsign,
+      const yesterdayLateRows = yesterdayLateQuery.filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeYesterday));
+
+      // Viagens de hoje na janela de 3 horas (Regra 2)
+      const todayQuery = db.prepare(`
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.service_id,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id,
                0 as is_tomorrow
@@ -1136,18 +1243,19 @@ export class LinesEngine {
         WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
           AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
           AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
-          AND st.departure_secs >= ?
-          AND ${filtroServicosHoje('t')}
-          AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
+          AND st.departure_secs BETWEEN ? AND ?
+          AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
-        LIMIT ?
-      `).all(stopId, stopId, rawStopId, currentSecs, stopName, remainingLimit * 4) as typeof yesterdayLateRows;
+        LIMIT 60
+      `).all(stopId, stopId, rawStopId, minSecs, maxSecs, stopName) as typeof yesterdayLateQuery;
+
+      const rows = todayQuery.filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeToday));
 
       let combinedRows = [...yesterdayLateRows, ...rows].sort((a, b) => a.departure_secs - b.departure_secs);
       if (combinedRows.length < remainingLimit) {
-        const morningRows = db.prepare(`
-          SELECT st.departure_secs, t.trip_id, t.trip_headsign,
+        const morningQuery = db.prepare(`
+          SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.service_id,
                  r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                  f.operator_name, f.mode as feed_mode, f.id as feed_id,
                  1 as is_tomorrow
@@ -1158,13 +1266,14 @@ export class LinesEngine {
           WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
             AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
             AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
-            AND st.departure_secs < ?
-            AND ${filtroServicosHoje('t', new Date(Date.now() + 24 * 60 * 60 * 1000))}
-            AND st.stop_sequence < (SELECT MAX(st2.stop_sequence) FROM stop_times st2 WHERE st2.trip_id = st.trip_id)
+            AND st.departure_secs BETWEEN 0 AND 14400
+            AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
             AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
           ORDER BY st.departure_secs ASC
-          LIMIT ?
-        `).all(stopId, stopId, rawStopId, currentSecs, stopName, remainingLimit * 2) as typeof rows;
+          LIMIT 60
+        `).all(stopId, stopId, rawStopId, stopName) as typeof yesterdayLateQuery;
+
+        const morningRows = morningQuery.filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeTomorrow));
         combinedRows = combinedRows.concat(morningRows);
       }
 
@@ -1230,10 +1339,17 @@ export class LinesEngine {
       }
     }
 
-    return {
+    const finalResult = {
       stop_id: stopId,
       stop_name: stopName,
       departures,
     };
+
+    stopDeparturesCache.set(cacheKey, {
+      data: finalResult as any,
+      expiresAt: Date.now() + 30000,
+    });
+
+    return finalResult;
   }
 }

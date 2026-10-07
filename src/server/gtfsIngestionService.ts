@@ -1,9 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { FeedItem } from '../types/coverage';
+import { FeedItem, FeedStatus } from '../types/coverage';
 import {
   getDatabase,
   getAllFeeds,
@@ -127,17 +129,18 @@ function timeStringToSeconds(tStr: string): number {
 }
 
 /**
- * Downloads a GTFS zip buffer with automatic fallback to Mobility Database latest mirror.
- * Checks for HTTP error, SSL error, HTML response instead of ZIP, and zip magic signature.
+ * Downloads a GTFS zip directly to disk using streams (ZERO in-memory buffering).
+ * Checks for HTTP error, SSL error, HTML response instead of ZIP, and zip magic signature from disk.
  */
-async function fetchZipBufferWithFallback(
+async function streamZipToFileWithFallback(
   feedId: string,
+  targetFilePath: string,
   primaryUrl: string,
   mirrorUrl?: string | null,
   authKey?: string | null,
   etag?: string | null,
   lastModified?: string | null
-): Promise<{ buffer: Buffer; usedUrl: string; etag?: string; lastModified?: string } | null> {
+): Promise<{ usedUrl: string; bytes: number; etag?: string; lastModified?: string } | null> {
   const tryUrl = async (url: string) => {
     const headers: Record<string, string> = {
       'User-Agent': 'PAROU.PT/2.0 (GTFS Ingestion Engine; Portugal)',
@@ -147,25 +150,45 @@ async function fetchZipBufferWithFallback(
     if (lastModified) headers['If-Modified-Since'] = lastModified;
     if (authKey) headers['Authorization'] = `Bearer ${authKey}`;
 
-    const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(60000) });
+    const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(90000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    const contentType = (res.headers.get('content-type') || '').toLowerCase();
-    const arrayBuffer = await res.arrayBuffer();
-    const buf = Buffer.from(arrayBuffer);
 
-    // Verify it is not an HTML page
-    if (contentType.includes('text/html') || (buf.length > 0 && buf[0] === 0x3c)) {
-      throw new Error(`Servidor devolveu página HTML em vez de ZIP (${buf.length} bytes)`);
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (contentType.includes('text/html')) {
+      throw new Error('Servidor devolveu página HTML em vez de ZIP');
     }
 
-    // Verify ZIP magic header: PK\x03\x04 or PK\x05\x06
-    if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
-      throw new Error(`Ficheiro não é um arquivo ZIP válido (assinatura ${buf.slice(0, 4).toString('hex')})`);
+    if (!res.body) {
+      throw new Error('Corpo da resposta HTTP vazio');
+    }
+
+    // Ensure temp directory exists
+    fs.mkdirSync(path.dirname(targetFilePath), { recursive: true });
+
+    // Stream download directly to file - ZERO in-memory ZIP buffering
+    const fileStream = fs.createWriteStream(targetFilePath);
+    await pipeline(Readable.fromWeb(res.body as any), fileStream);
+
+    const stat = fs.statSync(targetFilePath);
+    if (stat.size < 4) {
+      try { fs.unlinkSync(targetFilePath); } catch {}
+      throw new Error('Ficheiro ZIP descarregado está vazio ou truncado');
+    }
+
+    // Verify ZIP magic header: PK\x03\x04 or PK\x05\x06 on disk without buffering whole file in RAM
+    const fd = fs.openSync(targetFilePath, 'r');
+    const headerBuf = Buffer.alloc(4);
+    fs.readSync(fd, headerBuf, 0, 4, 0);
+    fs.closeSync(fd);
+
+    if (headerBuf[0] !== 0x50 || headerBuf[1] !== 0x4b) {
+      try { fs.unlinkSync(targetFilePath); } catch {}
+      throw new Error(`Ficheiro não é um arquivo ZIP válido (assinatura ${headerBuf.toString('hex')})`);
     }
 
     return {
-      buffer: buf,
       usedUrl: url,
+      bytes: stat.size,
       etag: res.headers.get('etag') || undefined,
       lastModified: res.headers.get('last-modified') || undefined,
     };
@@ -379,16 +402,8 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
   let downloadUrl = feedItem.url;
   const isFlixbus = feedId === 'flixbus_pt';
 
-  // Dynamic daily resolution for STCP and Metro do Porto from Porto Open Data
-  if (feedId === 'stcp') {
-    try {
-      const dynamicUrl = await getLatestStcpGtfsUrl(true);
-      if (dynamicUrl) {
-        downloadUrl = dynamicUrl;
-        feedItem.url = dynamicUrl;
-      }
-    } catch {}
-  } else if (feedId === 'metro_porto') {
+  // Dynamic daily resolution for Metro do Porto from Porto Open Data (STCP usa URL fixo oficial)
+  if (feedId === 'metro_porto') {
     try {
       const dynamicUrl = await getLatestMetroPortoGtfsUrl(true);
       if (dynamicUrl) {
@@ -411,9 +426,10 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
   const extractDir = path.join(TMP_EXTRACTED_DIR, feedId);
 
   try {
-    // Download with automatic mirror fallback
-    const downloadResult = await fetchZipBufferWithFallback(
+    // Download directly to disk via stream (zero memory buffering)
+    const downloadResult = await streamZipToFileWithFallback(
       feedId,
+      zipFilePath,
       downloadUrl,
       feedItem.latest_url,
       feedItem.auth_key,
@@ -437,10 +453,7 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
       return;
     }
 
-    const { buffer, usedUrl, etag, lastModified } = downloadResult;
-    const bytes = buffer.length;
-
-    fs.writeFileSync(zipFilePath, buffer);
+    const { usedUrl, bytes, etag, lastModified } = downloadResult;
 
     logFetch({
       feed_id: feedId,
@@ -449,7 +462,7 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
       bytes,
       duration_ms: Date.now() - startTime,
       timestamp: new Date().toISOString(),
-      message: `Download concluído (${Math.round(bytes / 1024)} KB) via ${usedUrl}`,
+      message: `Download concluído em streaming (${Math.round(bytes / 1024)} KB) via ${usedUrl}`,
     });
 
     updateFeedProgress(feedId, 'parsing', 'A descompactar ZIP...');
@@ -738,13 +751,13 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
     }
 
     const todayStr = getTodayYyyyMmDd();
-    const isExpired = Boolean(validUntil && validUntil.replace(/-/g, '') < todayStr);
-    const finalStatus = isExpired ? 'horário expirado' : 'OK';
+    let isExpired = Boolean(validUntil && validUntil.replace(/-/g, '') < todayStr);
+    let finalStatus: FeedStatus = isExpired ? 'horário expirado' : 'OK';
 
-    const formattedValidUntil = validUntil.length === 8
+    let formattedValidUntil = validUntil.length === 8
       ? `${validUntil.slice(0, 4)}-${validUntil.slice(4, 6)}-${validUntil.slice(6, 8)}`
       : validUntil;
-    const formattedValidFrom = validFrom.length === 8
+    let formattedValidFrom = validFrom.length === 8
       ? `${validFrom.slice(0, 4)}-${validFrom.slice(4, 6)}-${validFrom.slice(6, 8)}`
       : validFrom;
 
@@ -795,91 +808,118 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
   }
 }
 
+let isSequentialIngestionRunning = false;
+
+export function isIngestionRunning(): boolean {
+  return isSequentialIngestionRunning;
+}
+
 /**
- * Sequential Ingestion of All Portuguese Feeds
- * Ingests one operator at a time in the background worker.
- * FlixBus is loaded last.
- * Emits progress: "A carregar dados: X de Y operadores".
+ * Dispara a importação sequencial de todos os feeds registados em segundo plano,
+ * sem bloquear o servidor ou o processamento de pedidos HTTP.
+ */
+export function triggerIngestAll(): void {
+  if (isSequentialIngestionRunning) {
+    console.log('[Ingestion Engine] Ingestão sequencial já em curso.');
+    return;
+  }
+  setImmediate(async () => {
+    try {
+      await ingestAllFeedsSequentially();
+    } catch (err) {
+      console.error('[Ingestion Engine] Erro na execução da ingestão sequencial:', err);
+    }
+  });
+}
+
+export function triggerIngestSingle(feedId: string): void {
+  setImmediate(async () => {
+    try {
+      const feed = getFeedById(feedId);
+      if (feed && feed.feed_type === 'gtfs' && feed.url && feed.url.startsWith('http')) {
+        await ingestGtfsZipFeed(feed);
+      }
+    } catch (err) {
+      console.error(`[Ingestion Engine] Erro ao ingerir feed ${feedId}:`, err);
+    }
+  });
+}
+
+/**
+ * Sequential Ingestion of Registered Portuguese GTFS Feeds
+ * Ingests one operator at a time in the background.
+ * Exclui a Carris Metropolitana (Regra 4: ficheiro demasiado grande).
  */
 export async function ingestAllFeedsSequentially(skipFeedIds?: Set<string>): Promise<void> {
-  console.log('[Ingestion Engine] A iniciar ingestão sequencial de todos os feeds de Portugal...');
+  if (isSequentialIngestionRunning) {
+    console.log('[Ingestion Engine] Ingestão sequencial já em execução, pedido ignorado.');
+    return;
+  }
+  isSequentialIngestionRunning = true;
+  console.log('[Ingestion Engine] A iniciar ingestão sequencial de todos os feeds registados...');
 
-  const allFeeds = getAllFeeds();
+  try {
+    const allFeeds = getAllFeeds();
 
-  // Requirement 5: Carrega os operadores em segundo plano, do ficheiro mais pequeno para o maior
-  const getEstimatedFeedSize = (feed: FeedItem): number => {
-    const id = feed.id.toLowerCase();
-    if (id === 'carris_metropolitana') return 50 * 1024;
-    if (id.includes('transtejo')) return 80 * 1024;
-    if (id === 'metro_porto') return 150 * 1024;
-    if (id === 'fertagus') return 450 * 1024;
-    if (id === 'metro_lisboa') return 850 * 1024;
-    if (id === 'mts') return 900 * 1024;
-    if (id.includes('barreiro') || id.includes('tcb')) return 1024 * 1024;
-    if (id.startsWith('tld-') || id.startsWith('mdb-')) return 1.5 * 1024 * 1024;
-    if (id.includes('tub') || id.includes('smtuc') || id.includes('guima') || id.includes('tuba') || id.includes('mobiave') || id.includes('vamus') || id.includes('faro') || id.includes('giro') || id.includes('tavira') || id.includes('funchal')) return 2.5 * 1024 * 1024;
-    if (id === 'stcp') return 8 * 1024 * 1024;
-    if (id === 'unir') return 16 * 1024 * 1024;
-    if (id === 'cp') return 28 * 1024 * 1024;
-    if (id === 'carris') return 48 * 1024 * 1024;
-    if (id === 'flixbus_pt') return 180 * 1024 * 1024;
-    return 3 * 1024 * 1024;
-  };
+    // Filtra e prioriza os feeds:
+    // 1. Exclui Carris Metropolitana (Regra 4)
+    // 2. Apenas feeds com URL HTTP direto
+    // 3. Prioriza os feeds oficiais: CP, Metro Lisboa, MTS, TCB Barreiro, STCP
+    const priorityIds = ['cp', 'metro_lisboa', 'mts', 'tcb_barreiro', 'stcp'];
+    const candidates = allFeeds.filter(
+      (f) => f.id !== 'carris_metropolitana' && f.url && f.url.startsWith('http')
+    );
 
-  const queue = [...allFeeds].sort((a, b) => getEstimatedFeedSize(a) - getEstimatedFeedSize(b));
-  const total = queue.length;
+    const queue = candidates.sort((a, b) => {
+      const aPrio = priorityIds.indexOf(a.id);
+      const bPrio = priorityIds.indexOf(b.id);
+      if (aPrio !== -1 && bPrio !== -1) return aPrio - bPrio;
+      if (aPrio !== -1) return -1;
+      if (bPrio !== -1) return 1;
+      return (a.operator_name || '').localeCompare(b.operator_name || '');
+    });
 
-  // Initial progress update
-  reportWorkerProgress(0, total, queue[0]?.operator_name || 'Iniciando', queue[0]?.id || '', true);
+    const total = queue.length;
+    reportWorkerProgress(0, total, queue[0]?.operator_name || 'Iniciando', queue[0]?.id || '', true);
 
-  for (let i = 0; i < queue.length; i++) {
-    const f = queue[i];
+    for (let i = 0; i < queue.length; i++) {
+      const f = queue[i];
 
-    if (skipFeedIds && skipFeedIds.has(f.id)) {
-      console.log(`[Ingestion Engine] A ignorar feed já processado/falhado: ${f.id}`);
-      continue;
-    }
-
-    reportWorkerProgress(i, total, f.operator_name, f.id, true);
-
-    try {
-      // Requirement 2: Grava cada operador numa única transação
-      beginFeedTransaction();
-
-      if (f.id === 'stcp') {
-        try {
-          const latestStcpUrl = await getLatestStcpGtfsUrl(true);
-          f.url = latestStcpUrl;
-          f.latest_url = latestStcpUrl;
-        } catch {}
-        await ingestGtfsZipFeed(f);
-      } else if (f.id === 'carris_metropolitana') {
-        await ingestCarrisMetropolitanaApi();
-      } else if (f.id === 'unir') {
-        await ingestUnirQiHoras();
-      } else if (f.feed_type === 'gtfs') {
-        await ingestGtfsZipFeed(f);
+      if (skipFeedIds && skipFeedIds.has(f.id)) {
+        console.log(`[Ingestion Engine] A ignorar feed: ${f.id}`);
+        continue;
       }
 
-      commitFeedTransaction(f.id);
-    } catch (err: any) {
-      // Requirement 2: Se falhar, desfaz só esse operador
-      rollbackFeedTransaction();
-      console.warn(`[Ingestion Engine] Erro ao processar feed ${f.id} (${f.operator_name}):`, err?.message);
-      upsertFeed({
-        ...f,
-        status: 'falhou' as any,
-        progress: `falhou: ${err?.message || 'Erro'}`,
-        last_error: err?.message || 'Erro',
-        last_fetch_at: new Date().toISOString(),
-      });
+      reportWorkerProgress(i, total, f.operator_name, f.id, true);
+
+      try {
+        beginFeedTransaction();
+
+        if (f.feed_type === 'gtfs' || (f.url && f.url.endsWith('.zip'))) {
+          await ingestGtfsZipFeed(f);
+        }
+
+        commitFeedTransaction(f.id);
+      } catch (err: any) {
+        rollbackFeedTransaction();
+        const msg = err?.message || 'Erro inesperado na importação';
+        console.warn(`[Ingestion Engine] Erro ao processar feed ${f.id} (${f.operator_name}):`, msg);
+        upsertFeed({
+          ...f,
+          status: 'ERROR',
+          progress: `ERROR: ${msg}`,
+          last_error: msg,
+          last_fetch_at: new Date().toISOString(),
+        });
+      }
+
+      reportWorkerProgress(i + 1, total, f.operator_name, f.id, i < queue.length - 1);
     }
 
-    reportWorkerProgress(i + 1, total, f.operator_name, f.id, i < queue.length - 1);
+    createDatabaseBackupVacuum();
+    reportWorkerProgress(total, total, 'Concluído', '', false);
+    console.log('[Ingestion Engine] Ingestão sequencial concluída com sucesso.');
+  } finally {
+    isSequentialIngestionRunning = false;
   }
-
-  // Requirement 2: Faz a cópia de segurança (VACUUM INTO) só no fim de todo o carregamento
-  createDatabaseBackupVacuum();
-  reportWorkerProgress(total, total, 'Concluído', '', false);
-  console.log('[Ingestion Engine] Ingestão sequencial concluída com sucesso.');
 }

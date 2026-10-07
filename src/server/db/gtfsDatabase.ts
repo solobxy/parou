@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { FeedItem, FetchLogItem, FeedStatus } from '../../types/coverage';
+import { SEED_FEEDS } from '../gtfsSeedRegistry';
 
 // Cleanup old project data/ db files if they exist
 try {
@@ -27,6 +28,13 @@ if (!fs.existsSync(DATA_DIR)) {
 export const DB_FILE = path.join(DATA_DIR, 'gtfs.db');
 export const DB_BACKUP_FILE = path.join(DATA_DIR, 'gtfs.db.bak');
 export const DB_TMP_FILE = path.join(DATA_DIR, 'gtfs.db.new');
+
+// Limpar qualquer ficheiro .bak residual no arranque para poupar RAM em /tmp (Regra 2)
+try {
+  if (fs.existsSync(DB_BACKUP_FILE)) {
+    fs.unlinkSync(DB_BACKUP_FILE);
+  }
+} catch {}
 
 let dbInstance: DatabaseSync | null = null;
 
@@ -55,15 +63,16 @@ function checkFileIntegrity(filePath: string): boolean {
 }
 
 /**
- * Ensures a valid backup copy is saved whenever the database is healthy and has data.
+ * Não cria cópias de segurança da base em /tmp: no Cloud Run o /tmp ocupa memória RAM.
+ * saveDatabaseBackup não faz nada em produção e apaga o gtfs.db.bak se existir.
  */
 export function saveDatabaseBackup(): void {
   try {
-    if (fs.existsSync(DB_FILE) && checkFileIntegrity(DB_FILE)) {
-      fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
+    if (fs.existsSync(DB_BACKUP_FILE)) {
+      fs.unlinkSync(DB_BACKUP_FILE);
     }
   } catch (err) {
-    console.warn('[SQLite DB] Aviso ao criar cópia de segurança:', err);
+    console.warn('[SQLite DB] Aviso ao remover cópia de segurança residual:', err);
   }
 }
 
@@ -73,11 +82,16 @@ let isUsingBackupFile = false;
 
 /**
  * In the server process, reloads the read-only database connection
- * so that updates committed by the worker are immediately visible.
+ * so that updates committed by parou-dados are immediately visible.
  */
 export function reloadDatabaseConnection(): void {
   if (process.env.IS_WORKER === 'true') return;
   try {
+    // Garante que não há ficheiro .bak residual
+    try {
+      if (fs.existsSync(DB_BACKUP_FILE)) fs.unlinkSync(DB_BACKUP_FILE);
+    } catch {}
+
     let nextDb: DatabaseSync | null = null;
     let nextIsUsingBackup = false;
 
@@ -89,15 +103,6 @@ export function reloadDatabaseConnection(): void {
         try { lastLoadedDbMtime = fs.statSync(DB_FILE).mtimeMs; } catch {}
       } catch (err: any) {
         console.warn('[SQLite DB] Não foi possível abrir nova ligação em gtfs.db, a manter atual:', err?.message || err);
-      }
-    } else if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
-      try {
-        nextDb = new DatabaseSync(DB_BACKUP_FILE, { readOnly: true });
-        nextDb.exec('PRAGMA busy_timeout = 10000;');
-        nextIsUsingBackup = true;
-        lastRetryDbFileTime = Date.now();
-      } catch (err: any) {
-        console.warn('[SQLite DB] Não foi possível abrir ligação em gtfs.db.bak, a manter atual:', err?.message || err);
       }
     }
 
@@ -170,6 +175,13 @@ export function commitWorkerDatabase(feedId?: string): boolean {
  */
 export function createDatabaseBackupVacuum(): void {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      // Em produção não se cria gtfs.db.bak para poupar espaço em disco /tmp
+      if (fs.existsSync(DB_BACKUP_FILE)) {
+        try { fs.unlinkSync(DB_BACKUP_FILE); } catch {}
+      }
+      return;
+    }
     const db = getDatabase();
     if (fs.existsSync(DB_BACKUP_FILE)) {
       try { fs.unlinkSync(DB_BACKUP_FILE); } catch {}
@@ -182,77 +194,15 @@ export function createDatabaseBackupVacuum(): void {
 }
 
 export function getDatabase(): DatabaseSync {
-  const isWorker = process.env.IS_WORKER === 'true';
-
   if (dbInstance) {
     try {
       dbInstance.prepare('SELECT 1').get();
       return dbInstance;
     } catch {
-      // Se a verificação falhar, tenta restabelecer ou mantém a ligação atual
+      // Se a verificação falhar, restabelece ligação
     }
   }
 
-  if (!isWorker) {
-    // SERVER PROCESS (Reader):
-    if (fs.existsSync(DB_FILE) && checkFileIntegrity(DB_FILE)) {
-      try {
-        const nextDb = new DatabaseSync(DB_FILE, { readOnly: true });
-        nextDb.exec('PRAGMA busy_timeout = 10000;');
-        isUsingBackupFile = false;
-        if (dbInstance && dbInstance !== nextDb) {
-          try { dbInstance.close(); } catch {}
-        }
-        dbInstance = nextDb;
-        clearAllCaches();
-        return dbInstance;
-      } catch (err) {
-        console.warn('[SQLite DB] Aviso ao abrir gtfs.db (mantém ligação se existir):', err);
-        if (dbInstance) return dbInstance;
-      }
-    }
-
-    // Fallback to DB_BACKUP_FILE if DB_FILE is missing or corrupt
-    if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
-      try {
-        if (!fs.existsSync(DB_FILE)) {
-          fs.copyFileSync(DB_BACKUP_FILE, DB_FILE);
-        }
-        const nextDb = new DatabaseSync(DB_FILE, { readOnly: true });
-        nextDb.exec('PRAGMA busy_timeout = 10000;');
-        if (dbInstance && dbInstance !== nextDb) {
-          try { dbInstance.close(); } catch {}
-        }
-        dbInstance = nextDb;
-        clearAllCaches();
-        return dbInstance;
-      } catch (err) {
-        console.warn('[SQLite DB] Aviso ao abrir gtfs.db via backup (mantém ligação se existir):', err);
-        if (dbInstance) return dbInstance;
-      }
-    }
-
-    // Se já temos uma ligação aberta, mantém-na e tenta mais tarde
-    if (dbInstance) {
-      return dbInstance;
-    }
-
-    // Fresh server: initialize empty DB_FILE with schema
-    try {
-      const initDb = new DatabaseSync(DB_FILE);
-      initDb.exec('PRAGMA journal_mode = WAL;');
-      initSchema(initDb);
-      initDb.close();
-      dbInstance = new DatabaseSync(DB_FILE, { readOnly: true });
-      dbInstance.exec('PRAGMA busy_timeout = 10000;');
-      return dbInstance;
-    } catch {
-      if (dbInstance) return dbInstance;
-      return new DatabaseSync(':memory:');
-    }
-  }
-
-  // WORKER PROCESS (Writer): Sole writer operates directly on DB_FILE with WAL
   try {
     if (!fs.existsSync(DB_FILE)) {
       if (fs.existsSync(DB_BACKUP_FILE) && checkFileIntegrity(DB_BACKUP_FILE)) {
@@ -266,11 +216,56 @@ export function getDatabase(): DatabaseSync {
     nextDb.exec('PRAGMA synchronous = NORMAL;');
     initSchema(nextDb);
     dbInstance = nextDb;
+    seedFeedsIfEmpty();
     return dbInstance;
   } catch (err: any) {
-    console.warn('[Worker DB] Erro ao abrir gtfs.db (mantém ligação se existir):', err?.message);
+    console.warn('[SQLite DB] Erro ao abrir gtfs.db:', err?.message || err);
     if (dbInstance) return dbInstance;
     throw err;
+  }
+}
+
+/**
+ * Regista todos os feeds oficiais na tabela feeds se a base de dados estiver vazia,
+ * e assegura que os URLs e metadados oficiais dos 5 feeds principais estão sincronizados.
+ */
+export function seedFeedsIfEmpty(): void {
+  try {
+    if (!dbInstance) {
+      // Evita recursão infinita se chamado durante a inicialização
+      return;
+    }
+    const db = dbInstance;
+    const countRow = db.prepare('SELECT COUNT(*) as cnt FROM feeds').get() as { cnt: number } | undefined;
+    const count = Number(countRow?.cnt || 0);
+
+    if (count === 0) {
+      console.log('[SQLite DB] Base de dados sem feeds. A registar feeds oficiais do catálogo...');
+      for (const seed of SEED_FEEDS) {
+        upsertFeed(seed);
+      }
+      console.log(`[SQLite DB] ${SEED_FEEDS.length} feeds registados com sucesso.`);
+    } else {
+      // Sincroniza operadores com URLs oficiais solicitados
+      for (const seed of SEED_FEEDS) {
+        const existing = getFeedById(seed.id);
+        if (!existing) {
+          upsertFeed(seed);
+        } else if (['cp', 'metro_lisboa', 'mts', 'tcb_barreiro', 'stcp', 'carris_metropolitana'].includes(seed.id)) {
+          upsertFeed({
+            ...existing,
+            operator_name: seed.operator_name,
+            url: seed.url,
+            latest_url: seed.latest_url,
+            valid_until: existing.valid_until || seed.valid_until,
+            status: existing.status === 'SEM DADOS' && seed.url ? 'A aguardar' : existing.status,
+            progress: existing.progress,
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[SQLite DB] Erro ao registar feeds oficiais:', err?.message || err);
   }
 }
 
@@ -507,15 +502,75 @@ export function getAppState<T = any>(key: string): T | null {
 // ---------------------------------------------------------------------------
 
 export function getAllFeeds(): FeedItem[] {
-  const db = getDatabase();
-  const stmt = db.prepare('SELECT * FROM feeds ORDER BY operator_name ASC');
-  const rows = stmt.all() as unknown as FeedItem[];
-  return rows.map((r) => ({
-    ...r,
-    lines_count: Number(r.lines_count || 0),
-    stops_count: Number(r.stops_count || 0),
-    trips_count: Number(r.trips_count || 0),
-  }));
+  try {
+    const db = getDatabase();
+    let rows = db.prepare('SELECT * FROM feeds ORDER BY operator_name ASC').all() as unknown as FeedItem[];
+    if (!rows || rows.length === 0) {
+      seedFeedsIfEmpty();
+      rows = db.prepare('SELECT * FROM feeds ORDER BY operator_name ASC').all() as unknown as FeedItem[];
+    }
+    if (rows && rows.length > 0) {
+      return rows.map((r) => ({
+        ...r,
+        lines_count: Number(r.lines_count || 0),
+        stops_count: Number(r.stops_count || 0),
+        trips_count: Number(r.trips_count || 0),
+      }));
+    }
+  } catch (err) {
+    console.warn('[SQLite DB] Erro em getAllFeeds:', err);
+  }
+  return SEED_FEEDS;
+}
+
+export function getFeedCalendarBounds(): Map<string, { firstDay: string | null; lastDay: string | null }> {
+  const map = new Map<string, { firstDay: string | null; lastDay: string | null }>();
+  try {
+    const db = getDatabase();
+    const rows = db.prepare(`
+      SELECT 
+        f.id,
+        cal.min_start as cal_min,
+        cal.max_end as cal_max,
+        cd.min_date as cd_min,
+        cd.max_date as cd_max
+      FROM feeds f
+      LEFT JOIN (
+        SELECT feed_id, MIN(start_date) as min_start, MAX(end_date) as max_end 
+        FROM calendar 
+        GROUP BY feed_id
+      ) cal ON cal.feed_id = f.id
+      LEFT JOIN (
+        SELECT feed_id, MIN(date) as min_date, MAX(date) as max_date 
+        FROM calendar_dates 
+        WHERE exception_type = 1
+        GROUP BY feed_id
+      ) cd ON cd.feed_id = f.id
+    `).all() as any[];
+
+    const formatIso = (d: string) => {
+      const clean = d.replace(/\D/g, '');
+      if (clean.length === 8) {
+        return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
+      }
+      return d;
+    };
+
+    for (const r of rows) {
+      const starts = [r.cal_min, r.cd_min].filter(Boolean).map(String);
+      const ends = [r.cal_max, r.cd_max].filter(Boolean).map(String);
+      const first = starts.length > 0 ? starts.reduce((a, b) => (a < b ? a : b)) : null;
+      const last = ends.length > 0 ? ends.reduce((a, b) => (a > b ? a : b)) : null;
+
+      map.set(r.id, {
+        firstDay: first ? formatIso(first) : null,
+        lastDay: last ? formatIso(last) : null,
+      });
+    }
+  } catch (err) {
+    console.warn('[getFeedCalendarBounds] Erro ao consultar limites:', err);
+  }
+  return map;
 }
 
 export function getFeedById(id: string): FeedItem | null {
@@ -632,28 +687,61 @@ export function updateFeedProgress(id: string, status: FeedStatus, progress: str
 // LOGGING EVERY FETCH (MANDATORY RULE 4)
 // ---------------------------------------------------------------------------
 
+const memoryFetchLogs: FetchLogItem[] = [];
+
 export function logFetch(log: Omit<FetchLogItem, 'id'>): void {
-  const db = getDatabase();
-  const stmt = db.prepare(`
-    INSERT INTO fetch_logs (feed_id, url, http_status, bytes, duration_ms, timestamp, message, error_details)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    log.feed_id,
-    log.url,
-    log.http_status,
-    log.bytes || 0,
-    log.duration_ms || 0,
-    log.timestamp || new Date().toISOString(),
-    log.message || '',
-    log.error_details || null
-  );
+  const memItem: FetchLogItem = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    ...log,
+    bytes: log.bytes || 0,
+    duration_ms: log.duration_ms || 0,
+    timestamp: log.timestamp || new Date().toISOString(),
+    message: log.message || '',
+    error_details: log.error_details || undefined,
+  };
+  memoryFetchLogs.unshift(memItem);
+  if (memoryFetchLogs.length > 500) memoryFetchLogs.pop();
+
+  try {
+    const db = getDatabase();
+    const stmt = db.prepare(`
+      INSERT INTO fetch_logs (feed_id, url, http_status, bytes, duration_ms, timestamp, message, error_details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      log.feed_id,
+      log.url,
+      log.http_status,
+      log.bytes || 0,
+      log.duration_ms || 0,
+      log.timestamp || new Date().toISOString(),
+      log.message || '',
+      log.error_details || null
+    );
+  } catch {
+    // If DB is opened as readOnly (server reader mode), log is safely retained in memoryFetchLogs
+  }
 }
 
 export function getFetchLogs(limit = 100): FetchLogItem[] {
-  const db = getDatabase();
-  const stmt = db.prepare('SELECT * FROM fetch_logs ORDER BY id DESC LIMIT ?');
-  return stmt.all(limit) as unknown as FetchLogItem[];
+  let dbLogs: FetchLogItem[] = [];
+  try {
+    const db = getDatabase();
+    const stmt = db.prepare('SELECT * FROM fetch_logs ORDER BY id DESC LIMIT ?');
+    dbLogs = stmt.all(limit) as unknown as FetchLogItem[];
+  } catch {}
+
+  const combined = [...memoryFetchLogs, ...dbLogs];
+  const seen = new Set<string>();
+  const res: FetchLogItem[] = [];
+  for (const item of combined) {
+    const key = `${item.timestamp}_${item.url}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      res.push(item);
+    }
+  }
+  return res.slice(0, limit);
 }
 
 // ---------------------------------------------------------------------------
@@ -1132,8 +1220,9 @@ export function queryDeparturesForStop(
         AND st.departure_secs >= ?
         AND st.departure_secs <= ?
         AND t.service_id IN (${placeholders})
+        AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
       ORDER BY st.departure_secs ASC
-      LIMIT 100
+      LIMIT 60
     `;
 
     return db.prepare(query).all(

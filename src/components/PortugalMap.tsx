@@ -1,23 +1,40 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import L from 'leaflet';
 import { 
   ZoomIn, 
   ZoomOut, 
   RotateCcw, 
   Maximize2, 
   Minimize2, 
-  Radio, 
-  MapPin, 
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  Flame,
-  Layers
+  X
 } from 'lucide-react';
 import { Occurrence, SeverityLevel } from '../types';
-import { ACCURATE_PORTUGAL_DISTRICTS, DistrictPolygon } from '../data/portugalDistrictsGeo';
+import { ACCURATE_PORTUGAL_DISTRICTS } from '../data/portugalDistrictsGeo';
 import { normalizeGeoString } from '../utils/mapClustering';
 import { ClusterDetailModal } from './ClusterDetailModal';
-import { FavoriteButton } from './FavoriteButton';
+
+export const PORTUGAL_DISTRICT_LOCATIONS: Record<string, { lat: number; lon: number; code: string; name: string }> = {
+  viseu: { lat: 40.6575, lon: -7.9143, code: 'VIS', name: 'Viseu' },
+  santarem: { lat: 39.2369, lon: -8.6855, code: 'SAN', name: 'Santarém' },
+  evora: { lat: 38.5714, lon: -7.9070, code: 'EVO', name: 'Évora' },
+  lisboa: { lat: 38.7223, lon: -9.1393, code: 'LIS', name: 'Lisboa' },
+  beja: { lat: 38.0151, lon: -7.8632, code: 'BEJ', name: 'Beja' },
+  faro: { lat: 37.0194, lon: -7.9322, code: 'FAR', name: 'Faro' },
+  setubal: { lat: 38.5244, lon: -8.8882, code: 'SET', name: 'Setúbal' },
+  portalegre: { lat: 39.2938, lon: -7.4312, code: 'PTG', name: 'Portalegre' },
+  castelobranco: { lat: 39.8222, lon: -7.4932, code: 'CTB', name: 'Castelo Branco' },
+  guarda: { lat: 40.5373, lon: -7.2658, code: 'GUA', name: 'Guarda' },
+  coimbra: { lat: 40.2033, lon: -8.4103, code: 'COI', name: 'Coimbra' },
+  aveiro: { lat: 40.6405, lon: -8.6538, code: 'AVE', name: 'Aveiro' },
+  leiria: { lat: 39.7438, lon: -8.8078, code: 'LEI', name: 'Leiria' },
+  porto: { lat: 41.1579, lon: -8.6291, code: 'POR', name: 'Porto' },
+  braga: { lat: 41.5454, lon: -8.4265, code: 'BRA', name: 'Braga' },
+  vianadocastelo: { lat: 41.6932, lon: -8.8329, code: 'VCT', name: 'Viana do Castelo' },
+  vilareal: { lat: 41.3006, lon: -7.7441, code: 'VRL', name: 'Vila Real' },
+  braganca: { lat: 41.8058, lon: -6.7572, code: 'BGC', name: 'Bragança' },
+  madeira: { lat: 32.6500, lon: -16.9089, code: 'MAD', name: 'Madeira' },
+  acores: { lat: 37.7412, lon: -25.6756, code: 'ACO', name: 'Açores' },
+};
 
 interface PortugalMapProps {
   selectedDistrict: string | null;
@@ -40,16 +57,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   onSelectOccurrence,
   className = '',
 }) => {
-  // Navigation & Zoom / Pan State
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [activeArchipelago, setActiveArchipelago] = useState<'continental' | 'madeira' | 'acores' | 'tudo'>('continental');
-  
-  // Interactive layers & modes
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(6);
+
   const [activeModalDistrict, setActiveModalDistrict] = useState<{
     id: string;
     name: string;
@@ -61,646 +72,468 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     dominantSeverity: SeverityLevel;
   } | null>(null);
 
-  // Touch pinch-to-zoom inside the map canvas
-  const touchDistanceRef = useRef<number | null>(null);
-  const initialZoomRef = useRef<number>(1);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const districtMarkersRef = useRef<L.Marker[]>([]);
+  const occurrenceMarkersRef = useRef<L.Marker[]>([]);
 
-  // Compute occurrences & stats per district
+  // Agrupamento de ocorrências por distrito
   const districtStats = useMemo(() => {
     const stats: Record<string, {
+      id: string;
+      name: string;
+      code: string;
       totalCount: number;
       graveCount: number;
       moderadaCount: number;
       infoCount: number;
       dominantSeverity: SeverityLevel;
       occurrences: Occurrence[];
+      lat: number;
+      lon: number;
     }> = {};
 
-    for (const dist of ACCURATE_PORTUGAL_DISTRICTS) {
-      const normDistName = normalizeGeoString(dist.name);
-      const normDistId = normalizeGeoString(dist.id);
-
-      const matching = occurrences.filter((occ) => {
-        if (occ.status === 'Ocultada') return false;
-        const occDist = normalizeGeoString(occ.district || '');
-        const occConcelho = normalizeGeoString(occ.concelho || '');
-        const occLoc = normalizeGeoString(occ.locationDetails || '');
-        return (
-          occDist === normDistName ||
-          occDist === normDistId ||
-          occConcelho === normDistName ||
-          occLoc.includes(normDistName)
-        );
-      });
-
-      // Use explicit districtCounts from backend or matching occurrences count
-      let count = matching.length;
-      if (districtCounts && districtCounts[normDistName] !== undefined) {
-        count = Math.max(districtCounts[normDistName], count);
-      }
-
-      const graveCount = matching.filter((o) => o.severity === 'Grave').length;
-      const moderadaCount = matching.filter((o) => o.severity === 'Moderada').length;
-      const infoCount = matching.filter((o) => o.severity === 'Informação').length;
-
-      let dominantSeverity: SeverityLevel = 'Informação';
-      if (graveCount > 0) dominantSeverity = 'Grave';
-      else if (moderadaCount > 0) dominantSeverity = 'Moderada';
-
-      stats[dist.id] = {
-        totalCount: count,
-        graveCount,
-        moderadaCount,
-        infoCount,
-        dominantSeverity,
-        occurrences: matching,
+    ACCURATE_PORTUGAL_DISTRICTS.forEach((d) => {
+      const loc = PORTUGAL_DISTRICT_LOCATIONS[d.id] || {
+        lat: 39.5,
+        lon: -8.0,
+        code: d.code || d.id.slice(0, 3).toUpperCase(),
+        name: d.name,
       };
+
+      stats[d.id] = {
+        id: d.id,
+        name: d.name,
+        code: loc.code,
+        totalCount: 0,
+        graveCount: 0,
+        moderadaCount: 0,
+        infoCount: 0,
+        dominantSeverity: 'Informação',
+        occurrences: [],
+        lat: loc.lat,
+        lon: loc.lon,
+      };
+    });
+
+    occurrences.forEach((occ) => {
+      const normalizedOccDistrict = normalizeGeoString(occ.district || '');
+      const matched = ACCURATE_PORTUGAL_DISTRICTS.find(
+        (d) => normalizeGeoString(d.name) === normalizedOccDistrict || d.id === normalizedOccDistrict
+      );
+
+      if (matched && stats[matched.id]) {
+        stats[matched.id].totalCount += 1;
+        stats[matched.id].occurrences.push(occ);
+
+        if (occ.severity === 'Grave') {
+          stats[matched.id].graveCount += 1;
+          stats[matched.id].dominantSeverity = 'Grave';
+        } else if (occ.severity === 'Moderada') {
+          stats[matched.id].moderadaCount += 1;
+          if (stats[matched.id].dominantSeverity !== 'Grave') {
+            stats[matched.id].dominantSeverity = 'Moderada';
+          }
+        } else {
+          stats[matched.id].infoCount += 1;
+        }
+      }
+    });
+
+    if (districtCounts) {
+      Object.entries(districtCounts).forEach(([name, count]) => {
+        const matched = ACCURATE_PORTUGAL_DISTRICTS.find(
+          (d) => normalizeGeoString(d.name) === normalizeGeoString(name)
+        );
+        if (matched && stats[matched.id]) {
+          stats[matched.id].totalCount = Math.max(stats[matched.id].totalCount, count);
+        }
+      });
     }
 
     return stats;
   }, [occurrences, districtCounts]);
 
-  // Overall counts
-  const totalReports = useMemo(() => {
-    return occurrences.filter((o) => o.status !== 'Ocultada').length;
-  }, [occurrences]);
+  // Inicializar Leaflet com Mosaicos Raster OpenStreetMap
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
 
-  const severeReports = useMemo(() => {
-    return occurrences.filter((o) => o.status !== 'Ocultada' && o.severity === 'Grave').length;
-  }, [occurrences]);
-
-  // Dynamic geographic bounds (maxBounds) to keep Portugal always in the screen
-  // Prevents dragging into the void on mobile, tablet, and PC
-  const getMaxBounds = (zoom: number) => {
-    const el = containerRef.current;
-    const w = el ? el.clientWidth : 500;
-    const h = el ? el.clientHeight : 550;
-
-    // Base boundary allowance at zoom = 1 (approx 18% of dimension)
-    // Ensures Portugal cannot be dragged out of sight
-    const baseMarginX = w * 0.18;
-    const baseMarginY = h * 0.20;
-
-    // As zoom expands up to 2.5x, allow navigating across all districts proportional to zoom
-    const zoomExpansionX = Math.max(0, (zoom - 1) * (w * 0.42));
-    const zoomExpansionY = Math.max(0, (zoom - 1) * (h * 0.45));
-
-    const limitX = Math.max(50, baseMarginX + zoomExpansionX);
-    const limitY = Math.max(60, baseMarginY + zoomExpansionY);
-
-    return {
-      minX: -limitX,
-      maxX: limitX,
-      minY: -limitY,
-      maxY: limitY,
-    };
-  };
-
-  // Clamps raw offset with soft resistance (rubber-band) when reaching boundaries
-  // Instead of an abrupt lock or dragging into the void, it stops smoothly with progressive resistance
-  const applySoftResistance = (val: number, min: number, max: number): number => {
-    if (val < min) {
-      const diff = min - val;
-      const resisted = 32 * (1 - Math.exp(-diff / 40));
-      return min - resisted;
-    }
-    if (val > max) {
-      const diff = val - max;
-      const resisted = 32 * (1 - Math.exp(-diff / 40));
-      return max + resisted;
-    }
-    return val;
-  };
-
-  // Constrains position strictly to bounds (used on release/zoom changes)
-  const clampToBounds = (x: number, y: number, zoom: number) => {
-    const bounds = getMaxBounds(zoom);
-    return {
-      x: Math.max(bounds.minX, Math.min(bounds.maxX, x)),
-      y: Math.max(bounds.minY, Math.min(bounds.maxY, y)),
-    };
-  };
-
-  // Zoom handlers with boundary clamping
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => {
-      const next = Math.min(prev + 0.3, 2.5);
-      setPanOffset((cur) => clampToBounds(cur.x, cur.y, next));
-      return next;
+    const map = L.map(containerRef.current, {
+      center: [39.5, -8.2245],
+      zoom: 6,
+      minZoom: 4,
+      maxZoom: 19,
+      zoomControl: false,
+      attributionControl: false,
     });
+
+    // Mosaicos raster do OpenStreetMap (maxZoom 19)
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap',
+    }).addTo(map);
+
+    // Filtro CSS aplicado estritamente ao painel de mosaicos (não aos marcadores)
+    const tilePane = map.getPane('tilePane');
+    if (tilePane) {
+      tilePane.style.filter = 'grayscale(1) brightness(1.06) contrast(0.92)';
+      tilePane.style.webkitFilter = 'grayscale(1) brightness(1.06) contrast(0.92)';
+    }
+
+    // Atribuição oficial
+    L.control.attribution({
+      prefix: false,
+      position: 'bottomright',
+    }).addTo(map);
+
+    map.on('zoomend', () => {
+      setCurrentZoom(map.getZoom());
+    });
+
+    mapRef.current = map;
+
+    // ResizeObserver para garantir redimensionamento fluido
+    let ro: ResizeObserver | null = null;
+    if (containerRef.current) {
+      ro = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      districtMarkersRef.current.forEach((m) => m.remove());
+      districtMarkersRef.current = [];
+      occurrenceMarkersRef.current.forEach((m) => m.remove());
+      occurrenceMarkersRef.current = [];
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // Mudar de Arquipélago
+  const handleArchipelagoChange = (arch: 'continental' | 'madeira' | 'acores' | 'tudo') => {
+    setActiveArchipelago(arch);
+    onSelectDistrict(null);
+    if (!mapRef.current) return;
+
+    if (arch === 'continental') {
+      mapRef.current.flyTo([39.5, -8.2245], 6.3);
+    } else if (arch === 'madeira') {
+      mapRef.current.flyTo([32.75, -16.95], 9.5);
+    } else if (arch === 'acores') {
+      mapRef.current.flyTo([37.74, -25.67], 7.8);
+    } else if (arch === 'tudo') {
+      mapRef.current.flyTo([37.5, -17.0], 5.0);
+    }
+  };
+
+  const handleZoomIn = () => {
+    mapRef.current?.zoomIn();
   };
 
   const handleZoomOut = () => {
-    setZoomLevel((prev) => {
-      const next = Math.max(prev - 0.3, 0.85);
-      setPanOffset((cur) => clampToBounds(cur.x, cur.y, next));
-      return next;
-    });
+    mapRef.current?.zoomOut();
   };
 
   const handleResetZoom = () => {
-    setZoomLevel(1);
-    setPanOffset({ x: 0, y: 0 });
     onSelectDistrict(null);
+    handleArchipelagoChange('continental');
   };
 
-  const handleArchipelagoChange = (arch: 'continental' | 'madeira' | 'acores' | 'tudo') => {
-    setActiveArchipelago(arch);
-    setZoomLevel(1);
-    setPanOffset({ x: 0, y: 0 });
-    onSelectDistrict(null);
-  };
+  // Voar até ao distrito selecionado externamente
+  useEffect(() => {
+    if (!mapRef.current || !selectedDistrict) return;
+    const normalized = normalizeGeoString(selectedDistrict);
+    const matched = Object.values(PORTUGAL_DISTRICT_LOCATIONS).find(
+      (loc) => normalizeGeoString(loc.name) === normalized
+    );
+    if (matched) {
+      mapRef.current.flyTo([matched.lat, matched.lon], 9);
+    }
+  }, [selectedDistrict]);
 
-  // Drag pan handlers (for mouse and touch) with boundary limits
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
-  };
+  // Renderizar Marcadores de Distritos e Ocorrências
+  useEffect(() => {
+    if (!mapRef.current) return;
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const rawX = e.clientX - dragStart.x;
-    const rawY = e.clientY - dragStart.y;
-    const bounds = getMaxBounds(zoomLevel);
-    setPanOffset({
-      x: applySoftResistance(rawX, bounds.minX, bounds.maxX),
-      y: applySoftResistance(rawY, bounds.minY, bounds.maxY),
-    });
-  };
+    // Limpar marcadores anteriores
+    districtMarkersRef.current.forEach((m) => m.remove());
+    districtMarkersRef.current = [];
+    occurrenceMarkersRef.current.forEach((m) => m.remove());
+    occurrenceMarkersRef.current = [];
 
-  const handleReleaseDrag = () => {
-    if (!isDragging && touchDistanceRef.current === null) return;
-    setIsDragging(false);
-    touchDistanceRef.current = null;
-    // Snap gently back if dragged into the soft resistance boundary
-    setPanOffset((cur) => clampToBounds(cur.x, cur.y, zoomLevel));
-  };
+    const isZoomedIn = currentZoom >= 8.2;
+    const showDistricts = activeViewMode === 'distritos' && !isZoomedIn;
 
-  // Touch handlers: 1 finger = pan map, 2 fingers = pinch-to-zoom inside map
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      setIsDragging(true);
-      setDragStart({
-        x: e.touches[0].clientX - panOffset.x,
-        y: e.touches[0].clientY - panOffset.y,
+    // 1. Marcadores de Distrito (em zoom afastado ou modo distritos)
+    if (showDistricts) {
+      Object.values(districtStats).forEach((stats) => {
+        const isSelected = selectedDistrict?.toLowerCase() === stats.name.toLowerCase();
+        const hasGrave = stats.graveCount > 0;
+        const hasMod = stats.moderadaCount > 0;
+        const hasAlerts = stats.totalCount > 0;
+
+        let badgeBg = '#FFFFFF';
+        let badgeText = '#111111';
+        let borderClass = 'border-[#111111]';
+
+        if (hasGrave) {
+          badgeBg = '#D92D20';
+          badgeText = '#FFFFFF';
+          borderClass = 'border-[#D92D20] ring-4 ring-[#D92D20]/20';
+        } else if (hasMod) {
+          badgeBg = '#FF6B1A';
+          badgeText = '#111111';
+          borderClass = 'border-[#FF6B1A] ring-2 ring-[#FF6B1A]/20';
+        } else if (hasAlerts) {
+          badgeBg = '#111111';
+          badgeText = '#FFFFFF';
+          borderClass = 'border-[#111111]';
+        }
+
+        const icon = L.divIcon({
+          className: 'custom-district-badge-icon',
+          html: `
+            <div style="background-color: ${badgeBg}; color: ${badgeText};" class="px-2 py-1 rounded-[6px] border ${borderClass} shadow-md flex items-center gap-1.5 font-['Barlow_Condensed'] font-bold text-xs min-w-[38px] justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${isSelected ? 'ring-2 ring-black scale-110' : ''}">
+              <span>${stats.code}</span>
+              ${stats.totalCount > 0 ? `<span class="px-1 py-0.2 rounded bg-black/15 text-[11px] leading-tight tabular-nums">${stats.totalCount}</span>` : ''}
+            </div>
+          `,
+          iconSize: [44, 26],
+          iconAnchor: [22, 13],
+        });
+
+        const marker = L.marker([stats.lat, stats.lon], { icon }).addTo(mapRef.current!);
+        marker.on('click', () => {
+          onSelectDistrict(stats.name);
+          mapRef.current?.flyTo([stats.lat, stats.lon], 9);
+
+          if (stats.occurrences.length > 0) {
+            setActiveModalDistrict({
+              id: stats.id,
+              name: stats.name,
+              occurrences: stats.occurrences,
+              totalCount: stats.totalCount,
+              graveCount: stats.graveCount,
+              moderadaCount: stats.moderadaCount,
+              infoCount: stats.infoCount,
+              dominantSeverity: stats.dominantSeverity,
+            });
+          }
+        });
+
+        districtMarkersRef.current.push(marker);
       });
-      touchDistanceRef.current = null;
-    } else if (e.touches.length === 2) {
-      setIsDragging(false);
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      touchDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
-      initialZoomRef.current = zoomLevel;
     }
-  };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 1 && isDragging) {
-      const rawX = e.touches[0].clientX - dragStart.x;
-      const rawY = e.touches[0].clientY - dragStart.y;
-      const bounds = getMaxBounds(zoomLevel);
-      setPanOffset({
-        x: applySoftResistance(rawX, bounds.minX, bounds.maxX),
-        y: applySoftResistance(rawY, bounds.minY, bounds.maxY),
+    // 2. Marcadores Individuais de Ocorrências (em zoom aproximado ou modos concelhos/cidades)
+    if (!showDistricts || isZoomedIn) {
+      occurrences.forEach((occ, idx) => {
+        const occDistrictNorm = normalizeGeoString(occ.district || '');
+        const matchedLoc = Object.values(PORTUGAL_DISTRICT_LOCATIONS).find(
+          (loc) => normalizeGeoString(loc.name) === occDistrictNorm
+        ) || { lat: 39.5, lon: -8.0 };
+
+        // Deslocamento determinístico para espalhar os alertas dentro da área
+        const hash = (occ.id || `occ-${idx}`).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const angle = (hash % 360) * (Math.PI / 180);
+        const radius = 0.04 + ((hash % 100) / 100) * 0.12;
+
+        const occLat = matchedLoc.lat + Math.sin(angle) * radius;
+        const occLon = matchedLoc.lon + Math.cos(angle) * radius * 1.2;
+
+        const isGrave = occ.severity === 'Grave';
+        const isMod = occ.severity === 'Moderada';
+        const pinColor = isGrave ? '#D92D20' : isMod ? '#FF6B1A' : '#111111';
+        const pinTextColor = isGrave || !isMod ? '#FFFFFF' : '#111111';
+
+        const icon = L.divIcon({
+          className: 'custom-occurrence-pin-icon',
+          html: `
+            <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125">
+              ${isGrave ? '<div class="w-7 h-7 rounded-full bg-[#D92D20]/30 animate-ping absolute"></div>' : ''}
+              <div style="background-color: ${pinColor}; color: ${pinTextColor}; border: 2px solid #FFFFFF; box-shadow: 0 3px 8px rgba(0,0,0,0.3);" class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold">
+                ${isGrave ? '!' : isMod ? '▲' : '•'}
+              </div>
+            </div>
+          `,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        });
+
+        const marker = L.marker([occLat, occLon], { icon }).addTo(mapRef.current!);
+        marker.on('click', () => {
+          if (onSelectOccurrence) {
+            onSelectOccurrence(occ);
+          }
+        });
+
+        occurrenceMarkersRef.current.push(marker);
       });
-    } else if (e.touches.length === 2 && touchDistanceRef.current !== null) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const newDistance = Math.sqrt(dx * dx + dy * dy);
-      const scale = newDistance / touchDistanceRef.current;
-      const newZoom = Math.min(Math.max(initialZoomRef.current * scale, 0.85), 2.5);
-      setZoomLevel(newZoom);
-      setPanOffset((cur) => clampToBounds(cur.x, cur.y, newZoom));
     }
-  };
+  }, [occurrences, districtStats, currentZoom, activeViewMode, selectedDistrict, onSelectDistrict, onSelectOccurrence]);
 
-  // Wheel zoom with boundary clamping
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.15 : -0.15;
-    setZoomLevel((prev) => {
-      const next = Math.min(Math.max(prev + delta, 0.85), 2.5);
-      setPanOffset((cur) => clampToBounds(cur.x, cur.y, next));
-      return next;
-    });
-  };
-
-  // Get Choropleth Fill Color for district polygon
-  const getDistrictFill = (distId: string, isHovered: boolean, isSelected: boolean) => {
-    if (isSelected) {
-      return '#3b82f6';
-    }
-
-    const data = districtStats[distId] || {
-      totalCount: 0,
-      graveCount: 0,
-      moderadaCount: 0,
-    };
-
-    const { totalCount, graveCount, moderadaCount } = data;
-
-    if (totalCount === 0) {
-      return isHovered ? '#1e293b' : '#0b1329';
-    }
-
-    // High Severity: Red
-    if (graveCount > 0) {
-      if (graveCount >= 5 || totalCount >= 20) {
-        return isHovered ? '#f87171' : '#dc2626';
-      }
-      if (graveCount >= 2 || totalCount >= 8) {
-        return isHovered ? '#ef4444' : '#b91c1c';
-      }
-      return isHovered ? '#dc2626' : '#991b1b';
-    }
-
-    // Moderate Severity: Amber / Orange
-    if (moderadaCount > 0) {
-      if (moderadaCount >= 4 || totalCount >= 10) {
-        return isHovered ? '#fb923c' : '#ea580c';
-      }
-      return isHovered ? '#f59e0b' : '#c2410c';
-    }
-
-    // Information / Low Severity: Blue
-    if (totalCount >= 5) {
-      return isHovered ? '#60a5fa' : '#2563eb';
-    }
-    return isHovered ? '#3b82f6' : '#1d4ed8';
-  };
-
-  // ViewBox according to active archipelago tab
-  const activeViewBox = useMemo(() => {
-    switch (activeArchipelago) {
-      case 'madeira':
-        return '66 345 40 22';
-      case 'acores':
-        return '12 276 48 52';
-      case 'tudo':
-        return '0 0 250 367';
-      case 'continental':
-      default:
-        // Geographically accurate mainland bounding box
-        return '70 0 180 367';
-    }
-  }, [activeArchipelago]);
-
-  // Handle clicking a district
-  const handleDistrictClick = (district: DistrictPolygon) => {
-    const isCurrentlySelected = selectedDistrict?.toLowerCase() === district.name.toLowerCase();
-    onSelectDistrict(isCurrentlySelected ? null : district.name);
-
-    const stats = districtStats[district.id] || {
-      totalCount: 0,
-      graveCount: 0,
-      moderadaCount: 0,
-      infoCount: 0,
-      dominantSeverity: 'Informação' as SeverityLevel,
-      occurrences: [],
-    };
-
-    setActiveModalDistrict({
-      id: district.id,
-      name: district.name,
-      ...stats,
-    });
-  };
+  const totalOccurrencesCount = occurrences.length;
 
   return (
     <>
       <div 
-        className={`relative w-full rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0a101d] via-[#060a14] to-[#03060c] border border-slate-800 flex flex-col overflow-hidden shadow-2xl backdrop-blur-md transition-all duration-300 ${
+        className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] flex flex-col relative overflow-hidden transition-all duration-300 ${
           isFullscreen 
-            ? 'fixed inset-2 sm:inset-6 z-50 h-[calc(100vh-1rem)] sm:h-[calc(100vh-3rem)]' 
-            : 'h-[390px] sm:h-[480px] md:h-[550px] lg:h-[640px] xl:h-[680px]'
+            ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' 
+            : 'h-[460px] sm:h-[520px] md:h-[580px] w-full'
         } ${className}`}
       >
-        {/* Top Control Bar */}
-        <div className="z-20 p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md">
-          {/* View Mode Switcher */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-900 rounded-xl border border-slate-800">
-            <button
-              onClick={() => onViewModeChange('distritos')}
-              className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                activeViewMode === 'distritos'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Distritos
-            </button>
-            <button
-              onClick={() => onViewModeChange('concelhos')}
-              className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                activeViewMode === 'concelhos'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Concelhos
-            </button>
-            <button
-              onClick={() => onViewModeChange('cidades')}
-              className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                activeViewMode === 'cidades'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Cidades
-            </button>
-          </div>
-
-          {/* Archipelago Selector & Fullscreen */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-0.5 p-0.5 bg-slate-900 rounded-xl border border-slate-800 text-[10px] sm:text-xs">
-              <button
-                onClick={() => handleArchipelagoChange('continental')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeArchipelago === 'continental'
-                    ? 'bg-slate-800 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Continente
-              </button>
-              <button
-                onClick={() => handleArchipelagoChange('madeira')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeArchipelago === 'madeira'
-                    ? 'bg-slate-800 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Madeira
-              </button>
-              <button
-                onClick={() => handleArchipelagoChange('acores')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeArchipelago === 'acores'
-                    ? 'bg-slate-800 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Açores
-              </button>
-              <button
-                onClick={() => handleArchipelagoChange('tudo')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer hidden md:inline-block ${
-                  activeArchipelago === 'tudo'
-                    ? 'bg-slate-800 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Tudo
-              </button>
-            </div>
-
-            {/* Fullscreen Toggle */}
-            <button
-              onClick={() => setIsFullscreen((prev) => !prev)}
-              title={isFullscreen ? 'Minimizar mapa' : 'Expandir mapa em ecrã inteiro'}
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors cursor-pointer"
-            >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Live Synchronisation Bar & Choropleth Legend */}
-        <div className="z-20 px-3 py-1.5 bg-slate-950/50 border-b border-slate-800/50 flex items-center justify-between text-[11px] text-slate-400">
+        {/* Top Header & Toolbar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-2.5 z-10 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            <span className="font-['Barlow_Condensed'] text-sm font-bold text-[#111111] uppercase tracking-wide">
+              Mapa de Ocorrências
             </span>
-            <span className="text-emerald-400 font-bold uppercase tracking-wider text-[10px]">
-              Tempo Real
+            <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#111111] font-['Barlow_Condensed'] text-xs font-bold tabular-nums">
+              {totalOccurrencesCount} {totalOccurrencesCount === 1 ? 'ativa' : 'ativas'}
             </span>
-            <span className="text-slate-500 hidden sm:inline">·</span>
-            <span className="hidden sm:inline text-slate-300">
-              {totalReports} ocorrências ativas
-            </span>
-            {severeReports > 0 && (
-              <span className="px-1.5 py-0.2 rounded-md bg-red-950/80 text-red-300 border border-red-700/60 font-bold text-[10px]">
-                {severeReports} graves
+            {selectedDistrict && (
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-[#FF6B1A] text-[#111111] rounded-[4px] text-xs font-bold brand-chamfer">
+                <span>{selectedDistrict}</span>
+                <button 
+                  onClick={() => onSelectDistrict(null)}
+                  className="hover:opacity-75 cursor-pointer ml-0.5"
+                  aria-label="Limpar distrito selecionado"
+                >
+                  <X className="w-3 h-3 stroke-[2]" />
+                </button>
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-400 hidden xs:inline">
-              Toque num distrito para ver ocorrências
-            </span>
-            {selectedDistrict && (
-              <div className="flex items-center gap-1.5">
-                <FavoriteButton
-                  item={{
-                    id: `local-distrito-${selectedDistrict.toLowerCase().replace(/\s+/g, '-')}`,
-                    type: 'local',
-                    category: 'locais',
-                    title: `Distrito de ${selectedDistrict}`,
-                    subtitle: 'Distrito selecionado no Mapa de Portugal',
-                    locality: selectedDistrict,
-                    district: selectedDistrict,
-                  }}
-                  size="sm"
-                />
+          {/* Mode & Region Controls */}
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
+            {/* View Mode */}
+            <div className="flex items-center bg-[#F4F4F2] rounded-[6px] p-0.5 border border-[#E6E6E3]">
+              {(['distritos', 'concelhos', 'cidades'] as const).map((mode) => (
                 <button
-                  onClick={() => onSelectDistrict(null)}
-                  className="text-blue-400 hover:text-blue-300 font-semibold underline text-[11px] cursor-pointer"
+                  key={mode}
+                  onClick={() => onViewModeChange(mode)}
+                  className={`px-2 py-1 rounded-[4px] text-xs font-medium capitalize transition-colors cursor-pointer min-h-[32px] ${
+                    activeViewMode === mode
+                      ? 'bg-[#FFFFFF] text-[#111111] font-bold shadow-xs'
+                      : 'text-[#6B6B6B] hover:text-[#111111]'
+                  }`}
                 >
-                  Limpar ({selectedDistrict})
+                  {mode}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
+
+            {/* Archipelago Switcher */}
+            <div className="flex items-center bg-[#F4F4F2] rounded-[6px] p-0.5 border border-[#E6E6E3]">
+              {(['continental', 'madeira', 'acores', 'tudo'] as const).map((arch) => (
+                <button
+                  key={arch}
+                  onClick={() => handleArchipelagoChange(arch)}
+                  className={`px-2 py-1 rounded-[4px] text-xs font-medium capitalize transition-colors cursor-pointer min-h-[32px] ${
+                    activeArchipelago === arch
+                      ? 'bg-[#FFFFFF] text-[#111111] font-bold shadow-xs'
+                      : 'text-[#6B6B6B] hover:text-[#111111]'
+                  }`}
+                >
+                  {arch === 'acores' ? 'Açores' : arch}
+                </button>
+              ))}
+            </div>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={() => {
+                setIsFullscreen(!isFullscreen);
+                setTimeout(() => mapRef.current?.invalidateSize(), 150);
+              }}
+              className="p-1.5 rounded-[6px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] transition-colors cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+              title={isFullscreen ? 'Sair de ecrã inteiro' : 'Ecrã inteiro'}
+              aria-label="Ecrã inteiro"
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 stroke-[2]" /> : <Maximize2 className="w-3.5 h-3.5 stroke-[2]" />}
+            </button>
           </div>
         </div>
 
-        {/* Interactive SVG Canvas */}
-        <div 
-          ref={containerRef}
-          className="map-canvas-container relative flex-1 w-full h-full flex items-center justify-center overflow-hidden select-none cursor-grab active:cursor-grabbing touch-none"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleReleaseDrag}
-          onMouseLeave={handleReleaseDrag}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleReleaseDrag}
-          onWheel={handleWheel}
-        >
-          {/* Subtle Radar Grid */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px]" />
+        {/* Map Container (OpenStreetMap Raster Tiles filtrados em grayscale neutro) */}
+        <div className="relative flex-1 w-full h-full bg-[#F4F4F2] overflow-hidden">
+          <div 
+            ref={containerRef}
+            className="absolute inset-0 w-full h-full"
+          />
 
-          {/* SVG Container with hardware accelerated transform and smooth spring stop at bounds */}
-          <div
-            className="relative w-full h-full flex items-center justify-center origin-center pointer-events-auto"
-            style={{ 
-              transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
-              transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.16, 1, 0.3, 1)',
-              willChange: 'transform',
-            }}
-          >
-            <svg
-              viewBox={activeViewBox}
-              className="w-full h-full max-h-[350px] sm:max-h-[440px] md:max-h-[520px] lg:max-h-[640px] drop-shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              {/* Geographically Accurate District Polygons */}
-              <g id="portugal-districts-accurate">
-                {ACCURATE_PORTUGAL_DISTRICTS.map((dist) => {
-                  const isHovered = hoveredDistrictId === dist.id;
-                  const isSelected = selectedDistrict?.toLowerCase() === dist.name.toLowerCase();
-                  const stats = districtStats[dist.id] || { totalCount: 0, graveCount: 0, moderadaCount: 0 };
-                  const fillColor = getDistrictFill(dist.id, isHovered, isSelected);
-
-                  return (
-                    <g 
-                      key={dist.id} 
-                      className="cursor-pointer group"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDistrictClick(dist);
-                      }}
-                      onMouseEnter={() => setHoveredDistrictId(dist.id)}
-                      onMouseLeave={() => setHoveredDistrictId(null)}
-                    >
-                      {/* Entire District Painted Polygon */}
-                      <path
-                        d={dist.d}
-                        fill={fillColor}
-                        stroke="#ffffff"
-                        strokeWidth={isSelected ? '1.8' : isHovered ? '1.4' : '0.85'}
-                        strokeOpacity={isSelected ? '1' : isHovered ? '1' : '0.92'}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                        className="transition-colors duration-150"
-                        style={{
-                          filter: isSelected ? 'drop-shadow(0 0 6px rgba(96,165,250,0.8))' : undefined,
-                        }}
-                      >
-                        <title>{dist.name} ({stats.totalCount} ocorrências)</title>
-                      </path>
-
-                      {/* District Center Code & Count Label (Embedded directly inside polygon) */}
-                      {dist.centerX > 0 && dist.centerY > 0 && (
-                        <g 
-                          transform={`translate(${dist.centerX}, ${dist.centerY})`}
-                          className="pointer-events-none"
-                        >
-                          {/* District Code */}
-                          <text
-                            x="0"
-                            y="-1.5"
-                            textAnchor="middle"
-                            fill="#ffffff"
-                            fontSize="4.6"
-                            fontWeight="800"
-                            letterSpacing="0.4"
-                            style={{
-                              textShadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 2px rgba(0,0,0,0.8)',
-                            }}
-                          >
-                            {dist.code}
-                          </text>
-
-                          {/* Occurrence Count Pill Badge */}
-                          {stats.totalCount > 0 && (
-                            <text
-                              x="0"
-                              y="4.2"
-                              textAnchor="middle"
-                              fill={stats.graveCount > 0 ? '#fecaca' : stats.moderadaCount > 0 ? '#fef08a' : '#bfdbfe'}
-                              fontSize="3.6"
-                              fontWeight="800"
-                              style={{
-                                textShadow: '0 1px 2px rgba(0,0,0,0.95)',
-                              }}
-                            >
-                              {stats.totalCount}
-                            </text>
-                          )}
-                        </g>
-                      )}
-                    </g>
-                  );
-                })}
-              </g>
-            </svg>
-          </div>
-
-          {/* Floating Controls (Zoom In, Out, Reset) */}
-          <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-1 p-1 bg-slate-900/90 rounded-2xl border border-slate-700/80 shadow-2xl backdrop-blur-md">
+          {/* Map Floating Controls */}
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 shadow-sm">
             <button
               onClick={handleZoomIn}
-              aria-label="Aumentar zoom"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
+              title="Aproximar"
+              aria-label="Aproximar"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={handleZoomOut}
-              aria-label="Diminuir zoom"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
+              title="Afastar"
+              aria-label="Afastar"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={handleResetZoom}
-              aria-label="Repor vista"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
+              title="Centrar Portugal"
+              aria-label="Centrar Portugal"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
             </button>
           </div>
 
-          {/* Choropleth Severity Color Legend */}
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/85 border border-slate-800/80 text-[10px] text-slate-200 backdrop-blur-md pointer-events-none shadow-lg">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-600 border border-white/40" />
+          {/* Quick Legend at Bottom-Left */}
+          <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">
+            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#D92D20]"></div>
               <span>Grave</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 border border-white/40" />
+            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B1A]"></div>
               <span>Moderada</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-blue-600 border border-white/40" />
+            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#111111]"></div>
               <span>Info</span>
-            </div>
-            <div className="flex items-center gap-1.5 border-l border-slate-700 pl-2 text-slate-400 hidden xs:flex">
-              <span className="w-2.5 h-2.5 rounded-sm bg-slate-900 border border-white/20" />
-              <span>Sem incidentes</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* District Detail Modal (Opens when clicking any district) */}
+      {/* District Detail Modal */}
       {activeModalDistrict && (
         <ClusterDetailModal
+          onClose={() => setActiveModalDistrict(null)}
           cluster={{
-            id: `district-${activeModalDistrict.id}`,
-            name: `Distrito de ${activeModalDistrict.name}`,
+            id: activeModalDistrict.id,
+            name: activeModalDistrict.name,
             district: activeModalDistrict.name,
             x: 0,
             y: 0,
-            occurrences: activeModalDistrict.occurrences,
             totalCount: activeModalDistrict.totalCount,
+            dominantSeverity: activeModalDistrict.dominantSeverity,
             graveCount: activeModalDistrict.graveCount,
             moderadaCount: activeModalDistrict.moderadaCount,
             infoCount: activeModalDistrict.infoCount,
-            dominantSeverity: activeModalDistrict.dominantSeverity,
-            densityScore: Math.min(activeModalDistrict.totalCount * 5, 100),
+            occurrences: activeModalDistrict.occurrences,
+            densityScore: 0,
           }}
-          onClose={() => setActiveModalDistrict(null)}
           onSelectOccurrence={(occ) => {
-            if (onSelectOccurrence) {
-              onSelectOccurrence(occ);
-            }
+            setActiveModalDistrict(null);
+            if (onSelectOccurrence) onSelectOccurrence(occ);
           }}
         />
       )}

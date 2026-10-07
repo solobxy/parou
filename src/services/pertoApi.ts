@@ -12,13 +12,18 @@ const FAVORITE_STOPS_KEY = 'parou_favorite_stops_v1';
 export async function fetchNearbyTransit(
   lat: number,
   lon: number,
-  radius: number = 500
+  radius: number = 500,
+  signal?: AbortSignal
 ): Promise<{
   stops: NearbyStopItem[];
   vehicles: NearbyVehicleItem[];
   alerts: CentralAlert[];
   radiusMeters: number;
   timestamp: string;
+  isLoading?: boolean;
+  message?: string;
+  totalOperators?: number;
+  loadedOperators?: number;
 }> {
   const params = new URLSearchParams({
     lat: lat.toString(),
@@ -27,8 +32,10 @@ export async function fetchNearbyTransit(
     _t: Date.now().toString(), // Avoid any browser caching of previous locations
   });
 
+  const reqSignal = signal || AbortSignal.timeout(15000);
   const res = await fetch(`/api/transit/nearby?${params.toString()}`, {
     cache: 'no-store',
+    signal: reqSignal,
     headers: {
       'Cache-Control': 'no-cache, no-store',
       'Pragma': 'no-cache',
@@ -48,7 +55,13 @@ export async function fetchNearbyTransit(
     }));
   }
 
-  return data;
+  return {
+    ...data,
+    stops: data.stops || [],
+    vehicles: data.vehicles || [],
+    alerts: data.alerts || [],
+    isLoading: Boolean(data.isLoading || data.status === 'loading'),
+  };
 }
 
 export async function searchDestinations(

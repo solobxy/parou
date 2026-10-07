@@ -19,20 +19,14 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
   onToggled,
 }) => {
   const [isFav, setIsFav] = useState<boolean>(() => isItemFavorited(item.id));
-  const [isAnimating, setIsAnimating] = useState<boolean>(false);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
-    setIsAnimating(true);
     const newStatus = await toggleFavorite(item);
     setIsFav(newStatus);
     if (onToggled) onToggled(newStatus);
-
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 400);
   };
 
   const sizeClasses = {
@@ -42,32 +36,25 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
     lg: 'w-5 h-5',
   };
 
-  const buttonPadding = {
-    xs: 'p-1',
-    sm: 'p-1.5',
-    md: 'p-2',
-    lg: 'p-2.5',
-  };
-
   return (
     <button
       type="button"
       onClick={handleClick}
       aria-label={isFav ? `Remover ${item.title} dos favoritos` : `Adicionar ${item.title} aos favoritos`}
       title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-      className={`relative inline-flex items-center justify-center rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${buttonPadding[size]} ${
+      className={`inline-flex items-center justify-center rounded-[6px] min-h-[36px] min-w-[36px] p-1.5 transition-colors cursor-pointer ${
         isFav
-          ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]'
-          : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/60 border border-slate-700/50'
+          ? 'text-[#111111] bg-[#F4F4F2]'
+          : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
       } ${className}`}
     >
       <Star
-        className={`${sizeClasses[size]} transition-transform duration-200 ${
-          isFav ? 'fill-amber-400 text-amber-400' : 'text-slate-400'
-        } ${isAnimating ? 'scale-125 rotate-12' : 'scale-100'}`}
+        className={`${sizeClasses[size]} stroke-[2] ${
+          isFav ? 'fill-[#111111] text-[#111111]' : 'text-[#6B6B6B]'
+        }`}
       />
       {showLabel && (
-        <span className="ml-1.5 text-xs font-semibold">
+        <span className="ml-1.5 text-xs font-semibold text-[#111111]">
           {isFav ? 'Guardado' : 'Favorito'}
         </span>
       )}

@@ -702,39 +702,66 @@ export interface ApiStopDeparture {
   aviso_horario?: string;
 }
 
-export async function fetchLinesNear(lat: number, lon: number, radius = 500): Promise<ApiLineItem[]> {
-  const res = await fetch(`/api/lines?near=${lat},${lon}&r=${radius}`);
+export async function fetchLinesNear(
+  lat: number,
+  lon: number,
+  radius = 500,
+  signal?: AbortSignal
+): Promise<{ lines: ApiLineItem[]; isLoading: boolean; message?: string }> {
+  const reqSignal = signal || AbortSignal.timeout(15000);
+  const res = await fetch(`/api/lines?near=${lat},${lon}&r=${radius}`, { signal: reqSignal });
   if (!res.ok) throw new Error(`Falha ao obter linhas próximas (${res.status})`);
   const data = await res.json();
-  return data.lines || [];
+  return {
+    lines: data.lines || [],
+    isLoading: Boolean(data.isLoading || data.status === 'loading'),
+    message: data.message,
+  };
 }
 
-export async function fetchLinesByIds(ids: string[]): Promise<ApiLineItem[]> {
+export async function fetchLinesByIds(ids: string[], signal?: AbortSignal): Promise<ApiLineItem[]> {
   if (ids.length === 0) return [];
-  const res = await fetch(`/api/lines?ids=${encodeURIComponent(ids.join(','))}`);
+  const reqSignal = signal || AbortSignal.timeout(15000);
+  const res = await fetch(`/api/lines?ids=${encodeURIComponent(ids.join(','))}`, { signal: reqSignal });
   if (!res.ok) throw new Error(`Falha ao obter linhas por IDs (${res.status})`);
   const data = await res.json();
   return data.lines || [];
 }
 
-export async function searchAllLines(q?: string, mode?: string, page = 1): Promise<{ lines: ApiLineItem[]; total: number; page: number; total_pages: number }> {
+export async function searchAllLines(
+  q?: string,
+  mode?: string,
+  page = 1,
+  signal?: AbortSignal
+): Promise<{ lines: ApiLineItem[]; total: number; page: number; total_pages: number; isLoading?: boolean; message?: string }> {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (mode && mode !== 'Todos') params.set('mode', mode);
   params.set('page', String(page));
-  const res = await fetch(`/api/lines?${params.toString()}`);
+  const reqSignal = signal || AbortSignal.timeout(15000);
+  const res = await fetch(`/api/lines?${params.toString()}`, { signal: reqSignal });
   if (!res.ok) throw new Error(`Falha ao pesquisar linhas (${res.status})`);
-  return await res.json();
+  const data = await res.json();
+  return {
+    lines: data.lines || [],
+    total: data.total || 0,
+    page: data.page || page,
+    total_pages: data.total_pages || 1,
+    isLoading: Boolean(data.isLoading || data.status === 'loading'),
+    message: data.message,
+  };
 }
 
-export async function fetchLineDetail(id: string): Promise<ApiLineDetail> {
-  const res = await fetch(`/api/lines/${encodeURIComponent(id)}`);
+export async function fetchLineDetail(id: string, signal?: AbortSignal): Promise<ApiLineDetail> {
+  const reqSignal = signal || AbortSignal.timeout(15000);
+  const res = await fetch(`/api/lines/${encodeURIComponent(id)}`, { signal: reqSignal });
   if (!res.ok) throw new Error(`Falha ao obter detalhes da linha (${res.status})`);
   return await res.json();
 }
 
-export async function fetchStopDepartures(stopId: string, n = 5): Promise<{ stop_id: string; stop_name: string; departures: ApiStopDeparture[] }> {
-  const res = await fetch(`/api/stops/${encodeURIComponent(stopId)}/departures?n=${n}`);
+export async function fetchStopDepartures(stopId: string, n = 5, signal?: AbortSignal): Promise<{ stop_id: string; stop_name: string; departures: ApiStopDeparture[] }> {
+  const reqSignal = signal || AbortSignal.timeout(15000);
+  const res = await fetch(`/api/stops/${encodeURIComponent(stopId)}/departures?n=${n}`, { signal: reqSignal });
   if (!res.ok) throw new Error(`Falha ao obter partidas da paragem (${res.status})`);
   return await res.json();
 }

@@ -1,9 +1,19 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --bg-page: #FFFFFF;
+    --bg-surface: #F4F4F2;
+    --border-subtle: #E6E6E3;
+    --text-primary: #111111;
+    --text-secondary: #6B6B6B;
+    --brand-orange: #FF6B1A;
+    --brand-orange-dark: #C2410C;
+    --state-error: #D92D20;
+
+    --font-sans: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-condensed: 'Barlow Condensed', 'Barlow', sans-serif;
   }
 
   html {
@@ -13,12 +23,13 @@
     overscroll-behavior-x: none;
     touch-action: pan-y;
     -webkit-text-size-adjust: 100%;
+    background-color: #FFFFFF;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #080c14;
-    color: #f1f5f9;
+    background-color: #FFFFFF;
+    color: #111111;
     -webkit-tap-highlight-color: transparent;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
@@ -37,99 +48,137 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    background-color: #FFFFFF;
   }
 }
 
-/* Map canvas area: allow touch manipulation internally without zooming webpage */
+/* Industrial Brand 45° Chamfer Detail */
+.brand-chamfer {
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+/* Tabular Numbers for Timetable & Countdown */
+.font-tabular {
+  font-family: var(--font-condensed);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Line Number Chip Style: 32x28px, 4px radius, Barlow Condensed 700 */
+.line-chip {
+  min-width: 32px;
+  height: 28px;
+  border-radius: 4px;
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* Map canvas area */
 .map-canvas-container {
   touch-action: none !important;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* Custom scrollbar for sleek dark panels */
+/* Clean industrial scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #F4F4F2;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
-  border-radius: 9999px;
+  background: #D4D4D0;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.9);
+  background: #A8A8A2;
 }
 
-/* Pulse animation for live markers */
-@keyframes radar-ping {
-  0% {
-    transform: scale(0.9);
-    opacity: 0.8;
-  }
-  70% {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-}
-
-.radar-pulse {
-  animation: radar-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-/* Leaflet Dark Theme Overrides */
+/* Leaflet Neutral Light Theme Overrides */
 .leaflet-container {
-  background-color: #060a14 !important;
+  background-color: #F4F4F2 !important;
   font-family: var(--font-sans);
 }
 
 .leaflet-popup-content-wrapper {
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  border-radius: 12px !important;
-  border: 1px solid #1e293b !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+  background: #FFFFFF !important;
+  color: #111111 !important;
+  border-radius: 8px !important;
+  border: 1px solid #E6E6E3 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
   padding: 0 !important;
 }
 
 .leaflet-popup-content {
-  margin: 8px 12px !important;
+  margin: 10px 14px !important;
   line-height: 1.4 !important;
+  font-size: 13px !important;
+  color: #111111 !important;
 }
 
 .leaflet-popup-tip {
-  background: #0f172a !important;
-  border: 1px solid #1e293b !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E6E6E3 !important;
 }
 
 .leaflet-tooltip {
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  border: 1px solid #334155 !important;
-  border-radius: 8px !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4) !important;
-  padding: 4px 8px !important;
+  background: #111111 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  border-radius: 4px !important;
+  font-family: var(--font-condensed) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
 .leaflet-tooltip-top:before {
-  border-top-color: #0f172a !important;
+  border-top-color: #111111 !important;
 }
 .leaflet-tooltip-bottom:before {
-  border-bottom-color: #0f172a !important;
+  border-bottom-color: #111111 !important;
 }
 .leaflet-tooltip-left:before {
-  border-left-color: #0f172a !important;
+  border-left-color: #111111 !important;
 }
 .leaflet-tooltip-right:before {
-  border-right-color: #0f172a !important;
+  border-right-color: #111111 !important;
+}
+
+/* Leaflet OpenStreetMap Tile Pane Filter - Crisp, light, neutral grayscale */
+.leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.06) contrast(0.92);
+  -webkit-filter: grayscale(1) brightness(1.06) contrast(0.92);
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background-color: #F4F4F2 !important;
+  outline: none;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  color: #6B6B6B !important;
+  font-size: 11px !important;
+  font-family: var(--font-sans) !important;
+  padding: 2px 6px !important;
+  backdrop-filter: blur(4px);
+  border-top-left-radius: 4px;
+}
+
+.leaflet-control-attribution a {
+  color: #111111 !important;
+  text-decoration: underline !important;
 }
 

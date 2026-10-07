@@ -6,7 +6,8 @@ import {
   getFrequenciesForTrip,
   RawDepartureRow,
   getAllFeeds,
-  getDatabase
+  getDatabase,
+  getFeedCalendarBounds
 } from './db/gtfsDatabase';
 import { StopsEngine, UnifiedStop } from './stopsEngine';
 import { RealtimeEngine, LiveDeparture } from './realtimeEngine';
@@ -48,13 +49,21 @@ export function isFeedExcluded(feed?: any): boolean {
 
 export function isFeedOutdated(feed?: any, todayDateStr?: string): boolean {
   if (!feed) return false;
+  const todayClean = (todayDateStr || DateTime.now().setZone('Europe/Lisbon').toFormat('yyyyMMdd')).replace(/\D/g, '').slice(0, 8);
   if (feed.valid_until) {
-    const validClean = feed.valid_until.replace(/-/g, '').slice(0, 8);
-    const todayClean = (todayDateStr || DateTime.now().setZone('Europe/Lisbon').toFormat('yyyyMMdd')).replace(/-/g, '').slice(0, 8);
-    if (validClean < todayClean) return true;
+    const validClean = feed.valid_until.replace(/\D/g, '').slice(0, 8);
+    if (validClean && validClean < todayClean) return true;
   }
   if (feed.last_error && feed.last_error.startsWith('O operador não atualizou as datas do calendário')) {
     return true;
+  }
+  if (feed.id) {
+    const bounds = getFeedCalendarBounds();
+    const bound = bounds.get(feed.id);
+    if (bound?.lastDay) {
+      const boundClean = bound.lastDay.replace(/\D/g, '').slice(0, 8);
+      if (boundClean && boundClean < todayClean) return true;
+    }
   }
   return false;
 }
@@ -82,6 +91,16 @@ function secondsToTimeString(totalSecs: number): string {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
+interface NextDeparturesCacheEntry {
+  data: DepartureResult;
+  expiresAt: number;
+}
+const nextDeparturesCache = new Map<string, NextDeparturesCacheEntry>();
+
+export function clearNextDeparturesCache(): void {
+  nextDeparturesCache.clear();
+}
+
 export class DepartureEngine {
   /**
    * Main nextDepartures engine:
@@ -94,6 +113,14 @@ export class DepartureEngine {
     nowInput: Date | string = new Date(),
     maxResults = 15
   ): Promise<DepartureResult> {
+    const stopIdKey = typeof stopParam === 'string' ? stopParam : stopParam?.id;
+    const cacheKey = `${stopIdKey}_${maxResults}`;
+    if (stopIdKey) {
+      const cached = nextDeparturesCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
     // 1. Timezone Europe/Lisbon using Luxon
     const lisbonNow = (typeof nowInput === 'string' ? DateTime.fromISO(nowInput) : DateTime.fromJSDate(nowInput))
       .setZone(LISBON_ZONE);
@@ -183,11 +210,10 @@ export class DepartureEngine {
         else if (d === 1) dayLabel = 'amanhã';
         else if (d > 1) dayLabel = serviceDay.setLocale('pt-PT').toFormat('cccc');
 
-        // Para ontem (-1): incluir viagens do dia anterior com horas > 24:00:00 (departure_secs >= 86400)
-        // Para hoje (0): a partir do segundo atual
+        // Janela de tempo no SQL: st.departure_secs BETWEEN agora-120 AND agora+3h (Regra 2)
         const currentSecsOfDay = feedNow.hour * 3600 + feedNow.minute * 60 + feedNow.second;
-        const minSecs = d === -1 ? 86400 : (d === 0 ? currentSecsOfDay : 0);
-        const maxSecs = d === -1 ? 86400 + 43200 : 86400 * 2;
+        const minSecs = d === -1 ? Math.max(86400, (currentSecsOfDay + 86400) - 120) : (d === 0 ? Math.max(0, currentSecsOfDay - 120) : 0);
+        const maxSecs = d === -1 ? (currentSecsOfDay + 86400) + 10800 : (d === 0 ? currentSecsOfDay + 10800 : 14400);
 
         const activeServiceIds = getActiveServiceIds(feedId, dateStr, dayOfWeekName);
         if (activeServiceIds.size === 0) continue;
@@ -427,7 +453,7 @@ export class DepartureEngine {
 
     const hasRealtime = activeDepartures.some((d) => d.state === 'TEMPO REAL');
 
-    return {
+    const result: DepartureResult = {
       stop: {
         id: stop.id,
         name: stop.name,
@@ -444,5 +470,14 @@ export class DepartureEngine {
       first_departure_today: firstDepToday,
       last_departure_today: lastDepToday,
     };
+
+    if (stopIdKey) {
+      nextDeparturesCache.set(cacheKey, {
+        data: result,
+        expiresAt: Date.now() + 30000,
+      });
+    }
+
+    return result;
   }
 }
