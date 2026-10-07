@@ -855,41 +855,43 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
     const nearbyStops = await StopsEngine.getNearbyUnifiedStops(lat, lon, radius, 1000);
     const now = new Date();
 
-    // Enrich top 8 stops with real departures from nextDepartures, retain all others
-    const enrichedStops: Array<typeof nearbyStops[0] & { departures: any[]; status_notice?: string; has_realtime: boolean }> = [];
-    for (let i = 0; i < nearbyStops.length; i++) {
-      const stop = nearbyStops[i];
-      if (i < 8) {
-        try {
-          const depResult = await DepartureEngine.nextDepartures(stop, now, 5);
-          enrichedStops.push({
-            ...stop,
-            departures: depResult.departures,
-            status_notice: depResult.status_notice,
-            has_realtime: depResult.has_realtime,
-          });
-        } catch {
-          enrichedStops.push({
-            ...stop,
-            departures: [],
-            status_notice: undefined,
-            has_realtime: false,
-          });
-        }
-      } else {
-        enrichedStops.push({
-          ...stop,
-          departures: [],
-          status_notice: undefined,
-          has_realtime: false,
-        });
-      }
-    }
+    // Enrich top 8 stops with real departures from nextDepartures in parallel, retain all others
+    const topStops = nearbyStops.slice(0, 8);
+    const otherStops = nearbyStops.slice(8);
 
-    const [liveVehicles, allAlerts] = await Promise.all([
-      RealtimeEngine.getLiveVehicles(),
-      getCentralAlerts().catch(() => []),
+    const [enrichedTopStops, liveVehicles, allAlerts] = await Promise.all([
+      Promise.all(
+        topStops.map(async (stop) => {
+          try {
+            const depResult = await DepartureEngine.nextDepartures(stop, now, 5);
+            return {
+              ...stop,
+              departures: depResult.departures,
+              status_notice: depResult.status_notice,
+              has_realtime: depResult.has_realtime,
+            };
+          } catch {
+            return {
+              ...stop,
+              departures: [],
+              status_notice: undefined,
+              has_realtime: false,
+            };
+          }
+        })
+      ),
+      comPrazo(RealtimeEngine.getLiveVehicles(), 1500, []),
+      comPrazo(getCentralAlerts(), 1500, []),
     ]);
+
+    const enrichedOtherStops = otherStops.map((stop) => ({
+      ...stop,
+      departures: [],
+      status_notice: undefined,
+      has_realtime: false,
+    }));
+
+    const enrichedStops = [...enrichedTopStops, ...enrichedOtherStops];
 
     // Format stops to exact NearbyStopItem contract expected by PertoView
     const mappedStops = enrichedStops.map((stop) => {
@@ -1000,30 +1002,32 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       };
     });
 
-    // Format vehicles to exact NearbyVehicleItem contract expected by PertoView
-    const mappedVehicles = liveVehicles.map((v) => {
-      const distM = Math.round(StopsEngine.calculateDistanceMeters(lat, lon, v.lat, v.lon));
-      return {
-        id: v.id,
-        vehicleId: v.id,
-        agencyId: v.operator.toLowerCase().replace(/\s+/g, '_'),
-        agencyName: v.operator,
-        lineCode: v.line_id || 'BUS',
-        lineName: `Carreira ${v.line_id}`,
-        lineColor: '#0284c7',
-        latitude: v.lat,
-        longitude: v.lon,
-        lat: v.lat,
-        lon: v.lon,
-        distanceMeters: distM,
-        formattedDistance: distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`,
-        bearing: v.bearing,
-        speed: v.speed,
-        currentStatus: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
-        statusLabel: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
-        timestamp: v.timestamp,
-      };
-    });
+    // Format vehicles to exact NearbyVehicleItem contract expected by PertoView (< 3 km)
+    const mappedVehicles = liveVehicles
+      .map((v) => {
+        const distM = Math.round(StopsEngine.calculateDistanceMeters(lat, lon, v.lat, v.lon));
+        return {
+          id: v.id,
+          vehicleId: v.id,
+          agencyId: v.operator.toLowerCase().replace(/\s+/g, '_'),
+          agencyName: v.operator,
+          lineCode: v.line_id || 'BUS',
+          lineName: `Carreira ${v.line_id}`,
+          lineColor: '#0284c7',
+          latitude: v.lat,
+          longitude: v.lon,
+          lat: v.lat,
+          lon: v.lon,
+          distanceMeters: distM,
+          formattedDistance: distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`,
+          bearing: v.bearing,
+          speed: v.speed,
+          currentStatus: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
+          statusLabel: v.speed && v.speed > 5 ? 'Em circulação' : 'Parado',
+          timestamp: v.timestamp,
+        };
+      })
+      .filter((v) => v.distanceMeters <= 3000);
 
     // Filter alerts to ONLY those whose affected stops or routes are inside the radius (Rule 5)
     const nearbyStopIdSet = new Set<string>();
@@ -1389,7 +1393,7 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 // DEPARTURES & REAL-TIME API (RULES 1, 2, 3, 5)
 // ==========================================
 import { StopsEngine } from './src/server/stopsEngine';
-import { DepartureEngine } from './src/server/departureEngine';
+import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { DebugEngine } from './src/server/debugEngine';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)

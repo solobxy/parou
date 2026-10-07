@@ -14,6 +14,7 @@ export const TopLoadingBanner: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let timer: NodeJS.Timeout | null = null;
 
     const checkStatus = async () => {
       try {
@@ -24,21 +25,24 @@ export const TopLoadingBanner: React.FC = () => {
         const data = (await res.json()) as LoadingStatus;
         if (isMounted) {
           setStatus(data);
+          if (data.isLoading) {
+            timer = setTimeout(checkStatus, 2500);
+          }
         }
-      } catch {}
+      } catch {
+        if (isMounted && (!status || status.isLoading)) {
+          timer = setTimeout(checkStatus, 5000);
+        }
+      }
     };
 
     checkStatus();
 
-    const interval = setInterval(() => {
-      checkStatus();
-    }, status?.isLoading ? 2500 : 10000);
-
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
     };
-  }, [status?.isLoading]);
+  }, []);
 
   if (!status || !status.isLoading || status.totalOperators === 0 || status.loadedOperators >= status.totalOperators) {
     return null;

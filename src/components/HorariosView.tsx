@@ -32,6 +32,11 @@ interface HorariosViewProps {
   onOpenCatalog?: () => void;
 }
 
+// Cache ao nível do módulo para manter os últimos dados ao trocar de aba
+let lastNearLines: ApiLineItem[] = [];
+let lastAllLines: ApiLineItem[] = [];
+let lastAllLinesTotal = 0;
+
 export const HorariosView: React.FC<HorariosViewProps> = ({ 
   filters: propFilters,
 }) => {
@@ -40,7 +45,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
 
   // GPS & "Perto de mim"
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [nearLines, setNearLines] = useState<ApiLineItem[]>([]);
+  const [nearLines, setNearLines] = useState<ApiLineItem[]>(lastNearLines);
   const [isNearLoading, setIsNearLoading] = useState<boolean>(false);
 
   // Favorites
@@ -56,8 +61,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [isFavLoading, setIsFavLoading] = useState<boolean>(false);
 
   // All lines
-  const [allLines, setAllLines] = useState<ApiLineItem[]>([]);
-  const [allLinesTotal, setAllLinesTotal] = useState<number>(0);
+  const [allLines, setAllLines] = useState<ApiLineItem[]>(lastAllLines);
+  const [allLinesTotal, setAllLinesTotal] = useState<number>(lastAllLinesTotal);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(false);
@@ -110,7 +115,10 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       } else {
         setIsDbLoading(false);
         retryAttemptRef.current = 0;
-        setNearLines(res.lines || []);
+        if (res.lines) {
+          lastNearLines = res.lines;
+          setNearLines(res.lines);
+        }
       }
     } catch {
     } finally {
@@ -136,10 +144,14 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       } else {
         setIsDbLoading(false);
         retryAttemptRef.current = 0;
-        setAllLines(res.lines || []);
-        setAllLinesTotal(res.total || 0);
-        setCurrentPage(res.page || page);
-        setTotalPages(res.total_pages || 1);
+        if (res.lines) {
+          lastAllLines = res.lines;
+          lastAllLinesTotal = res.total || 0;
+          setAllLines(res.lines);
+          setAllLinesTotal(res.total || 0);
+          setCurrentPage(res.page || page);
+          setTotalPages(res.total_pages || 1);
+        }
       }
     } catch {
     } finally {

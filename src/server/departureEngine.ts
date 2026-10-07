@@ -91,6 +91,35 @@ function secondsToTimeString(totalSecs: number): string {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
+export function comPrazo<T>(p: Promise<T>, ms: number, alternativa: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    let resolvido = false;
+    const timer = setTimeout(() => {
+      if (!resolvido) {
+        resolvido = true;
+        resolve(alternativa);
+      }
+    }, ms);
+
+    p.then(
+      (res) => {
+        if (!resolvido) {
+          resolvido = true;
+          clearTimeout(timer);
+          resolve(res);
+        }
+      },
+      () => {
+        if (!resolvido) {
+          resolvido = true;
+          clearTimeout(timer);
+          resolve(alternativa);
+        }
+      }
+    );
+  });
+}
+
 interface NextDeparturesCacheEntry {
   data: DepartureResult;
   expiresAt: number;
@@ -299,7 +328,7 @@ export class DepartureEngine {
     let cmDirectDepartures: LiveDeparture[] = [];
     if (cmMemberStops.length > 0) {
       for (const cmId of cmMemberStops) {
-        const directList = await RealtimeEngine.getCarrisMetropolitanaDirectDepartures(cmId, nowEpochSecs);
+        const directList = await comPrazo(RealtimeEngine.getCarrisMetropolitanaDirectDepartures(cmId, nowEpochSecs), 2000, []);
         cmDirectDepartures.push(...directList);
       }
     }
@@ -310,7 +339,7 @@ export class DepartureEngine {
     if (unirMemberStops.length > 0) {
       const uniqueUnirCodes = [...new Set(unirMemberStops.map((id) => id.replace(/^unir:/, '').trim()))].slice(0, 2);
       for (const unirCode of uniqueUnirCodes) {
-        const directList = await getUnirStopDepartures(unirCode);
+        const directList = await comPrazo(getUnirStopDepartures(unirCode), 2000, []);
         unirDirectDepartures.push(
           ...directList.map((d: any) => {
             const depEpochSecs = nowEpochSecs + (d.countdown_minutes * 60);
@@ -398,10 +427,14 @@ export class DepartureEngine {
       .slice(0, maxResults);
 
     // 4. Enrich with Real-time merge (Carris Metropolitana, GTFS-RT, Metro de Lisboa, CP flag)
-    const enrichedDepartures = await RealtimeEngine.mergeRealtimeData(
-      initialDepartures,
-      stop,
-      nowEpochSecs
+    const enrichedDepartures = await comPrazo(
+      RealtimeEngine.mergeRealtimeData(
+        initialDepartures,
+        stop,
+        nowEpochSecs
+      ),
+      2000,
+      initialDepartures
     );
 
     // Filter out any departures whose time has already passed:
