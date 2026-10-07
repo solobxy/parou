@@ -182,3 +182,11 @@
   text-decoration: underline !important;
 }
 
+
+/* Perto: o painel "Transportes perto" sobrepõe 16 px ao fundo do mapa no telemóvel —
+   sobe a atribuição do OpenStreetMap para continuar visível */
+@media (max-width: 1023px) {
+  .perto-mapa .leaflet-bottom {
+    bottom: 16px;
+  }
+}

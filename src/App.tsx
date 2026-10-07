@@ -29,7 +29,7 @@ import { ReportDetailPage } from './components/ReportDetailPage';
 import { HorariosView } from './components/HorariosView';
 import { NationalTransitCatalogView } from './components/NationalTransitCatalogView';
 import { ReclamacoesView } from './components/ReclamacoesView';
-import { AlertCenterView } from './components/AlertCenterView';
+import { AlertasView } from './components/AlertasView';
 import { PertoView } from './components/PertoView';
 import { LoginModal } from './components/LoginModal';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -529,7 +529,7 @@ export default function App() {
       favoritos: 'Os Meus Favoritos — Transportes e Paragens | PAROU',
       catalogo: 'Catálogo Nacional de Operadores de Transporte | PAROU',
       reclamacoes: 'Portal de Reclamações de Transportes em Portugal | PAROU',
-      alertas: 'Central de Alertas e Notificações de Trânsito | PAROU',
+      alertas: 'Alertas — Greves, Tempo, Trânsito e Feriados | PAROU',
       coverage: 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU',
     };
     if (titlesMap[tab]) {
@@ -607,7 +607,7 @@ export default function App() {
     } else if (pathname === '/alertas') {
       setActiveNavTab('alertas');
       setActiveMobileView('alertas');
-      document.title = 'Central de Alertas e Notificações de Trânsito | PAROU';
+      document.title = 'Alertas — Greves, Tempo, Trânsito e Feriados | PAROU';
     } else if (pathname === '/coverage' || pathname === '/cobertura') {
       setActiveNavTab('coverage');
       setActiveMobileView('catalogo');
@@ -787,13 +787,10 @@ export default function App() {
             </div>
           ) : activeNavTab === 'alertas' ? (
             <div className="w-full mx-auto py-2">
-              <AlertCenterView
-                currentUser={currentUserProfile}
-                onOpenLoginModal={() => setIsLoginModalOpen(true)}
-                onSelectOperatorInCatalog={(opName) => {
-                  handleFilterChange('operador', opName);
-                  handleTabSelect('catalogo');
-                }}
+              <AlertasView
+                ocorrenciasComunidade={allReportsList}
+                onAbrirOcorrencia={handleSelectOccurrence}
+                onVerMapa={() => handleTabSelect('mapa')}
               />
             </div>
           ) : activeNavTab === 'coverage' ? (
@@ -863,17 +860,6 @@ export default function App() {
 
         {/* Mobile View with Bottom Tab Navigation (Mapa, Reports, +, Horários, Filtros) */}
         <div className={`lg:hidden ${activeMobileView === 'perto' ? 'p-0 pb-16' : 'space-y-3.5 pb-28'}`}>
-          {/* Mobile Top Emergency Action Button — Apenas na aba Mapa */}
-          {activeMobileView === 'mapa' && (
-            <button
-              onClick={() => setIsReportModalOpen(true)}
-              className="w-full h-11 rounded-[8px] brand-chamfer bg-[#FF6B1A] active:scale-[0.99] text-[#111111] font-bold text-xs flex items-center justify-center gap-2"
-            >
-              <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>Reportar ocorrência</span>
-            </button>
-          )}
-
           {/* 1. Tab Mapa */}
           {activeMobileView === 'mapa' && (
             <div className="space-y-3.5">
@@ -885,6 +871,7 @@ export default function App() {
                 districtCounts={districtCounts}
                 occurrences={allReportsList}
                 onSelectOccurrence={handleSelectOccurrence}
+                onReport={() => setIsReportModalOpen(true)}
               />
 
               {selectedDistrictOnMap ? (
@@ -1004,14 +991,11 @@ export default function App() {
 
           {/* Tab Alertas (Mobile) */}
           {(activeMobileView === 'alertas' || activeNavTab === 'alertas') && (
-            <div className="space-y-3.5">
-              <AlertCenterView
-                currentUser={currentUserProfile}
-                onOpenLoginModal={() => setIsLoginModalOpen(true)}
-                onSelectOperatorInCatalog={(opName) => {
-                  handleFilterChange('operador', opName);
-                  handleTabSelect('catalogo');
-                }}
+            <div className="-mx-3 sm:-mx-6">
+              <AlertasView
+                ocorrenciasComunidade={allReportsList}
+                onAbrirOcorrencia={handleSelectOccurrence}
+                onVerMapa={() => handleTabSelect('mapa')}
               />
             </div>
           )}
@@ -1092,10 +1076,16 @@ export default function App() {
               Horários
             </button>
             <button
+              onClick={() => handleTabSelect('alertas')}
+              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
+            >
+              Alertas
+            </button>
+            <button
               onClick={() => handleTabSelect('reports')}
               className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
             >
-              Reports
+              Ocorrências
             </button>
             <button
               onClick={() => handleTabSelect('catalogo')}
@@ -1198,7 +1188,7 @@ export default function App() {
           }
         }}
         onOpenReportModal={() => setIsReportModalOpen(true)}
-        totalAlertsCount={recentOccurrences.length}
+        totalAlertsCount={0}
       />
     </div>
   );
