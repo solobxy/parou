@@ -102,6 +102,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedRadius, setSelectedRadius] = useState<number>(1000);
   const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>('todos');
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
+  // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
+  const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean } | null>(null);
   const [favoriteStopIds, setFavoriteStopIds] = useState<Set<string>>(new Set());
 
   // Search & Navigation
@@ -254,6 +256,39 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setCalculatedRoutes([]);
     setSelectedRoute(null);
   };
+
+  useEffect(() => {
+    if (!selectedStop) return;
+    if ((selectedStop.nextDepartures || []).length > 0) return;
+    if (partidasExtra?.id === selectedStop.id && !partidasExtra.aCarregar) return;
+    let cancelado = false;
+    setPartidasExtra({ id: selectedStop.id, deps: [], aCarregar: true });
+    fetch(`/api/transit/stop/${encodeURIComponent(selectedStop.id)}`, { signal: AbortSignal.timeout(15000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelado) return;
+        const agora = Math.floor(Date.now() / 1000);
+        const deps = (data?.departures || []).map((d: any) => ({
+          lineCode: d.route_short_name || d.route_id,
+          lineName: d.route_long_name || d.route_short_name || '',
+          lineColor: d.route_color ? (String(d.route_color).startsWith('#') ? d.route_color : `#${d.route_color}`) : undefined,
+          destination: d.headsign || 'Terminal',
+          operatorName: d.operator_name,
+          departureTime: d.display_text,
+          displayText: d.display_text,
+          scheduledTime: d.scheduled_time,
+          etaMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
+          departureMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
+          isRealtime: d.state === 'TEMPO REAL',
+          state: d.state,
+          statusDescription: d.state_reason || d.state,
+        }));
+        setPartidasExtra({ id: selectedStop.id, deps, aCarregar: false });
+      })
+      .catch(() => { if (!cancelado) setPartidasExtra({ id: selectedStop.id, deps: [], aCarregar: false }); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStop?.id]);
 
   const handleRecenterClick = () => {
     setFollowMode(true);
@@ -424,7 +459,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const topAlert = contextualAlerts[0] || null;
 
   return (
-    <div className="relative flex flex-col lg:flex-row w-full h-[calc(100vh-3.5rem)] bg-[#FFFFFF] overflow-hidden">
+    <div className="relative flex flex-col lg:flex-row w-full h-[calc(100dvh-3.5rem-4rem-env(safe-area-inset-bottom))] lg:h-[calc(100vh-3.5rem)] bg-[#FFFFFF] overflow-hidden">
       {/* Side Panel: Stops & Departures */}
       <aside className={`
         z-30 flex flex-col bg-[#FFFFFF] border-r border-[#E6E6E3]
@@ -854,7 +889,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* Stop Detail Floating Drawer (if stop selected) */}
         {selectedStop && (
-          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-20 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] p-4 shadow-xl">
+          <div className="absolute bottom-[4.5rem] lg:bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-[35] bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] p-4 shadow-xl">
             <div className="flex items-start justify-between gap-2 border-b border-[#E6E6E3] pb-2">
               <div>
                 <h4 className="font-semibold text-base text-[#111111] leading-tight">
@@ -876,8 +911,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
             {/* Departures in selected stop modal */}
             <div className="mt-2 divide-y divide-[#E6E6E3] max-h-56 overflow-y-auto">
               {(() => {
-                const deps = selectedStop.nextDepartures || [];
+                const proprias = selectedStop.nextDepartures || [];
+                const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
+                const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
                 const sorted = sortDepartures(deps).slice(0, 6);
+                if (sorted.length === 0) {
+                  return (
+                    <div className="py-3 text-sm text-[#6B6B6B]">
+                      {extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
+                    </div>
+                  );
+                }
                 const outdatedDeps = sorted.filter((d: any) => parseDepartureTime(d).isOutdated);
                 const outdatedOps = Array.from(new Set(
                   outdatedDeps.map((d: any) => d.agency_name || d.operator || d.operatorName || '').filter(Boolean)
