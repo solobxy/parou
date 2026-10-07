@@ -2,6 +2,7 @@ import { getDatabase, getAllFeeds, getFeedCalendarBounds } from './db/gtfsDataba
 import { getStcpLiveVehicles } from './portoOpenDataService';
 import { DateTime } from 'luxon';
 import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
+import { RealtimeEngine } from './realtimeEngine';
 
 // Cache em memória de 30 segundos (Regra 4)
 interface CacheEntry<T> {
@@ -294,6 +295,129 @@ function normalizeCpRoute(row: {
   return { code: code || 'CP', name };
 }
 
+// ---------------------------------------------------------------------------
+// STCP em tempo real (API pública stcp.pt): cada chegada prevista pelo GPS substitui a
+// partida programada da mesma linha mais próxima (até 6 min de diferença).
+// ---------------------------------------------------------------------------
+function horaLisboaDaquiA(minutos: number): string {
+  return DateTime.now().setZone('Europe/Lisbon').plus({ minutes: minutos }).toFormat('HH:mm');
+}
+
+function chegadasStcp(stopId: string): Promise<any[]> {
+  return Promise.race([
+    RealtimeEngine.getStcpArrivals(stopId),
+    new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 2800)),
+  ]).catch(() => []);
+}
+
+function linhaIgual(a: unknown, b: unknown): boolean {
+  return String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
+}
+
+function escolherChegada(chegadas: any[], usadas: Set<any>, minutosProgramados: number): any | null {
+  let melhor: any = null;
+  let melhorDif = 6.5;
+  for (const a of chegadas) {
+    if (usadas.has(a)) continue;
+    const mins = Number(a?.arrival_minutes);
+    if (!Number.isFinite(mins) || mins < 0 || mins > 180) continue;
+    const atraso = Number(a?.delay_minutes);
+    const programado = Number.isFinite(atraso) ? mins - atraso : mins;
+    const dif = Math.abs(programado - minutosProgramados);
+    if (dif < melhorDif) { melhor = a; melhorDif = dif; }
+  }
+  return melhor;
+}
+
+async function aplicarTempoRealStcpNasLinhas(linhas: LineSummary[], paragemDaPartida: Map<object, string>): Promise<void> {
+  const alvo: Array<{ linha: LineSummary; partida: NonNullable<LineSummary['departures']>[number]; paragem: string }> = [];
+  for (const linha of linhas) {
+    if (linha.feed_id !== 'stcp' || !linha.departures) continue;
+    for (const partida of linha.departures) {
+      const paragem = paragemDaPartida.get(partida);
+      if (paragem && partida.state === 'Programado' && partida.countdown_minutes <= 180) alvo.push({ linha, partida, paragem });
+    }
+  }
+  if (alvo.length === 0) return;
+  const paragens = Array.from(new Set(alvo.map((x) => x.paragem))).slice(0, 10);
+  const porParagem = new Map<string, any[]>();
+  await Promise.all(paragens.map(async (id) => { porParagem.set(id, await chegadasStcp(id)); }));
+  const usadas = new Set<any>();
+  for (const { linha, partida, paragem } of alvo) {
+    const chegadas = (porParagem.get(paragem) || []).filter((a) => linhaIgual(a?.route_short_name, linha.code));
+    if (chegadas.length === 0) continue;
+    const a = escolherChegada(chegadas, usadas, partida.countdown_minutes);
+    if (!a) continue;
+    usadas.add(a);
+    if (/CANCEL/i.test(String(a.status || ''))) {
+      partida.state = 'Suprimido';
+      partida.displayText = 'suprimido';
+      continue;
+    }
+    const mins = Math.max(0, Math.round(Number(a.arrival_minutes)));
+    partida.state = 'Tempo Real';
+    delete partida.aviso_horario;
+    partida.time = horaLisboaDaquiA(mins);
+    partida.countdown_minutes = mins;
+    partida.displayText = formatCountdown(mins);
+  }
+}
+
+async function aplicarTempoRealStcpNaParagem(stopId: string, departures: StopDepartureItem[], limit: number): Promise<StopDepartureItem[]> {
+  if (!stopId.startsWith('stcp:')) return departures;
+  const chegadas = await chegadasStcp(stopId);
+  if (chegadas.length === 0) return departures;
+  const usadas = new Set<any>();
+  for (const d of departures) {
+    if (d.state !== 'Programado') continue;
+    const a = escolherChegada(chegadas.filter((c) => linhaIgual(c?.route_short_name, d.line_code)), usadas, d.countdown_minutes);
+    if (!a) continue;
+    usadas.add(a);
+    if (/CANCEL/i.test(String(a.status || ''))) {
+      d.state = 'Suprimido';
+      d.displayText = 'suprimido';
+      continue;
+    }
+    const mins = Math.max(0, Math.round(Number(a.arrival_minutes)));
+    const atraso = Number(a.delay_minutes);
+    d.state = 'Tempo Real';
+    delete d.aviso_horario;
+    d.actual_time = horaLisboaDaquiA(mins);
+    d.countdown_minutes = mins;
+    d.delay_minutes = Number.isFinite(atraso) ? Math.round(atraso) : 0;
+    d.displayText = formatCountdown(mins);
+  }
+  // Autocarros com GPS sem partida programada visível (ex.: atrasados cuja hora já passou)
+  const modelo = (linha: string) => departures.find((d) => linhaIgual(d.line_code, linha));
+  for (const a of chegadas) {
+    if (usadas.has(a) || /CANCEL/i.test(String(a?.status || ''))) continue;
+    const mins = Number(a?.arrival_minutes);
+    const linha = String(a?.route_short_name || '').trim();
+    if (!linha || !Number.isFinite(mins) || mins < 0 || mins > 120) continue;
+    const m = modelo(linha);
+    const atraso = Number(a.delay_minutes);
+    const minsR = Math.max(0, Math.round(mins));
+    const cor = a.route_color ? (String(a.route_color).startsWith('#') ? String(a.route_color) : `#${a.route_color}`) : (m?.color || '#2563EB');
+    departures.push({
+      line_id: m?.line_id || `stcp:${linha}`,
+      line_code: linha,
+      line_name: m?.line_name || '',
+      color: cor,
+      mode: 'Autocarro',
+      operator: m?.operator || 'STCP',
+      destination: String(a.trip_headsign || m?.destination || 'Destino'),
+      scheduled_time: horaLisboaDaquiA(Number.isFinite(atraso) ? Math.round(mins - atraso) : minsR),
+      actual_time: horaLisboaDaquiA(minsR),
+      state: 'Tempo Real',
+      countdown_minutes: minsR,
+      delay_minutes: Number.isFinite(atraso) ? Math.round(atraso) : 0,
+      displayText: formatCountdown(minsR),
+    });
+  }
+  departures.sort((x, y) => x.countdown_minutes - y.countdown_minutes);
+  return departures.slice(0, limit);
+}
+
 export class LinesEngine {
   /**
    * GET /api/lines?near=lat,lon
@@ -404,6 +528,14 @@ export class LinesEngine {
       routeStopMap = getLinesForStops(nearbyStops);
     }
 
+    // Zonas com poucas paragens (ex.: periferia do Porto): alarga até 3 km, como no Perto
+    for (const raio of [2000, 3000]) {
+      if (routeStopMap.size > 0 || searchRadius >= raio) continue;
+      searchRadius = raio;
+      nearbyStops = runCandidateSearch(searchRadius).slice(0, 25);
+      routeStopMap = getLinesForStops(nearbyStops);
+    }
+
     // Collect all candidate stops
     const stopMap = new Map<string, typeof nearbyStops[0]>();
     nearbyStops.forEach((s) => stopMap.set(s.stop_id, s));
@@ -428,7 +560,9 @@ export class LinesEngine {
         trip_headsign: string;
         departure_secs: number;
         frequency_label?: string;
+        stop_id?: string;
       }>;
+      tripIds: Set<string>;
     }>();
 
     // Conjunto de serviços ativos em memória (Regras 1, 2 e 3)
@@ -523,8 +657,15 @@ export class LinesEngine {
             },
             destinations: [dest],
             trips: [],
+            tripIds: new Set<string>(),
           });
         }
+
+        // A mesma viagem passa por várias paragens do raio: fica só a da paragem mais próxima
+        // (as paragens vêm ordenadas pela distância).
+        const cardAtual = cardMap.get(cardKey)!;
+        if (cardAtual.tripIds.has(dep.trip_id)) continue;
+        cardAtual.tripIds.add(dep.trip_id);
 
         // Check frequencies.txt for this trip
         const freqs = db.prepare('SELECT start_time_secs, end_time_secs, headway_secs, exact_times FROM frequencies WHERE trip_id = ?').all(dep.trip_id) as Array<{
@@ -557,6 +698,7 @@ export class LinesEngine {
             direction_id: dep.direction_id || 0,
             trip_headsign: dest,
             departure_secs: dep.departure_secs,
+            stop_id: stop.stop_id,
           });
         }
       }
@@ -600,6 +742,7 @@ export class LinesEngine {
             } : undefined,
             destinations: [],
             trips: [],
+            tripIds: new Set<string>(),
           });
         }
       }
@@ -607,6 +750,8 @@ export class LinesEngine {
 
     // Format departures for each card:
     const lineSummaries: LineSummary[] = [];
+    // Paragem de cada partida (para cruzar com o tempo real da STCP)
+    const paragemDaPartida = new Map<object, string>();
 
     for (const card of cardMap.values()) {
       const departures: LineSummary['departures'] = [];
@@ -662,15 +807,17 @@ export class LinesEngine {
 
               const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
-              departures.push({
+              const partida = {
                 direction_id: dirId,
                 destination: nextT.trip_headsign || card.destinations[0] || 'Destino',
                 time: timeStr,
-                state: 'Programado',
+                state: 'Programado' as const,
                 countdown_minutes: diffMinutes,
                 displayText,
                 ...(avisoHorario ? { aviso_horario: avisoHorario } : {}),
-              });
+              };
+              if (nextT.stop_id && !nextT.frequency_label) paragemDaPartida.set(partida, nextT.stop_id);
+              departures.push(partida);
             }
           } else {
             // Next departure is tomorrow morning
@@ -724,6 +871,9 @@ export class LinesEngine {
         ...(cardAviso ? { aviso_horario: cardAviso } : {}),
       });
     }
+
+    // STCP: troca a hora programada pela hora prevista pelo GPS dos autocarros
+    await aplicarTempoRealStcpNasLinhas(lineSummaries, paragemDaPartida);
 
     // Sort lines by nearest stop distance ascending
     lineSummaries.sort((a, b) => {
@@ -1342,7 +1492,7 @@ export class LinesEngine {
     const finalResult = {
       stop_id: stopId,
       stop_name: stopName,
-      departures,
+      departures: await aplicarTempoRealStcpNaParagem(stopId, departures, limit),
     };
 
     stopDeparturesCache.set(cacheKey, {

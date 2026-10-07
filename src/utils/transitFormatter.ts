@@ -120,6 +120,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
   let rawTime =
     dep.expectedTime ||
     dep.expected_time ||
+    (isRealtime ? dep.actual_time : '') ||
     dep.scheduledTime ||
     dep.departureTime ||
     dep.scheduled_time ||
