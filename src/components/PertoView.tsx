@@ -93,6 +93,13 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
   }
 }
 
+// "Sentido Cordoaria · Hosp. S. João" (só vem quando há paragens com o mesmo nome)
+function textoSentido(stop: NearbyStopItem): string {
+  if (!stop.direction) return '';
+  if (stop.arrivalsOnly) return stop.direction;
+  return `Sentido ${stop.direction.split(' · ').map((d) => formatTransitName(d)).join(' · ')}`;
+}
+
 // Cache ao nível do módulo para manter os últimos dados ao trocar de aba
 let lastNearbyStops: NearbyStopItem[] = [];
 let lastNearbyVehicles: NearbyVehicleItem[] = [];
@@ -896,9 +903,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <IconeModo className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
-                      <h3 className="text-[16px] font-semibold text-[#111111] leading-snug truncate">
-                        {formatTransitName(stop.name)}
-                      </h3>
+                      <div className="min-w-0">
+                        <h3 className="text-[16px] font-semibold text-[#111111] leading-snug truncate">
+                          {formatTransitName(stop.name)}
+                        </h3>
+                        {stop.direction && (
+                          <div className={`text-[12.5px] leading-tight truncate mt-0.5 ${stop.arrivalsOnly ? 'text-[#6B6B6B]' : 'text-[#111111]/70 font-medium'}`}>
+                            {textoSentido(stop)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-['Barlow_Condensed'] text-[13px] font-bold text-[#111111] tabular-nums">
                       <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
@@ -957,7 +971,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                   ) : (
                     <div className="text-[13px] text-[#6B6B6B] pt-2">
-                      Toca para ver as próximas partidas.
+                      {stop.arrivalsOnly ? 'Daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.' : 'Toca para ver as próximas partidas.'}
                     </div>
                   )}
                 </div>
@@ -1076,6 +1090,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 <h4 className="font-semibold text-[17px] text-[#111111] leading-tight truncate">
                   {formatTransitName(selectedStop.name)}
                 </h4>
+                {selectedStop.direction && (
+                  <div className="text-[13px] font-medium text-[#111111]/75 mt-0.5 truncate">
+                    {textoSentido(selectedStop)}
+                  </div>
+                )}
                 <div className="text-xs text-[#6B6B6B] mt-0.5">
                   {normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
                   {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
@@ -1101,7 +1120,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
               if (sorted.length === 0) {
                 return (
                   <div className="py-4 text-sm text-[#6B6B6B]">
-                    {extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
+                    {selectedStop.arrivalsOnly
+                      ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
+                      : extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
                   </div>
                 );
               }

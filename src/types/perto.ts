@@ -41,6 +41,10 @@ export interface NearbyStopItem {
   }>;
   nextDepartures: NextDeparture[];
   activeAlerts: CentralAlert[];
+  /** Sentido (destinos) quando há várias paragens com o mesmo nome */
+  direction?: string;
+  /** Fim de linha: só chegam veículos, nada parte daqui */
+  arrivalsOnly?: boolean;
   isFavorite?: boolean;
   wheelchairAccessible?: boolean;
 }
