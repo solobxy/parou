@@ -137,9 +137,12 @@ export function extractGeoEntities(text: string, operator: string): {
 
   let regiao = 'Nacional';
 
-  if (opLower.includes('unir') || opLower.includes('stcp') || opLower.includes('metro do porto') || foundMunicipios.some(m => concelhosPorto.map(c => c.toLowerCase()).includes(m.toLowerCase()))) {
+  const operadorLisboa = opLower.includes('carris') || opLower.includes('metropolitano de lisboa') || opLower.includes('metro lisboa') || opLower.includes('fertagus') || opLower.includes('transtejo') || opLower.includes('mts');
+  const operadorPorto = opLower.includes('unir') || opLower.includes('stcp') || opLower.includes('metro do porto');
+  // O operador manda: um alerta da Carris Metropolitana que fale do "Porto de Abrigo" de Sesimbra continua a ser de Lisboa
+  if (operadorPorto || (!operadorLisboa && foundMunicipios.some(m => concelhosPorto.map(c => c.toLowerCase()).includes(m.toLowerCase())))) {
     regiao = 'Área Metropolitana do Porto';
-  } else if (opLower.includes('carris metropolitana') || opLower.includes('metropolitano de lisboa') || opLower.includes('fertagus') || opLower.includes('transtejo') || foundMunicipios.some(m => concelhosLisboa.map(c => c.toLowerCase()).includes(m.toLowerCase()))) {
+  } else if (operadorLisboa || foundMunicipios.some(m => concelhosLisboa.map(c => c.toLowerCase()).includes(m.toLowerCase()))) {
     regiao = 'Área Metropolitana de Lisboa';
   } else if (opLower.includes('tub') || foundMunicipios.some(m => concelhosBraga.map(c => c.toLowerCase()).includes(m.toLowerCase()))) {
     regiao = 'Cávado / Minho';

@@ -393,16 +393,24 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         <section className="rounded-[16px] bg-[#111111] text-[#FFFFFF] overflow-hidden shadow-[0_8px_24px_rgba(17,17,17,0.18)]">
           <div className="p-4 pb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.12em] text-white/60 font-semibold">Tempo agora · {dados.local.distrito}</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-white/60 font-semibold">
+                {agora ? 'Tempo agora' : 'Hoje'} · {dados.local.distrito}
+              </div>
               <div className="flex items-end gap-2 mt-1">
-                <span className="font-['Barlow_Condensed'] text-[64px] leading-[0.85] font-bold tabular-nums">
-                  {agora ? `${agora.temperatura}°` : hoje ? `${hoje.tMax}°` : '—'}
-                </span>
-                {hoje && (
-                  <span className="font-['Barlow_Condensed'] text-[15px] text-white/70 tabular-nums pb-1">
-                    {hoje.tMin}° / {hoje.tMax}°
+                {agora ? (
+                  <>
+                    <span className="font-['Barlow_Condensed'] text-[64px] leading-[0.85] font-bold tabular-nums">{agora.temperatura}°</span>
+                    {hoje && (
+                      <span className="font-['Barlow_Condensed'] text-[15px] text-white/70 tabular-nums pb-1">
+                        {hoje.tMin}° / {hoje.tMax}°
+                      </span>
+                    )}
+                  </>
+                ) : hoje ? (
+                  <span className="font-['Barlow_Condensed'] text-[52px] leading-[0.85] font-bold tabular-nums">
+                    {hoje.tMin}°<span className="text-white/40"> / </span>{hoje.tMax}°
                   </span>
-                )}
+                ) : null}
               </div>
               <div className="text-[15px] font-semibold mt-2 truncate">{agora?.descricao || hoje?.descricao}</div>
               <div className="text-xs text-white/60 mt-0.5 flex items-center gap-2">
