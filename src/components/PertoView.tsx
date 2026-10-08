@@ -134,6 +134,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [contextualAlerts, setContextualAlerts] = useState<CentralAlert[]>(lastNearbyAlerts);
   const [isLoadingNearby, setIsLoadingNearby] = useState<boolean>(lastNearbyStops.length === 0);
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
+  const [falhouCarregar, setFalhouCarregar] = useState<boolean>(false);
   const [dbLoadingMessage, setDbLoadingMessage] = useState<string>('A carregar horários…');
   const [selectedRadius, setSelectedRadius] = useState<number>(1000);
   const [raioUsado, setRaioUsado] = useState<number>(ultimoRaioUsado);
@@ -207,6 +208,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         setDbLoadingMessage(msg);
       } else {
         setIsDbLoading(false);
+        setFalhouCarregar(false);
         retryAttemptRef.current = 0;
         if (data.stops) {
           lastNearbyStops = data.stops;
@@ -227,6 +229,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       }
     } catch (err) {
       console.warn('[PertoView] Erro ao carregar paragens:', err);
+      if (lastNearbyStops.length === 0) setFalhouCarregar(true);
     } finally {
       setIsLoadingNearby(false);
       isFetchingNearbyRef.current = false;
@@ -239,6 +242,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   }, [chaveCoords, selectedRadius]);
   const loadNearbyDataRef = useRef(loadNearbyData);
   loadNearbyDataRef.current = loadNearbyData;
+
+  // Quando a internet volta, atualiza logo
+  useEffect(() => {
+    const voltou = () => { setFalhouCarregar(false); loadNearbyDataRef.current?.(); };
+    window.addEventListener('online', voltou);
+    return () => window.removeEventListener('online', voltou);
+  }, []);
 
   // Pedido de localização que demora: ao fim de 12 s mostra "Tentar outra vez"
   useEffect(() => {
@@ -1098,9 +1108,22 @@ export const PertoView: React.FC<PertoViewProps> = ({
               );
             })
           ) : (
+            falhouCarregar && !isDbLoading ? (
+              <div className="p-8 text-center space-y-3">
+                <p className="text-sm text-[#111111] font-semibold">Não foi possível carregar os transportes.</p>
+                <p className="text-[13px] text-[#6B6B6B]">Verifica a ligação à internet e tenta outra vez.</p>
+                <button
+                  onClick={() => { setFalhouCarregar(false); loadNearbyDataRef.current?.(); }}
+                  className="h-10 px-4 rounded-[12px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer"
+                >
+                  Tentar outra vez
+                </button>
+              </div>
+            ) : (
             <div className="p-8 text-center text-sm text-[#6B6B6B]">
               {isDbLoading ? (dbLoadingMessage || 'A carregar horários…') : 'Sem paragens nesta área.'}
             </div>
+            )
           )}
         </div>
 

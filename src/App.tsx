@@ -17,6 +17,7 @@ import {
 import { Header } from './components/Header';
 import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
+import { AvisoSemRede } from './components/AvisoSemRede';
 import { PortugalMap } from './components/PortugalMap';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
 import { ImportantOccurrencesList } from './components/ImportantOccurrencesList';
@@ -567,7 +568,7 @@ export default function App() {
       catalogo: '/catalogo',
       reclamacoes: '/reclamacoes',
       alertas: '/alertas',
-      coverage: '/coverage',
+      coverage: '/cobertura',
     };
     const newPath = pathMap[tab] || '/';
     try {
@@ -702,6 +703,7 @@ export default function App() {
     <div className="min-h-dvh bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-clip">
       {/* Top Background Loading Banner */}
       <TopLoadingBanner />
+      <AvisoSemRede />
 
       {/* Top Bar Navigation (includes mobile-accessible Reclamações e Favoritos) */}
       <Header
