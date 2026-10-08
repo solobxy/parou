@@ -156,7 +156,7 @@ export async function passagensHojeCM(stopId: string): Promise<PassagemCM[]> {
   const c = passagens.get(stopId);
   if (c && Date.now() - c.t < 60_000) return c.v;
   try {
-    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 6000);
+    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 3500);
     const v: PassagemCM[] = (Array.isArray(j) ? j : []).map((a: any) => ({
       linha: String(a.line_id || ''),
       destino: String(a.headsign || ''),
