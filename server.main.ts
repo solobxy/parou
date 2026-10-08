@@ -1370,6 +1370,30 @@ app.get('/robots.txt', (req: Request, res: Response) => {
   res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /debug/\nDisallow: /pesquisa\nDisallow: /_estado\nDisallow: /*?reportId=\n\nSitemap: https://parou.pt/sitemap.xml\n`);
 });
 
+// Diagnóstico da UNIR: os servidores da AMP não aceitam ligações do nosso servidor (fora de
+// Portugal). Esta página testa, a partir do telemóvel de quem a abre, se o browser consegue ler
+// os horários da AMP diretamente (se sim, a app pode buscá-los do lado do telemóvel).
+app.get('/diagnostico-unir', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Robots-Tag', 'noindex');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(`<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Diagnóstico UNIR | PAROU</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}li{margin:10px 0}.ok{color:#1F7A3A;font-weight:700}.mau{color:#D92D20;font-weight:700}code{font-size:12px;word-break:break-all}</style></head><body>
+<h1>Diagnóstico UNIR</h1><p>A testar a ligação deste telemóvel aos horários da UNIR (AMP)…</p><ol id="r"></ol>
+<script>
+const r=document.getElementById('r');
+function linha(t,ok,extra){const li=document.createElement('li');li.innerHTML=t+': <span class="'+(ok?'ok':'mau')+'">'+(ok?'OK':'FALHOU')+'</span>'+(extra?'<br><code>'+extra+'</code>':'');r.appendChild(li);}
+const WFS='https://paragens.amp.pt/geoserver/paragens/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=paragens:paragens_geoserver&outputFormat=application/json&srsName=EPSG:4326&maxFeatures=3';
+(async()=>{
+  try{await fetch('https://paragens.amp.pt/unirmap/',{mode:'no-cors'});linha('1. O telemóvel chega aos servidores da AMP',true);}catch(e){linha('1. O telemóvel chega aos servidores da AMP',false,String(e));}
+  let codigo='';
+  try{const x=await fetch(WFS);const j=await x.json();codigo=(j.features&&j.features[0]&&j.features[0].properties.codparagem)||'';linha('2. Lista de paragens legível pela app',true,'ex.: '+codigo+' '+((j.features[0]||{}).properties||{}).designacao);}catch(e){linha('2. Lista de paragens legível pela app',false,String(e));}
+  try{const d=new Date().toISOString().slice(0,10);const x=await fetch('https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+d+'&id='+encodeURIComponent(codigo||'x'));const t=await x.text();linha('3. Horários legíveis pela app',true,t.slice(0,160));}catch(e){linha('3. Horários legíveis pela app',false,String(e));}
+  const li=document.createElement('li');li.innerHTML='<b>Tira uma captura a este ecrã e manda ao Claude.</b>';r.appendChild(li);
+})();
+</script></body></html>`);
+});
+
 // (sitemap.xml: ver src/server/seo/paginas.ts — índice com páginas, linhas e paragens)
 
 // ==========================================
