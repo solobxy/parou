@@ -1256,7 +1256,7 @@ export default function App() {
 
       {/* Mobile Bottom Navigation Bar: MAPA | REPORTS | PERTO | HORÁRIOS | FAVORITOS */}
       <MobileNav
-        activeMobileView={activeMobileView}
+        activeMobileView={paginaInfo || isNotFound ? ('' as any) : activeMobileView}
         activeFiltersCount={countActiveFilters(filters)}
         favoritesCount={favoritesTotalCount}
         onMobileViewChange={(tab) => {
