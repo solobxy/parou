@@ -1346,3 +1346,64 @@ export function getCoverageTotals(): {
     okCount,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Sentido de uma paragem: para onde vão os veículos que partem dali (destinos mais
+// frequentes). Serve para distinguir paragens com o mesmo nome, uma de cada lado da rua.
+// Se o operador não preenche o destino da viagem, usa o nome da última paragem.
+// Guardado em memória (os horários mudam no máximo uma vez por dia).
+// ---------------------------------------------------------------------------
+export interface SentidoParagem {
+  destinos: string[];
+  /** Só chegam veículos (fim de linha): nada parte desta paragem */
+  soChegadas: boolean;
+}
+
+const cacheSentidos = new Map<string, { valor: SentidoParagem; t: number }>();
+const VALIDADE_SENTIDOS_MS = 6 * 60 * 60 * 1000;
+
+export function getSentidoParagem(stopIds: string[]): SentidoParagem {
+  const ids = Array.from(new Set(stopIds.filter(Boolean))).slice(0, 8);
+  const chave = ids.slice().sort().join('|');
+  const guardado = cacheSentidos.get(chave);
+  if (guardado && Date.now() - guardado.t < VALIDADE_SENTIDOS_MS) return guardado.valor;
+
+  let valor: SentidoParagem = { destinos: [], soChegadas: false };
+  try {
+    const db = getDatabase();
+    const ph = ids.map(() => '?').join(',');
+    const linhas = db.prepare(`
+      SELECT COALESCE(NULLIF(TRIM(t.trip_headsign), ''), (
+               SELECT s.stop_name FROM stop_times x INDEXED BY idx_stop_times_trip_seq
+               JOIN stops s ON s.stop_id = x.stop_id
+               WHERE x.trip_id = st.trip_id ORDER BY x.stop_sequence DESC LIMIT 1
+             )) AS destino,
+             COUNT(*) AS n
+      FROM stop_times st INDEXED BY idx_stop_times_stop
+      CROSS JOIN trips t ON st.trip_id = t.trip_id
+      WHERE st.stop_id IN (${ph})
+        AND st.pickup_type != 1
+        AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
+      GROUP BY destino
+      ORDER BY n DESC
+      LIMIT 4
+    `).all(...ids) as Array<{ destino: string | null; n: number }>;
+
+    const destinos: string[] = [];
+    for (const l of linhas) {
+      const d = String(l.destino || '').replace(/\*+\s*$/, '').trim();
+      if (d && !destinos.some((x) => x.toLowerCase() === d.toLowerCase())) destinos.push(d);
+    }
+    let soChegadas = false;
+    if (destinos.length === 0) {
+      const passa = db.prepare(`SELECT 1 FROM stop_times INDEXED BY idx_stop_times_stop WHERE stop_id IN (${ph}) LIMIT 1`).get(...ids);
+      soChegadas = Boolean(passa);
+    }
+    valor = { destinos, soChegadas };
+  } catch (err: any) {
+    console.warn('[Sentido paragem] Falhou:', err?.message || err);
+  }
+  cacheSentidos.set(chave, { valor, t: Date.now() });
+  if (cacheSentidos.size > 5000) cacheSentidos.clear();
+  return valor;
+}

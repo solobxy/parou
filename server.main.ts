@@ -19,7 +19,7 @@ import {
   getNationalServiceById 
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
-import { getAllFeeds, logFetch, reloadDatabaseConnection } from './src/server/db/gtfsDatabase';
+import { getAllFeeds, logFetch, reloadDatabaseConnection, getSentidoParagem } from './src/server/db/gtfsDatabase';
 import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados } from './src/server/dadosProntos';
 import {
   getMasterSourceRegistry,
@@ -1030,6 +1030,37 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         has_realtime: stop.has_realtime,
       };
     });
+
+    // Paragens com o mesmo nome (uma de cada lado da rua): mostra o sentido de cada uma
+    {
+      const normalizar = (n: string) => String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
+      const grupos = new Map<string, number[]>();
+      mappedStops.forEach((s, i) => {
+        const k = normalizar(s.name);
+        if (!k) return;
+        grupos.set(k, [...(grupos.get(k) || []), i]);
+      });
+      for (const indices of grupos.values()) {
+        if (indices.length < 2) continue;
+        const sentidos = indices.map((i) => getSentidoParagem(enrichedStops[i].member_stop_ids || [enrichedStops[i].id]));
+        indices.forEach((i, pos) => {
+          const meu = sentidos[pos];
+          const s: any = mappedStops[i];
+          if (meu.soChegadas) {
+            s.direction = 'Só chegadas · fim de linha';
+            s.arrivalsOnly = true;
+            return;
+          }
+          if (meu.destinos.length === 0) return;
+          // Destinos que as outras paragens com o mesmo nome não têm (o que as distingue)
+          const dosOutros = new Set(
+            sentidos.filter((_, j) => j !== pos).flatMap((o) => o.destinos.map((d) => d.toLowerCase())),
+          );
+          const proprios = meu.destinos.filter((d) => !dosOutros.has(d.toLowerCase()));
+          s.direction = (proprios.length > 0 ? proprios : meu.destinos).slice(0, 2).join(' · ');
+        });
+      }
+    }
 
     // Format vehicles to exact NearbyVehicleItem contract expected by PertoView (< 3 km)
     const mappedVehicles = liveVehicles
