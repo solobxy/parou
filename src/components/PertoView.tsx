@@ -145,9 +145,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const stopsMarkersRef = useRef<L.Marker[]>([]);
-  // Passados 10 min longe do Perto volta a seguir o utilizador (pode já estar noutro sítio)
+  // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
-    () => ultimoSeguir || !ultimaVistaMapa || Date.now() - ultimaVistaMapa.t > 10 * 60_000,
+    () => ultimoSeguir || !ultimaVistaMapa || Date.now() - ultimaVistaMapa.t > 30_000,
   );
   // Se já há posição ao abrir, o mapa nasce centrado nela (não precisa de "voar" até lá)
   const hasCenteredInitiallyRef = useRef<boolean>(Boolean(userCoords));
@@ -430,6 +430,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (ro) {
         ro.disconnect();
       }
+      // Conta o tempo a partir do momento em que se sai do Perto
+      if (ultimaVistaMapa) ultimaVistaMapa = { ...ultimaVistaMapa, t: Date.now() };
       userMarkerRef.current?.remove();
       userMarkerRef.current = null;
       stopsMarkersRef.current.forEach((m) => m.remove());
