@@ -1289,83 +1289,38 @@ function startScheduledPolling() {
 // ==========================================
 // SEO TECHNICAL ENDPOINTS: robots.txt & sitemap.xml
 // ==========================================
-app.get('/robots.txt', (_req: Request, res: Response) => {
+app.get('/robots.txt', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.send(`User-agent: *\nAllow: /\n\nSitemap: https://parou.pt/sitemap.xml\n`);
+  // Só o parou.pt aparece no Google (o endereço de teste do servidor não)
+  const host = String(req.headers.host || '').toLowerCase();
+  if (host && !/(^|\.)parou\.pt(:\d+)?$/.test(host) && !host.startsWith('localhost')) {
+    return res.send('User-agent: *\nDisallow: /\n');
+  }
+  res.send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://parou.pt/sitemap.xml\n`);
 });
 
 app.get('/sitemap.xml', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600');
+  const paginas: Array<[string, string, string]> = [
+    ['/', 'always', '1.0'],
+    ['/transportes', 'daily', '0.9'],
+    ['/alertas', 'hourly', '0.9'],
+    ['/mapa', 'hourly', '0.8'],
+    ['/ocorrencias', 'hourly', '0.7'],
+    ['/greves', 'daily', '0.7'],
+    ['/catalogo', 'weekly', '0.6'],
+    ['/cobertura', 'weekly', '0.5'],
+    ['/sobre', 'monthly', '0.5'],
+    ['/privacidade', 'yearly', '0.3'],
+    ['/termos', 'yearly', '0.3'],
+  ];
   const sitemapContent = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://parou.pt/</loc>
-    <changefreq>always</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/transportes</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/ocorrencias</loc>
-    <changefreq>always</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/atrasos</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/greves</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/acidentes</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/avarias</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/cortes</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/catalogo</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/horarios</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/perto</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/reclamacoes</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://parou.pt/alertas</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-</urlset>`;
+${paginas.map(([loc, freq, pri]) => `  <url><loc>https://parou.pt${loc}</loc><changefreq>${freq}</changefreq><priority>${pri}</priority></url>`).join('\n')}
+</urlset>
+`;
   res.send(sitemapContent);
 });
 
