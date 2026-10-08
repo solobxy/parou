@@ -160,7 +160,7 @@ async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, d
       TTL: urgente ? '21600' : '43200',
       Urgency: urgente ? 'high' : 'normal',
     },
-    body: corpo,
+    body: new Uint8Array(corpo),
     signal: AbortSignal.timeout(15000),
   });
   if (r.status >= 400 && r.status !== 404 && r.status !== 410) {
