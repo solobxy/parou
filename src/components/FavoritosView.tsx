@@ -13,6 +13,7 @@ import { FavoriteItem, FavoriteCategory } from '../types/favorites';
 import { INITIAL_TRANSIT_CATALOG } from '../data/nationalTransitCatalog';
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { LineChip } from './LineChip';
+import { InstalarApp } from './InstalarApp';
 import { formatTransitName, parseDepartureTime } from '../utils/transitFormatter';
 
 interface FavoritosViewProps {
@@ -136,6 +137,9 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
           <span>Adicionar</span>
         </button>
       </div>
+
+      {/* Instalar no ecrã principal (só aparece quando faz sentido) */}
+      <InstalarApp />
 
       {/* Quick Add Search Panel */}
       {isQuickAddOpen && (
