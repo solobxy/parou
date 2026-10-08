@@ -283,16 +283,16 @@ export async function evaluateAndDispatchAlertNotification(
       if (reg && reg.showNotification) {
         await reg.showNotification(title, {
           body,
-          icon: '/icon.svg',
-          badge: '/icon.svg',
+          icon: '/icon-192.png',
+          badge: '/badge-96.png',
           tag: `parou-alert-${alert.id}`,
           data: { url: `/?tab=alertas&alertId=${alert.id}` },
         });
       } else {
-        new Notification(title, { body, icon: '/icon.svg' });
+        new Notification(title, { body, icon: '/icon-192.png' });
       }
     } else {
-      new Notification(title, { body, icon: '/icon.svg' });
+      new Notification(title, { body, icon: '/icon-192.png' });
     }
 
     // Save to anti-spam cache

@@ -303,6 +303,13 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                   </div>
                 )}
               </div>
+              {/* Página pública da linha: horário completo de dias úteis, sábados e domingos */}
+              <a
+                href={`/linha/${encodeURIComponent(lineId)}`}
+                className="mt-3 flex items-center justify-center h-11 rounded-[10px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111]"
+              >
+                Horário completo (dias úteis, sábados e domingos)
+              </a>
             </>
           )}
         </div>

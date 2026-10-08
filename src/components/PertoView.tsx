@@ -129,6 +129,26 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const chaveCoords = userCoords ? `${userCoords.latitude.toFixed(3)},${userCoords.longitude.toFixed(3)}` : '';
   const coordsRef = useRef(userCoords);
   coordsRef.current = userCoords;
+
+  // Vindo da página pública de uma paragem (/?local=lat,lon&nome=…&paragem=id): centra ali e abre-a
+  const paragemPendenteRef = useRef<{ id: string; lat: number; lon: number } | null>(null);
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const local = q.get('local');
+      if (!local) return;
+      const [lat, lon] = local.split(',').map(Number);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+      const nome = (q.get('nome') || '').slice(0, 80);
+      const paragem = q.get('paragem');
+      if (paragem) paragemPendenteRef.current = { id: paragem, lat, lon };
+      setManualLocation(lat, lon, nome || 'Paragem escolhida');
+      const url = new URL(window.location.href);
+      ['local', 'nome', 'paragem'].forEach((k) => url.searchParams.delete(k));
+      window.history.replaceState(window.history.state, '', url.pathname + url.search);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [stops, setStops] = useState<NearbyStopItem[]>(lastNearbyStops);
   const [vehicles, setVehicles] = useState<NearbyVehicleItem[]>(lastNearbyVehicles);
   const [contextualAlerts, setContextualAlerts] = useState<CentralAlert[]>(lastNearbyAlerts);
@@ -213,6 +233,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
         if (data.stops) {
           lastNearbyStops = data.stops;
           setStops(data.stops);
+          const pendente = paragemPendenteRef.current;
+          if (pendente) {
+            const alvo = data.stops.find((st: NearbyStopItem) => st.id === pendente.id)
+              || data.stops.find((st: NearbyStopItem) => Math.abs(st.latitude - pendente.lat) < 0.0006 && Math.abs(st.longitude - pendente.lon) < 0.0006);
+            if (alvo) {
+              paragemPendenteRef.current = null;
+              setTimeout(() => setSelectedStop(alvo), 0);
+            }
+          }
         }
         if (typeof data.radiusMeters === 'number' && data.radiusMeters > 0) {
           ultimoRaioUsado = data.radiusMeters;
