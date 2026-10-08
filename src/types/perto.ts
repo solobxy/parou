@@ -110,6 +110,17 @@ export interface TransitRouteOption {
   relevantAlerts: string[];
 }
 
+/** Ligação direta da UNIR encontrada pelo servidor (linha, sentido e paragens); a hora vem da AMP */
+export interface CandidatoUnir {
+  linha: string;
+  nome: string;
+  cor: string;
+  sentido: number;
+  paragens: number;
+  origem: { codigo: string; nome: string; metros: number; minutos: number };
+  destino: { codigo: string; nome: string; metros: number; minutos: number };
+}
+
 export interface DestinationSuggestion {
   id: string;
   title: string;

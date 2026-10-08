@@ -21,6 +21,7 @@ import {
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasPush } from './src/server/avisosPush';
+import { planearViagem } from './src/server/planeador';
 import { registarPaginasSeo } from './src/server/seo/paginas';
 import { paginaDaApp } from './src/server/seo/spa';
 import { registarIndexNow } from './src/server/seo/indexnow';
@@ -58,7 +59,6 @@ import { obterAlertas, aquecerAlertas, obterCamadasMapa } from './src/server/ale
 import {
   getNearbyTransitData,
   searchDestinationSuggestions,
-  calculateTransitRoutes
 } from './src/server/pertoEngine';
 
 dotenv.config();
@@ -1307,7 +1307,9 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Coordenadas de origem ou destino inválidas.' });
     }
 
-    const routeData = await calculateTransitRoutes(originLat, originLon, destLat, destLon, destName);
+    const t0 = Date.now();
+    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName);
+    console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR em ${Date.now() - t0} ms`);
     return res.json(routeData);
   } catch (err: any) {
     console.error('[Plan Route API] Erro:', err);
