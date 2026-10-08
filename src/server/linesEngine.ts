@@ -4,6 +4,9 @@ import { DateTime } from 'luxon';
 import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
 import { RealtimeEngine } from './realtimeEngine';
 
+// Um dia de serviço GTFS vai até ~30h (viagens depois da meia-noite contam no dia anterior)
+const JANELA_DIA_SERVICO_SECS = 30 * 3600;
+
 // Cache em memória de 30 segundos (Regra 4)
 interface CacheEntry<T> {
   data: T;
@@ -562,15 +565,21 @@ export class LinesEngine {
         departure_secs: number;
         frequency_label?: string;
         stop_id?: string;
+        /** Partida do dia de serviço de amanhã */
+        amanha?: boolean;
       }>;
       tripIds: Set<string>;
+      /** Paragens perto por onde a linha passa (só nas linhas sem partidas na janela) */
+      candidatas?: string[];
     }>();
 
     // Conjunto de serviços ativos em memória (Regras 1, 2 e 3)
     const activeToday = getActiveServices(new Date(), 'Europe/Lisbon');
     const activeYesterday = getActiveServices(new Date(Date.now() - 24 * 3600 * 1000), 'Europe/Lisbon');
     const minSecs = Math.max(0, currentSecs - 120);
-    const maxSecs = currentSecs + 10800; // agora + 3h
+    // Resto do dia de serviço (até 30h, viagens depois da meia-noite). Antes só via 3 h à
+    // frente: de madrugada as linhas de dia apareciam como "Horário indisponível".
+    const maxSecs = JANELA_DIA_SERVICO_SECS;
 
     // Query non-terminating departures for each nearby stop com janela de tempo e EXISTS
     for (const stop of nearbyStops) {
@@ -622,7 +631,7 @@ export class LinesEngine {
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
         LIMIT 30
-      `).all(stop.stop_id, (currentSecs + 86400) - 120, (currentSecs + 86400) + 10800, stop.stop_name) as typeof departuresRaw;
+      `).all(stop.stop_id, (currentSecs + 86400) - 120, 172800, stop.stop_name) as typeof departuresRaw;
 
       const yesterdayDeps = yesterdayLateQuery
         .filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeYesterday))
@@ -744,8 +753,73 @@ export class LinesEngine {
             destinations: [],
             trips: [],
             tripIds: new Set<string>(),
+            candidatas: candStops.map((c) => c.stop_id),
           });
         }
+      }
+    }
+
+    // Linhas sem partidas na consulta geral (à noite depois do último autocarro, ou linhas
+    // noturnas que ficam fora das 60 primeiras partidas da paragem): procura a próxima partida
+    // dessa linha nas paragens perto — ainda hoje ou, senão, amanhã — em vez de "Horário indisponível"
+    const semPartidas = Array.from(cardMap.values()).filter((c) => c.trips.length === 0 && (c.candidatas || []).length > 0);
+    if (semPartidas.length > 0) {
+      const activeTomorrow = getActiveServices(new Date(Date.now() + 24 * 3600 * 1000), 'Europe/Lisbon');
+      const consultaLinha = (paragens: string[], routeId: string, de: number) => db.prepare(`
+        SELECT st.stop_id, st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id, r.feed_id
+        FROM stop_times st INDEXED BY idx_stop_times_stop
+        CROSS JOIN trips t ON st.trip_id = t.trip_id
+        CROSS JOIN routes r ON t.route_id = r.route_id
+        WHERE st.stop_id IN (${paragens.map(() => '?').join(',')}) AND t.route_id = ? AND st.departure_secs BETWEEN ? AND 172800
+          AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
+        ORDER BY st.departure_secs ASC
+        LIMIT 80
+      `).all(...paragens, routeId, de) as Array<{
+        stop_id: string; departure_secs: number; trip_id: string; trip_headsign: string; direction_id: number; service_id: string; feed_id: string;
+      }>;
+      for (const card of semPartidas.slice(0, 25)) {
+        try {
+          const paragens = (card.candidatas || []).slice(0, 6);
+          const ordemParagem = new Map(paragens.map((id, i) => [id, i]));
+          const escolher = (linhas: ReturnType<typeof consultaLinha>, ativos: any, amanha: boolean) => {
+            // Por sentido: a partida mais cedo, na paragem mais próxima que a tenha
+            const porSentido = new Map<number, (typeof linhas)[0]>();
+            for (const l of linhas) {
+              if (!isServiceActive(l.feed_id, l.service_id, ativos)) continue;
+              if (!amanha && l.departure_secs < currentSecs) continue;
+              const dir = l.direction_id || 0;
+              const atual = porSentido.get(dir);
+              if (!atual || l.departure_secs < atual.departure_secs ||
+                  (l.departure_secs === atual.departure_secs && (ordemParagem.get(l.stop_id) ?? 99) < (ordemParagem.get(atual.stop_id) ?? 99))) {
+                porSentido.set(dir, l);
+              }
+            }
+            return Array.from(porSentido.values());
+          };
+          let escolhidas = escolher(consultaLinha(paragens, card.id, Math.max(0, currentSecs - 120)), activeToday, false);
+          let amanha = false;
+          if (escolhidas.length === 0) {
+            escolhidas = escolher(consultaLinha(paragens, card.id, 0), activeTomorrow, true);
+            amanha = true;
+          }
+          for (const l of escolhidas) {
+            card.trips.push({
+              trip_id: l.trip_id,
+              direction_id: l.direction_id || 0,
+              trip_headsign: l.trip_headsign || card.destinations[0] || 'Destino',
+              departure_secs: l.departure_secs,
+              stop_id: l.stop_id,
+              ...(amanha ? { amanha: true } : {}),
+            });
+            if (l.trip_headsign && !card.destinations.includes(l.trip_headsign)) card.destinations.push(l.trip_headsign);
+          }
+          // A paragem mostrada passa a ser a mais próxima de onde a linha parte mesmo
+          const melhor = escolhidas.map((l) => l.stop_id).sort((a, b) => (ordemParagem.get(a) ?? 99) - (ordemParagem.get(b) ?? 99))[0];
+          const info = melhor ? stopMap.get(melhor) : undefined;
+          if (info) {
+            card.nearest_stop = { id: info.stop_id, name: info.stop_name, distance_meters: Math.round(info.dist), lat: info.stop_lat, lon: info.stop_lon };
+          }
+        } catch (err: any) { console.warn('[Linhas perto] próxima partida da linha falhou:', err?.message || err); }
       }
     }
 
@@ -783,16 +857,20 @@ export class LinesEngine {
             lastDepStr = `${String(Math.floor(lastSecs / 3600) % 24).padStart(2, '0')}:${String(Math.floor((lastSecs % 3600) / 60)).padStart(2, '0')}`;
           }
 
-          // Upcoming trips today for this direction (from currentSecs)
-          const upcomingTrips = dirTrips.filter((t) => t.departure_secs >= currentSecs);
+          // Upcoming trips today for this direction (from currentSecs), ou as de amanhã
+          const upcomingTrips = dirTrips.filter((t) => t.amanha || t.departure_secs >= currentSecs);
 
           if (upcomingTrips.length > 0) {
             // Take up to 2 departures per direction
             for (const nextT of upcomingTrips.slice(0, 2)) {
-              const diffSecs = nextT.departure_secs - currentSecs;
+              const diffSecs = nextT.amanha ? (86400 - currentSecs) + nextT.departure_secs : nextT.departure_secs - currentSecs;
               let diffMinutes = Math.max(0, Math.round(diffSecs / 60));
               let displayText = `daqui a ${diffMinutes} min`;
-              if (nextT.frequency_label) {
+              if (nextT.amanha) {
+                const hh = String(Math.floor(nextT.departure_secs / 3600) % 24).padStart(2, '0');
+                const mm = String(Math.floor((nextT.departure_secs % 3600) / 60)).padStart(2, '0');
+                displayText = `amanhã às ${hh}:${mm}`;
+              } else if (nextT.frequency_label) {
                 displayText = nextT.frequency_label;
               } else if (diffSecs <= 0 && diffSecs >= -120) {
                 diffMinutes = 0;
@@ -1249,7 +1327,7 @@ export class LinesEngine {
     const activeYesterday = getActiveServices(new Date(Date.now() - 24 * 3600 * 1000), 'Europe/Lisbon');
     const activeTomorrow = getActiveServices(new Date(Date.now() + 24 * 3600 * 1000), 'Europe/Lisbon');
     const minSecs = Math.max(0, currentSecs - 120);
-    const maxSecs = currentSecs + 10800; // agora + 3h
+    const maxSecs = JANELA_DIA_SERVICO_SECS; // resto do dia de serviço (antes: só 3 h)
 
     // 1. Real-time source (Requirement 5): For Carris Metropolitana stops, query /v2/arrivals/by_stop/:id
     const departures: StopDepartureItem[] = [];
@@ -1363,7 +1441,7 @@ export class LinesEngine {
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
         LIMIT 60
-      `).all(stopId, stopId, rawStopId, (currentSecs + 86400) - 120, (currentSecs + 86400) + 10800, stopName) as Array<{
+      `).all(stopId, stopId, rawStopId, (currentSecs + 86400) - 120, 172800, stopName) as Array<{
         departure_secs: number;
         trip_id: string;
         trip_headsign: string;
@@ -1417,7 +1495,7 @@ export class LinesEngine {
           WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
             AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
             AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
-            AND st.departure_secs BETWEEN 0 AND 14400
+            AND st.departure_secs BETWEEN 0 AND ${JANELA_DIA_SERVICO_SECS}
             AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
             AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
           ORDER BY st.departure_secs ASC

@@ -239,10 +239,20 @@ export class DepartureEngine {
         else if (d === 1) dayLabel = 'amanhã';
         else if (d > 1) dayLabel = serviceDay.setLocale('pt-PT').toFormat('cccc');
 
-        // Janela de tempo no SQL: st.departure_secs BETWEEN agora-120 AND agora+3h (Regra 2)
+        // Janela de tempo no SQL. Antes só via 3 h à frente hoje e 00:00–04:00 nos dias
+        // seguintes: de madrugada (ou à noite, depois do último autocarro) as paragens só com
+        // carreiras de dia ficavam "Sem partidas" apesar de haver às 6h. Agora vê o dia
+        // inteiro de serviço (até 48h, para viagens depois da meia-noite); o LIMIT da consulta
+        // e a paragem antecipada abaixo mantêm isto rápido.
         const currentSecsOfDay = feedNow.hour * 3600 + feedNow.minute * 60 + feedNow.second;
         const minSecs = d === -1 ? Math.max(86400, (currentSecsOfDay + 86400) - 120) : (d === 0 ? Math.max(0, currentSecsOfDay - 120) : 0);
-        const maxSecs = d === -1 ? (currentSecsOfDay + 86400) + 10800 : (d === 0 ? currentSecsOfDay + 10800 : 14400);
+        const maxSecs = 172800;
+
+        // Já há partidas suficientes antes do início deste dia: os dias seguintes não mudam nada
+        if (d >= 1 && collectedCandidates.length >= maxResults) {
+          const epocas = collectedCandidates.map((c) => c.depEpochSecs).sort((a, b) => a - b);
+          if (epocas[maxResults - 1] <= serviceDayStartSecs) break;
+        }
 
         const activeServiceIds = getActiveServiceIds(feedId, dateStr, dayOfWeekName);
         if (activeServiceIds.size === 0) continue;
