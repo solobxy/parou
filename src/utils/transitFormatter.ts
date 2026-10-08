@@ -229,7 +229,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     } else {
       const h = Math.floor(effectiveMinutes / 60);
       const m = effectiveMinutes % 60;
-      subText = m > 0 ? `em ${h} h ${m}` : `em ${h} h`;
+      subText = m > 0 ? `em ${h}h${String(m).padStart(2, '0')}` : `em ${h}h`;
     }
   }
 

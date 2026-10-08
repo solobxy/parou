@@ -192,7 +192,7 @@ async function tempoAgora(lat: number, lon: number): Promise<TempoAgora | null> 
   const lo = Math.round(lon * 20) / 20;
   return emCache(`meteo:${la},${lo}`, 10 * 60_000, async () => {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&timezone=Europe%2FLisbon`;
-    const j = await buscarJson(url, 4000);
+    const j = await buscarJson(url, 6000);
     const c = j?.current;
     if (!c || !Number.isFinite(Number(c.temperature_2m))) throw new Error('sem dados atuais');
     const dia = Number(c.is_day) === 1;
@@ -421,11 +421,16 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
   for (const a of todas as any[]) {
     if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
     if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue; // o tempo tem secção própria
-    const textoRegiao = semAcentos(`${a.região || ''} ${(a.municípios || []).join(' ')}`);
+    // A região vem do operador (Carris Metropolitana -> Lisboa, STCP/UNIR -> Porto); os
+    // municípios só contam para alertas sem região definida.
+    const reg = semAcentos(String(a.região || ''));
+    const municipios = semAcentos((a.municípios || []).join(' | '));
+    const palavraDistrito = new RegExp(`\\b${semAcentos(distrito)}\\b`);
     const daRegiao =
-      (regiao === 'lisboa' && /lisboa|setubal|almada|seixal|barreiro|sintra|cascais|oeiras|amadora|loures|odivelas|moita|montijo|palmela|sesimbra|mafra|vila franca/.test(textoRegiao)) ||
-      (regiao === 'porto' && /porto|gaia|matosinhos|maia|gondomar|valongo|vila do conde|povoa|espinho|santo tirso|trofa|paredes|braga|aveiro/.test(textoRegiao)) ||
-      new RegExp(`\\b${semAcentos(distrito)}\\b`).test(textoRegiao);
+      (regiao === 'lisboa' && /lisboa/.test(reg)) ||
+      (regiao === 'porto' && /porto/.test(reg)) ||
+      palavraDistrito.test(reg) ||
+      ((reg === '' || reg === 'nacional') && palavraDistrito.test(municipios));
     const greve = a.tipo === 'greve';
     if (!daRegiao && !greve) continue;
     const categoria: OcorrenciaOficial['categoria'] = greve ? 'greve' : a.tipo === 'obras' ? 'obras' : 'rede';
@@ -447,6 +452,16 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
       local: daRegiao,
     });
   }
+  // O mesmo aviso chega por duas fontes (TML e Carris Metropolitana): fica um só
+  const unicos = new Map<string, OcorrenciaOficial>();
+  for (const o of lista) {
+    o.linhas = Array.from(new Set(o.linhas.map((l) => l.replace(/_\d+$/, '')))).slice(0, 6);
+    const chave = `${semAcentos(o.operador)}|${semAcentos(o.titulo).replace(/[^a-z0-9]/g, '')}`;
+    const atual = unicos.get(chave);
+    if (!atual || (o.resumo.length > atual.resumo.length)) unicos.set(chave, atual ? { ...o, linhas: Array.from(new Set([...atual.linhas, ...o.linhas])).slice(0, 6) } : o);
+  }
+  lista.length = 0;
+  lista.push(...unicos.values());
   const pesoGrav = { Grave: 2, Moderada: 1, Informativo: 0 } as const;
   lista.sort((x, y) =>
     Number(y.local) - Number(x.local) ||
