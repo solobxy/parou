@@ -847,37 +847,52 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     });
   }
 
-  // 3. Perturbações, greves e obras anunciadas pelos operadores (ativas agora)
+  // 3. Perturbações, greves e obras anunciadas pelos operadores (ativas agora): um símbolo
+  //    por operador (a Carris Metropolitana sozinha tem dezenas de avisos de paragens)
   const oficiais = await Promise.race([
     getCentralAlerts().catch(() => []),
     new Promise<any[]>((r) => setTimeout(() => r([]), 3500)),
   ]);
+  const porOperador = new Map<string, { centro: { lat: number; lon: number }; nome: string; itens: any[] }>();
   for (const a of oficiais as any[]) {
     if (a.status !== 'Ativo') continue;
     if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue;
     const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
     if (Number.isFinite(fimMs) && fimMs < agora) continue;
     const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    if (Number.isFinite(inicioMs) && inicioMs > agora) continue;
     if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
     const op = semAcentos(String(a.operador || ''));
     const centro = CENTRO_OPERADOR.find((c) => c.re.test(op));
     if (!centro) continue;
-    const id = String(a.id);
-    const [dLat, dLon] = jitter(id);
-    const tipo: TipoPontoMapa = a.tipo === 'greve' ? 'greve' : a.tipo === 'obras' ? 'obras' : 'perturbacao';
+    const chave = String(centro.re);
+    const g = porOperador.get(chave) || { centro, nome: String(a.operador || 'Operador'), itens: [] as any[] };
+    g.itens.push(a);
+    porOperador.set(chave, g);
+  }
+  const pesoSev: Record<string, number> = { Grave: 2, Moderada: 1 };
+  for (const [chave, g] of porOperador) {
+    // Primeiro greves, depois os mais graves
+    g.itens.sort((x, y) => Number(y.tipo === 'greve') - Number(x.tipo === 'greve') || (pesoSev[y.severity] || 0) - (pesoSev[x.severity] || 0));
+    const principal = g.itens[0];
+    const temGreve = g.itens.some((x) => x.tipo === 'greve');
+    const grave = g.itens.some((x) => x.severity === 'Grave') || temGreve;
+    const n = g.itens.length;
+    const titulos = g.itens.slice(0, 3).map((x) => String(x.título || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const [dLat, dLon] = jitter(chave, 0.01);
     pontos.push({
-      id: `op:${id}`,
-      tipo,
-      lat: centro.lat + dLat,
-      lon: centro.lon + dLon,
-      titulo: String(a.título || 'Perturbação').replace(/\s+/g, ' ').trim(),
-      subtitulo: [String(a.operador || ''), Array.isArray(a.linhas) && a.linhas.length ? `Linhas ${a.linhas.slice(0, 4).join(', ')}` : '', Number.isFinite(fimMs) ? `até ${DateTime.fromMillis(fimMs, { zone: ZONA }).toFormat("dd/LL 'às' HH:mm")}` : ''].filter(Boolean).join(' · '),
-      cor: tipo === 'greve' ? '#D92D20' : '#111111',
-      gravidade: a.severity === 'Grave' ? 'Grave' : a.severity === 'Moderada' ? 'Moderada' : 'Informativo',
-      fonte: String(a.operador || 'Operador'),
-      url: String(a.source_url || '') || undefined,
-      inicio: a.start_datetime || null,
-      fim: a.end_datetime || null,
+      id: `op:${chave}`,
+      tipo: temGreve ? 'greve' : g.itens.every((x) => x.tipo === 'obras') ? 'obras' : 'perturbacao',
+      lat: g.centro.lat + dLat,
+      lon: g.centro.lon + dLon,
+      titulo: n === 1 ? titulos[0] || `${g.nome}: aviso` : `${g.nome}: ${n} avisos ativos`,
+      subtitulo: n === 1 ? g.nome : titulos.join(' · ') + (n > 3 ? ` · e mais ${n - 3}` : ''),
+      cor: temGreve ? '#D92D20' : '#111111',
+      gravidade: grave ? 'Grave' : principal.severity === 'Moderada' ? 'Moderada' : 'Informativo',
+      fonte: g.nome,
+      url: n === 1 ? String(principal.source_url || '') || undefined : undefined,
+      inicio: principal.start_datetime || null,
+      fim: principal.end_datetime || null,
     });
   }
 

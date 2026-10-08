@@ -638,17 +638,6 @@ app.get('/api/transit/audit/availability', async (req: Request, res: Response) =
   }
 });
 
-// Endpoint to download the full project zip archive
-app.get(['/download-project.zip', '/parou-pt-full-source.zip', '/api/project-zip'], (req: Request, res: Response) => {
-  const zipPath = path.resolve(process.cwd(), 'public', 'parou-pt-full-source.zip');
-  if (fs.existsSync(zipPath)) {
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="parou-pt-full-source.zip"');
-    return res.sendFile(zipPath);
-  }
-  return res.status(404).send('Arquivo zip não encontrado');
-});
-
 // ==========================================
 // TML GO HUB OFFICIAL ENDPOINTS & AUDIT
 // Direct connection to https://go.tmlmobilidade.pt/hub/api/v1
@@ -1605,9 +1594,18 @@ async function startServer() {
 
     // 1. In production / built state, serve SPA static assets immediately (0ms blocking)
     if (isProduction) {
-      app.use(express.static(distPath));
+      // Ficheiros com nome único (/assets/…-hash) ficam guardados no telemóvel para sempre;
+      // a página e o service worker são sempre confirmados (para as atualizações chegarem logo)
+      app.use(express.static(distPath, {
+        setHeaders: (res, ficheiro) => {
+          if (ficheiro.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          else if (ficheiro.endsWith('sw.js') || ficheiro.endsWith('.html') || ficheiro.endsWith('.webmanifest')) res.setHeader('Cache-Control', 'no-cache');
+          else res.setHeader('Cache-Control', 'public, max-age=86400');
+        },
+      }));
       app.get('*', (req: Request, res: Response, next: NextFunction) => {
         if (req.path.startsWith('/api') || req.path === '/health') return next();
+        res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }

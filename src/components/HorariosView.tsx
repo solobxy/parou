@@ -109,14 +109,19 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       const adicionadas = [...agora].filter((id) => !antes.has(id));
       linhasNosFavoritosRef.current = agora;
       if (removidas.length === 0 && adicionadas.length === 0) return;
-      setFavoriteLineIds((prev) => {
-        const conj = new Set(prev);
-        removidas.forEach((id) => conj.delete(id));
-        adicionadas.forEach((id) => conj.add(id));
-        const next = Array.from(conj);
-        try { localStorage.setItem('parou_favorite_line_ids', JSON.stringify(next)); } catch {}
-        return next;
-      });
+      // Parte do que está guardado agora (pode ter sido reposto da cópia no servidor),
+      // nunca do estado antigo da página — senão perdiam-se linhas favoritas
+      let guardadas: string[] = [];
+      try {
+        const v = JSON.parse(localStorage.getItem('parou_favorite_line_ids') || '[]');
+        if (Array.isArray(v)) guardadas = v;
+      } catch {}
+      const conj = new Set(guardadas);
+      removidas.forEach((id) => conj.delete(id));
+      adicionadas.forEach((id) => conj.add(id));
+      const next = Array.from(conj);
+      try { localStorage.setItem('parou_favorite_line_ids', JSON.stringify(next)); } catch {}
+      setFavoriteLineIds(next);
     };
     window.addEventListener('parou_favorites_updated', aoMudar);
     return () => window.removeEventListener('parou_favorites_updated', aoMudar);
@@ -126,7 +131,13 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const linhasConhecidasRef = useRef<Map<string, ApiLineItem>>(new Map());
   const toggleFavoriteLine = useCallback((lineId: string) => {
     let agoraFavorita = false;
-    setFavoriteLineIds((prev) => {
+    setFavoriteLineIds((prevEstado) => {
+      // O que está guardado manda (pode ter sido reposto entretanto)
+      let prev = prevEstado;
+      try {
+        const v = JSON.parse(localStorage.getItem('parou_favorite_line_ids') || 'null');
+        if (Array.isArray(v)) prev = v;
+      } catch {}
       const exists = prev.includes(lineId);
       agoraFavorita = !exists;
       const next = exists ? prev.filter((id) => id !== lineId) : [...prev, lineId];

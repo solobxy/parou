@@ -35,8 +35,8 @@ function lerAtualizadoLocal(): number {
 
 function avisarApp() {
   try {
-    window.dispatchEvent(new CustomEvent('parou_favorites_updated'));
     window.dispatchEvent(new CustomEvent('parou_dados_repostos'));
+    window.dispatchEvent(new CustomEvent('parou_favorites_updated'));
   } catch {}
 }
 

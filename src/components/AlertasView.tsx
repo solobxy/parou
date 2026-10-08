@@ -277,7 +277,7 @@ function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
           <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.humanos}</span>
           <span className="inline-flex items-center gap-1"><Truck className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.terrestres}</span>
           {f.meios.aereos > 0 && <span className="inline-flex items-center gap-1"><Plane className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.aereos}</span>}
-          {f.inicio && <span className="text-[#6B6B6B] font-normal">desde {haQuanto(Date.parse(f.inicio)).replace('há ', 'há ')}</span>}
+          {f.inicio && <span className="text-[#6B6B6B] font-normal">começou {haQuanto(Date.parse(f.inicio))}</span>}
         </div>
       </div>
     </div>
