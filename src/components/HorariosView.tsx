@@ -95,8 +95,20 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const isAllLinesFetchingRef = useRef<boolean>(false);
   const retryAttemptRef = useRef<number>(0);
 
-  // Line Detail Modal
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  // Line Detail Modal (abre logo se o endereço trouxer ?linha=…, ex.: vindo da página pública da linha)
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(() => {
+    try {
+      const id = new URLSearchParams(window.location.search).get('linha');
+      if (id) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('linha');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search);
+      }
+      return id && id.length < 120 ? id : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Quando uma linha é tirada (ou posta) no separador Favoritos, a estrela daqui acompanha
   const linhasNosFavoritos = () => new Set(getLocalFavorites().filter((f) => f.id.startsWith('line-')).map((f) => f.id.slice(5)));

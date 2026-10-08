@@ -236,8 +236,8 @@ export async function sendSystemNotification(
 
   const options: NotificationOptions = {
     body,
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/badge-96.png',
     tag: reportId ? `report-${reportId}` : 'parou-alert',
     data: {
       url: reportId ? `/?reportId=${reportId}` : '/',

@@ -1094,3 +1094,81 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
 
   return lista;
 }
+
+// ---------------------------------------------------------------------------------
+// Greves (página pública /greves): anunciadas pelos operadores e nas notícias
+// ---------------------------------------------------------------------------------
+export interface GreveResumo {
+  id: string;
+  titulo: string;
+  resumo: string;
+  operador: string;
+  inicio: string | null;
+  fim: string | null;
+  aDecorrer: boolean;
+  url: string;
+  fonte: string;
+  origem: 'operador' | 'noticia';
+  publicada: string | null;
+}
+
+export async function obterGreves(): Promise<{ atualizado: string; greves: GreveResumo[] }> {
+  const agora = Date.now();
+  const greves: GreveResumo[] = [];
+  const oficiais = await Promise.race([
+    getCentralAlerts().catch(() => []),
+    new Promise<any[]>((r) => setTimeout(() => r([]), 5000)),
+  ]);
+  for (const a of oficiais as any[]) {
+    if (a.tipo !== 'greve') continue;
+    if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    if (Number.isFinite(fimMs) && fimMs < agora) continue;
+    const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    if (!Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
+    if (Number.isFinite(inicioMs) && inicioMs - agora > 45 * 24 * 3600_000) continue;
+    const resumo = String(a.descrição || '').replace(/\s+/g, ' ').trim();
+    greves.push({
+      id: `oficial:${a.id}`,
+      titulo: String(a.título || 'Greve').replace(/\s+/g, ' ').trim(),
+      resumo: resumo.length > 300 ? `${resumo.slice(0, 297).trimEnd()}…` : resumo,
+      operador: String(a.operador || ''),
+      inicio: a.start_datetime ? String(a.start_datetime) : null,
+      fim: a.end_datetime ? String(a.end_datetime) : null,
+      aDecorrer: Number.isFinite(inicioMs) ? inicioMs <= agora : a.status === 'Ativo',
+      url: String(a.source_url || ''),
+      fonte: String(a.source || a.operador || 'Operador'),
+      origem: 'operador',
+      publicada: a.published_datetime ? String(a.published_datetime) : null,
+    });
+  }
+  const feeds = await Promise.all(FONTES_RSS.map((f) => lerFeed(f).catch(() => [])));
+  const vistos = new Set<string>();
+  for (const n of feeds.flat().sort((a, b) => b.data.localeCompare(a.data))) {
+    if (n.categoria !== 'greve') continue;
+    const idade = agora - Date.parse(n.data);
+    if (!Number.isFinite(idade) || idade > 72 * 3600_000) continue;
+    const chave = semAcentos(n.titulo).replace(/[^a-z0-9 ]/g, '').split(' ').filter((p) => p.length > 3).slice(0, 6).join(' ');
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    const op = operadorPush(n.texto);
+    greves.push({
+      id: `noticia:${n.url}`,
+      titulo: n.titulo,
+      resumo: n.resumo || '',
+      operador: op?.nome || '',
+      inicio: null,
+      fim: null,
+      aDecorrer: false,
+      url: n.url,
+      fonte: n.fonte,
+      origem: 'noticia',
+      publicada: n.data,
+    });
+  }
+  greves.sort((x, y) =>
+    Number(y.origem === 'operador') - Number(x.origem === 'operador') ||
+    String(x.inicio || '').localeCompare(String(y.inicio || '')) ||
+    String(y.publicada || '').localeCompare(String(x.publicada || '')));
+  return { atualizado: new Date().toISOString(), greves: greves.slice(0, 40) };
+}

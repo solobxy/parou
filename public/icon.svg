@@ -1,12 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#0b0f17" />
-  <circle cx="256" cy="256" r="190" fill="#131b2e" stroke="#2563eb" stroke-width="8" stroke-dasharray="16 12" opacity="0.6"/>
-  <circle cx="256" cy="256" r="140" fill="#1e293b" />
-  <!-- Warning / Stop Sign Polygon -->
-  <polygon points="256,150 330,224 330,328 256,402 182,328 182,224" fill="#ef4444" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" />
-  <!-- Exclamation Mark -->
-  <rect x="246" y="200" width="20" height="90" rx="10" fill="#ffffff" />
-  <circle cx="256" cy="326" r="12" fill="#ffffff" />
-  <!-- Live Signal Pulse -->
-  <circle cx="256" cy="256" r="220" stroke="#3b82f6" stroke-width="4" opacity="0.3" />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M12 0H80L100 20V88Q100 100 88 100H12Q0 100 0 88V12Q0 0 12 0Z" fill="#111111"/><path d="M34 80V25H56L66 35V57H52" fill="none" stroke="#FFFFFF" stroke-width="10"/><circle cx="49" cy="57" r="6.5" fill="#FF6B1A" stroke="#111111" stroke-width="3"/></svg>

@@ -144,7 +144,8 @@ export default defineConfig(async ({ command }) => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
-          navigateFallbackDenylist: [/^\/api\//, /^\/_estado/, /^\/health/],
+          // Páginas feitas no servidor (linhas, paragens, greves, sitemaps) nunca vêm da cópia da app
+          navigateFallbackDenylist: [/^\/api\//, /^\/_estado/, /^\/health/, /^\/linhas/, /^\/paragens/, /^\/linha\//, /^\/paragem\//, /^\/greves/, /^\/pesquisa/, /^\/sitemap/, /^\/robots/, /^\/\.well-known/],
         },
         manifest: {
           id: '/',

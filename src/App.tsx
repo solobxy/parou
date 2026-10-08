@@ -18,6 +18,7 @@ import { Header } from './components/Header';
 import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { AvisoSemRede } from './components/AvisoSemRede';
+import { aplicarMetaRota } from './seo/rotasApp';
 import { PortugalMap } from './components/PortugalMap';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
 import { ImportantOccurrencesList } from './components/ImportantOccurrencesList';
@@ -112,7 +113,7 @@ export default function App() {
     setIsNotFound(false);
     setSelectedOccurrence(null);
     try { if (window.location.pathname !== `/${p}`) window.history.pushState({ pagina: p }, '', `/${p}`); } catch {}
-    document.title = p === 'sobre' ? 'Sobre a PAROU' : p === 'privacidade' ? 'Política de privacidade | PAROU' : 'Termos de utilização | PAROU';
+    aplicarMetaRota(`/${p}`);
     window.scrollTo(0, 0);
   }, []);
 
@@ -603,10 +604,8 @@ export default function App() {
     if (titlesMap[tab]) {
       document.title = titlesMap[tab];
     }
-    const canonicalLink = document.querySelector('link[rel="canonical"]');
-    if (canonicalLink) {
-      canonicalLink.setAttribute('href', `https://parou.pt${newPath}`);
-    }
+    // Título, descrição e canónico iguais aos que o servidor dá para este endereço
+    aplicarMetaRota(newPath);
   }, []);
 
   // Resolve initial route from browser URL for clean indexing and direct navigation
@@ -693,10 +692,7 @@ export default function App() {
       document.title = 'Página Não Encontrada (404) | PAROU';
     }
 
-    const canonicalLink = document.querySelector('link[rel="canonical"]');
-    if (canonicalLink) {
-      canonicalLink.setAttribute('href', `https://parou.pt${pathname === '/' ? '/' : pathname}`);
-    }
+    aplicarMetaRota(pathname);
   }, [handleFilterChange]);
 
   // Only resolve route on initial mount and real browser popstate events
@@ -1149,49 +1145,31 @@ export default function App() {
             <span>Informação em direto de transportes em Portugal</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-medium text-xs">
-            <button
-              onClick={() => handleTabSelect('perto')}
-              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
-            >
-              Perto
-            </button>
-            <button
-              onClick={() => handleTabSelect('horarios')}
-              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
-            >
-              Horários
-            </button>
-            <button
-              onClick={() => handleTabSelect('alertas')}
-              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
-            >
-              Alertas
-            </button>
-            <button
-              onClick={() => handleTabSelect('reports')}
-              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
-            >
-              Ocorrências
-            </button>
-            <button
-              onClick={() => handleTabSelect('catalogo')}
-              className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer"
-            >
-              Catálogo
-            </button>
-            <button
-              onClick={() => handleTabSelect('coverage')}
-              className={`transition-colors cursor-pointer ${
-                activeNavTab === 'coverage' ? 'font-semibold text-[#111111]' : 'text-[#6B6B6B] hover:text-[#111111]'
-              }`}
-            >
-              <span>Cobertura</span>
-            </button>
-            <button onClick={() => abrirPaginaInfo('sobre')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Sobre</button>
-            <button onClick={() => abrirPaginaInfo('privacidade')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Privacidade</button>
-            <button onClick={() => abrirPaginaInfo('termos')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Termos</button>
-          </div>
+          <nav aria-label="PAROU" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 font-medium text-xs">
+            {/* Ligações reais (os motores de pesquisa seguem-nas); dentro da app abrem sem recarregar */}
+            {([
+              ['/', 'Perto', () => handleTabSelect('perto')],
+              ['/transportes', 'Horários', () => handleTabSelect('horarios')],
+              ['/alertas', 'Alertas', () => handleTabSelect('alertas')],
+              ['/ocorrencias', 'Ocorrências', () => handleTabSelect('reports')],
+              ['/catalogo', 'Catálogo', () => handleTabSelect('catalogo')],
+              ['/cobertura', 'Cobertura', () => handleTabSelect('coverage')],
+              ['/sobre', 'Sobre', () => abrirPaginaInfo('sobre')],
+              ['/privacidade', 'Privacidade', () => abrirPaginaInfo('privacidade')],
+              ['/termos', 'Termos', () => abrirPaginaInfo('termos')],
+            ] as Array<[string, string, () => void]>).map(([href, nome, abrir]) => (
+              <a
+                key={href}
+                href={href}
+                onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); abrir(); }}
+                className="text-[#6B6B6B] hover:text-[#111111] transition-colors"
+              >
+                {nome}
+              </a>
+            ))}
+            <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">Linhas e horários</a>
+            <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">Greves</a>
+          </nav>
         </div>
         <div className="max-w-[1600px] mx-auto mt-3 text-center sm:text-left text-[11px] text-[#6B6B6B]">
           Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap

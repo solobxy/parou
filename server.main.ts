@@ -21,6 +21,9 @@ import {
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasPush } from './src/server/avisosPush';
+import { registarPaginasSeo } from './src/server/seo/paginas';
+import { paginaDaApp } from './src/server/seo/spa';
+import { registarIndexNow } from './src/server/seo/indexnow';
 import { iniciarFogos, obterIncidentes } from './src/server/fogosEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection, getSentidoParagem } from './src/server/db/gtfsDatabase';
 import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados, getManifestFeedsMap } from './src/server/dadosProntos';
@@ -88,10 +91,14 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   }
   next();
 });
+// IndexNow (Bing e outros): avisa das páginas novas quando o parou.pt já aponta para aqui
+registarIndexNow(app);
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
 registarRotasPush(app);
+// Páginas públicas para os motores de pesquisa: linhas, paragens, operadores, greves e sitemaps
+registarPaginasSeo(app);
 // App Android (Trusted Web Activity): prova ao Android que a app pt.parou.app é do parou.pt,
 // para abrir em ecrã inteiro sem barra do browser. A chave de envio está aqui; a chave da
 // Google Play (assinatura da app) junta-se pela variável ANDROID_SHA256_EXTRA (separadas por vírgula).
@@ -1360,32 +1367,10 @@ app.get('/robots.txt', (req: Request, res: Response) => {
   if (host && !/(^|\.)parou\.pt(:\d+)?$/.test(host) && !host.startsWith('localhost')) {
     return res.send('User-agent: *\nDisallow: /\n');
   }
-  res.send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://parou.pt/sitemap.xml\n`);
+  res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /debug/\nDisallow: /pesquisa\nDisallow: /_estado\nDisallow: /*?reportId=\n\nSitemap: https://parou.pt/sitemap.xml\n`);
 });
 
-app.get('/sitemap.xml', (_req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  const paginas: Array<[string, string, string]> = [
-    ['/', 'always', '1.0'],
-    ['/transportes', 'daily', '0.9'],
-    ['/alertas', 'hourly', '0.9'],
-    ['/mapa', 'hourly', '0.8'],
-    ['/ocorrencias', 'hourly', '0.7'],
-    ['/greves', 'daily', '0.7'],
-    ['/catalogo', 'weekly', '0.6'],
-    ['/cobertura', 'weekly', '0.5'],
-    ['/sobre', 'monthly', '0.5'],
-    ['/privacidade', 'yearly', '0.3'],
-    ['/termos', 'yearly', '0.3'],
-  ];
-  const sitemapContent = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${paginas.map(([loc, freq, pri]) => `  <url><loc>https://parou.pt${loc}</loc><changefreq>${freq}</changefreq><priority>${pri}</priority></url>`).join('\n')}
-</urlset>
-`;
-  res.send(sitemapContent);
-});
+// (sitemap.xml: ver src/server/seo/paginas.ts — índice com páginas, linhas e paragens)
 
 // ==========================================
 // FEED CATALOG, INGESTION & COVERAGE API
@@ -1645,6 +1630,8 @@ async function startServer() {
       // Ficheiros com nome único (/assets/…-hash) ficam guardados no telemóvel para sempre;
       // a página e o service worker são sempre confirmados (para as atualizações chegarem logo)
       app.use(express.static(distPath, {
+        // A página principal passa pelo servidor (metadados certos para cada endereço)
+        index: false,
         setHeaders: (res, ficheiro) => {
           if (ficheiro.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           else if (ficheiro.endsWith('sw.js') || ficheiro.endsWith('.html') || ficheiro.endsWith('.webmanifest')) res.setHeader('Cache-Control', 'no-cache');
@@ -1654,7 +1641,13 @@ async function startServer() {
       app.get('*', (req: Request, res: Response, next: NextFunction) => {
         if (req.path.startsWith('/api') || req.path === '/health') return next();
         res.setHeader('Cache-Control', 'no-cache');
-        res.sendFile(path.join(distPath, 'index.html'));
+        try {
+          const r = paginaDaApp(distPath, req.path);
+          res.status(r.status).setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.send(r.html);
+        } catch {
+          res.sendFile(path.join(distPath, 'index.html'));
+        }
       });
     }
 
