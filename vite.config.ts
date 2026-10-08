@@ -136,35 +136,38 @@ export default defineConfig(async ({ command }) => {
     plugins.push(
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'sw-push-handler.js'],
+        includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'badge-96.png', 'sw-push-handler.js'],
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           importScripts: ['/sw-push-handler.js'],
+          // Versão nova entra logo (sem ficar presa na antiga) e a API nunca vem da cache
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/^\/api\//, /^\/_estado/, /^\/health/],
         },
         manifest: {
           id: '/',
-          name: 'PAROU.PT - Ocorrências em Tempo Real',
-          short_name: 'PAROU.PT',
-          description: 'Monitorização em tempo real de transportes, trânsito, greves e avarias em Portugal.',
-          theme_color: '#0b0f17',
-          background_color: '#080c14',
+          name: 'PAROU — Transportes em tempo real',
+          short_name: 'PAROU',
+          description: 'Próximos autocarros, metro e comboios perto de ti, horários, greves e alertas em Portugal. Gratuito e sem fins lucrativos.',
+          lang: 'pt-PT',
+          theme_color: '#FFFFFF',
+          background_color: '#FFFFFF',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
+          start_url: '/?origem=app',
           scope: '/',
+          categories: ['travel', 'navigation', 'utilities'],
           icons: [
-            {
-              src: '/icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
-              purpose: 'any',
-            },
-            {
-              src: '/icon.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml',
-              purpose: 'maskable',
-            },
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+          shortcuts: [
+            { name: 'Perto', url: '/?origem=atalho', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+            { name: 'Horários', url: '/transportes', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+            { name: 'Alertas', url: '/alertas', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
           ],
         },
         devOptions: {
