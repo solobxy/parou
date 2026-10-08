@@ -128,10 +128,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-            Reports
+            Ocorrências
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            Ocorrências ativas em tempo real.
+            Reportadas pela comunidade nas últimas 24 horas.
           </p>
         </div>
 

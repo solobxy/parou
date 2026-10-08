@@ -407,7 +407,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
-                Perto de si
+                Perto de ti
               </h2>
               {sortedNearLines.length > 0 && (
                 <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">

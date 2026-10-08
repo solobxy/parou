@@ -20,6 +20,17 @@ import {
   detectSpamKeywords
 } from '../services/firebase';
 
+// "Outro" fica como SERVICO_PUBLICO (é um dos tipos aceites pelas regras do Firestore)
+const CATEGORIAS: Array<[OccurrenceType, string]> = [
+  ['ACIDENTE', 'Acidente'],
+  ['ATRASOS', 'Atrasos'],
+  ['AVARIA', 'Avaria'],
+  ['GREVE', 'Greve'],
+  ['OBRAS', 'Obras'],
+  ['CORTE', 'Via cortada'],
+  ['SERVICO_PUBLICO', 'Outro'],
+];
+
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -165,8 +176,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         unconfirmedCount: 0,
         confirmedBy: currentUser?.uid ? [currentUser.uid] : [],
         unconfirmedBy: [],
-        authorId: currentUser?.uid || 'anonimo',
-        authorName: currentUser?.displayName || 'Utilizador Anónimo',
+        // Sem conta não há autor (as regras do Firestore só aceitam o próprio uid)
+        authorId: currentUser?.uid || undefined,
+        authorName: currentUser?.displayName || 'Anónimo',
         isCommunityVerified: false,
         status: 'Ativa',
         verificationStatus: 'Reportado',
@@ -191,7 +203,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-[#E6E6E3] flex items-center justify-between gap-3 bg-[#FFFFFF]">
           <h2 className="text-base font-bold text-[#111111]">
-            Reportar Ocorrência
+            Reportar ocorrência
           </h2>
           <button
             onClick={onClose}
@@ -232,19 +244,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1.5">
                 Categoria
               </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['ACIDENTE', 'ATRASOS', 'AVARIA', 'GREVE', 'OBRAS', 'OUTRO'] as OccurrenceType[]).map((cat) => (
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORIAS.map(([cat, nome]) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setType(cat)}
-                    className={`py-2 px-2 text-xs font-semibold rounded-[8px] min-h-[36px] transition-colors cursor-pointer ${
+                    aria-pressed={type === cat}
+                    className={`h-9 px-3.5 text-[13px] font-semibold rounded-[8px] transition-colors cursor-pointer ${
                       type === cat
                         ? 'bg-[#111111] text-[#FFFFFF]'
                         : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                     }`}
                   >
-                    {cat}
+                    {nome}
                   </button>
                 ))}
               </div>
@@ -392,8 +405,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 disabled={isSubmitting}
                 className="w-full py-3 bg-[#FF6B1A] text-[#111111] font-bold text-sm rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer transition-opacity disabled:opacity-50"
               >
-                {isSubmitting ? 'A submeter...' : 'Publicar Ocorrência'}
+                {isSubmitting ? 'A publicar…' : 'Publicar ocorrência'}
               </button>
+              <p className="text-[11.5px] text-[#6B6B6B] text-center mt-2 leading-snug">
+                Fica visível para todos durante 24 horas. Não incluas dados pessoais (nomes, matrículas, contactos).
+              </p>
             </div>
           </form>
         )}

@@ -1051,7 +1051,7 @@ export default function App() {
           )}
 
           {/* 4. Tab Catálogo Nacional */}
-          {(activeMobileView === 'catalogo' || activeNavTab === 'catalogo') && (
+          {((activeMobileView === 'catalogo' && activeNavTab !== 'coverage') || activeNavTab === 'catalogo') && (
             <div className="space-y-3.5">
               <NationalTransitCatalogView
                 onBackToMap={() => handleTabSelect('mapa')}
