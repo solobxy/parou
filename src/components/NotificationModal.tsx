@@ -140,7 +140,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               Notificações
             </h2>
             <p className="text-xs text-[#6B6B6B]">
-              Alertas de perturbações e trânsito.
+              Greves, mau tempo e perturbações graves, mesmo com a app fechada.
             </p>
           </div>
 
