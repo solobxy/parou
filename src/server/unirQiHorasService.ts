@@ -147,7 +147,7 @@ export async function ingestUnirQiHoras(): Promise<boolean> {
 
       const insertRoute = db.prepare(`
         INSERT OR REPLACE INTO routes (route_id, feed_id, route_short_name, route_long_name, route_type, route_color)
-        VALUES (?, ?, ?, ?, 3, '#1E3A8A')
+        VALUES (?, ?, ?, ?, 3, '#CE9926')
       `);
 
       for (const [code, r] of routesMap.entries()) {

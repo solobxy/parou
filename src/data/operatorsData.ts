@@ -330,8 +330,8 @@ export const PORTUGAL_OPERATORS: TransitOperator[] = [
     activeIncidentsCount: 0,
     lastStatusUpdate: 'há 18 min',
     lines: [
-      { id: 'unir-9001', code: '9001', name: 'Porto (Campanhã) ↔ Gondomar', origin: 'Porto (Campanhã)', destination: 'Gondomar (Souto)', mode: 'Autocarro', status: 'Normal', color: '#002B49', routeTypeGtfs: 3 },
-      { id: 'unir-2001', code: '2001', name: 'Gaia (General Torres) ↔ Espinho', origin: 'V.N. Gaia (Gen. Torres)', destination: 'Espinho (Estação)', mode: 'Autocarro', status: 'Normal', color: '#002B49', routeTypeGtfs: 3 },
+      { id: 'unir-9001', code: '9001', name: 'Porto (Campanhã) ↔ Gondomar', origin: 'Porto (Campanhã)', destination: 'Gondomar (Souto)', mode: 'Autocarro', status: 'Normal', color: '#CE9926', routeTypeGtfs: 3 },
+      { id: 'unir-2001', code: '2001', name: 'Gaia (General Torres) ↔ Espinho', origin: 'V.N. Gaia (Gen. Torres)', destination: 'Espinho (Estação)', mode: 'Autocarro', status: 'Normal', color: '#CE9926', routeTypeGtfs: 3 },
     ],
     gtfsConfig: {
       agencyId: 'PT-UNIR',

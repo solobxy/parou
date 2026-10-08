@@ -1368,7 +1368,7 @@ export class LinesEngine {
               line_id: d.route_id,
               line_code: d.route_short_name,
               line_name: d.route_long_name,
-              color: '#1E3A8A',
+              color: '#CE9926',
               mode: 'Autocarro',
               operator: 'UNIR (Área Metropolitana do Porto)',
               destination: d.trip_headsign,
