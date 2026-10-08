@@ -400,7 +400,7 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   if (proximas.length) {
     corpo += `<ul class="lista partidas">${proximas.map((d) => {
       const c = d.linha ? chip(d.linha) : `<span class="chip">${html(d.codigo)}</span>`;
-      const quando = d.minutos <= 0 ? 'a chegar' : `daqui a ${d.minutos} min`;
+      const quando = d.minutos <= 0 ? 'a chegar' : d.minutos < 60 ? `daqui a ${d.minutos} min` : `daqui a ${Math.floor(d.minutos / 60)} h ${String(d.minutos % 60).padStart(2, '0')}`;
       return `<li><div class="linha">${c}<span class="t">${html(d.destino)}${d.tempoReal ? '<small>tempo real</small>' : ''}</span><span class="hora">${html(d.hora)}<small>${quando}</small></span></div></li>`;
     }).join('')}</ul><p class="nota">Calculado às ${agora.toFormat('HH:mm')} com o horário oficial${proximas.some((d) => d.tempoReal) ? ' e o tempo real do operador' : ''}. Para acompanhar ao minuto, abre a <a href="/">app PAROU</a>.</p>`;
   } else {
