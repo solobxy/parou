@@ -1088,7 +1088,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
             s.arrivalsOnly = true;
             return;
           }
-          if (meu.destinos.length === 0) return;
+          // Paragens com linhas para muitos lados (ex.: São Bento): o "sentido" confundia mais do que ajudava
+          if (meu.destinos.length === 0 || meu.destinos.length >= 4) return;
           // Destinos que as outras paragens com o mesmo nome não têm (o que as distingue)
           const dosOutros = new Set(
             sentidos.filter((_, j) => j !== pos).flatMap((o) => o.destinos.map((d) => d.toLowerCase())),
