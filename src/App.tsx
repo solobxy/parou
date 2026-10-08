@@ -61,7 +61,8 @@ import {
 import { fetchTransitLines } from './services/transitApi';
 import { 
   getStoredNotificationPreferences, 
-  dispatchOccurrenceNotification 
+  dispatchOccurrenceNotification,
+  sincronizarPush 
 } from './services/notifications';
 import { 
   auth,
@@ -207,6 +208,16 @@ export default function App() {
   useEffect(() => {
     notificationPrefsRef.current = notificationPrefs;
   }, [notificationPrefs]);
+
+  // Notificações push: ao abrir a app, confirma ao servidor a subscrição e os distritos
+  // (se o servidor perdeu os dados ou mudou de chaves, volta a subscrever sozinho)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const p = getStoredNotificationPreferences();
+      if (p.enabled) void sincronizarPush(p);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Filters state - strictly initialized to 'Todas' (no district pre-selected)
   const [selectedDistrictOnMap, setSelectedDistrictOnMap] = useState<string | null>(null);

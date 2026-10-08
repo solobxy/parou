@@ -14,7 +14,9 @@ import {
   requestNotificationPermission,
   getStoredNotificationHistory,
   clearStoredNotificationHistory,
-  triggerTestNotification
+  triggerTestNotification,
+  sincronizarPush,
+  testarPush
 } from '../services/notifications';
 import { CIDADES_OPTIONS } from '../data/mockData';
 
@@ -40,6 +42,11 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   const [permissionState, setPermissionState] = useState<NotificationPermission | 'unsupported'>('default');
   const [history, setHistory] = useState<NotificationLogItem[]>([]);
   const [testSuccess, setTestSuccess] = useState(false);
+  const temporizadorSync = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agendarSync = (p: NotificationPreferences) => {
+    if (temporizadorSync.current) clearTimeout(temporizadorSync.current);
+    temporizadorSync.current = setTimeout(() => { void sincronizarPush(p); }, 1200);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -67,6 +74,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
       setPrefs(updatedPrefs);
       saveStoredNotificationPreferences(updatedPrefs);
       onPreferencesChange(updatedPrefs);
+      void sincronizarPush(updatedPrefs);
       return;
     }
 
@@ -77,6 +85,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     setPrefs(updatedPrefs);
     saveStoredNotificationPreferences(updatedPrefs);
     onPreferencesChange(updatedPrefs);
+    void sincronizarPush(updatedPrefs);
   };
 
   const handleToggleDistrict = (district: string) => {
@@ -93,6 +102,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     setPrefs(updatedPrefs);
     saveStoredNotificationPreferences(updatedPrefs);
     onPreferencesChange(updatedPrefs);
+    if (updatedPrefs.enabled) agendarSync(updatedPrefs);
   };
 
   const handleClearHistory = () => {
@@ -101,6 +111,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   };
 
   const handleRunTest = async () => {
+    // Com as notificações ligadas, o teste vem do servidor (como os avisos verdadeiros)
+    if (prefs.enabled && permissionState === 'granted' && await testarPush()) {
+      setTestSuccess(true);
+      setTimeout(() => setTestSuccess(false), 4000);
+      return;
+    }
     const testItem = await triggerTestNotification(prefs);
     onTestNotification(testItem);
     setHistory(getStoredNotificationHistory());
@@ -230,7 +246,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                   onClick={handleRunTest}
                   className="px-3 py-2 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-xs font-semibold text-[#111111] cursor-pointer min-h-[44px]"
                 >
-                  {testSuccess ? 'Notificação de teste enviada' : 'Testar notificação'}
+                  {testSuccess ? 'Enviada — deve chegar em segundos' : 'Testar notificação'}
                 </button>
               </div>
             </>

@@ -12,23 +12,20 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = data.title || 'PAROU.PT - Alerta em Tempo Real';
+  const title = data.title || 'PAROU';
   const options = {
-    body: data.body || 'Nova alteração ou corte relevante na circulação em Portugal.',
+    body: data.body || 'Há um novo alerta para as tuas viagens.',
     icon: '/icon-192.png',
     badge: '/badge-96.png',
     vibrate: [200, 100, 200],
-    tag: data.reportId ? `report-${data.reportId}` : 'parou-alert',
+    tag: data.tag || (data.reportId ? `report-${data.reportId}` : 'parou-alerta'),
     renotify: true,
+    lang: 'pt-PT',
     data: {
-      url: data.url || (data.reportId ? `/?reportId=${data.reportId}` : '/'),
+      url: data.url || (data.reportId ? `/?reportId=${data.reportId}` : '/alertas'),
       reportId: data.reportId || null,
       timestamp: Date.now(),
     },
-    actions: [
-      { action: 'view', title: 'Ver Ocorrência' },
-      { action: 'close', title: 'Ignorar' }
-    ]
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -51,8 +48,8 @@ self.addEventListener('notificationclick', (event) => {
       // Focus already open PAROU.PT client window and navigate
       for (const client of clientList) {
         if ('focus' in client) {
-          if ('navigate' in client && targetUrl !== '/') {
-            client.navigate(targetUrl);
+          if ('navigate' in client) {
+            client.navigate(targetUrl).catch(() => {});
           }
           return client.focus();
         }
