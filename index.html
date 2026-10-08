@@ -2,6 +2,16 @@
 <html lang="pt-PT" dir="ltr">
   <head>
     <script>
+      // Guarda logo o pedido de instalação do browser (pode chegar antes de a app carregar),
+      // para o botão de instalar abrir diretamente o pedido nativo de "Instalar app".
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__parouInstalar = e;
+        window.dispatchEvent(new CustomEvent('parou_pode_instalar'));
+      });
+      window.addEventListener('appinstalled', function () { window.__parouInstalar = null; });
+    </script>
+    <script>
       // In AI Studio iframe preview, HMR WebSocket is disabled by system policy.
       // Suppress Vite connection noise and provide a silent mock WebSocket transport.
       (function() {

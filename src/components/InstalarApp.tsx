@@ -7,12 +7,31 @@ import { Download, Share, X } from 'lucide-react';
 
 const CHAVE_FECHADO = 'parou_instalar_fechado';
 
-let eventoInstalar: any = null;
-if (typeof window !== 'undefined') {
+// O pedido de instalação do browser é apanhado logo no index.html (window.__parouInstalar),
+// porque pode chegar antes de a app carregar. Aqui só o lemos.
+function pedidoGuardado(): any {
+  try { return (window as any).__parouInstalar || null; } catch { return null; }
+}
+function limparPedido() {
+  try { (window as any).__parouInstalar = null; } catch {}
+}
+if (typeof window !== 'undefined' && !('__parouInstalar' in window)) {
+  // Recurso (ex.: index.html antigo em cache)
   window.addEventListener('beforeinstallprompt', (e: any) => {
     e.preventDefault();
-    eventoInstalar = e;
+    (window as any).__parouInstalar = e;
     window.dispatchEvent(new CustomEvent('parou_pode_instalar'));
+  });
+}
+
+/** Espera um pouco pelo pedido do browser (o Chrome só o dá depois de alguns segundos na página) */
+function esperarPedido(ms: number): Promise<any> {
+  const ja = pedidoGuardado();
+  if (ja) return Promise.resolve(ja);
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { window.removeEventListener('parou_pode_instalar', ok); resolve(null); }, ms);
+    const ok = () => { clearTimeout(t); window.removeEventListener('parou_pode_instalar', ok); resolve(pedidoGuardado()); };
+    window.addEventListener('parou_pode_instalar', ok);
   });
 }
 
@@ -41,7 +60,7 @@ function eIphone(): boolean {
 /** Estado partilhado da instalação (o cartão nos Favoritos e o botão no topo usam o mesmo).
  *  No site aparece sempre (mesmo para quem já instalou); dentro da app instalada nunca. */
 export function useInstalarApp() {
-  const [podeInstalar, setPodeInstalar] = useState<boolean>(() => Boolean(eventoInstalar));
+  const [podeInstalar, setPodeInstalar] = useState<boolean>(() => Boolean(pedidoGuardado()));
   const naApp = (() => { try { return jaInstalada(); } catch { return false; } })();
 
   useEffect(() => {
@@ -56,15 +75,19 @@ export function useInstalarApp() {
 
   /** Abre o pedido do browser se houver; senão devolve 'passos' (mostrar como fazer). */
   const instalar = async (): Promise<'aceite' | 'recusado' | 'passos'> => {
-    if (eventoInstalar) {
+    // Abre diretamente o pedido nativo do telemóvel ("Instalar app"). Se o browser ainda não o
+    // deu, espera um instante (o toque continua válido uns segundos) antes de mostrar os passos.
+    const pedido = pedidoGuardado() || (iphone ? null : await esperarPedido(2500));
+    if (pedido) {
       try {
-        eventoInstalar.prompt();
-        const r = await eventoInstalar.userChoice;
-        eventoInstalar = null;
+        await pedido.prompt();
+        const r = await pedido.userChoice;
+        limparPedido();
         setPodeInstalar(false);
         return r?.outcome === 'accepted' ? 'aceite' : 'recusado';
       } catch {
-        return 'recusado';
+        limparPedido();
+        setPodeInstalar(false);
       }
     }
     return 'passos';
@@ -102,10 +125,15 @@ export const PassosComputador: React.FC = () => (
 export const BotaoInstalar: React.FC = () => {
   const { disponivel, plataforma, instalar } = useInstalarApp();
   const [verPassos, setVerPassos] = useState(false);
+  const [aEsperar, setAEsperar] = useState(false);
   if (!disponivel) return null;
   const tocar = async () => {
+    if (aEsperar) return;
+    if (verPassos) { setVerPassos(false); return; }
+    setAEsperar(true);
     const r = await instalar();
-    if (r === 'passos') setVerPassos((v) => !v);
+    setAEsperar(false);
+    if (r === 'passos') setVerPassos(true);
   };
   return (
     <div className="relative">
@@ -116,7 +144,7 @@ export const BotaoInstalar: React.FC = () => {
         title="Instalar a app"
         data-teste="instalar-topo"
       >
-        <Download className="w-5 h-5 stroke-[2.25]" />
+        <Download className={`w-5 h-5 stroke-[2.25] ${aEsperar ? 'animate-pulse' : ''}`} />
       </button>
       {verPassos && (
         <>
