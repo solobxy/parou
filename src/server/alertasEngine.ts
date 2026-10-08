@@ -9,6 +9,7 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { getCentralAlerts } from './centralAlertsEngine';
+import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 
 const UA = 'PAROU.PT/2.0 (+https://parou.pt)';
 const ZONA = 'Europe/Lisbon';
@@ -23,7 +24,18 @@ async function emCache<T>(chave: string, ttlMs: number, fn: () => Promise<T>, re
   const c = cache.get(chave);
   if (c && Date.now() - c.t < ttlMs) return c.v as T;
   const pendente = emCurso.get(chave);
+  // Já há um valor (um pouco antigo): responde logo com ele e atualiza em segundo plano,
+  // para a página nunca ficar à espera de uma fonte lenta. O aquecimento periódico
+  // (aquecerAlertas) garante que raramente está desatualizado.
+  if (c && Date.now() - c.t < ttlMs * 6) {
+    if (!pendente) emCacheAtualizar(chave, ttlMs, fn, recurso, c);
+    return c.v as T;
+  }
   if (pendente) return pendente as Promise<T>;
+  return emCacheAtualizar(chave, ttlMs, fn, recurso, c);
+}
+
+function emCacheAtualizar<T>(chave: string, ttlMs: number, fn: () => Promise<T>, recurso: T, c: { t: number; v: unknown } | undefined): Promise<T> {
   const p = (async () => {
     try {
       const v = await fn();
@@ -44,7 +56,7 @@ async function emCache<T>(chave: string, ttlMs: number, fn: () => Promise<T>, re
     }
   })();
   emCurso.set(chave, p);
-  return p;
+  return p as Promise<T>;
 }
 
 async function buscarJson(url: string, ms = 5000): Promise<any> {
@@ -265,7 +277,7 @@ export interface AvisoMeteo {
 }
 
 async function avisosIpma(areaLocal: string, distritos: DistritoIpma[]): Promise<AvisoMeteo[]> {
-  const brutos = await emCache('ipma:avisos', 10 * 60_000, async () => {
+  const brutos = await emCache('ipma:avisos', 5 * 60_000, async () => {
     const j = await buscarJson('https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json');
     if (!Array.isArray(j)) throw new Error('formato inesperado');
     return j as any[];
@@ -418,8 +430,14 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
     new Promise<any[]>((r) => setTimeout(() => r([]), 3500)),
   ]);
   const lista: OcorrenciaOficial[] = [];
+  const agoraMs = Date.now();
   for (const a of todas as any[]) {
     if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
+    // Informação que já passou não aparece (ex.: greve de ontem, obra que já acabou)
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    if (Number.isFinite(fimMs) && fimMs < agoraMs) continue;
+    const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agoraMs - inicioMs > 30 * 3600_000) continue;
     if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue; // o tempo tem secção própria
     // A região vem do operador (Carris Metropolitana -> Lisboa, STCP/UNIR -> Porto); os
     // municípios só contam para alertas sem região definida.
@@ -495,7 +513,7 @@ export interface Noticia {
   fonte: string;
   url: string;
   data: string;
-  categoria: 'greve' | 'transportes' | 'transito' | 'tempo' | 'obras';
+  categoria: 'greve' | 'transportes' | 'transito' | 'tempo' | 'obras' | 'incendio';
   local: boolean;
 }
 
@@ -531,6 +549,7 @@ const RE_ACIDENTE = /\b(acidente|despiste|colisao|capotou|atropel\w*)/;
 const RE_VIA = /\b(estrada|viacao|rodoviari\w*|a\d{1,2}\b|ic\d{1,2}\b|ip\d{1,2}\b|en\s?\d{1,3}\b|ponte|autoestrada|auto-estrada|camiao|carro|automovel|mota|motociclo|veiculo|comboio|autocarro|eletrico)/;
 const RE_TEMPO = /\b(mau tempo|temporal|tempestade|chuva (?:forte|intensa)|inundac\w*|aviso (?:amarelo|laranja|vermelho)|ipma|ventos? fortes?|rajadas|nevoeiro|onda de calor|calor extremo|queda de neve|neve\b|granizo|agitacao maritima|furacao)/;
 const RE_OBRAS = /\b(obras|empreitada|requalificac\w*|infraestruturas de portugal|nova linha|linha rubi|linha rosa|linha circular|linha violeta|prolongamento|tunel|viaduto|nova ponte|estacao de (?:metro|comboios?))/;
+const RE_INCENDIO = /\b(incendios?|fogos? florest\w*|fogo posto|bombeiros|area ardida|reacendimento|meios aereos|operacionais no combate)\b/;
 const RE_EXCLUIR = /\b(futebol|benfica|sporting|fc porto|liga dos campeoes|golo|treinador|ciclismo|formula 1|motogp|selecao nacional|basquetebol|andebol|tenis)\b/;
 
 function classificarNoticia(titulo: string, resumo: string): Noticia['categoria'] | null {
@@ -540,6 +559,7 @@ function classificarNoticia(titulo: string, resumo: string): Noticia['categoria'
   // "UNIR" (rede de autocarros do Porto) só conta em maiúsculas — "unir" é um verbo
   const transportes = RE_TRANSPORTES.test(t) || /\bUNIR\b/.test(`${titulo} ${resumo}`);
   if (RE_GREVE.test(tt) && transportes) return 'greve';
+  if (RE_INCENDIO.test(tt)) return 'incendio';
   if (RE_TEMPO.test(tt)) return 'tempo';
   if (RE_TRANSITO_FORTE.test(tt) || (RE_ACIDENTE.test(tt) && RE_VIA.test(t))) return 'transito';
   if (RE_OBRAS.test(tt) && (transportes || RE_VIA.test(t))) return 'obras';
@@ -548,7 +568,7 @@ function classificarNoticia(titulo: string, resumo: string): Noticia['categoria'
 }
 
 async function lerFeed(fonte: { nome: string; url: string }): Promise<Array<Omit<Noticia, 'local'> & { texto: string }>> {
-  return emCache(`rss:${fonte.url}`, 15 * 60_000, async () => {
+  return emCache(`rss:${fonte.url}`, 5 * 60_000, async () => {
     const xml = await buscarTexto(fonte.url);
     const itens = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) || [];
     const lista: Array<Omit<Noticia, 'local'> & { texto: string }> = [];
@@ -587,18 +607,22 @@ const TERMOS_REGIAO: Record<Regiao, RegExp> = {
 async function noticias(regiao: Regiao, distrito: string): Promise<Noticia[]> {
   const listas = await Promise.all(FONTES_RSS.map((f) => lerFeed(f)));
   const limite = DateTime.now().minus({ days: 4 });
+  // Cada tipo de notícia deixa de interessar a seu tempo: uma greve ou um aviso de tempo de
+  // ontem já não serve a quem vai sair agora; uma obra continua a interessar uns dias.
+  const validadeHoras: Record<Noticia['categoria'], number> = { greve: 30, tempo: 20, transito: 16, transportes: 48, obras: 96, incendio: 24 };
   const vistos = new Set<string>();
   const termoDistrito = new RegExp(`\\b${semAcentos(distrito).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
   const todas: Noticia[] = [];
   for (const n of listas.flat().sort((a, b) => b.data.localeCompare(a.data))) {
     if (DateTime.fromISO(n.data) < limite) continue;
+    if (Date.now() - Date.parse(n.data) > validadeHoras[n.categoria] * 3600_000) continue;
     const chave = semAcentos(n.titulo).replace(/[^a-z0-9 ]/g, '').split(' ').filter((p) => p.length > 3).slice(0, 7).join(' ');
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     const { texto, ...resto } = n;
     todas.push({ ...resto, local: TERMOS_REGIAO[regiao].test(texto) || termoDistrito.test(texto) });
   }
-  const peso: Record<Noticia['categoria'], number> = { greve: 5, tempo: 3, transito: 2, obras: 1, transportes: 1 };
+  const peso: Record<Noticia['categoria'], number> = { greve: 5, incendio: 4, tempo: 3, transito: 2, obras: 1, transportes: 1 };
   // As mais relevantes primeiro (da região e de greves/tempo), mas sem esconder as recentes
   todas.sort((a, b) => {
     const pa = (a.local ? 3 : 0) + peso[a.categoria] - (Date.now() - Date.parse(a.data)) / (12 * 3600_000);
@@ -611,7 +635,16 @@ async function noticias(regiao: Regiao, distrito: string): Promise<Noticia[]> {
 // ---------------------------------------------------------------------------------
 // Resposta
 // ---------------------------------------------------------------------------------
+export interface IncendioPerto extends IncidenteProtecaoCivil {
+  distanciaKm: number;
+  /** No distrito escolhido ou a menos de 40 km */
+  perto: boolean;
+}
+
 export interface RespostaAlertas {
+  /** Incêndios ativos (Fogos.pt / ANEPC) e outras ocorrências da Proteção Civil por perto */
+  incendios: { atualizado: string | null; total: number; perto: number; lista: IncendioPerto[] };
+  protecaoCivil: IncendioPerto[];
   atualizado: string;
   local: { distrito: string; area: string; regiao: Regiao; lat: number; lon: number; porGps: boolean };
   distritos: Array<{ area: string; nome: string }>;
@@ -646,7 +679,31 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
     noticias(regiao, distrito.nome).catch(() => []),
   ]);
 
+  // Incêndios e ocorrências da Proteção Civil (já em memória; não atrasa a resposta)
+  const pc = obterIncidentes();
+  const nomeDistrito = semAcentos(distrito.nome);
+  const comDistancia = pc.incidentes.map((i) => {
+    const km = Math.round(distanciaKm(lat, lon, i.lat, i.lon) * 10) / 10;
+    const perto = km <= 40 || (Boolean(i.distrito) && semAcentos(i.distrito) === nomeDistrito);
+    return { ...i, distanciaKm: km, perto };
+  });
+  const fogos = comDistancia
+    .filter((i) => i.tipo === 'incendio')
+    .sort((a, b) =>
+      Number(b.perto) - Number(a.perto) ||
+      Number(b.importante) - Number(a.importante) ||
+      Number(a.aAcalmar) - Number(b.aAcalmar) ||
+      b.meios.humanos - a.meios.humanos ||
+      a.distanciaKm - b.distanciaKm,
+    );
+  const protecaoCivil = comDistancia
+    .filter((i) => i.tipo !== 'incendio' && i.distanciaKm <= 30)
+    .sort((a, b) => a.distanciaKm - b.distanciaKm)
+    .slice(0, 10);
+
   return {
+    incendios: { atualizado: pc.atualizado, total: fogos.length, perto: fogos.filter((f) => f.perto).length, lista: fogos.slice(0, 40) },
+    protecaoCivil,
     atualizado: new Date().toISOString(),
     local: { distrito: distrito.nome, area: distrito.area, regiao, lat, lon, porGps: temGps },
     distritos: distritos
@@ -664,8 +721,12 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
 
 // Aquece as caches gerais (avisos, notícias) logo no arranque do servidor
 export function aquecerAlertas(): void {
-  setTimeout(() => {
+  const aquecer = () => {
     obterAlertas({ area: 'LSB' }).catch(() => {});
     obterAlertas({ area: 'PTO' }).catch(() => {});
-  }, 15_000);
+  };
+  setTimeout(aquecer, 15_000);
+  // Mantém avisos, notícias e perturbações sempre frescos (quem abre a página recebe logo
+  // a informação mais recente, sem esperar pelas fontes)
+  setInterval(aquecer, 3 * 60_000);
 }

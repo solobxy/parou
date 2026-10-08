@@ -23,6 +23,7 @@ import { LineCard } from './LineCard';
 import { LineDetailModal } from './LineDetailModal';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
+import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
 
 interface HorariosViewProps {
   filters?: FilterState;
@@ -61,7 +62,21 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       return [];
     }
   });
+  // Favoritos repostos a partir da cópia no servidor (o browser tinha-os apagado)
+  useEffect(() => {
+    const reler = () => {
+      try {
+        const raw = localStorage.getItem('parou_favorite_line_ids');
+        setFavoriteLineIds(raw ? JSON.parse(raw) : []);
+      } catch {}
+    };
+    window.addEventListener('parou_dados_repostos', reler);
+    return () => window.removeEventListener('parou_dados_repostos', reler);
+  }, []);
   const [favoriteLines, setFavoriteLines] = useState<ApiLineItem[]>([]);
+  useEffect(() => {
+    for (const l of [...nearLines, ...allLines, ...favoriteLines]) linhasConhecidasRef.current.set(l.id, l);
+  });
   const [isFavLoading, setIsFavLoading] = useState<boolean>(false);
 
   // All lines
@@ -83,15 +98,63 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   // Line Detail Modal
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
+  // Quando uma linha é tirada (ou posta) no separador Favoritos, a estrela daqui acompanha
+  const linhasNosFavoritos = () => new Set(getLocalFavorites().filter((f) => f.id.startsWith('line-')).map((f) => f.id.slice(5)));
+  const linhasNosFavoritosRef = useRef<Set<string>>(linhasNosFavoritos());
+  useEffect(() => {
+    const aoMudar = () => {
+      const agora = linhasNosFavoritos();
+      const antes = linhasNosFavoritosRef.current;
+      const removidas = [...antes].filter((id) => !agora.has(id));
+      const adicionadas = [...agora].filter((id) => !antes.has(id));
+      linhasNosFavoritosRef.current = agora;
+      if (removidas.length === 0 && adicionadas.length === 0) return;
+      setFavoriteLineIds((prev) => {
+        const conj = new Set(prev);
+        removidas.forEach((id) => conj.delete(id));
+        adicionadas.forEach((id) => conj.add(id));
+        const next = Array.from(conj);
+        try { localStorage.setItem('parou_favorite_line_ids', JSON.stringify(next)); } catch {}
+        return next;
+      });
+    };
+    window.addEventListener('parou_favorites_updated', aoMudar);
+    return () => window.removeEventListener('parou_favorites_updated', aoMudar);
+  }, []);
+
+  // Linhas conhecidas (para a estrela também pôr a linha no separador Favoritos)
+  const linhasConhecidasRef = useRef<Map<string, ApiLineItem>>(new Map());
   const toggleFavoriteLine = useCallback((lineId: string) => {
+    let agoraFavorita = false;
     setFavoriteLineIds((prev) => {
       const exists = prev.includes(lineId);
+      agoraFavorita = !exists;
       const next = exists ? prev.filter((id) => id !== lineId) : [...prev, lineId];
       try {
         localStorage.setItem('parou_favorite_line_ids', JSON.stringify(next));
       } catch {}
       return next;
     });
+    // Mesma lista que o separador Favoritos (antes eram duas listas separadas)
+    setTimeout(() => {
+      const linha = linhasConhecidasRef.current.get(lineId);
+      if (agoraFavorita) {
+        addFavorite({
+          id: `line-${lineId}`,
+          type: 'linha',
+          category: 'transportes',
+          title: linha?.name || linha?.code || lineId,
+          subtitle: linha?.operator,
+          lineCode: linha?.code,
+          lineName: linha?.name,
+          lineColor: linha?.color,
+          operatorId: linha?.operator_id,
+          operatorName: linha?.operator,
+        } as any).catch(() => {});
+      } else {
+        removeFavorite(`line-${lineId}`).catch(() => {});
+      }
+    }, 0);
   }, []);
 
   // Posição: usa logo a última conhecida (do Perto ou de outra visita) e depois atualiza

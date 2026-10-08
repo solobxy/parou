@@ -19,6 +19,8 @@ import {
   getNationalServiceById 
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
+import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
+import { iniciarFogos, obterIncidentes } from './src/server/fogosEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection, getSentidoParagem } from './src/server/db/gtfsDatabase';
 import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados } from './src/server/dadosProntos';
 import {
@@ -62,6 +64,14 @@ process.env.DISABLE_HMR = 'true';
 const app = express();
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
+// Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
+registarRotasDadosUtilizador(app);
+// Incêndios e ocorrências da Proteção Civil (Fogos.pt): atualizados em segundo plano
+iniciarFogos();
+app.get('/api/incendios', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(obterIncidentes());
+});
 
 // ==========================================
 // 0. HEALTH CHECK (Responde 200 de imediato para verificações de URL e probes Cloud Run)
