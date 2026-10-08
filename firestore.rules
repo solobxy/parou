@@ -108,7 +108,11 @@ service cloud.firestore {
         isAdmin() || isAuthor() ||
         onlyChanges(['confirmationsCount', 'unconfirmedCount', 'confirmedBy', 'unconfirmedBy', 'isCommunityVerified',
                      'upvotes', 'verificationStatus', 'confidenceScore', 'confidenceLevel', 'updatedAt',
-                     'reportsCount', 'reportedBy', 'status', 'commentsCount'])
+                     'reportsCount', 'reportedBy', 'status', 'commentsCount']) ||
+        // Ocorrências de fontes públicas: a sincronização também atualiza a gravidade e a hora
+        (resource.data.get('sourceName', '') != '' &&
+         onlyChanges(['status', 'sourceFetchedAt', 'reportedAt', 'severity', 'verificationStatus',
+                      'confidenceScore', 'confidenceLevel', 'updatedAt']))
       );
       allow delete: if isAdmin() || isAuthor();
     }

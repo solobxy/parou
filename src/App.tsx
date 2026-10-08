@@ -67,7 +67,6 @@ import {
 import { 
   auth,
   testConnection, 
-  seedReportsIfEmpty, 
   subscribeReports, 
   subscribeComplaints,
   createReport, 
@@ -229,8 +228,8 @@ export default function App() {
     // 1. Validate connection to Firestore as per Firebase skill
     testConnection();
 
-    // 2. Initialize Firestore database with seed occurrences if empty
-    seedReportsIfEmpty();
+    // (A antiga limpeza de dados fictícios lia a coleção inteira a cada visita — já não é
+    // precisa e custava leituras pagas na Firebase.)
 
     // 3. Subscribe to real-time reports
     const unsubscribeReports = subscribeReports(

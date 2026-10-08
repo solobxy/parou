@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
+import { BotaoInstalar } from './InstalarApp';
 import { 
   Search, 
   MapPin, 
@@ -352,6 +353,9 @@ export const Header: React.FC<HeaderProps> = ({
               <Search className="w-5 h-5 stroke-[2]" />
             </button>
           )}
+
+          {/* Instalar a app (só aparece quando o browser permite e ainda não está instalada) */}
+          <BotaoInstalar />
 
           {/* Notification Button */}
           {onOpenNotificationModal && (
