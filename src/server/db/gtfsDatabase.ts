@@ -1373,6 +1373,46 @@ export interface SentidoParagem {
 const cacheSentidos = new Map<string, { valor: SentidoParagem; t: number }>();
 const VALIDADE_SENTIDOS_MS = 6 * 60 * 60 * 1000;
 
+function sentidoUnir(ids: string[]): SentidoParagem {
+  try {
+    const db = getDatabase();
+    const ph = ids.map(() => '?').join(',');
+    const nomesProprios = new Set((db.prepare(`SELECT stop_name FROM stops WHERE stop_id IN (${ph})`).all(...ids) as Array<{ stop_name: string }>)
+      .map((r) => r.stop_name.toLowerCase().replace(/\s+/g, ' ').trim()));
+    const rows = db.prepare(`
+      WITH aqui AS (
+        SELECT route_id, direction_id, MIN(stop_sequence) AS seq FROM stop_routes
+        WHERE stop_id IN (${ph}) AND stop_sequence IS NOT NULL GROUP BY route_id, direction_id
+      ),
+      fim AS (
+        SELECT sr.route_id, sr.direction_id, MAX(sr.stop_sequence) AS ultimo
+        FROM stop_routes sr JOIN aqui a ON a.route_id = sr.route_id AND a.direction_id = sr.direction_id
+        GROUP BY sr.route_id, sr.direction_id
+      )
+      SELECT s.stop_name AS destino, (a.seq < f.ultimo) AS parte, COUNT(*) AS n
+      FROM aqui a
+      JOIN fim f ON f.route_id = a.route_id AND f.direction_id = a.direction_id
+      JOIN stop_routes u ON u.route_id = a.route_id AND u.direction_id = a.direction_id AND u.stop_sequence = f.ultimo
+      JOIN stops s ON s.stop_id = u.stop_id
+      GROUP BY destino, parte
+      ORDER BY n DESC
+    `).all(...ids) as Array<{ destino: string; parte: number; n: number }>;
+    const destinos: string[] = [];
+    for (const r of rows) {
+      if (!r.parte) continue;
+      const d = String(r.destino || '').replace(/\s+/g, ' ').trim();
+      if (!d || nomesProprios.has(d.toLowerCase())) continue;
+      if (!destinos.some((x) => x.toLowerCase() === d.toLowerCase())) destinos.push(d);
+      if (destinos.length >= 6) break;
+    }
+    const soChegadas = destinos.length === 0 && rows.length > 0 && rows.every((r) => !r.parte);
+    return { destinos, soChegadas };
+  } catch (err: any) {
+    console.warn('[Sentido paragem UNIR] Falhou:', err?.message || err);
+    return { destinos: [], soChegadas: false };
+  }
+}
+
 export function getSentidoParagem(stopIds: string[]): SentidoParagem {
   const ids = Array.from(new Set(stopIds.filter(Boolean))).slice(0, 8);
   const chave = ids.slice().sort().join('|');
@@ -1380,6 +1420,13 @@ export function getSentidoParagem(stopIds: string[]): SentidoParagem {
   if (guardado && Date.now() - guardado.t < VALIDADE_SENTIDOS_MS) return guardado.valor;
 
   let valor: SentidoParagem = { destinos: [], soChegadas: false };
+  // UNIR: sem viagens na base; o sentido vem da ordem das paragens de cada linha (stop_routes):
+  // destino = última paragem de cada linha/sentido que passa aqui sem terminar aqui
+  if (ids.length > 0 && ids.every((id) => id.startsWith('unir:'))) {
+    valor = sentidoUnir(ids);
+    cacheSentidos.set(chave, { valor, t: Date.now() });
+    return valor;
+  }
   try {
     const db = getDatabase();
     const ph = ids.map(() => '?').join(',');
