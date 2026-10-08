@@ -25,7 +25,8 @@ import {
   Maximize2,
   Minimize2,
   TrainFront,
-  Navigation
+  Navigation,
+  ArrowLeft
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { 
@@ -370,6 +371,33 @@ export const PertoView: React.FC<PertoViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStop?.id]);
 
+  // A paragem aberta ocupa o lugar da lista. O "voltar" do telemóvel (gesto ou botão)
+  // fecha-a em vez de sair da app: abre-se com uma entrada no histórico.
+  const historicoParagemRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (!selectedStop) return;
+    if (!historicoParagemRef.current) {
+      try {
+        window.history.pushState({ ...(window.history.state || {}), parouParagem: true }, '');
+        historicoParagemRef.current = true;
+      } catch {}
+    }
+    const aoVoltar = () => {
+      historicoParagemRef.current = false;
+      setSelectedStop(null);
+    };
+    window.addEventListener('popstate', aoVoltar);
+    return () => window.removeEventListener('popstate', aoVoltar);
+  }, [selectedStop?.id]);
+
+  const fecharParagem = () => {
+    setSelectedStop(null);
+    if (historicoParagemRef.current) {
+      historicoParagemRef.current = false;
+      try { window.history.back(); } catch {}
+    }
+  };
+
   const handleRecenterClick = () => {
     setFollowMode(true);
     // Sem GPS ativo: pede a localização ao browser (o mapa centra-se quando ela chegar)
@@ -665,7 +693,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   return (
-    <div className="relative flex flex-col lg:flex-row w-full h-[calc(100dvh-3.5rem-4rem-env(safe-area-inset-bottom))] lg:h-[calc(100vh-3.5rem)] bg-[#FFFFFF] overflow-hidden">
+    <div className="relative flex flex-col lg:flex-row w-full h-full bg-[#FFFFFF] overflow-hidden">
       {/* Painel: Transportes perto */}
       <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
         {/* Cabeçalho (telemóvel) */}
@@ -983,6 +1011,119 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Detalhe da paragem escolhida */}
+        {selectedStop && (
+          <div className="painel-paragem absolute inset-0 z-20 flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none">
+            <div className="shrink-0 px-3 pt-2 pb-3 border-b border-[#E6E6E3]">
+              <button
+                onClick={() => setMapaExpandido((v) => !v)}
+                className="lg:hidden block mx-auto w-10 h-1.5 rounded-full bg-[#E6E6E3] mb-2 cursor-pointer"
+                aria-label={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
+              />
+              <div className="flex items-start gap-2.5">
+                <button
+                  onClick={fecharParagem}
+                  className="shrink-0 w-10 h-10 -ml-0.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
+                  aria-label="Voltar aos transportes perto"
+                >
+                  <ArrowLeft className="w-5 h-5 stroke-[2.25]" />
+                </button>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h4 className="font-semibold text-[17px] text-[#111111] leading-tight truncate">
+                    {formatTransitName(selectedStop.name)}
+                  </h4>
+                  {selectedStop.direction && (
+                    <div className="text-[13px] font-medium text-[#111111]/75 mt-0.5 truncate">
+                      {textoSentido(selectedStop)}
+                    </div>
+                  )}
+                  <div className="text-xs text-[#6B6B6B] mt-0.5">
+                    {normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
+                    {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Partidas da paragem */}
+            <div className="flex-1 min-h-0 px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain">
+              {(() => {
+                const proprias = selectedStop.nextDepartures || [];
+                const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
+                const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
+                const sorted = sortDepartures(deps).slice(0, 12);
+                if (sorted.length === 0) {
+                  return (
+                    <div className="py-4 text-sm text-[#6B6B6B]">
+                      {selectedStop.arrivalsOnly
+                        ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
+                        : extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
+                    </div>
+                  );
+                }
+                const outdatedDeps = sorted.filter((d: any) => parseDepartureTime(d).isOutdated);
+                const outdatedOps = Array.from(new Set(
+                  outdatedDeps.map((d: any) => d.agency_name || d.operator || d.operatorName || '').filter(Boolean)
+                ));
+                const outdatedNotice = outdatedOps.length > 0
+                  ? outdatedOps.join(' e ')
+                  : (outdatedDeps.length > 0 ? (selectedStop.operatorName || 'STCP') : null);
+
+                return (
+                  <>
+                    {outdatedNotice && (
+                      <div className="py-1 px-1 mt-2 bg-[#F4F4F2] rounded-[6px] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
+                        <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
+                        <span>Horários {outdatedNotice} podem estar desatualizados</span>
+                      </div>
+                    )}
+                    {sorted.map((dep: any, dIdx: number) => {
+                      const parsed = parseDepartureTime(dep);
+                      const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
+                      return (
+                        <div key={dIdx} className="py-2.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
+                            <div className="min-w-0">
+                              <div className="text-[15px] font-medium text-[#111111] truncate">
+                                {destination}
+                              </div>
+                              {dep.operatorName && (
+                                <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 flex flex-col items-end text-right">
+                            <div className="flex items-center gap-1">
+                              {parsed.isRealtime && (
+                                <Radio 
+                                  className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
+                                  style={{ color: parsed.textColor }}
+                                />
+                              )}
+                              <span 
+                                className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                                style={{ color: parsed.textColor }}
+                              >
+                                {parsed.bigText}
+                              </span>
+                            </div>
+                            {parsed.subText && (
+                              <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                                {parsed.subText}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
       </aside>
 
       {/* Mapa */}
@@ -1080,114 +1221,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
         )}
       </main>
 
-      {/* Detalhe da paragem escolhida */}
-      {selectedStop && (
-        <div className="absolute inset-x-0 bottom-0 lg:left-auto lg:right-4 lg:bottom-4 lg:w-96 z-[35] max-h-[72%] flex flex-col bg-[#FFFFFF] border border-[#E6E6E3] rounded-t-[20px] lg:rounded-[16px] shadow-[0_-12px_32px_rgba(17,17,17,0.16)]">
-          <div className="shrink-0 px-4 pt-2 pb-3 border-b border-[#E6E6E3]">
-            <div className="lg:hidden mx-auto w-10 h-1.5 rounded-full bg-[#E6E6E3] mb-2.5" />
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h4 className="font-semibold text-[17px] text-[#111111] leading-tight truncate">
-                  {formatTransitName(selectedStop.name)}
-                </h4>
-                {selectedStop.direction && (
-                  <div className="text-[13px] font-medium text-[#111111]/75 mt-0.5 truncate">
-                    {textoSentido(selectedStop)}
-                  </div>
-                )}
-                <div className="text-xs text-[#6B6B6B] mt-0.5">
-                  {normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
-                  {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedStop(null)}
-                className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer"
-                aria-label="Fechar detalhes da paragem"
-              >
-                <X className="w-4 h-4 stroke-[2.25]" />
-              </button>
-            </div>
-          </div>
-
-          {/* Partidas da paragem */}
-          <div className="px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain">
-            {(() => {
-              const proprias = selectedStop.nextDepartures || [];
-              const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
-              const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
-              const sorted = sortDepartures(deps).slice(0, 8);
-              if (sorted.length === 0) {
-                return (
-                  <div className="py-4 text-sm text-[#6B6B6B]">
-                    {selectedStop.arrivalsOnly
-                      ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
-                      : extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
-                  </div>
-                );
-              }
-              const outdatedDeps = sorted.filter((d: any) => parseDepartureTime(d).isOutdated);
-              const outdatedOps = Array.from(new Set(
-                outdatedDeps.map((d: any) => d.agency_name || d.operator || d.operatorName || '').filter(Boolean)
-              ));
-              const outdatedNotice = outdatedOps.length > 0
-                ? outdatedOps.join(' e ')
-                : (outdatedDeps.length > 0 ? (selectedStop.operatorName || 'STCP') : null);
-
-              return (
-                <>
-                  {outdatedNotice && (
-                    <div className="py-1 px-1 mt-2 bg-[#F4F4F2] rounded-[6px] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
-                      <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
-                      <span>Horários {outdatedNotice} podem estar desatualizados</span>
-                    </div>
-                  )}
-                  {sorted.map((dep: any, dIdx: number) => {
-                    const parsed = parseDepartureTime(dep);
-                    const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
-                    return (
-                      <div key={dIdx} className="py-2.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
-                          <div className="min-w-0">
-                            <div className="text-[15px] font-medium text-[#111111] truncate">
-                              {destination}
-                            </div>
-                            {dep.operatorName && (
-                              <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="shrink-0 flex flex-col items-end text-right">
-                          <div className="flex items-center gap-1">
-                            {parsed.isRealtime && (
-                              <Radio 
-                                className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                                style={{ color: parsed.textColor }}
-                              />
-                            )}
-                            <span 
-                              className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                              style={{ color: parsed.textColor }}
-                            >
-                              {parsed.bigText}
-                            </span>
-                          </div>
-                          {parsed.subText && (
-                            <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                              {parsed.subText}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

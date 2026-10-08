@@ -94,6 +94,13 @@ export default function App() {
     mq.addEventListener?.('change', mudar);
     return () => mq.removeEventListener?.('change', mudar);
   }, []);
+  // Perto no telemóvel: página presa (sem deslizar) para o cabeçalho ficar sempre à vista
+  useEffect(() => {
+    const prender = !ecraGrande && activeMobileView === 'perto';
+    document.documentElement.classList.toggle('pagina-fixa', prender);
+    if (prender) window.scrollTo(0, 0);
+    return () => document.documentElement.classList.remove('pagina-fixa');
+  }, [ecraGrande, activeMobileView]);
   const [mapViewMode, setMapViewMode] = useState<'cidades' | 'concelhos' | 'distritos'>('cidades');
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
@@ -648,7 +655,7 @@ export default function App() {
   }, [resolveRouteFromPath]);
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-hidden">
+    <div className="min-h-dvh bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-clip">
       {/* Top Background Loading Banner */}
       <TopLoadingBanner />
 
@@ -678,7 +685,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto overflow-x-hidden ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6'}`}>
+      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6'}`}>
         {/* Bloco de "Tempo Real", ocorrências, filtros e reportar ocorrência — visível EXCLUSIVAMENTE na aba Mapa */}
         {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
           <>
@@ -946,7 +953,7 @@ export default function App() {
 
           {/* 3. Tab Perto (Substitui botão + na hotbar com radar e transportes locais) */}
           {activeMobileView === 'perto' && (
-            <div className="w-full h-[calc(100dvh-7.5rem)]">
+            <div className="w-full h-[calc(100dvh-3.5rem-1px-4rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
               <PertoView
                 initialDestination={pertoInitialDestination}
                 onClearInitialDestination={() => setPertoInitialDestination(null)}
