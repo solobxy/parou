@@ -16,9 +16,18 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/** Está a correr dentro da app instalada (PWA ou app Android da Play Store)? */
 function jaInstalada(): boolean {
   try {
-    return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+    if (new URLSearchParams(window.location.search).get('origem') === 'android') sessionStorage.setItem('parou_na_app', '1');
+    if (document.referrer.startsWith('android-app://')) sessionStorage.setItem('parou_na_app', '1');
+  } catch {}
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.matchMedia('(display-mode: fullscreen)').matches
+      || window.matchMedia('(display-mode: minimal-ui)').matches
+      || (navigator as any).standalone === true
+      || sessionStorage.getItem('parou_na_app') === '1';
   } catch {
     return false;
   }
@@ -29,30 +38,23 @@ function eIphone(): boolean {
   return /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
 }
 
-/** Estado partilhado da instalação (o cartão nos Favoritos e o botão no topo usam o mesmo) */
+/** Estado partilhado da instalação (o cartão nos Favoritos e o botão no topo usam o mesmo).
+ *  No site aparece sempre (mesmo para quem já instalou); dentro da app instalada nunca. */
 export function useInstalarApp() {
   const [podeInstalar, setPodeInstalar] = useState<boolean>(() => Boolean(eventoInstalar));
-  const [instalada, setInstalada] = useState<boolean>(() => {
-    try { return jaInstalada(); } catch { return false; }
-  });
+  const naApp = (() => { try { return jaInstalada(); } catch { return false; } })();
 
   useEffect(() => {
     const aoPoder = () => setPodeInstalar(true);
-    const aoInstalar = () => { setInstalada(true); eventoInstalar = null; };
     window.addEventListener('parou_pode_instalar', aoPoder);
-    window.addEventListener('appinstalled', aoInstalar);
-    return () => {
-      window.removeEventListener('parou_pode_instalar', aoPoder);
-      window.removeEventListener('appinstalled', aoInstalar);
-    };
+    return () => window.removeEventListener('parou_pode_instalar', aoPoder);
   }, []);
 
   const iphone = typeof navigator !== 'undefined' && eIphone();
   const android = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
-  // No Android aparece sempre (se o browser não tiver o pedido de instalação, mostra como fazer)
-  const disponivel = !instalada && (podeInstalar || iphone || android);
+  const disponivel = !naApp;
 
-  /** Abre o pedido do browser. Devolve 'passos' quando é preciso mostrar como fazer (iPhone). */
+  /** Abre o pedido do browser se houver; senão devolve 'passos' (mostrar como fazer). */
   const instalar = async (): Promise<'aceite' | 'recusado' | 'passos'> => {
     if (eventoInstalar) {
       try {
@@ -60,8 +62,7 @@ export function useInstalarApp() {
         const r = await eventoInstalar.userChoice;
         eventoInstalar = null;
         setPodeInstalar(false);
-        if (r?.outcome === 'accepted') { setInstalada(true); return 'aceite'; }
-        return 'recusado';
+        return r?.outcome === 'accepted' ? 'aceite' : 'recusado';
       } catch {
         return 'recusado';
       }
@@ -69,7 +70,8 @@ export function useInstalarApp() {
     return 'passos';
   };
 
-  return { disponivel, iphone: iphone && !podeInstalar, android: android && !podeInstalar, instalar };
+  const plataforma: 'iphone' | 'android' | 'computador' = iphone ? 'iphone' : android ? 'android' : 'computador';
+  return { disponivel, podeInstalar, plataforma, iphone: iphone && !podeInstalar, android: android && !podeInstalar, instalar };
 }
 
 export const PassosIphone: React.FC = () => (
@@ -85,12 +87,20 @@ export const PassosAndroid: React.FC = () => (
     <li>Toca no menu <strong>⋮</strong> do browser (canto superior direito).</li>
     <li>Escolhe <strong>Instalar app</strong> ou <strong>Adicionar ao ecrã principal</strong>.</li>
     <li>Confirma em <strong>Instalar</strong>.</li>
+    <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">Se já a instalaste, abre-a pelo ícone <strong>PAROU</strong> no ecrã principal.</li>
+  </ol>
+);
+
+export const PassosComputador: React.FC = () => (
+  <ol className="text-[12.5px] text-[#111111] space-y-1 list-decimal pl-4">
+    <li>No <strong>Chrome</strong> ou no <strong>Edge</strong>: toca no ícone de instalar na barra do endereço (ou menu › <strong>Instalar PAROU</strong>).</li>
+    <li>No <strong>Safari</strong> (Mac): menu Ficheiro › <strong>Adicionar à Dock</strong>.</li>
   </ol>
 );
 
 /** Botão compacto para o topo da página */
 export const BotaoInstalar: React.FC = () => {
-  const { disponivel, iphone, android, instalar } = useInstalarApp();
+  const { disponivel, plataforma, iphone, instalar } = useInstalarApp();
   const [verPassos, setVerPassos] = useState(false);
   if (!disponivel) return null;
   const tocar = async () => {
@@ -114,9 +124,9 @@ export const BotaoInstalar: React.FC = () => {
           <div className="fixed right-3 top-[64px] z-50 w-[min(300px,calc(100vw-24px))] rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 shadow-lg" role="dialog" aria-label="Como instalar">
             <div className="flex items-center gap-2.5 mb-2">
               <img src="/icon-192.png" alt="" className="w-8 h-8 rounded-[8px]" />
-              <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{iphone ? ' no iPhone' : ''}</div>
+              <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{plataforma === 'iphone' ? ' no iPhone' : ''}</div>
             </div>
-            {iphone ? <PassosIphone /> : <PassosAndroid />}
+            {plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}
           </div>
         </>
       )}
@@ -129,7 +139,8 @@ export const InstalarApp: React.FC = () => {
     try { return localStorage.getItem(CHAVE_FECHADO) === '1'; } catch { return false; }
   });
   const [verPassos, setVerPassos] = useState(false);
-  const { disponivel, iphone, android, instalar: pedirInstalar } = useInstalarApp();
+  const { disponivel, plataforma, podeInstalar, iphone, instalar: pedirInstalar } = useInstalarApp();
+  const android = plataforma === 'android' && !podeInstalar;
 
   if (fechado || !disponivel) return null;
 
@@ -161,7 +172,7 @@ export const InstalarApp: React.FC = () => {
             {iphone || android ? 'Como instalar' : 'Instalar'}
           </button>
           {verPassos && (
-            <div className="mt-2.5">{iphone ? <PassosIphone /> : <PassosAndroid />}</div>
+            <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}</div>
           )}
         </div>
         <button onClick={fechar} className="shrink-0 w-8 h-8 -mr-1 -mt-1 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
