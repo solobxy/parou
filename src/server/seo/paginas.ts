@@ -13,7 +13,7 @@ import { linhasCM, paragensCM, padraoCM, partidasPadrao, passagensHojeCM } from 
 import { getDatabase } from '../db/gtfsDatabase';
 import { html, hora, cortar, slug, nomeBonito } from './texto';
 import { LinesEngine } from '../linesEngine';
-import { isDadosProntosPronto, getManifestData } from '../dadosProntos';
+import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../dadosProntos';
 import { obterGreves } from '../alertasEngine';
 
 const SITE = 'https://parou.pt';
@@ -282,7 +282,7 @@ function sentidosUnir(l: Linha): HorarioLinha['sentidos'] {
 let destinosUnirCache: { versao: string; m: Map<string, string> } | null = null;
 /** Destino (última paragem) de cada linha UNIR em cada sentido: "unir:8009|1" -> "Campanhã Estação" */
 function destinosUnir(): Map<string, string> {
-  const v = String(getManifestData()?.built_at || '');
+  const v = String(getVersaoBaseAtiva() || '');
   if (destinosUnirCache && destinosUnirCache.versao === v) return destinosUnirCache.m;
   const m = new Map<string, string>();
   try {
