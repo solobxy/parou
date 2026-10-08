@@ -54,7 +54,13 @@ function releaseQueueSlot(): void {
 let lastWfsFetchTime = 0;
 const WFS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Os servidores da AMP só aceitam ligações de Portugal. O servidor da PAROU está fora (Alemanha),
+// por isso estes pedidos só se fazem se AMP_ACESSIVEL=1. As paragens da UNIR vêm na base de dados
+// diária (parou-dados/unir) e as partidas são pedidas à AMP pelo telemóvel de quem usa a app.
+const AMP_ACESSIVEL = process.env.AMP_ACESSIVEL === '1';
+
 export async function ingestUnirQiHoras(): Promise<boolean> {
+  if (!AMP_ACESSIVEL) return false;
   const feedId = 'unir';
   const startTime = Date.now();
   console.log('[UNIR QiHoras] A carregar paragens e linhas da AMP QiHoras (não oficial)...');
@@ -217,6 +223,7 @@ export async function ingestUnirQiHoras(): Promise<boolean> {
  * and graceful fallback without noisy timeout exceptions.
  */
 export async function getUnirStopDepartures(stopCode: string): Promise<any[]> {
+  if (!AMP_ACESSIVEL) return [];
   const code = stopCode.replace(/^unir:/, '').trim();
   if (!code) return [];
 

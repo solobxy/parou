@@ -330,7 +330,7 @@ async function probeAllCatalogEntries(): Promise<void> {
 const FEED_DO_CATALOGO: Record<string, string | null> = {
   'carris-metropolitana': 'carris_metropolitana',
   'metro-lisboa': 'metro_lisboa',
-  'unir-mobilidade': null, // à espera dos dados da AMP
+  'unir-mobilidade': 'unir',
   'stcp': 'stcp',
   'metro-porto': 'metro_porto',
   'carris-lisboa': 'carris',
@@ -1135,6 +1135,10 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         departures: stop.departures || [],
         status_notice: stop.status_notice,
         has_realtime: stop.has_realtime,
+        // UNIR: as partidas são pedidas à AMP pelo telemóvel (o servidor está fora de Portugal)
+        ...((stop.member_stop_ids || []).some((m: string) => m.startsWith('unir:'))
+          ? { unirIds: (stop.member_stop_ids || []).filter((m: string) => m.startsWith('unir:')).map((m: string) => m.slice(5)) }
+          : {}),
       };
     });
 

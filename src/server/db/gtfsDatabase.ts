@@ -1295,7 +1295,18 @@ export function getLinesServingStop(stopId: string): {
       WHERE st.stop_id = ?
       LIMIT 50
     `;
-    return db.prepare(query).all(stopId) as any[];
+    const linhas = db.prepare(query).all(stopId) as any[];
+    if (linhas.length > 0 || !stopId.startsWith('unir:')) return linhas;
+    // Operadores sem horários na base (UNIR): linhas da tabela stop_routes
+    try {
+      return db.prepare(`
+        SELECT DISTINCT r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color, r.feed_id
+        FROM stop_routes sr JOIN routes r ON r.route_id = sr.route_id
+        WHERE sr.stop_id = ? ORDER BY r.route_short_name LIMIT 50
+      `).all(stopId) as any[];
+    } catch {
+      return [];
+    }
   } catch (err: any) {
     if (err?.message?.includes('malformed')) reloadDatabaseConnection();
     return [];

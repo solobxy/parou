@@ -1237,6 +1237,26 @@ export class LinesEngine {
       });
     }
 
+    // UNIR: sem viagens na base; o percurso vem da tabela stop_routes (ordem da AMP)
+    if (directions.length === 0 && route.feed_id === 'unir') {
+      try {
+        const rows = db.prepare(`
+          SELECT sr.direction_id, sr.stop_id, sr.stop_sequence, s.stop_name, s.stop_lat, s.stop_lon
+          FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+          WHERE sr.route_id = ? ORDER BY sr.direction_id, COALESCE(sr.stop_sequence, 9999)
+        `).all(lineId) as Array<{ direction_id: number; stop_id: string; stop_sequence: number | null; stop_name: string; stop_lat: number; stop_lon: number }>;
+        const porSentido = new Map<number, typeof rows>();
+        for (const r of rows) porSentido.set(r.direction_id, [...(porSentido.get(r.direction_id) || []), r]);
+        for (const [dirId, lista] of porSentido) {
+          directions.push({
+            direction_id: dirId,
+            headsign: lista[lista.length - 1]?.stop_name || route.route_long_name || `Sentido ${dirId}`,
+            stops: lista.map((r, i) => ({ id: r.stop_id, name: r.stop_name, lat: r.stop_lat, lon: r.stop_lon, sequence: r.stop_sequence ?? i + 1, next_arrival: 'horário na paragem' })),
+          });
+        }
+      } catch {}
+    }
+
     // Live vehicles on this line
     const vehicles: LineDetail['vehicles'] = [];
     try {

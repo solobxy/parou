@@ -32,6 +32,8 @@ interface OpcoesPagina {
   jsonld?: object[];
   indexar?: boolean;
   imagem?: string;
+  /** JavaScript extra no fim da página (ex.: horários da UNIR pedidos à AMP pelo browser) */
+  script?: string;
 }
 
 const LOGO_SVG = `<svg viewBox="26 17 48 66" width="20" height="28" aria-hidden="true"><mask id="m"><rect x="26" y="17" width="48" height="66" fill="#fff"/><circle cx="49" cy="57" r="8" fill="#000"/></mask><path d="M34 80V25H56L66 35V57H52" fill="none" stroke="#111" stroke-width="10" mask="url(#m)"/><circle cx="49" cy="57" r="6.5" fill="#FF6B1A"/></svg>`;
@@ -129,6 +131,7 @@ ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(
 <div style="display:flex;gap:8px"><a class="btn claro esconde" href="/linhas">Linhas</a><a class="btn" href="/">Abrir a app</a></div></div></header>
 <main>${migalhasHtml(migalhas)}${o.corpo}</main>
 ${rodape()}
+${o.script ? `<script>${o.script}</script>` : ''}
 </body></html>`;
 }
 
@@ -249,6 +252,83 @@ function nomesParagens(ids: string[]): Map<string, string> {
   return m;
 }
 
+// UNIR (Área Metropolitana do Porto): a base tem as paragens e o percurso de cada linha; os
+// horários vêm da AMP, que só responde a ligações de Portugal. Por isso as páginas mostram o
+// percurso e as linhas (para todos, incluindo os motores de pesquisa) e o browser de quem as
+// abre pede à AMP o horário de hoje.
+const UNIR = 'unir';
+function semAcentosSimples(t: string): string { return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+
+function sentidosUnir(l: Linha): HorarioLinha['sentidos'] {
+  const db = getDatabase();
+  let rows: Array<{ stop_id: string; stop_name: string; direction_id: number; stop_sequence: number | null }> = [];
+  try {
+    rows = db.prepare(`SELECT sr.stop_id, s.stop_name, sr.direction_id, sr.stop_sequence FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+      WHERE sr.route_id = ? ORDER BY sr.direction_id, COALESCE(sr.stop_sequence, 9999), s.stop_name`).all(l.routeId) as any[];
+  } catch { return []; }
+  const porSentido = new Map<number, typeof rows>();
+  for (const r of rows) porSentido.set(r.direction_id, [...(porSentido.get(r.direction_id) || []), r]);
+  return Array.from(porSentido.entries()).map(([direcao, lista]) => {
+    const comOrdem = lista.some((x) => x.stop_sequence != null);
+    return {
+      direcao,
+      destino: comOrdem ? nomeBonito(lista[lista.length - 1].stop_name) : (direcao === 3 ? 'circular' : `sentido ${direcao}`),
+      paragens: lista.map((x) => ({ stopId: x.stop_id, nome: nomeBonito(x.stop_name), minutos: 0 })),
+      horarios: [],
+    };
+  });
+}
+
+let destinosUnirCache: { versao: string; m: Map<string, string> } | null = null;
+/** Destino (última paragem) de cada linha UNIR em cada sentido: "unir:8009|1" -> "Campanhã Estação" */
+function destinosUnir(): Map<string, string> {
+  const v = String(getManifestData()?.built_at || '');
+  if (destinosUnirCache && destinosUnirCache.versao === v) return destinosUnirCache.m;
+  const m = new Map<string, string>();
+  try {
+    const rows = getDatabase().prepare(`SELECT sr.route_id, sr.direction_id, s.stop_name FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+      WHERE sr.feed_id = 'unir' AND sr.stop_sequence = (SELECT MAX(x.stop_sequence) FROM stop_routes x WHERE x.route_id = sr.route_id AND x.direction_id = sr.direction_id)`).all() as Array<{ route_id: string; direction_id: number; stop_name: string }>;
+    for (const r of rows) m.set(`${r.route_id}|${r.direction_id}`, nomeBonito(r.stop_name));
+  } catch {}
+  destinosUnirCache = { versao: v, m };
+  return m;
+}
+
+/** Script do browser: pede à AMP o horário de hoje e preenche os blocos [data-unir] */
+function scriptUnir(linhas: Record<string, string>): string {
+  return `window.__UNIR_LINHAS=${JSON.stringify(linhas).replace(/</g, '\\u003c')};(function(){
+var Z='Europe/Lisbon',L=window.__UNIR_LINHAS||{};
+function dia(){return new Intl.DateTimeFormat('en-CA',{timeZone:Z,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+function agora(){var p=new Intl.DateTimeFormat('en-GB',{timeZone:Z,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date()).split(':').map(Number);return (p[0]%24)*3600+p[1]*60+p[2]}
+function pedir(c){return fetch('https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+dia()+'&id='+encodeURIComponent(c)).then(function(r){return r.json()}).then(function(d){if(typeof d==='string')d=JSON.parse(d);if(!d||!d.horarios)throw 0;return d.horarios})}
+function seg(x){var a=String(x.chegada||'').split(':').map(Number);return a[0]*3600+(a[1]||0)*60+(a[2]||0)}
+function hm(s){s=((s%86400)+86400)%86400;return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function limpo(t){return String(t||'').replace(/\\s+/g,' ').trim()}
+function chip(c){var u=L[c];return u?'<a class="chip" style="background:#002B49;color:#fff;text-decoration:none" href="'+esc(u)+'">'+esc(c)+'</a>':'<span class="chip" style="background:#002B49">'+esc(c)+'</span>'}
+var falha='<p class="nota">Horário de hoje indisponível neste momento: o serviço da AMP só responde a ligações feitas em Portugal. Na <a href="/">app PAROU</a> vês as partidas ao minuto.</p>';
+document.querySelectorAll('[data-unir]').forEach(function(el){
+  var cods=(el.getAttribute('data-cods')||'').split(',').filter(Boolean);
+  Promise.all(cods.map(pedir)).then(function(ls){
+    var t=[].concat.apply([],ls),a=agora();
+    if(el.getAttribute('data-unir')==='linha'){
+      var li=el.getAttribute('data-linha'),se=el.getAttribute('data-sentido'),vistos={},hs=[];
+      t.forEach(function(x){if(limpo(x.linha)===li&&limpo(x.sentido)===se){var s=seg(x);if(!vistos[s]){vistos[s]=1;hs.push(s)}}});
+      hs.sort(function(x,y){return x-y});
+      if(!hs.length){el.innerHTML='<p class="nota">Sem partidas hoje neste sentido.</p>';return}
+      var ph={};hs.forEach(function(s){var h=Math.floor(s/3600);(ph[h]=ph[h]||[]).push(hm(s).slice(3))});
+      var prox=hs.filter(function(s){return s>=a-60})[0];
+      el.innerHTML='<p class="sub">Hoje: '+hs.length+' partidas, '+hm(hs[0])+'–'+hm(hs[hs.length-1])+(prox!=null?' · próxima às <b>'+hm(prox)+'</b>':'')+'.</p><table class="horas"><tbody>'+Object.keys(ph).map(Number).sort(function(x,y){return x-y}).map(function(h){return '<tr><td>'+String(h%24).padStart(2,'0')+'</td><td>'+ph[h].join(' ')+'</td></tr>'}).join('')+'</tbody></table><p class="nota">Horário da AMP para hoje, na primeira paragem.</p>';
+    }else{
+      var px=t.map(function(x){return {l:limpo(x.linha),d:limpo(x.destino),s:seg(x)}}).filter(function(x){return x.s>=a-60}).sort(function(x,y){return x.s-y.s}).slice(0,12);
+      if(!px.length){el.innerHTML='<p class="nota">Sem mais partidas hoje.</p>';return}
+      el.innerHTML='<ul class="lista partidas">'+px.map(function(x){var m=Math.max(0,Math.round((x.s-a)/60));var q=m<=0?'a chegar':m<60?'daqui a '+m+' min':'daqui a '+Math.floor(m/60)+' h '+String(m%60).padStart(2,'0');return '<li><div class="linha">'+chip(x.l)+'<span class="t">'+esc(x.d)+'</span><span class="hora">'+hm(x.s)+'<small>'+q+'</small></span></div></li>'}).join('')+'</ul><p class="nota">Horário da AMP, às '+hm(a)+'. Para acompanhar ao minuto, abre a <a href="/">app PAROU</a>.</p>';
+    }
+  }).catch(function(){el.innerHTML=falha});
+});
+})();`;
+}
+
 /** Horário de uma linha da Carris Metropolitana (API do operador) no mesmo formato das outras */
 async function horarioLinhaCM(l: Linha): Promise<HorarioLinha> {
   const idLinha = l.routeId.replace(/^cm:/, '');
@@ -286,6 +366,7 @@ async function horarioLinhaCM(l: Linha): Promise<HorarioLinha> {
 }
 
 async function paginaLinha(op: Operador, l: Linha): Promise<string> {
+  if (l.feedId === UNIR) return paginaLinhaUnir(op, l);
   const ix = obterIndice()!;
   const h = l.feedId === CM ? await horarioLinhaCM(l) : horarioDaLinha(l);
   const nome = nomeLinha(l);
@@ -332,6 +413,43 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>Interva
   });
 }
 
+function paginaLinhaUnir(op: Operador, l: Linha): string {
+  const ix = obterIndice()!;
+  const sentidos = sentidosUnir(l);
+  const nome = nomeLinha(l);
+  const modo = modoDoTipo(l.tipo);
+  const nParagens = Math.max(0, ...sentidos.map((s) => s.paragens.length));
+  const percurso = l.nome || (sentidos[0] ? `${sentidos[0].paragens[0]?.nome} – ${sentidos[0].destino}` : '');
+  let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
+<p class="sub">${html(nome)} da ${html(op.nome)} (rede de ${html(modo === 'Barco' ? 'barcos' : 'autocarros')} da Área Metropolitana do Porto): percurso com as ${nParagens} paragens de cada sentido e horário de hoje.</p>
+<p><a class="btn laranja" href="/transportes?linha=${encodeURIComponent(l.routeId)}">Ver na app</a></p>`;
+  for (const s of sentidos) {
+    const primeira = s.paragens[0];
+    corpo += `<h2>Sentido ${html(s.destino)}</h2>`;
+    if (primeira) {
+      corpo += `<p class="nota">Partidas de ${html(primeira.nome)}.</p><div data-unir="linha" data-cods="${html(primeira.stopId.replace(/^unir:/, ''))}" data-linha="${html(l.codigo)}" data-sentido="${s.direcao}"><p class="nota">A carregar o horário de hoje (AMP)…</p></div>`;
+    }
+    corpo += `<h3>Paragens (${s.paragens.length})</h3><ol class="percurso">${s.paragens.map((p) => {
+      const g = ix.grupoPorStop.get(p.stopId);
+      return `<li>${g ? `<a href="/paragens/${op.slug}/${g.slug}">${html(p.nome)}</a>` : html(p.nome)}</li>`;
+    }).join('')}</ol>`;
+  }
+  const i = op.linhas.indexOf(l);
+  const vizinhas = [...op.linhas.slice(Math.max(0, i - 4), i), ...op.linhas.slice(i + 1, i + 5)];
+  if (vizinhas.length) {
+    corpo += `<h2>Outras linhas ${html(op.nome)}</h2><ul class="lista">${vizinhas.map((v) => `<li><a href="/linhas/${op.slug}/${v.slug}">${chip(v)}<span class="t">${html(nomeLinha(v))}${v.nome ? `<small>${html(v.nome)}</small>` : ''}</span></a></li>`).join('')}</ul><p><a href="/linhas/${op.slug}">Ver todas as linhas ${html(op.nome)} ›</a></p>`;
+  }
+  corpo += `<p class="nota">Percurso e paragens publicados pela AMP – Área Metropolitana do Porto (atualizados a ${html(dataBase())}). Os horários podem mudar em feriados, greves ou obras; confirma na <a href="/">app PAROU</a> ou junto da UNIR.</p>`;
+  return pagina({
+    titulo: cortar(`${nome} ${op.nome}: horários e paragens${percurso ? ` (${percurso})` : ''}`, 64) + ' | PAROU',
+    descricao: `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: as ${nParagens} paragens do percurso em cada sentido e o horário de hoje. Partidas ao minuto na PAROU.`,
+    caminho: `/linhas/${op.slug}/${l.slug}`,
+    corpo,
+    migalhas: [{ nome: 'Início', url: '/' }, { nome: 'Linhas', url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }, { nome, url: `/linhas/${op.slug}/${l.slug}` }],
+    script: scriptUnir({}),
+  });
+}
+
 interface LinhaParagem { linha: Linha; destinos: string[]; primeira: number | null; ultima: number | null }
 interface Proxima { linha?: Linha; codigo: string; destino: string; hora: string; minutos: number; tempoReal: boolean }
 
@@ -369,6 +487,28 @@ async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; 
       .map(({ x, t }) => ({ linha: ix.linhaPorRoute.get(`cm:${x.linha}`), codigo: x.linha, destino: nomeBonito(x.destino), hora: hora(t), minutos: Math.max(0, Math.round((t - agoraSecs) / 60)), tempoReal: x.prevista != null }));
     return { linhas, proximas, concelho };
   }
+  if (g.feedId === UNIR) {
+    const db = getDatabase();
+    const ids = g.stopIds.slice(0, 8);
+    let rows: Array<{ route_id: string; direction_id: number }> = [];
+    let concelho = '';
+    try {
+      rows = db.prepare(`SELECT DISTINCT route_id, direction_id FROM stop_routes WHERE stop_id IN (${ids.map(() => '?').join(',')})`).all(...ids) as any[];
+      concelho = String((db.prepare(`SELECT zone_id FROM stops WHERE stop_id = ?`).get(ids[0]) as any)?.zone_id || '');
+    } catch {}
+    const dest = destinosUnir();
+    const porLinha = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const d = dest.get(`${r.route_id}|${r.direction_id}`);
+      const set = porLinha.get(r.route_id) || new Set<string>();
+      if (d && semAcentosSimples(d) !== semAcentosSimples(g.nome)) set.add(d);
+      porLinha.set(r.route_id, set);
+    }
+    const linhas: LinhaParagem[] = Array.from(porLinha.entries())
+      .map(([rid, ds]) => ({ linha: ix.linhaPorRoute.get(rid)!, destinos: Array.from(ds).slice(0, 3), primeira: null, ultima: null }))
+      .filter((x) => x.linha);
+    return { linhas, proximas: [], concelho };
+  }
   const linhas: LinhaParagem[] = linhasDaParagem(g.stopIds)
     .map((x) => ({ linha: ix.linhaPorRoute.get(x.routeId)!, destinos: x.destinos, primeira: x.primeira, ultima: x.ultima }))
     .filter((x) => x.linha);
@@ -397,7 +537,9 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
 <p class="sub">${html(op.nome)} · ${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'}${destinos.length ? ` para ${html(destinos.join(', '))}` : ''}.</p>
 <p><a class="btn laranja" href="/?local=${g.lat.toFixed(5)},${g.lon.toFixed(5)}&nome=${encodeURIComponent(g.nome)}&paragem=${encodeURIComponent(g.id)}">Ver em tempo real</a></p>
 <h2>Próximas partidas</h2>`;
-  if (proximas.length) {
+  if (g.feedId === UNIR) {
+    corpo += `<div data-unir="proximas" data-cods="${html(g.stopIds.slice(0, 3).map((x) => x.replace(/^unir:/, '')).join(','))}"><p class="nota">A carregar as próximas partidas (horário da AMP)…</p></div>`;
+  } else if (proximas.length) {
     corpo += `<ul class="lista partidas">${proximas.map((d) => {
       const c = d.linha ? chip(d.linha) : `<span class="chip">${html(d.codigo)}</span>`;
       const quando = d.minutos <= 0 ? 'a chegar' : d.minutos < 60 ? `daqui a ${d.minutos} min` : `daqui a ${Math.floor(d.minutos / 60)} h ${String(d.minutos % 60).padStart(2, '0')}`;
@@ -409,8 +551,8 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   if (linhas.length) {
     corpo += `<h2>Linhas que passam ${tp.palavra === 'Paragem' ? 'nesta paragem' : 'aqui'}</h2><ul class="lista">${linhas.map((x) => {
       const l = x.linha;
-      return `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}<small>${x.destinos.length ? `para ${html(x.destinos.join(' · '))}` : html(l.nome)}</small></span><span class="dir">${x.primeira != null ? `${hora(x.primeira)}–${hora(x.ultima!)}` : (g.feedId === CM ? '' : 'hoje sem serviço')}</span></a></li>`;
-    }).join('')}</ul><p class="nota">Horas: primeira e última passagem de hoje.</p>`;
+      return `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}<small>${x.destinos.length ? `para ${html(x.destinos.join(' · '))}` : html(l.nome)}</small></span><span class="dir">${x.primeira != null ? `${hora(x.primeira)}–${hora(x.ultima!)}` : (g.feedId === CM || g.feedId === UNIR ? '' : 'hoje sem serviço')}</span></a></li>`;
+    }).join('')}</ul>${g.feedId === UNIR ? '' : '<p class="nota">Horas: primeira e última passagem de hoje.</p>'}`;
   }
   const perto = paragensPerto(g.lat, g.lon, 450, 14).filter((p) => p.g !== g);
   if (perto.length) {
@@ -420,13 +562,16 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
       return `<li><a href="/paragens/${o2.slug}/${p.slug}"><span class="t">${html(p.nome)}<small>${html(o2.nome)}</small></span><span class="dir">${Math.round(d / 10) * 10} m</span></a></li>`;
     }).join('')}</ul>`;
   }
-  corpo += `<p class="nota">Horários oficiais da ${html(op.nome)} (atualizados a ${html(dataBase())}).</p>`;
+  corpo += g.feedId === UNIR
+    ? `<p class="nota">Paragens e linhas publicadas pela AMP – Área Metropolitana do Porto (atualizadas a ${html(dataBase())}); horários pedidos à AMP no momento.</p>`
+    : `<p class="nota">Horários oficiais da ${html(op.nome)} (atualizados a ${html(dataBase())}).</p>`;
   const tituloLinhas = codigos.length ? ` — ${codigos.slice(0, 4).join(', ')}` : '';
   return pagina({
     titulo: cortar(`${g.nome}${local} (${op.nome}): próximos ${plural}${tituloLinhas}`, 66) + ' | PAROU',
     descricao: `Próximas partidas na ${tp.palavra.toLowerCase()} ${g.nome}${local} da ${op.nome}${codigos.length ? `: linhas ${codigos.join(', ')}` : ''}${destinos.length ? ` para ${destinos.join(', ')}` : ''}. Primeira e última partida de hoje e tempo real na PAROU.`,
     caminho: `/paragens/${op.slug}/${g.slug}`,
     corpo,
+    script: g.feedId === UNIR ? scriptUnir(Object.fromEntries(linhas.map((x) => [x.linha.codigo, `/linhas/${op.slug}/${x.linha.slug}`]))) : undefined,
     migalhas: [{ nome: 'Início', url: '/' }, { nome: 'Linhas', url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }, { nome: g.nome, url: `/paragens/${op.slug}/${g.slug}` }],
     jsonld: [{
       '@context': 'https://schema.org',
