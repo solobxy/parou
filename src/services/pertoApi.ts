@@ -2,7 +2,8 @@ import {
   NearbyStopItem, 
   NearbyVehicleItem, 
   TransitRouteOption, 
-  DestinationSuggestion 
+  DestinationSuggestion,
+  CandidatoUnir,
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
 import { getLocalFavorites, addFavorite, removeFavorite } from './favoritesService';
@@ -93,6 +94,8 @@ export async function planTransitRoute(
   destName: string
 ): Promise<{
   routes: TransitRouteOption[];
+  /** Ligações diretas da UNIR: a app completa-as com o horário da AMP */
+  unir?: CandidatoUnir[];
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
   destName: string;

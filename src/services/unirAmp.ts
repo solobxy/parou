@@ -3,6 +3,8 @@
 // (o servidor da PAROU está fora do país). A AMP devolve o horário do dia inteiro de cada
 // paragem; guardamos 30 min e calculamos os minutos que faltam no momento de mostrar.
 
+import type { CandidatoUnir, TransitRouteOption } from '../types/perto';
+
 const BASE = 'https://paragens.amp.pt/acarto2/get_horarios_prg';
 const ZONA = 'Europe/Lisbon';
 const COR_UNIR = '#CE9926'; // amarelo-torrado da UNIR
@@ -18,6 +20,8 @@ export interface PassagemUnir {
   epoch: number;
   parcial: boolean;
   sentido: string;
+  /** Identificador da viagem na AMP (igual em todas as paragens da viagem) */
+  viagem: string;
 }
 
 interface Entrada { t: number; ok: boolean; lista: PassagemUnir[]; nome?: string }
@@ -65,6 +69,7 @@ async function pedir(codigo: string, desvioDias: number): Promise<Entrada> {
           epoch: meiaNoiteEpoch + segundos,
           parcial: /parcelar/i.test(String(x.abrev || '')),
           sentido: limpar(x.sentido),
+          viagem: limpar(x.trip_id),
         };
       }).filter((x: PassagemUnir) => x.linha && Number.isFinite(x.segundos));
       lista.sort((a, b) => a.segundos - b.segundos);
@@ -146,4 +151,75 @@ export function codigosUnir(stop: { id?: string; unirIds?: string[] } | null | u
   if (stop.unirIds?.length) return stop.unirIds;
   if (stop.id?.startsWith('unir:')) return [stop.id.slice(5)];
   return [];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Planeador: completa uma ligação direta da UNIR (encontrada pelo servidor) com a hora real da
+// AMP — a mesma viagem (trip_id) passa na paragem de origem e, mais tarde, na de destino.
+// ---------------------------------------------------------------------------------------------
+
+function hmDe(segundos: number): string {
+  const s = ((segundos % 86400) + 86400) % 86400;
+  return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
+}
+
+export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<TransitRouteOption | null> {
+  const [o, d] = await Promise.all([pedir(c.origem.codigo, 0), pedir(c.destino.codigo, 0)]);
+  if (!o.ok || !d.ok) return null;
+  const agora = Math.floor(Date.now() / 1000);
+  const chegadas = new Map<string, PassagemUnir>();
+  for (const x of d.lista) if (x.linha === c.linha && x.viagem) chegadas.set(x.viagem, x);
+  let melhor: { p: PassagemUnir; q: PassagemUnir } | null = null;
+  for (const p of o.lista) {
+    if (p.linha !== c.linha || !p.viagem) continue;
+    if (p.epoch < agora + c.origem.minutos * 60 - 30) continue; // não dá para chegar à paragem a tempo
+    const q = chegadas.get(p.viagem);
+    if (!q || q.segundos <= p.segundos) continue;
+    if (!melhor || q.epoch < melhor.q.epoch) melhor = { p, q };
+  }
+  if (!melhor) return null;
+  const { p, q } = melhor;
+  const chegadaFinal = q.epoch + c.destino.minutos * 60;
+  const saida = p.epoch - c.origem.minutos * 60;
+  const total = Math.max(1, Math.round((chegadaFinal - agora) / 60));
+  const segsAgora = (epoch: number) => {
+    const partes = new Intl.DateTimeFormat('en-GB', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(epoch * 1000)).split(':').map(Number);
+    return (partes[0] % 24) * 3600 + partes[1] * 60;
+  };
+  const destino = p.destino || c.nome || '';
+  return {
+    id: `unir-${c.linha}-${p.viagem}`,
+    type: 'fastest',
+    title: 'Direto',
+    badgeLabel: 'Direto',
+    totalDurationMinutes: total,
+    departureTime: hmDe(segsAgora(saida)),
+    arrivalTime: hmDe(segsAgora(chegadaFinal)),
+    walkingDistanceMeters: c.origem.metros + c.destino.metros,
+    walkingMinutes: c.origem.minutos + c.destino.minutos,
+    transfersCount: 0,
+    legs: [
+      { mode: 'WALK', instruction: `Ir a pé até ${c.origem.nome}`, durationMinutes: c.origem.minutos, distanceMeters: c.origem.metros },
+      {
+        mode: 'TRANSIT',
+        instruction: `Apanhar a linha ${c.linha} da UNIR às ${hmDe(p.segundos)} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) às ${hmDe(q.segundos)}`,
+        transportMode: c.linha === '9901' || c.linha === '9902' ? 'Barco' : 'Autocarro',
+        lineCode: c.linha,
+        lineName: c.nome,
+        lineColor: c.cor || COR_UNIR,
+        operatorName: p.parcial ? 'UNIR · percurso parcial' : 'UNIR',
+        fromStopName: c.origem.nome,
+        toStopName: c.destino.nome,
+        stopsCount: c.paragens,
+        durationMinutes: Math.max(1, Math.round((q.segundos - p.segundos) / 60)),
+        isRealtime: false,
+        departureTime: hmDe(p.segundos),
+        arrivalTime: hmDe(q.segundos),
+      },
+      { mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: c.destino.minutos, distanceMeters: c.destino.metros },
+    ],
+    realtimeStatus: 'PROGRAMADO',
+    realtimeLabel: 'Horário da AMP',
+    relevantAlerts: [],
+  };
 }

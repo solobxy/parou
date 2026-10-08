@@ -30,7 +30,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
-import { passagensUnir, partidasParaMostrar, codigosUnir, type PassagemUnir } from '../services/unirAmp';
+import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
   searchDestinations, 
@@ -190,6 +190,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [calculatedRoutes, setCalculatedRoutes] = useState<TransitRouteOption[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteOption | null>(null);
   const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
+  const [rotasCalculadas, setRotasCalculadas] = useState<boolean>(false);
+  const pedidoRotasRef = useRef(0);
 
   // Map & Controls
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -366,18 +368,50 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const lat = userCoords?.latitude ?? 38.7253;
     const lon = userCoords?.longitude ?? -9.1500;
     setIsCalculatingRoutes(true);
+    setCalculatedRoutes([]);
+    setSelectedRoute(null);
+    setRotasCalculadas(false);
+    const pedido = ++pedidoRotasRef.current;
+
+    // Ordena por duração total, marca a mais rápida e põe "a pé" no fim se não for a melhor
+    const ordenar = (lista: TransitRouteOption[]) => {
+      const vistas = new Set<string>();
+      const unicas = lista.filter((r) => (vistas.has(r.id) ? false : (vistas.add(r.id), true)));
+      unicas.sort((a, b) => a.totalDurationMinutes + a.transfersCount * 6 - (b.totalDurationMinutes + b.transfersCount * 6));
+      const melhor = unicas.find((r) => r.id !== 'a-pe');
+      return unicas.slice(0, 5).map((r) => ({
+        ...r,
+        badgeLabel: r.id === 'a-pe' ? 'A pé'
+          : r.id === melhor?.id ? (r.transfersCount ? 'Mais rápido · 1 transbordo' : 'Mais rápido')
+          : r.transfersCount ? '1 transbordo' : 'Direto',
+      }));
+    };
 
     try {
       const res = await planTransitRoute(lat, lon, destLat, destLon, destName);
-      const routes = res.routes || [];
+      if (pedido !== pedidoRotasRef.current) return;
+      let routes = ordenar(res.routes || []);
       setCalculatedRoutes(routes);
-      if (routes.length > 0) {
-        setSelectedRoute(routes[0]);
+      if (routes.length > 0) setSelectedRoute(routes[0]);
+      // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada
+      const candidatos = (res.unir || []).slice(0, 4);
+      if (candidatos.length) {
+        const extra = (await Promise.all(candidatos.map((c) => viagemUnir(c, destName).catch(() => null))))
+          .filter(Boolean) as TransitRouteOption[];
+        if (pedido !== pedidoRotasRef.current) return;
+        if (extra.length) {
+          routes = ordenar([...routes, ...extra]);
+          setCalculatedRoutes(routes);
+          setSelectedRoute(routes[0]);
+        }
       }
     } catch (err) {
       console.warn('[PertoView] Erro ao calcular rotas:', err);
     } finally {
-      setIsCalculatingRoutes(false);
+      if (pedido === pedidoRotasRef.current) {
+        setIsCalculatingRoutes(false);
+        setRotasCalculadas(true);
+      }
     }
   };
 
@@ -400,10 +434,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   const handleClearDestination = () => {
+    pedidoRotasRef.current++;
     setSelectedDestination(null);
     setDestinationQuery('');
     setCalculatedRoutes([]);
     setSelectedRoute(null);
+    setIsCalculatingRoutes(false);
+    setRotasCalculadas(false);
   };
 
   useEffect(() => {
@@ -985,6 +1022,21 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ))}
         </div>
 
+        {/* Percursos: a calcular / sem resultados */}
+        {selectedDestination && calculatedRoutes.length === 0 && (isCalculatingRoutes || rotasCalculadas) && (
+          <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide truncate">Como chegar a {selectedDestination.title}</span>
+              <button onClick={handleClearDestination} className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0">Cancelar</button>
+            </div>
+            <p className="text-sm text-[#6B6B6B] mt-2">
+              {isCalculatingRoutes
+                ? 'A calcular percursos com os horários de hoje…'
+                : 'Não encontrámos ligações em transportes nas próximas 2 horas daqui para lá (com no máximo um transbordo e até ~900 m a pé de cada lado).'}
+            </p>
+          </div>
+        )}
+
         {/* Route Planning Result Panel (if destination active) */}
         {selectedDestination && calculatedRoutes.length > 0 && (
           <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 space-y-3 shrink-0 max-h-[45%] overflow-y-auto">
@@ -1023,9 +1075,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         </span>
                         <span className="text-xs text-[#6B6B6B]">· Chegada ~{route.arrivalTime}</span>
                       </div>
-                      <span className="text-xs font-bold font-['Barlow_Condensed'] text-[#C2410C] uppercase tracking-wide">
-                        {route.walkingDistanceMeters}m a pé
+                      <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide">
+                        {route.badgeLabel}
                       </span>
+                    </div>
+                    <div className="text-xs text-[#6B6B6B] mb-1.5">
+                      {route.id === 'a-pe'
+                        ? `${route.walkingDistanceMeters} m a pé`
+                        : `Sair às ${route.departureTime} · ${route.walkingMinutes} min a pé${route.transfersCount ? ` · ${route.transfersCount} transbordo` : ''}`}
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1048,6 +1105,28 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         </React.Fragment>
                       ))}
                     </div>
+                    {isSel && route.id !== 'a-pe' && (
+                      <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
+                        {route.legs.map((leg, i) => {
+                          if (leg.mode === 'WALK' && leg.durationMinutes <= 0) return null;
+                          const seguinte = route.legs.slice(i + 1).find((l) => l.mode === 'TRANSIT');
+                          const paraOnde = seguinte ? formatTransitName(seguinte.fromStopName || '') : selectedDestination.title;
+                          return (
+                          <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-[#111111]">
+                            {leg.mode === 'WALK'
+                              ? <Footprints className="w-3.5 h-3.5 mt-0.5 stroke-[2] text-[#6B6B6B] shrink-0" />
+                              : <span className="shrink-0 mt-px"><LineChip number={leg.lineCode || '—'} color={leg.lineColor} /></span>}
+                            <span className={leg.mode === 'WALK' ? 'text-[#6B6B6B]' : ''}>
+                              {leg.mode === 'WALK'
+                                ? `A pé até ${paraOnde} · ${leg.durationMinutes} min`
+                                : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? 'paragem' : 'paragens'}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
+                            </span>
+                          </li>
+                          );
+                        })}
+                        <li className="text-[11px] text-[#6B6B6B]">Horários programados{route.realtimeLabel === 'Horário da AMP' ? ' da AMP' : ''}; podem mudar com o trânsito.</li>
+                      </ol>
+                    )}
                   </div>
                 );
               })}
