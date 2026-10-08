@@ -235,12 +235,15 @@ export function useUserLocation() {
       setErrorMessage('Permissão de localização recusada no navegador.');
       // Descobre a causa: bloqueio do site, localização do telemóvel desligada ou pedido fechado
       try {
+        // Quem já autorizou antes e agora falha quase sempre tem a localização do telemóvel
+        // desligada (ou a poupança de bateria ligada), não um bloqueio no browser
+        const semPedido = (): MotivoBloqueio => (jaDeuLocalizacao() ? 'sistema' : 'site');
         navigator.permissions?.query({ name: 'geolocation' as PermissionName })
-          .then((r) => setMotivoBloqueio(r.state === 'granted' ? 'sistema' : r.state === 'prompt' ? 'recusado' : 'site'))
-          .catch(() => setMotivoBloqueio('site'));
-        if (!navigator.permissions?.query) setMotivoBloqueio('site');
+          .then((r) => setMotivoBloqueio(r.state === 'prompt' ? 'recusado' : r.state === 'granted' ? 'sistema' : semPedido()))
+          .catch(() => setMotivoBloqueio(semPedido()));
+        if (!navigator.permissions?.query) setMotivoBloqueio(semPedido());
       } catch {
-        setMotivoBloqueio('site');
+        setMotivoBloqueio(jaDeuLocalizacao() ? 'sistema' : 'site');
       }
     } else if (previousCoordsRef.current) {
       // Falha passageira (túnel, interior): fica na última posição em vez de esconder tudo
@@ -376,8 +379,10 @@ export function useUserLocation() {
           setCoords(null);
           esquecerPosicao();
           setStatus('denied');
-          setMotivoBloqueio('site');
+          setMotivoBloqueio(jaDeuLocalizacao() ? 'sistema' : 'site');
           setErrorMessage('Permissão de localização recusada no navegador.');
+          // Pode ser só a localização do telemóvel desligada: tenta mesmo assim (sem pergunta)
+          if (jaDeuLocalizacao()) activateLocation(true);
         }
       } else if (!localEscolhido && previousCoordsRef.current && gpsNestaSessao) {
         // Alguns browsers (Safari) dizem 'prompt' mesmo depois de autorizarem nesta visita
@@ -394,7 +399,7 @@ export function useUserLocation() {
           activateLocation(true);
         } else if (result.state === 'denied') {
           setStatus('denied');
-          setMotivoBloqueio('site');
+          setMotivoBloqueio(jaDeuLocalizacao() ? 'sistema' : 'site');
         }
       };
     }).catch(() => {
