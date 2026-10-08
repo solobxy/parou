@@ -20,9 +20,10 @@ import {
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
+import { registarRotasPush } from './src/server/avisosPush';
 import { iniciarFogos, obterIncidentes } from './src/server/fogosEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection, getSentidoParagem } from './src/server/db/gtfsDatabase';
-import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados } from './src/server/dadosProntos';
+import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados, getManifestFeedsMap } from './src/server/dadosProntos';
 import {
   getMasterSourceRegistry,
   syncAllOfficialGtfs,
@@ -66,6 +67,8 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
+// Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
+registarRotasPush(app);
 // App Android (Trusted Web Activity): prova ao Android que a app pt.parou.app é do parou.pt,
 // para abrir em ecrã inteiro sem barra do browser. A chave de envio está aqui; a chave da
 // Google Play (assinatura da app) junta-se pela variável ANDROID_SHA256_EXTRA (separadas por vírgula).
@@ -292,14 +295,51 @@ async function probeAllCatalogEntries(): Promise<void> {
   transitCatalogState = await Promise.all(promises);
 }
 
+// O estado que interessa a quem usa a app é "temos os horários deste operador?" (e não se o
+// site do operador respondeu): vem do manifesto da base de horários.
+const FEED_DO_CATALOGO: Record<string, string | null> = {
+  'carris-metropolitana': 'carris_metropolitana',
+  'metro-lisboa': 'metro_lisboa',
+  'unir-mobilidade': null, // à espera dos dados da AMP
+  'stcp': 'stcp',
+  'metro-porto': 'metro_porto',
+  'carris-lisboa': 'carris',
+  'cp-comboios': 'cp',
+  'fertagus': 'fertagus',
+  'transtejo-soflusa': 'transtejo_soflusa',
+  'tcb-barreiro': 'tcb_barreiro',
+  'tub-braga': 'tub_braga',
+  'smtuc-coimbra': 'smtuc',
+  'horarios-funchal': 'horarios_funchal',
+  'vamus-algarve': 'vamus',
+  'guimabus': 'guimabus',
+  'mobilis-leiria': null,
+  'mobicascais': 'mdb-1272',
+  'muv-viana': null,
+  'tut-torres-vedras': null,
+  'covilha-mobilidade': null,
+};
+function catalogoComEstadoDosDados(): any[] {
+  const feeds = getManifestFeedsMap();
+  if (!feeds || feeds.size === 0) return transitCatalogState;
+  return transitCatalogState.map((c: any) => {
+    if (!(c.id in FEED_DO_CATALOGO)) return c; // portais de dados: fica o teste ao site
+    const feedId = FEED_DO_CATALOGO[c.id];
+    const f = feedId ? feeds.get(feedId) : null;
+    const ok = Boolean(f && String(f.status || '').toUpperCase() === 'OK' && Number(f.stops || 0) > 0);
+    return { ...c, sync_status: ok ? 'Online' : 'Pendente' };
+  });
+}
+
 // Obter catálogo completo com estados de validação em tempo real
 app.get('/api/transit-catalog', (req: Request, res: Response) => {
+  const catalogo = catalogoComEstadoDosDados();
   return res.json({
-    catalog: transitCatalogState,
-    total: transitCatalogState.length,
-    activeCount: transitCatalogState.filter(c => c.sync_status === 'Online').length,
-    realtimeCount: transitCatalogState.filter(c => c.realtime_available).length,
-    alertsCount: transitCatalogState.filter(c => c.alerts_available).length,
+    catalog: catalogo,
+    total: catalogo.length,
+    activeCount: catalogo.filter(c => c.sync_status === 'Online').length,
+    realtimeCount: catalogo.filter(c => c.realtime_available).length,
+    alertsCount: catalogo.filter(c => c.alerts_available).length,
     timestamp: Date.now(),
   });
 });
@@ -315,13 +355,13 @@ app.post('/api/transit-catalog/probe', async (req: Request, res: Response) => {
       }
       const updated = await probeSingleCatalogEntry(transitCatalogState[idx]);
       transitCatalogState[idx] = updated;
-      return res.json({ success: true, entry: updated });
+      return res.json({ success: true, entry: catalogoComEstadoDosDados()[idx] });
     } else {
       await probeAllCatalogEntries();
       return res.json({
         success: true,
-        catalog: transitCatalogState,
-        activeCount: transitCatalogState.filter(c => c.sync_status === 'Online').length,
+        catalog: catalogoComEstadoDosDados(),
+        activeCount: catalogoComEstadoDosDados().filter(c => c.sync_status === 'Online').length,
       });
     }
   } catch (err: any) {

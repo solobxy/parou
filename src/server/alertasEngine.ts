@@ -898,3 +898,197 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
 
   return { atualizado: new Date().toISOString(), incendiosAtualizado: pc.atualizado, pontos };
 }
+
+// ---------------------------------------------------------------------------------
+// Avisos para notificações (push): só o que é mesmo importante para quem anda na rua.
+//   - greves nos transportes (operadores e notícias), uma por operador
+//   - avisos laranja e vermelhos do IPMA, um por distrito e nível
+//   - perturbações graves anunciadas pelos operadores
+//   - incêndios importantes (Fogos.pt / ANEPC)
+// Quem envia (avisosPush.ts) trata de não repetir e de escolher a quem envia.
+// ---------------------------------------------------------------------------------
+export interface CandidatoPush {
+  id: string;
+  /** Avisos do mesmo grupo não se repetem durante `pausaHoras` (ex.: a mesma greve em 5 jornais) */
+  grupo?: string;
+  pausaHoras?: number;
+  titulo: string;
+  corpo: string;
+  /** Distritos a que diz respeito (nomes do IPMA); vazio = todo o país */
+  distritos: string[];
+  /** Pode tocar de noite (aviso vermelho, incêndio importante) */
+  urgente: boolean;
+  url: string;
+}
+
+const OPERADORES_PUSH: Array<{ chave: string; nome: string; re: RegExp; distritos: string[] }> = [
+  { chave: 'metro-lisboa', nome: 'Metro de Lisboa', re: /metro de lisboa|metropolitano de lisboa|metropolitano\b/, distritos: ['Lisboa'] },
+  { chave: 'carris-metropolitana', nome: 'Carris Metropolitana', re: /carris metropolitana|transportes metropolitanos de lisboa|\btml\b/, distritos: ['Lisboa', 'Setúbal'] },
+  { chave: 'carris', nome: 'Carris', re: /\bcarris\b/, distritos: ['Lisboa'] },
+  { chave: 'fertagus', nome: 'Fertagus', re: /fertagus/, distritos: ['Lisboa', 'Setúbal'] },
+  { chave: 'transtejo', nome: 'Transtejo/Soflusa', re: /transtejo|soflusa|ttsl|travessia do tejo/, distritos: ['Lisboa', 'Setúbal'] },
+  { chave: 'mts', nome: 'Metro Sul do Tejo', re: /metro sul do tejo|\bmts\b|metro transportes do sul/, distritos: ['Setúbal'] },
+  { chave: 'metro-porto', nome: 'Metro do Porto', re: /metro do porto/, distritos: ['Porto'] },
+  { chave: 'stcp', nome: 'STCP', re: /\bstcp\b/, distritos: ['Porto'] },
+  { chave: 'unir', nome: 'UNIR', re: /\bunir\b/, distritos: ['Porto', 'Aveiro'] },
+  { chave: 'cp', nome: 'CP — Comboios de Portugal', re: /\bcp\b|comboios de portugal|comboios|ferrovi|maquinistas|revisores|infraestruturas de portugal/, distritos: [] },
+  { chave: 'aviacao', nome: 'Aeroportos e companhias aéreas', re: /\btap\b|ryanair|easyjet|aeroporto|aeroportos|pilotos|tripulantes|controladores aereos|handling|menzies|groundforce/, distritos: [] },
+];
+
+function operadorPush(texto: string) {
+  const t = semAcentos(texto);
+  return OPERADORES_PUSH.find((o) => o.re.test(t));
+}
+
+/** Distritos mencionados num texto (já sem acentos) */
+function distritosNoTexto(texto: string, nomes: string[]): string[] {
+  const achados = new Set<string>();
+  for (const nome of nomes) {
+    const n = semAcentos(nome).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`\\b${n}\\b`).test(texto)) achados.add(nome);
+  }
+  if (TERMOS_REGIAO.lisboa.test(texto)) { achados.add('Lisboa'); }
+  if (TERMOS_REGIAO.porto.test(texto)) { achados.add('Porto'); }
+  return Array.from(achados);
+}
+
+function quandoCurto(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const dt = DateTime.fromISO(String(iso), { zone: ZONA });
+  if (!dt.isValid) return '';
+  const hoje = DateTime.now().setZone(ZONA).startOf('day');
+  const dias = Math.round(dt.startOf('day').diff(hoje, 'days').days);
+  const hora = dt.toFormat('HH:mm');
+  if (dias === 0) return `hoje às ${hora}`;
+  if (dias === 1) return `amanhã às ${hora}`;
+  if (dias === -1) return `desde ontem às ${hora}`;
+  return dt.setLocale('pt-PT').toFormat("cccc, d 'de' LLLL 'às' HH:mm");
+}
+
+export async function candidatosPush(): Promise<CandidatoPush[]> {
+  const lista: CandidatoPush[] = [];
+  const agora = Date.now();
+  const distritos = await obterDistritos().catch(() => DISTRITOS_RECURSO);
+  const nomesDistritos = Array.from(new Set(distritos.map((d) => d.nome)));
+
+  // 1. Avisos do IPMA laranja e vermelhos (ativos ou nas próximas 12 h), um por distrito e nível
+  const porArea = new Map(distritos.map((d) => [d.area, d]));
+  const avisos = await emCache('ipma:avisos', 5 * 60_000, async () => {
+    const j = await buscarJson('https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json');
+    if (!Array.isArray(j)) throw new Error('formato inesperado');
+    return j as any[];
+  }, [] as any[]);
+  const grupos = new Map<string, any[]>();
+  for (const w of avisos) {
+    const nivel = String(w.awarenessLevelID || '');
+    if (nivel !== 'orange' && nivel !== 'red') continue;
+    const fim = Date.parse(String(w.endTime || ''));
+    const inicio = Date.parse(String(w.startTime || ''));
+    if (!Number.isFinite(fim) || fim < agora) continue;
+    if (Number.isFinite(inicio) && inicio - agora > 12 * 3600_000) continue;
+    const area = String(w.idAreaAviso || '');
+    if (!porArea.has(area)) continue;
+    const k = `${area}:${nivel}`;
+    grupos.set(k, [...(grupos.get(k) || []), w]);
+  }
+  for (const [k, ws] of grupos) {
+    const [area, nivel] = k.split(':');
+    const d = porArea.get(area)!;
+    ws.sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+    const tipos = Array.from(new Set(ws.map((w) => String(w.awarenessTypeName || 'Aviso'))));
+    const inicio = String(ws[0].startTime || '');
+    const fim = ws.map((w) => String(w.endTime || '')).sort().pop() || '';
+    const comeca = Date.parse(inicio) > agora ? `a partir de ${quandoCurto(inicio)}` : '';
+    const ate = fim ? `até ${quandoCurto(fim).replace(/^hoje às /, 'às ')}` : '';
+    lista.push({
+      id: `ipma:${k}:${inicio}`,
+      grupo: `ipma:${k}`,
+      pausaHoras: 12,
+      titulo: `Aviso ${nivel === 'red' ? 'vermelho' : 'laranja'} · ${d.nome}`,
+      corpo: [tipos.join(', '), [comeca, ate].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+      distritos: [d.nome],
+      urgente: nivel === 'red',
+      url: '/alertas',
+    });
+  }
+
+  // 2. Greves e perturbações graves anunciadas pelos operadores
+  const oficiais = await Promise.race([
+    getCentralAlerts().catch(() => []),
+    new Promise<any[]>((r) => setTimeout(() => r([]), 5000)),
+  ]);
+  for (const a of oficiais as any[]) {
+    if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
+    if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue;
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    if (Number.isFinite(fimMs) && fimMs < agora) continue;
+    const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    const greve = a.tipo === 'greve';
+    const grave = a.severity === 'Grave';
+    if (!greve && !grave) continue;
+    // Greves: anunciadas para as próximas 36 h ou a decorrer (desde há menos de 12 h)
+    // Perturbações graves: a decorrer há menos de 3 h ou a começar nas próximas 12 h
+    if (Number.isFinite(inicioMs)) {
+      if (inicioMs - agora > (greve ? 36 : 12) * 3600_000) continue;
+      if (agora - inicioMs > (greve ? 12 : 3) * 3600_000) continue;
+    }
+    const op = operadorPush(`${a.operador || ''} ${a.título || ''}`);
+    if (op?.chave === 'aviacao') continue; // aviões não são o foco da PAROU (aparecem nos Alertas)
+    const nomeOp = op?.nome || String(a.operador || 'Transportes');
+    const reg = semAcentos(String(a.região || ''));
+    const distritosAviso = op ? op.distritos
+      : /lisboa/.test(reg) ? ['Lisboa', 'Setúbal'] : /porto/.test(reg) ? ['Porto'] : distritosNoTexto(semAcentos(`${a.título || ''} ${(a.municípios || []).join(' ')}`), nomesDistritos);
+    if (!op && distritosAviso.length === 0 && !greve) continue;
+    const titulo = String(a.título || '').replace(/\s+/g, ' ').trim();
+    const quando = Number.isFinite(inicioMs) && inicioMs > agora ? ` · ${quandoCurto(a.start_datetime)}` : '';
+    lista.push({
+      id: `oficial:${a.id}`,
+      grupo: greve ? `greve:${op?.chave || semAcentos(nomeOp)}` : `grave:${op?.chave || semAcentos(nomeOp)}`,
+      pausaHoras: greve ? 36 : 4,
+      titulo: greve ? `Greve · ${nomeOp}` : nomeOp,
+      corpo: `${titulo.slice(0, 140)}${quando}`,
+      distritos: distritosAviso,
+      urgente: false,
+      url: '/alertas',
+    });
+  }
+
+  // 3. Greves nos transportes nas notícias (publicadas nas últimas 12 h), uma por operador
+  const feeds = await Promise.all(FONTES_RSS.map((f) => lerFeed(f).catch(() => [])));
+  for (const n of feeds.flat().sort((a, b) => a.data.localeCompare(b.data))) {
+    if (n.categoria !== 'greve') continue;
+    const idade = agora - Date.parse(n.data);
+    if (!Number.isFinite(idade) || idade > 12 * 3600_000 || idade < -3600_000) continue;
+    const op = operadorPush(n.texto);
+    if (op?.chave === 'aviacao') continue;
+    const dist = op ? op.distritos : distritosNoTexto(n.texto, nomesDistritos);
+    if (!op && dist.length === 0) continue; // greve que não se sabe onde: não incomoda ninguém
+    lista.push({
+      id: `noticia:${n.url}`,
+      grupo: `greve:${op?.chave || dist.join(',')}`,
+      pausaHoras: 36,
+      titulo: op ? `Greve · ${op.nome}` : 'Greve nos transportes',
+      corpo: `${n.titulo.slice(0, 150)} (${n.fonte})`,
+      distritos: dist,
+      urgente: false,
+      url: '/alertas',
+    });
+  }
+
+  // 4. Incêndios importantes
+  for (const i of obterIncidentes().incidentes) {
+    if (i.tipo !== 'incendio' || i.aAcalmar) continue;
+    if (!i.importante && i.meios.humanos < 150) continue;
+    if (!i.distrito) continue;
+    lista.push({
+      id: `fogo:${i.id}`,
+      titulo: `Incêndio · ${i.concelho || i.local}`,
+      corpo: [i.local && i.local !== i.concelho ? i.local : '', i.estado, i.meios.humanos ? `${i.meios.humanos} operacionais${i.meios.aereos ? `, ${i.meios.aereos} meios aéreos` : ''}` : ''].filter(Boolean).join(' · ') + ' (Fogos.pt)',
+      distritos: i.distrito ? [i.distrito] : [],
+      urgente: true,
+      url: '/mapa',
+    });
+  }
+
+  return lista;
+}

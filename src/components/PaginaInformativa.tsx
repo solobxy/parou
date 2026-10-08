@@ -93,6 +93,11 @@ function Privacidade() {
           (<em>parou_id</em>). Esse identificador não diz quem és e não é usado para mais nada.
         </p>
         <p>
+          <strong>Notificações (só se as ligares).</strong> Guardamos o endereço de entrega que o teu browser nos dá (do serviço de
+          notificações da Google, da Apple ou da Mozilla) e os distritos que escolheste, para te enviar avisos de greves, mau tempo
+          e perturbações graves. O conteúdo das notificações vai cifrado. Ao desligares as notificações, estes dados são apagados.
+        </p>
+        <p>
           <strong>Conta (opcional).</strong> Se entrares com Google ou email, usamos o teu nome, email e foto de perfil para a conta,
           para sincronizar os favoritos entre dispositivos e para identificar as ocorrências que publicas. O email nunca é mostrado
           a outras pessoas.
@@ -119,14 +124,16 @@ function Privacidade() {
       <Secao titulo="Com quem partilhamos">
         <p>
           Não vendemos nem cedemos dados. Usamos estes prestadores, só para o funcionamento da PAROU: Hetzner (alojamento do servidor,
-          na Alemanha), Google Firebase (contas, ocorrências e sincronização de favoritos) e OpenStreetMap (o teu browser descarrega
+          na Alemanha), Google Firebase (contas, ocorrências e sincronização de favoritos), os serviços de
+          notificações da Google, Apple e Mozilla (entregam as notificações, se as ligares) e OpenStreetMap (o teu browser descarrega
           os mapas diretamente dos servidores do OpenStreetMap, que veem o teu endereço IP). O Google pode tratar dados fora da União
           Europeia, com as garantias previstas no RGPD (cláusulas contratuais-tipo).
         </p>
       </Secao>
       <Secao titulo="Durante quanto tempo">
         <p>
-          A cópia dos favoritos é apagada ao fim de 13 meses sem utilização. Os dados da conta ficam enquanto a conta existir. As
+          A cópia dos favoritos e a subscrição das notificações são apagadas ao fim de 13 meses sem
+          utilização (a subscrição também quando desligas as notificações). Os dados da conta ficam enquanto a conta existir. As
           ocorrências deixam de aparecer ao fim de 24 horas ou quando são dadas como resolvidas.
         </p>
       </Secao>

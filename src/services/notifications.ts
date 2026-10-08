@@ -312,6 +312,110 @@ export async function dispatchOccurrenceNotification(
   return logItem;
 }
 
+// ---------------------------------------------------------------------------------
+// Notificações push (chegam mesmo com a app fechada). O servidor guarda a subscrição e
+// os distritos escolhidos e envia greves, avisos de mau tempo e perturbações graves.
+// ---------------------------------------------------------------------------------
+function chaveParaBytes(b64: string): Uint8Array {
+  const padding = '='.repeat((4 - (b64.length % 4)) % 4);
+  const bin = atob((b64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesIguais(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
+  if (!a) return false;
+  const x = new Uint8Array(a);
+  if (x.length !== b.length) return false;
+  for (let i = 0; i < x.length; i++) if (x[i] !== b[i]) return false;
+  return true;
+}
+
+async function registoSW(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || typeof window === 'undefined' || !('PushManager' in window)) return null;
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((r) => setTimeout(() => r(null), 8000)),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+export function pushSuportado(): boolean {
+  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+/**
+ * Põe o servidor a par das preferências: subscreve (ou atualiza os distritos) quando as
+ * notificações estão ligadas e com permissão; cancela quando estão desligadas.
+ */
+export async function sincronizarPush(prefs: NotificationPreferences): Promise<'ok' | 'sem-suporte' | 'sem-permissao' | 'erro'> {
+  if (!pushSuportado()) return 'sem-suporte';
+  const reg = await registoSW();
+  if (!reg) return 'sem-suporte';
+  try {
+    let sub = await reg.pushManager.getSubscription();
+    if (!prefs.enabled || Notification.permission !== 'granted') {
+      if (sub) {
+        await fetch('/api/push/cancelar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        }).catch(() => {});
+        await sub.unsubscribe().catch(() => false);
+      }
+      return Notification.permission === 'granted' ? 'ok' : 'sem-permissao';
+    }
+    const r = await fetch('/api/push/chave', { cache: 'no-store' });
+    if (!r.ok) return 'erro';
+    const { chave } = (await r.json()) as { chave: string };
+    const chaveBytes = chaveParaBytes(chave);
+    // Se o servidor mudou de chaves, a subscrição antiga já não serve
+    if (sub && !bytesIguais(sub.options?.applicationServerKey, chaveBytes)) {
+      await sub.unsubscribe().catch(() => false);
+      sub = null;
+    }
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes as BufferSource });
+    }
+    const distritos = (prefs.districts && prefs.districts.length > 0)
+      ? prefs.districts
+      : (prefs.selectedDistrict && prefs.selectedDistrict !== 'Todas' ? [prefs.selectedDistrict] : []);
+    const g = await fetch('/api/push/subscrever', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscricao: sub.toJSON(), distritos }),
+    });
+    return g.ok ? 'ok' : 'erro';
+  } catch (err) {
+    console.warn('[Push] Não foi possível ativar:', err);
+    return 'erro';
+  }
+}
+
+/** Pede ao servidor uma notificação de teste (prova que o push chega com a app fechada). */
+export async function testarPush(): Promise<boolean> {
+  const reg = await registoSW();
+  if (!reg) return false;
+  try {
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return false;
+    const r = await fetch('/api/push/teste', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return Boolean(j?.ok);
+  } catch {
+    return false;
+  }
+}
+
 // Send test notification to verify audio, browser permission, and toast
 export async function triggerTestNotification(
   prefs: NotificationPreferences
@@ -320,10 +424,9 @@ export async function triggerTestNotification(
     playNotificationSound();
   }
 
-  const title = 'PAROU.PT - Notificações Ativas';
-  const body = `O seu dispositivo está configurado para receber alertas em tempo real (${
-    prefs.selectedDistrict === 'Todas' ? 'Todas as regiões' : `Distrito: ${prefs.selectedDistrict}`
-  }).`;
+  const title = 'PAROU · notificações ligadas';
+  const distritos = prefs.districts && prefs.districts.length > 0 ? prefs.districts.join(', ') : 'todo o país';
+  const body = `Vais receber aqui os avisos importantes (${distritos}).`;
 
   await sendSystemNotification(title, body);
 

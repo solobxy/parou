@@ -171,7 +171,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${ativo ? 'text-[#1F7A3A]' : 'text-[#6B6B6B]'}`}>
                       <span className={`w-2 h-2 rounded-full ${ativo ? 'bg-[#1F9D55]' : 'bg-[#B5B5B0]'}`} />
-                      {ativo ? 'Ativo' : op.sync_status === 'Pendente' ? 'Pendente' : 'Sem dados'}
+                      {ativo ? 'Ativo' : op.sync_status === 'Pendente' ? 'Brevemente' : 'Sem dados'}
                     </span>
                     <ChevronRight className={`w-4 h-4 text-[#6B6B6B] stroke-[2] transition-transform ${aberto ? 'rotate-90' : ''}`} />
                   </div>
@@ -183,7 +183,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                       <div>Região: <strong className="text-[#111111]">{op.region}</strong></div>
                       <div>Fonte: <strong className="text-[#111111]">{op.source_type}</strong></div>
                       <div>Transportes: <strong className="text-[#111111]">{op.transport_modes.join(', ')}</strong></div>
-                      <div>Estado: <strong className="text-[#111111]">{ativo ? 'Ativo' : op.sync_status}</strong></div>
+                      <div>Horários: <strong className="text-[#111111]">{ativo ? 'disponíveis na PAROU' : 'brevemente'}</strong></div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {onSelectOperatorForReports && (
