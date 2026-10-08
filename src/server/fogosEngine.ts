@@ -50,13 +50,24 @@ let estado: Estado | null = null;
 let proximaTentativa = 0;
 let emCurso: Promise<void> | null = null;
 
+const FICHEIRO_ESPERA = `${FICHEIRO}.espera`;
+function gravarEspera() {
+  try { fs.writeFileSync(FICHEIRO_ESPERA, String(proximaTentativa)); } catch {}
+}
+
 function lerDoDisco() {
+  // Respeita a espera pedida pela API mesmo depois de a app reiniciar (cada atualização
+  // reinicia a app; sem isto, cada reinício gastava mais um pedido e prolongava o bloqueio)
+  try {
+    const espera = Number(fs.readFileSync(FICHEIRO_ESPERA, 'utf8'));
+    if (Number.isFinite(espera) && espera > Date.now()) proximaTentativa = espera;
+  } catch {}
   try {
     const j = JSON.parse(fs.readFileSync(FICHEIRO, 'utf8')) as Estado;
     if (j && Array.isArray(j.incidentes) && Number.isFinite(j.atualizado)) {
       estado = j;
       // Sem chave: espera a hora toda desde o último pedido bom antes de voltar a pedir
-      proximaTentativa = j.atualizado + INTERVALO_MS;
+      proximaTentativa = Math.max(proximaTentativa, j.atualizado + INTERVALO_MS);
     }
   } catch {}
 }
@@ -128,6 +139,7 @@ async function atualizar(): Promise<void> {
         // Respeita o "Retry-After", mas nunca espera mais de ~1 h (o limite sem chave é por hora)
         const esperaMs = Number.isFinite(espera) && espera > 0 ? espera * 1000 + 5000 : INTERVALO_MS;
         proximaTentativa = Date.now() + Math.min(esperaMs, 65 * 60_000);
+        gravarEspera();
         console.warn(`[Fogos] Limite de pedidos; próxima tentativa às ${new Date(proximaTentativa).toISOString()}`);
         return;
       }
@@ -138,6 +150,7 @@ async function atualizar(): Promise<void> {
       estado = { atualizado: Date.now(), incidentes };
       proximaTentativa = Date.now() + INTERVALO_MS;
       gravarNoDisco();
+      gravarEspera();
       console.log(`[Fogos] ${incidentes.length} ocorrências ativas (${incidentes.filter((x) => x.tipo === 'incendio').length} incêndios)`);
     } catch (err: any) {
       // Falha de rede: tenta outra vez daqui a 5 min (ou no intervalo normal, se menor)
@@ -181,6 +194,7 @@ export function iniciarFogos(): void {
   if (iniciado) return;
   iniciado = true;
   lerDoDisco();
+  if (CHAVE) proximaTentativa = Math.min(proximaTentativa, Date.now() + 5_000);
   if (process.env.FOGOS_TESTE === '1' && !estado) {
     estado = exemplosDeTeste();
     proximaTentativa = Date.now() + 24 * 3600_000;
