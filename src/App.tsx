@@ -1181,8 +1181,8 @@ export default function App() {
             </button>
             <button
               onClick={() => handleTabSelect('coverage')}
-              className={`font-bold transition-colors cursor-pointer ${
-                activeNavTab === 'coverage' ? 'text-[#111111]' : 'text-[#6B6B6B] hover:text-[#111111]'
+              className={`transition-colors cursor-pointer ${
+                activeNavTab === 'coverage' ? 'font-semibold text-[#111111]' : 'text-[#6B6B6B] hover:text-[#111111]'
               }`}
             >
               <span>Cobertura</span>
