@@ -1162,13 +1162,20 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
             s.arrivalsOnly = true;
             return;
           }
-          // Paragens com linhas para muitos lados (ex.: São Bento): o "sentido" confundia mais do que ajudava
-          if (meu.destinos.length === 0 || meu.destinos.length >= 4) return;
           // Destinos que as outras paragens com o mesmo nome não têm (o que as distingue)
           const dosOutros = new Set(
             sentidos.filter((_, j) => j !== pos).flatMap((o) => o.destinos.map((d) => d.toLowerCase())),
           );
           const proprios = meu.destinos.filter((d) => !dosOutros.has(d.toLowerCase()));
+          // UNIR: nos grandes interfaces (ex.: D. João II) há várias paragens com o mesmo nome e
+          // muitas linhas; mostra o que distingue esta das outras, mesmo com muitos destinos
+          const soUnir = (enrichedStops[i].member_stop_ids || [enrichedStops[i].id]).every((m: string) => m.startsWith('unir:'));
+          if (soUnir && proprios.length > 0) {
+            s.direction = proprios.slice(0, 2).join(' · ');
+            return;
+          }
+          // Paragens com linhas para muitos lados (ex.: São Bento): o "sentido" confundia mais do que ajudava
+          if (meu.destinos.length === 0 || meu.destinos.length >= 4) return;
           s.direction = (proprios.length > 0 ? proprios : meu.destinos).slice(0, 2).join(' · ');
         });
       }
