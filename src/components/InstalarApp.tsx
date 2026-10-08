@@ -111,7 +111,7 @@ export const BotaoInstalar: React.FC = () => {
       {verPassos && (
         <>
           <button className="fixed inset-0 z-40 cursor-default" aria-label="Fechar" onClick={() => setVerPassos(false)} />
-          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[260px] rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 shadow-lg">
+          <div className="fixed right-3 top-[64px] z-50 w-[min(300px,calc(100vw-24px))] rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 shadow-lg" role="dialog" aria-label="Como instalar">
             <div className="flex items-center gap-2.5 mb-2">
               <img src="/icon-192.png" alt="" className="w-8 h-8 rounded-[8px]" />
               <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{iphone ? ' no iPhone' : ''}</div>
