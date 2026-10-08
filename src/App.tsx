@@ -80,6 +80,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
+import { eOcorrenciaAtual } from './utils/quando';
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -848,12 +849,12 @@ export default function App() {
               {/* Left Column: Hero Breaking Alert & Important Occurrences List */}
               <section className="col-span-12 lg:col-span-4 xl:col-span-4 2xl:col-span-3 space-y-5 min-w-0">
                 <FeaturedOccurrence
-                  occurrences={featuredOccurrences}
+                  occurrences={featuredOccurrences.filter(eOcorrenciaAtual)}
                   onSelectOccurrence={handleSelectOccurrence}
                 />
 
                 <ImportantOccurrencesList
-                  occurrences={importantOccurrences}
+                  occurrences={importantOccurrences.filter(eOcorrenciaAtual)}
                   onSelectOccurrence={handleSelectOccurrence}
                   onViewAll={() => handleTabSelect('reports')}
                 />
@@ -949,12 +950,12 @@ export default function App() {
               ) : (
                 <>
                   <FeaturedOccurrence
-                    occurrences={featuredOccurrences}
+                    occurrences={featuredOccurrences.filter(eOcorrenciaAtual)}
                     onSelectOccurrence={handleSelectOccurrence}
                   />
 
                   <ImportantOccurrencesList
-                    occurrences={importantOccurrences}
+                    occurrences={importantOccurrences.filter(eOcorrenciaAtual)}
                     onSelectOccurrence={handleSelectOccurrence}
                     onViewAll={() => setActiveMobileView('reports')}
                   />

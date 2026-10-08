@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { Occurrence } from '../types';
+import { quandoAconteceu } from '../utils/quando';
 
 interface RecentOccurrencesFeedProps {
   occurrences: Occurrence[];
@@ -65,7 +66,7 @@ export const RecentOccurrencesFeed: React.FC<RecentOccurrencesFeedProps> = ({
 
                 <div className="shrink-0 flex items-center gap-2 text-right">
                   <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
-                    {item.reportedAt}
+                    {quandoAconteceu(item)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2]" />
                 </div>

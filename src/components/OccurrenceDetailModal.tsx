@@ -7,6 +7,7 @@ import {
   Share2
 } from 'lucide-react';
 import { Occurrence } from '../types';
+import { quandoAconteceu } from '../utils/quando';
 
 interface OccurrenceDetailModalProps {
   occurrence: Occurrence | null;
@@ -111,7 +112,7 @@ export const OccurrenceDetailModal: React.FC<OccurrenceDetailModalProps> = ({
               </div>
             )}
             <div>
-              <span>Publicado: <strong className="font-['Barlow_Condensed'] tabular-nums">{occurrence.reportedAt}</strong></span>
+              <span>Publicado: <strong className="font-['Barlow_Condensed'] tabular-nums">{quandoAconteceu(occurrence)}</strong></span>
             </div>
           </div>
 

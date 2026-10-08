@@ -8,6 +8,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Occurrence } from '../types';
+import { quandoAconteceu } from '../utils/quando';
 
 interface ReportDetailPageProps {
   occurrence: Occurrence;
@@ -89,7 +90,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
               <span>·</span>
               <span>{occurrence.severity}</span>
             </div>
-            <span className="font-['Barlow_Condensed'] tabular-nums">{occurrence.reportedAt}</span>
+            <span className="font-['Barlow_Condensed'] tabular-nums">{quandoAconteceu(occurrence)}</span>
           </div>
 
           {/* Title & Description */}
@@ -164,7 +165,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
               >
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-[#111111] truncate">{rel.title}</h3>
-                  <p className="text-xs text-[#6B6B6B] truncate">{rel.district} · {rel.reportedAt}</p>
+                  <p className="text-xs text-[#6B6B6B] truncate">{rel.district} · {quandoAconteceu(rel)}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
               </div>
