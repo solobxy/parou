@@ -5,7 +5,7 @@
 
 const BASE = 'https://paragens.amp.pt/acarto2/get_horarios_prg';
 const ZONA = 'Europe/Lisbon';
-const COR_UNIR = '#002B49';
+const COR_UNIR = '#CE9926'; // amarelo-torrado da UNIR
 const VALIDADE_MS = 30 * 60_000;
 const FALHA_MS = 2 * 60_000;
 

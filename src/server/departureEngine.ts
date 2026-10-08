@@ -359,7 +359,7 @@ export class DepartureEngine {
               route_short_name: d.route_short_name || 'UNIR',
               route_long_name: d.route_long_name || '',
               route_type: 3,
-              route_color: '#1E3A8A',
+              route_color: '#CE9926',
               headsign: d.trip_headsign || 'Destino',
               operator_name: 'UNIR (Área Metropolitana do Porto)',
               feed_id: 'unir',

@@ -139,8 +139,12 @@ function corTexto(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
   if (!m) return '#fff';
   const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#111' : '#fff';
+  // Preto ou branco, o que tiver mais contraste com o fundo (luminância relativa, WCAG)
+  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  const comBranco = 1.05 / (L + 0.05);
+  const comPreto = (L + 0.05) / (0.0137 + 0.05); // #111
+  return comPreto >= comBranco ? '#111' : '#fff';
 }
 
 function chip(l: Linha): string {
@@ -305,7 +309,7 @@ function seg(x){var a=String(x.chegada||'').split(':').map(Number);return a[0]*3
 function hm(s){s=((s%86400)+86400)%86400;return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')}
 function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function limpo(t){return String(t||'').replace(/\\s+/g,' ').trim()}
-function chip(c){var u=L[c];return u?'<a class="chip" style="background:#002B49;color:#fff;text-decoration:none" href="'+esc(u)+'">'+esc(c)+'</a>':'<span class="chip" style="background:#002B49">'+esc(c)+'</span>'}
+function chip(c){var u=L[c];return u?'<a class="chip" style="background:#CE9926;color:#111;text-decoration:none" href="'+esc(u)+'">'+esc(c)+'</a>':'<span class="chip" style="background:#CE9926;color:#111">'+esc(c)+'</span>'}
 var falha='<p class="nota">Horário de hoje indisponível neste momento: o serviço da AMP só responde a ligações feitas em Portugal. Na <a href="/">app PAROU</a> vês as partidas ao minuto.</p>';
 document.querySelectorAll('[data-unir]').forEach(function(el){
   var cods=(el.getAttribute('data-cods')||'').split(',').filter(Boolean);
