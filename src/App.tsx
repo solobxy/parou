@@ -78,6 +78,7 @@ import {
   fetchReportById
 } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { iniciarCopiaDados } from './services/copiaDados';
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -94,6 +95,9 @@ export default function App() {
     mq.addEventListener?.('change', mudar);
     return () => mq.removeEventListener?.('change', mudar);
   }, []);
+  // Favoritos: cópia no servidor para nunca se perderem (repõe se o browser os apagar)
+  useEffect(() => { iniciarCopiaDados(); }, []);
+
   // Perto no telemóvel: página presa (sem deslizar) para o cabeçalho ficar sempre à vista
   useEffect(() => {
     const prender = !ecraGrande && activeMobileView === 'perto';

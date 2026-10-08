@@ -164,6 +164,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   useEffect(() => {
     setFavoriteStopIds(getFavoriteStopIds());
+    // Também quando os favoritos mudam noutro sítio ou são repostos da cópia no servidor
+    const reler = () => setFavoriteStopIds(getFavoriteStopIds());
+    window.addEventListener('parou_favorites_updated', reler);
+    window.addEventListener('parou_dados_repostos', reler);
+    return () => {
+      window.removeEventListener('parou_favorites_updated', reler);
+      window.removeEventListener('parou_dados_repostos', reler);
+    };
   }, []);
 
   useEffect(() => { ultimoSeguir = followMode; }, [followMode]);

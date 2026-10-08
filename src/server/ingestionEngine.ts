@@ -1,4 +1,5 @@
 import { Occurrence, PublicSourceConfig, IngestionSyncResult } from '../types';
+import { obterIncidentes } from './fogosEngine';
 
 export const REGISTERED_PUBLIC_SOURCES: PublicSourceConfig[] = [
   {
@@ -466,72 +467,42 @@ export async function ingestANEPC(): Promise<{
   statusCode: number;
   error?: string;
 }> {
+  // Usa as ocorrências que o fogosEngine já tem em memória (a API do Fogos.pt só deixa
+  // 1 pedido por hora sem chave: pedir aqui a cada 5 min esgotava-o e ficava tudo vazio).
+  const { incidentes, atualizado } = obterIncidentes();
+  const now = Date.now();
   const occurrences: Occurrence[] = [];
-  try {
-    const res = await fetchWithTimeout('https://api.fogos.pt/v1/now', 8000);
-    if (!res.ok) {
-      const err = `HTTP ${res.status}: ${res.status === 429 ? 'Too Many Requests (Rate limit atingido na API ANEPC)' : res.statusText || 'Erro na API'}`;
-      updateSourceHealth('anepc_prociv', 'offline', res.status, err, 0);
-      return { occurrences: [], statusCode: res.status, error: err };
-    }
-
-    const json = await res.json();
-    if (json?.error) {
-      const err = typeof json.error === 'string' ? json.error : 'Erro reportado pela API da Proteção Civil';
-      updateSourceHealth('anepc_prociv', 'offline', res.status, err, 0);
-      return { occurrences: [], statusCode: res.status, error: err };
-    }
-
-    const data = Array.isArray(json?.data) ? json.data : [];
-    const now = Date.now();
-
-    for (const item of data.slice(0, 10)) {
-      const nature = (item.natureza || item.nature || '').toLowerCase();
-      const isRoadOrWeather =
-        nature.includes('acidente') ||
-        nature.includes('colisão') ||
-        nature.includes('corte') ||
-        nature.includes('inundação') ||
-        nature.includes('estrada');
-
-      if (isRoadOrWeather) {
-        const district = normalizeDistrict(item.district || item.distrito);
-        const concelho = (item.concelho || '').trim();
-        const location = (item.localidade || item.local || concelho || district).trim();
-
-        occurrences.push({
-          id: `anepc-${item.id || item.codigo || Math.random().toString(36).substring(2, 9)}`,
-          title: `[ANEPC] ${item.natureza || item.nature}: ${location}`,
-          description: `Alerta oficial reportado pela Autoridade Nacional de Emergência e Proteção Civil. Local: ${location}, ${concelho} (${district}). Estado: ${item.estado || 'Ativa'}. Meios mobilizados no local.`,
-          type: nature.includes('corte') ? 'CORTE' : 'ACIDENTE',
-          severity: nature.includes('corte') || (item.man && item.man > 15) ? 'Grave' : 'Moderada',
-          district,
-          concelho,
-          locationDetails: location,
-          companyOrService: 'Proteção Civil (ANEPC)',
-          reportedAt: 'recente',
-          timestamp: item.timestamp ? item.timestamp * 1000 : now,
-          commentsCount: 0,
-          imagesCount: 0,
-          status: 'Ativa',
-          isCommunityVerified: true,
-          authorName: 'Proteção Civil (ANEPC)',
-          sourceName: 'Proteção Civil & ANEPC',
-          sourceType: 'API',
-          sourceUrl: 'https://prociv.pt',
-          sourceFetchedAt: now,
-          externalId: `anepc-${item.id || item.codigo}`,
-        });
-      }
-    }
-
-    updateSourceHealth('anepc_prociv', 'online', 200, undefined, occurrences.length);
-    return { occurrences, statusCode: 200 };
-  } catch (err: any) {
-    const errorMsg = err?.message || 'Falha ao consultar ANEPC';
-    updateSourceHealth('anepc_prociv', 'offline', 0, errorMsg, 0);
-    return { occurrences: [], statusCode: 0, error: errorMsg };
+  for (const i of incidentes) {
+    if (i.tipo !== 'acidente' && i.tipo !== 'inundacao') continue;
+    const district = normalizeDistrict(i.distrito);
+    occurrences.push({
+      id: `anepc-${i.id}`,
+      title: `${i.natureza}: ${i.local || i.concelho}`,
+      description: `Ocorrência da Proteção Civil (ANEPC) em ${[i.local, i.concelho, i.distrito].filter(Boolean).join(', ')}. Estado: ${i.estado}. Meios: ${i.meios.humanos} operacionais, ${i.meios.terrestres} veículos${i.meios.aereos ? `, ${i.meios.aereos} meios aéreos` : ''}. Fonte: Fogos.pt.`,
+      type: i.tipo === 'acidente' ? 'ACIDENTE' : 'CORTE',
+      severity: i.importante || i.meios.humanos > 15 ? 'Grave' : 'Moderada',
+      district,
+      concelho: i.concelho,
+      locationDetails: i.local,
+      companyOrService: 'Proteção Civil (ANEPC)',
+      reportedAt: 'recente',
+      timestamp: i.inicio ? Date.parse(i.inicio) : now,
+      commentsCount: 0,
+      imagesCount: 0,
+      status: 'Ativa',
+      isCommunityVerified: true,
+      authorName: 'Proteção Civil (ANEPC)',
+      sourceName: 'Proteção Civil (via Fogos.pt)',
+      sourceType: 'API',
+      sourceUrl: 'https://fogos.pt',
+      sourceFetchedAt: atualizado ? Date.parse(atualizado) : now,
+      externalId: `anepc-${i.id}`,
+      latitude: i.lat,
+      longitude: i.lon,
+    } as Occurrence);
   }
+  updateSourceHealth('anepc_prociv', atualizado ? 'online' : 'offline', atualizado ? 200 : 0, atualizado ? undefined : 'À espera da primeira leitura do Fogos.pt', occurrences.length);
+  return { occurrences, statusCode: 200 };
 }
 
 // ==========================================

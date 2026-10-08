@@ -24,6 +24,9 @@ import {
   RefreshCw,
   TriangleAlert,
   CheckCircle2,
+  Flame,
+  Truck,
+  Plane,
 } from 'lucide-react';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
@@ -58,10 +61,31 @@ interface RespostaAlertas {
     linhas: string[];
     local: boolean;
   }>;
-  noticias: Array<{ id: string; titulo: string; resumo?: string; fonte: string; url: string; data: string; categoria: 'greve' | 'transportes' | 'transito' | 'tempo' | 'obras'; local: boolean }>;
+  noticias: Array<{ id: string; titulo: string; resumo?: string; fonte: string; url: string; data: string; categoria: 'greve' | 'transportes' | 'transito' | 'tempo' | 'obras' | 'incendio'; local: boolean }>;
+  incendios?: { atualizado: string | null; total: number; perto: number; lista: IncidentePC[] };
+  protecaoCivil?: IncidentePC[];
 }
 
-type Filtro = 'tudo' | 'greves' | 'rede' | 'transito' | 'tempo' | 'obras';
+interface IncidentePC {
+  id: string;
+  tipo: 'incendio' | 'acidente' | 'inundacao' | 'outro';
+  natureza: string;
+  local: string;
+  concelho: string;
+  distrito: string;
+  lat: number;
+  lon: number;
+  estado: string;
+  corEstado: string;
+  meios: { humanos: number; terrestres: number; aereos: number };
+  inicio: string | null;
+  importante: boolean;
+  aAcalmar: boolean;
+  distanciaKm: number;
+  perto: boolean;
+}
+
+type Filtro = 'tudo' | 'incendios' | 'greves' | 'rede' | 'transito' | 'tempo' | 'obras';
 
 interface ItemDestaque {
   id: string;
@@ -191,16 +215,74 @@ const CATEGORIAS_NOTICIA: Record<string, { rotulo: string; filtro: Exclude<Filtr
   transito: { rotulo: 'Trânsito', filtro: 'transito' },
   tempo: { rotulo: 'Tempo', filtro: 'tempo' },
   obras: { rotulo: 'Obras', filtro: 'obras' },
+  incendio: { rotulo: 'Incêndios', filtro: 'incendios' },
 };
 
 const FILTROS: Array<{ id: Filtro; rotulo: string; icone: React.ElementType }> = [
   { id: 'tudo', rotulo: 'Tudo', icone: Megaphone },
+  { id: 'incendios', rotulo: 'Incêndios', icone: Flame },
   { id: 'greves', rotulo: 'Greves', icone: Megaphone },
   { id: 'rede', rotulo: 'Rede', icone: TrainFront },
   { id: 'transito', rotulo: 'Trânsito', icone: TrafficCone },
   { id: 'tempo', rotulo: 'Tempo', icone: CloudRain },
   { id: 'obras', rotulo: 'Obras', icone: Construction },
 ];
+
+// Alertas já vistos neste telemóvel: os que aparecerem depois levam a etiqueta "Novo"
+const CHAVE_VISTOS = 'parou_alertas_vistos';
+function lerVistos(): Record<string, number> | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(CHAVE_VISTOS) || 'null');
+    return v && typeof v === 'object' ? v : null;
+  } catch { return null; }
+}
+function gravarVistos(v: Record<string, number>) {
+  try {
+    // Guarda só os últimos 400
+    const entradas = Object.entries(v).sort((a, b) => b[1] - a[1]).slice(0, 400);
+    localStorage.setItem(CHAVE_VISTOS, JSON.stringify(Object.fromEntries(entradas)));
+  } catch {}
+}
+
+function meiosTexto(m: IncidentePC['meios']): string {
+  return [
+    m.humanos ? `${m.humanos} operacionais` : '',
+    m.terrestres ? `${m.terrestres} veículos` : '',
+    m.aereos ? `${m.aereos} ${m.aereos === 1 ? 'meio aéreo' : 'meios aéreos'}` : '',
+  ].filter(Boolean).join(' · ');
+}
+
+function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
+  const cor = f.importante ? '#D92D20' : f.aAcalmar ? '#A16207' : '#FF6B1A';
+  return (
+    <div className="flex">
+      <div className="w-1 shrink-0" style={{ backgroundColor: cor }} />
+      <div className="p-3.5 min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] flex items-center gap-1" style={{ color: cor }}>
+            <Flame className="w-3.5 h-3.5 stroke-[2.25]" />
+            {f.estado}
+            {f.importante && <span className="text-[#D92D20]"> · importante</span>}
+          </span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            {novo && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
+            <span className="font-['Barlow_Condensed'] text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString('pt-PT')} km</span>
+          </span>
+        </div>
+        <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-1">
+          {[f.local, f.concelho].filter((x, k, arr) => x && arr.indexOf(x) === k).join(', ') || f.natureza}
+        </div>
+        <div className="text-[12.5px] text-[#6B6B6B] mt-0.5">{[f.distrito, f.natureza].filter(Boolean).join(' · ')}</div>
+        <div className="flex items-center gap-3 mt-2 text-[12px] text-[#111111] font-medium flex-wrap">
+          <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.humanos}</span>
+          <span className="inline-flex items-center gap-1"><Truck className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.terrestres}</span>
+          {f.meios.aereos > 0 && <span className="inline-flex items-center gap-1"><Plane className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.aereos}</span>}
+          {f.inicio && <span className="text-[#6B6B6B] font-normal">desde {haQuanto(Date.parse(f.inicio)).replace('há ', 'há ')}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function lerArea(): string {
   try { return localStorage.getItem('parou_alertas_area') || ''; } catch { return ''; }
@@ -251,13 +333,41 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
     }
   }, [area, coords]);
 
+  // Sempre atualizado: a cada minuto com a página aberta, ao voltar à app e ao voltar a
+  // ter rede. O servidor mantém as fontes frescas, por isso cada pedido é rápido.
+  const ultimoPedidoRef = React.useRef<number>(0);
   useEffect(() => {
+    const atualizarSePreciso = (minimoMs: number) => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - ultimoPedidoRef.current < minimoMs) return;
+      ultimoPedidoRef.current = Date.now();
+      carregar();
+    };
+    ultimoPedidoRef.current = Date.now();
     carregar();
-    const t = setInterval(() => {
-      if (document.visibilityState === 'visible') carregar();
-    }, 5 * 60_000);
-    return () => clearInterval(t);
+    const t = setInterval(() => atualizarSePreciso(55_000), 60_000);
+    const aoVoltar = () => atualizarSePreciso(20_000);
+    const comRede = () => atualizarSePreciso(0);
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    window.addEventListener('online', comRede);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+      window.removeEventListener('online', comRede);
+    };
   }, [carregar]);
+
+  // O relógio da página: o que acaba entretanto sai sozinho (ex.: aviso que terminou)
+  const [agoraMs, setAgoraMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgoraMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // "Novo": o que apareceu desde a última vez que a pessoa viu os alertas
+  const [vistosAntes] = useState<Record<string, number> | null>(() => lerVistos());
 
   const escolherArea = (nova: string) => {
     try {
@@ -275,6 +385,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
     if (!dados) return [];
     const itens: ItemDestaque[] = [];
     for (const o of dados.ocorrencias) {
+      if (o.fim && Date.parse(o.fim) < agoraMs) continue; // já acabou
       const filtroItem: ItemDestaque['filtro'] = o.categoria === 'greve' ? 'greves' : o.categoria === 'obras' ? 'obras' : 'rede';
       const futuro = o.estado === 'Futuro';
       const etiqueta = o.categoria === 'greve'
@@ -296,7 +407,22 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         linhas: o.linhas,
       });
     }
+    for (const i of dados.protecaoCivil || []) {
+      itens.push({
+        id: `pc:${i.id}`,
+        filtro: i.tipo === 'acidente' ? 'transito' : i.tipo === 'inundacao' ? 'tempo' : 'rede',
+        etiqueta: `${i.natureza.split(/[-/]/)[0].trim() || 'Ocorrência'} · Proteção Civil`,
+        cor: i.importante ? '#D92D20' : '#FF6B1A',
+        titulo: [i.local, i.concelho].filter((x, k, arr) => x && arr.indexOf(x) === k).join(', ') || i.natureza,
+        resumo: `${i.estado}${meiosTexto(i.meios) ? ` · ${meiosTexto(i.meios)}` : ''}`,
+        meta: [`a ${i.distanciaKm.toLocaleString('pt-PT')} km`, i.inicio ? haQuanto(Date.parse(i.inicio)) : '', 'Fogos.pt'].filter(Boolean).join(' · '),
+        quando: i.inicio ? Date.parse(i.inicio) : 0,
+        url: 'https://fogos.pt',
+        peso: 5 + (i.importante ? 2 : 0),
+      });
+    }
     for (const a of dados.avisosMeteo.filter((x) => !x.local)) {
+      if (a.fim && Date.parse(a.fim) < agoraMs) continue;
       itens.push({
         id: `m:${a.distrito}:${a.tipo}:${a.inicio}`,
         filtro: 'tempo',
@@ -310,7 +436,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         peso: a.nivel === 'red' ? 5 : 3,
       });
     }
-    const umDia = Date.now() - 36 * 3600_000;
+    const umDia = agoraMs - 24 * 3600_000;
     const doDistrito = (o: Occurrence) => dados.local.distrito && String(o.district || '').toLowerCase() === dados.local.distrito.toLowerCase();
     for (const o of ocorrenciasComunidade) {
       if (!o || o.status === 'Resolvida' || o.status === 'Ocultada' || (o.timestamp || 0) < umDia) continue;
@@ -328,16 +454,36 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       });
     }
     return itens.sort((a, b) => b.peso - a.peso || b.quando - a.quando);
-  }, [dados, ocorrenciasComunidade, onAbrirOcorrencia]);
+  }, [dados, ocorrenciasComunidade, onAbrirOcorrencia, agoraMs]);
+
+  // Marca como vistos (ao fim de uns segundos na página) os alertas que estão a aparecer
+  useEffect(() => {
+    if (!dados) return;
+    const t = setTimeout(() => {
+      const atual = lerVistos() || {};
+      const agora = Date.now();
+      for (const d of destaques) if (!atual[d.id]) atual[d.id] = agora;
+      for (const n of dados.noticias || []) if (!atual[n.id]) atual[n.id] = agora;
+      for (const f of dados.incendios?.lista || []) if (!atual[`f:${f.id}`]) atual[`f:${f.id}`] = agora;
+      gravarVistos(atual);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [dados, destaques]);
+  // Primeira vez que abre os Alertas: nada é "novo" (senão era tudo)
+  const eNovo = (id: string) => Boolean(vistosAntes) && !vistosAntes![id];
+
+  const incendios = dados?.incendios;
+  const listaIncendios = incendios?.lista || [];
+  const incendiosPerto = listaIncendios.filter((f) => f.perto);
 
   const noticias = useMemo(() => dados?.noticias || [], [dados]);
 
   const destaquesFiltrados = filtro === 'tudo' ? destaques : destaques.filter((d) => d.filtro === filtro);
   const noticiasFiltradas = filtro === 'tudo' ? noticias : noticias.filter((n) => CATEGORIAS_NOTICIA[n.categoria]?.filtro === filtro);
   const contagem = (f: Filtro) =>
-    f === 'tudo' ? 0 : destaques.filter((d) => d.filtro === f).length + noticias.filter((n) => CATEGORIAS_NOTICIA[n.categoria]?.filtro === f).length;
+    f === 'tudo' ? 0 : f === 'incendios' ? (incendios?.total || 0) : destaques.filter((d) => d.filtro === f).length + noticias.filter((n) => CATEGORIAS_NOTICIA[n.categoria]?.filtro === f).length;
 
-  const avisosLocais = (dados?.avisosMeteo || []).filter((a) => a.local);
+  const avisosLocais = (dados?.avisosMeteo || []).filter((a) => a.local && !(a.fim && Date.parse(a.fim) < agoraMs));
   const feriado = dados?.feriados?.[0];
   const outrosFeriados = (dados?.feriados || []).slice(1, 3);
   const agora = dados?.tempo?.agora || null;
@@ -530,7 +676,52 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         })}
       </nav>
 
+      {/* Incêndios (Fogos.pt / ANEPC) */}
+      {dados && (filtro === 'incendios' || (filtro === 'tudo' && incendiosPerto.length > 0)) && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111] flex items-center gap-1.5">
+              <Flame className="w-4 h-4 text-[#FF6B1A]" />
+              {filtro === 'incendios' ? 'Incêndios ativos' : 'Incêndios perto'}
+              <span className="font-['Barlow_Condensed'] text-[13px] text-[#6B6B6B] tabular-nums">
+                {filtro === 'incendios' ? incendios?.total || 0 : incendiosPerto.length}
+              </span>
+            </h2>
+            {onVerMapa && listaIncendios.length > 0 && (
+              <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">Ver no mapa</button>
+            )}
+          </div>
+          {listaIncendios.length === 0 ? (
+            <div className="rounded-[14px] border border-dashed border-[#E6E6E3] px-4 py-5 text-[13px] text-[#6B6B6B] flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
+              <span>{incendios?.atualizado ? 'Sem incêndios ativos em Portugal neste momento.' : 'A obter os incêndios ativos…'}</span>
+            </div>
+          ) : (
+            <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {(filtro === 'incendios' ? listaIncendios : incendiosPerto.slice(0, 3)).map((f) => (
+                <a key={f.id} href="https://fogos.pt" target="_blank" rel="noopener noreferrer" className="block active:bg-[#F4F4F2] transition-colors">
+                  <CartaoIncendio f={f} novo={eNovo(`f:${f.id}`)} />
+                </a>
+              ))}
+            </div>
+          )}
+          {filtro === 'tudo' && (incendios?.total || 0) > Math.min(3, incendiosPerto.length) && (
+            <button
+              onClick={() => setFiltro('incendios')}
+              className="w-full h-11 rounded-[12px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111] cursor-pointer"
+            >
+              Ver todos os incêndios ativos ({incendios?.total})
+            </button>
+          )}
+          <p className="text-[11px] text-[#6B6B6B]">
+            Fonte: <a href="https://fogos.pt" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#111111] underline">Fogos.pt</a> (dados da ANEPC)
+            {incendios?.atualizado ? ` · atualizado ${haQuanto(Date.parse(incendios.atualizado))}` : ''}
+          </p>
+        </section>
+      )}
+
       {/* Em destaque */}
+      {filtro !== 'incendios' && (
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111]">Na rede e na estrada</h2>
@@ -571,8 +762,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                         <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: d.cor === '#FACC15' ? '#A16207' : d.cor === '#111111' ? '#6B6B6B' : d.cor }}>
                           {d.etiqueta}
                         </span>
-                        {d.url && <ExternalLink className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
-                        {d.onClick && <Users className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {eNovo(d.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
+                          {d.url && <ExternalLink className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
+                          {d.onClick && <Users className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
+                        </span>
                       </div>
                       <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-1 line-clamp-2">{d.titulo}</div>
                       {d.resumo && <div className="text-[13px] text-[#6B6B6B] leading-snug mt-1 line-clamp-2">{d.resumo}</div>}
@@ -601,6 +795,8 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         )}
       </section>
 
+      )}
+
       {/* Notícias */}
       <section className="space-y-2">
         <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111] flex items-center gap-1.5">
@@ -623,10 +819,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 className="block px-3.5 py-3 active:bg-[#F4F4F2] transition-colors"
               >
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B6B6B]">
-                  <span className={n.categoria === 'greve' ? 'text-[#D92D20]' : n.categoria === 'tempo' ? 'text-[#A16207]' : 'text-[#C2410C]'}>
+                  <span className={n.categoria === 'greve' || n.categoria === 'incendio' ? 'text-[#D92D20]' : n.categoria === 'tempo' ? 'text-[#A16207]' : 'text-[#C2410C]'}>
                     {CATEGORIAS_NOTICIA[n.categoria]?.rotulo}
                   </span>
                   {n.local && <span className="text-[#111111]">· {dados?.local.distrito}</span>}
+                  {eNovo(n.id) && <span className="ml-auto text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
                 </div>
                 <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-0.5 line-clamp-2">{n.titulo}</div>
                 <div className="text-[12px] text-[#6B6B6B] mt-1 flex items-center gap-1">
@@ -648,7 +845,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       </section>
 
       <p className="text-[11px] text-[#6B6B6B] leading-relaxed pt-2">
-        Fontes: IPMA e Open-Meteo (tempo), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.
+        Fontes: IPMA e Open-Meteo (tempo), Fogos.pt com dados da ANEPC (incêndios e Proteção Civil), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.
         As notícias abrem no site de origem.
       </p>
     </div>
