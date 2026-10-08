@@ -8,7 +8,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
-import { logout } from '../services/firebase';
+import { logout, apagarConta } from '../services/firebase';
 import { quandoAconteceu } from '../utils/quando';
 
 interface UserProfileModalProps {
@@ -28,7 +28,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onSelectOccurrence,
   onOpenReportModal,
 }) => {
+  const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
+  const [erroApagar, setErroApagar] = React.useState<string>('');
+
   if (!isOpen || !user) return null;
+
+  const handleApagarConta = async () => {
+    setAApagar('a-apagar');
+    setErroApagar('');
+    const r = await apagarConta();
+    if (r === 'ok') {
+      onClose();
+      return;
+    }
+    setAApagar('confirmar');
+    setErroApagar(r === 'reautenticar'
+      ? 'Por segurança, sai e volta a entrar na conta e depois apaga-a.'
+      : 'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.');
+  };
 
   const handleLogout = async () => {
     try {
@@ -159,6 +176,41 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               ))
             )}
           </div>
+        </div>
+
+        {/* Apagar conta (RGPD / Google Play) */}
+        <div className="mt-5 pt-4 border-t border-[#E6E6E3]">
+          {aApagar === 'nao' ? (
+            <button
+              onClick={() => setAApagar('confirmar')}
+              className="text-[12.5px] font-semibold text-[#D92D20] cursor-pointer min-h-[36px]"
+            >
+              Apagar conta
+            </button>
+          ) : (
+            <div className="rounded-[10px] border border-[#F3C5C1] bg-[#FDF2F1] p-3 space-y-2">
+              <p className="text-[12.5px] text-[#111111] leading-snug">
+                Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste
+                continuam visíveis, sem ligação à conta. Isto não se pode desfazer.
+              </p>
+              {erroApagar && <p className="text-[12px] text-[#D92D20]">{erroApagar}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleApagarConta}
+                  disabled={aApagar === 'a-apagar'}
+                  className="h-9 px-3 rounded-[8px] bg-[#D92D20] text-[#FFFFFF] text-[12.5px] font-semibold cursor-pointer disabled:opacity-60"
+                >
+                  {aApagar === 'a-apagar' ? 'A apagar…' : 'Sim, apagar a conta'}
+                </button>
+                <button
+                  onClick={() => { setAApagar('nao'); setErroApagar(''); }}
+                  className="h-9 px-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[12.5px] font-semibold text-[#111111] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

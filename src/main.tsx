@@ -1,5 +1,6 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { ProtecaoErros, apanharErrosGlobais } from './components/ProtecaoErros';
 import './index.css';
 
 // Prevent iOS Safari page pinch-to-zoom on the webpage
@@ -41,6 +42,11 @@ if (typeof document !== 'undefined') {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+apanharErrosGlobais();
+createRoot(document.getElementById('root')!).render(
+  <ProtecaoErros>
+    <App />
+  </ProtecaoErros>,
+);
 
 // O service worker (app instalável e rápida a abrir) é gerado e registado pelo vite-plugin-pwa
