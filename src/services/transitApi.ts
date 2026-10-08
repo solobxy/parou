@@ -658,6 +658,8 @@ export interface ApiLineItem {
     countdown_minutes: number;
     displayText: string;
     aviso_horario?: string;
+    /** Paragem de onde parte esta partida */
+    stop_name?: string;
   }>;
 }
 

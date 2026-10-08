@@ -20,10 +20,16 @@ export const LineCard: React.FC<LineCardProps> = ({
   onToggleFavorite,
   showExactTimeAsBig = false,
 }) => {
-  const rawDest =
-    line.destinations && line.destinations.length > 0
+  // Título e paragem da partida que aparece à direita (o destino e a paragem dessa partida,
+  // não os da linha em geral — senão "Cordoaria" aparecia com a hora do outro sentido)
+  const proxima = line.departures && line.departures.length > 0 ? sortDepartures(line.departures)[0] : undefined;
+  const destinoProxima = proxima && proxima.state !== 'Sem dados' ? (proxima as any).destination : undefined;
+  const rawDest = destinoProxima
+    ? formatTransitName(destinoProxima)
+    : line.destinations && line.destinations.length > 0
       ? line.destinations.map(d => formatTransitName(d)).join(' ⇄ ')
       : formatTransitName(line.name || 'Destino');
+  const paragemProxima: string | undefined = (proxima as any)?.stop_name || line.nearest_stop?.name;
 
   return (
     <div
@@ -40,9 +46,9 @@ export const LineCard: React.FC<LineCardProps> = ({
               {rawDest}
             </h3>
           </div>
-          {line.nearest_stop?.name && (
+          {paragemProxima && (
             <div className="text-xs text-[#6B6B6B] truncate mt-0.5">
-              {formatTransitName(line.nearest_stop.name)}
+              {formatTransitName(paragemProxima)}
             </div>
           )}
         </div>

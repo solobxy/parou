@@ -111,6 +111,8 @@ export interface LineSummary {
     countdown_minutes: number;
     displayText: string;
     aviso_horario?: string;
+    /** Paragem de onde parte (pode não ser a mais próxima, ex.: outro sentido) */
+    stop_name?: string;
   }>;
 }
 
@@ -889,6 +891,7 @@ export class LinesEngine {
               const partida = {
                 direction_id: dirId,
                 destination: nextT.trip_headsign || card.destinations[0] || 'Destino',
+                ...(nextT.stop_id && stopMap.get(nextT.stop_id) ? { stop_name: stopMap.get(nextT.stop_id)!.stop_name } : {}),
                 time: timeStr,
                 state: 'Programado' as const,
                 countdown_minutes: diffMinutes,
