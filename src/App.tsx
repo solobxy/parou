@@ -81,6 +81,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
+import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -100,16 +101,19 @@ export default function App() {
   // Favoritos: cópia no servidor para nunca se perderem (repõe se o browser os apagar)
   useEffect(() => { iniciarCopiaDados(); }, []);
 
-  // Perto no telemóvel: página presa (sem deslizar) para o cabeçalho ficar sempre à vista
-  useEffect(() => {
-    const prender = !ecraGrande && activeMobileView === 'perto';
-    document.documentElement.classList.toggle('pagina-fixa', prender);
-    if (prender) window.scrollTo(0, 0);
-    return () => document.documentElement.classList.remove('pagina-fixa');
-  }, [ecraGrande, activeMobileView]);
   const [mapViewMode, setMapViewMode] = useState<'cidades' | 'concelhos' | 'distritos'>('cidades');
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
+  // Páginas Sobre / Privacidade / Termos
+  const [paginaInfo, setPaginaInfo] = useState<PaginaInfo | null>(null);
+  const abrirPaginaInfo = useCallback((p: PaginaInfo) => {
+    setPaginaInfo(p);
+    setIsNotFound(false);
+    setSelectedOccurrence(null);
+    try { if (window.location.pathname !== `/${p}`) window.history.pushState({ pagina: p }, '', `/${p}`); } catch {}
+    document.title = p === 'sobre' ? 'Sobre a PAROU' : p === 'privacidade' ? 'Política de privacidade | PAROU' : 'Termos de utilização | PAROU';
+    window.scrollTo(0, 0);
+  }, []);
 
   // Unified Favorites Hook
   const { favorites, totalCount: favoritesTotalCount } = useFavorites();
@@ -176,6 +180,14 @@ export default function App() {
 
   // Selection & Modals state
   const [selectedOccurrence, setSelectedOccurrence] = useState<Occurrence | null>(null);
+
+  // Perto no telemóvel: página presa (sem deslizar) para o cabeçalho ficar sempre à vista
+  useEffect(() => {
+    const prender = !ecraGrande && activeMobileView === 'perto' && !paginaInfo && !isNotFound && !selectedOccurrence;
+    document.documentElement.classList.toggle('pagina-fixa', prender);
+    if (prender) window.scrollTo(0, 0);
+    return () => document.documentElement.classList.remove('pagina-fixa');
+  }, [ecraGrande, activeMobileView, paginaInfo, isNotFound, selectedOccurrence]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -534,6 +546,7 @@ export default function App() {
   // Sync tab navigation and update canonical clean URL & Document Title
   const handleTabSelect = useCallback((tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage') => {
     setIsNotFound(false);
+    setPaginaInfo(null);
     setActiveNavTab(tab);
     if (tab === 'reports') setActiveMobileView('reports');
     else if (tab === 'perto') setActiveMobileView('perto');
@@ -590,6 +603,7 @@ export default function App() {
     if (typeof window === 'undefined') return;
     const pathname = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
     setIsNotFound(false);
+    setPaginaInfo(null);
 
     if (pathname === '/' || pathname === '' || pathname === '/perto') {
       setActiveNavTab('perto');
@@ -656,6 +670,10 @@ export default function App() {
       setActiveNavTab('coverage');
       setActiveMobileView('catalogo');
       document.title = 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU';
+    } else if (pathname === '/sobre' || pathname === '/privacidade' || pathname === '/termos') {
+      setPaginaInfo(pathname.slice(1) as PaginaInfo);
+      document.title = pathname === '/sobre' ? 'Sobre a PAROU' : pathname === '/privacidade' ? 'Política de privacidade | PAROU' : 'Termos de utilização | PAROU';
+      return;
     } else if (pathname === '/404') {
       setIsNotFound(true);
       document.title = 'Página Não Encontrada (404) | PAROU';
@@ -742,9 +760,11 @@ export default function App() {
 
         {isNotFound ? (
           <NotFoundView
-            onNavigateHome={() => handleTabSelect('mapa')}
+            onNavigateHome={() => handleTabSelect('perto')}
             onNavigateTab={handleTabSelect}
           />
+        ) : paginaInfo ? (
+          <PaginaInformativa pagina={paginaInfo} onVoltar={() => handleTabSelect('perto')} onAbrir={abrirPaginaInfo} />
         ) : selectedOccurrence ? (
           /* Dedicated Report Detail Page with real Firestore data */
           <ReportDetailPage
@@ -1154,7 +1174,13 @@ export default function App() {
             >
               <span>Cobertura</span>
             </button>
+            <button onClick={() => abrirPaginaInfo('sobre')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Sobre</button>
+            <button onClick={() => abrirPaginaInfo('privacidade')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Privacidade</button>
+            <button onClick={() => abrirPaginaInfo('termos')} className="text-[#6B6B6B] hover:text-[#111111] transition-colors cursor-pointer">Termos</button>
           </div>
+        </div>
+        <div className="max-w-[1600px] mx-auto mt-3 text-center sm:text-left text-[11px] text-[#6B6B6B]">
+          Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap
         </div>
       </footer>
 

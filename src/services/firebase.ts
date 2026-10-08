@@ -8,6 +8,8 @@ import {
   signOut, 
   updateProfile, 
   onAuthStateChanged,
+  deleteUser,
+  reauthenticateWithPopup,
   User as FirebaseUser
 } from 'firebase/auth';
 import { 
@@ -22,6 +24,7 @@ import {
   query, 
   orderBy, 
   where,
+  limit,
   getDocFromServer,
   increment,
   writeBatch,
@@ -312,6 +315,41 @@ export async function loginWithEmail(email: string, pass: string): Promise<UserP
   return await ensureUserProfile(result.user);
 }
 
+/**
+ * Apaga a conta e os dados dela: favoritos sincronizados, perfil e o utilizador do Firebase.
+ * As ocorrências já publicadas ficam (são públicas), mas sem ligação à conta.
+ * Devolve 'reautenticar' se o Firebase pedir para entrar outra vez antes de apagar.
+ */
+export async function apagarConta(): Promise<'ok' | 'reautenticar' | 'erro'> {
+  const user = auth.currentUser;
+  if (!user) return 'erro';
+  const apagarTudo = async () => {
+    try {
+      const favs = await getDocs(collection(db, 'users', user.uid, 'favorites'));
+      for (const d of favs.docs) await deleteDoc(d.ref).catch(() => {});
+    } catch {}
+    try { await deleteDoc(doc(db, 'users', user.uid)); } catch {}
+    await deleteUser(user);
+  };
+  try {
+    await apagarTudo();
+    return 'ok';
+  } catch (err: any) {
+    if (err?.code === 'auth/requires-recent-login') {
+      try {
+        if (user.providerData.some((p) => p.providerId === 'google.com')) {
+          await reauthenticateWithPopup(user, googleProvider);
+          await deleteUser(user);
+          return 'ok';
+        }
+      } catch {}
+      return 'reautenticar';
+    }
+    console.warn('[Conta] Erro ao apagar:', err);
+    return 'erro';
+  }
+}
+
 export async function logout(): Promise<void> {
   await signOut(auth);
 }
@@ -369,7 +407,13 @@ export function subscribeReports(
   onError?: (err: Error) => void
 ): () => void {
   const reportsRef = collection(db, 'reports');
-  const q = query(reportsRef, orderBy('timestamp', 'desc'));
+  // Só os últimos 30 dias e no máximo 400 (antes vinha a coleção inteira para cada telemóvel)
+  const q = query(
+    reportsRef,
+    where('timestamp', '>=', Date.now() - 30 * 24 * 3600 * 1000),
+    orderBy('timestamp', 'desc'),
+    limit(400),
+  );
 
   return onSnapshot(
     q,

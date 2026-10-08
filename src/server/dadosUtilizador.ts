@@ -76,7 +76,19 @@ function limpar(dados: unknown): Record<string, string> {
   return out;
 }
 
+// Cópias sem uso há mais de 13 meses são apagadas (como diz a política de privacidade)
+function limparAntigos() {
+  try {
+    const limite = Date.now() - 395 * 24 * 3600 * 1000;
+    const r = base().prepare('DELETE FROM dados_utilizador WHERE visto < ?').run(limite);
+    if (Number(r.changes) > 0) console.log(`[Dados utilizador] ${r.changes} cópias antigas apagadas`);
+  } catch {}
+}
+
 export function registarRotasDadosUtilizador(app: Express) {
+  setTimeout(limparAntigos, 60_000);
+  setInterval(limparAntigos, 24 * 3600 * 1000);
+
   app.get('/api/dados-utilizador', (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
     try {

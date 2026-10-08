@@ -66,6 +66,20 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
+// Erros do browser (sem dados pessoais): ficam no registo do servidor para serem corrigidos
+let errosNaUltimaHora = 0;
+setInterval(() => { errosNaUltimaHora = 0; }, 3600_000);
+app.post('/api/erros', (req: Request, res: Response) => {
+  try {
+    if (errosNaUltimaHora++ < 300) {
+      const corpo = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+      const limpo = (v: unknown, n: number) => String(v ?? '').replace(/[\r\n]+/g, ' ⏎ ').slice(0, n);
+      console.warn(`[Erro no browser] ${limpo(corpo.tipo, 20)} | ${limpo(corpo.pagina, 80)} | ${limpo(corpo.mensagem, 300)} | ${limpo(corpo.extra, 600)} | ${limpo(corpo.ua, 120)}`);
+    }
+  } catch {}
+  res.status(204).end();
+});
+
 // Incêndios e ocorrências da Proteção Civil (Fogos.pt): atualizados em segundo plano
 iniciarFogos();
 app.get('/api/incendios', (_req: Request, res: Response) => {

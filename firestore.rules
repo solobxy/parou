@@ -7,6 +7,20 @@ service cloud.firestore {
     }
 
     // Helper functions
+    // Administrador (moderação): a conta Google do Dinis
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'diniscash@gmail.com' && request.auth.token.email_verified == true;
+    }
+
+    function isAuthor() {
+      return request.auth != null && resource.data.get('authorId', '') == request.auth.uid;
+    }
+
+    // Só mudam estes campos (votos, assinalar, contadores) — o resto do conteúdo fica protegido
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -86,17 +100,29 @@ service cloud.firestore {
     // Reports collection - crowd-sourced traffic and transit occurrences in Portugal
     match /reports/{reportId} {
       allow read: if true;
-      allow create: if isValidId(reportId) && isValidReport(request.resource.data);
-      allow update: if isValidId(reportId) && isValidReport(request.resource.data);
-      allow delete: if isValidId(reportId);
+      // Quem publica com conta não se pode fazer passar por outra pessoa
+      allow create: if isValidId(reportId) && isValidReport(request.resource.data) &&
+        (request.resource.data.get('authorId', '') == '' || (request.auth != null && request.resource.data.authorId == request.auth.uid));
+      // Votos e "assinalar" de qualquer pessoa; o resto só o autor ou o administrador
+      allow update: if isValidId(reportId) && isValidReport(request.resource.data) && (
+        isAdmin() || isAuthor() ||
+        onlyChanges(['confirmationsCount', 'unconfirmedCount', 'confirmedBy', 'unconfirmedBy', 'isCommunityVerified',
+                     'upvotes', 'verificationStatus', 'confidenceScore', 'confidenceLevel', 'updatedAt',
+                     'reportsCount', 'reportedBy', 'status', 'commentsCount'])
+      );
+      allow delete: if isAdmin() || isAuthor();
     }
 
     // Complaints collection - posts about companies, transport and public services
     match /complaints/{complaintId} {
       allow read: if true;
-      allow create: if isValidId(complaintId) && isValidComplaint(request.resource.data);
-      allow update: if isValidId(complaintId) && isValidComplaint(request.resource.data);
-      allow delete: if isValidId(complaintId);
+      allow create: if isValidId(complaintId) && isValidComplaint(request.resource.data) &&
+        (request.resource.data.get('authorId', '') == '' || (request.auth != null && request.resource.data.authorId == request.auth.uid));
+      allow update: if isValidId(complaintId) && isValidComplaint(request.resource.data) && (
+        isAdmin() || isAuthor() ||
+        onlyChanges(['upvotes', 'upvotedBy', 'reportsCount', 'reportedBy', 'status', 'commentsCount'])
+      );
+      allow delete: if isAdmin() || isAuthor();
 
       // Subcollection for comments on complaints
       match /comments/{commentId} {
@@ -109,10 +135,12 @@ service cloud.firestore {
 
     // Users collection - contributor profiles, reputation points and badges
     match /users/{userId} {
-      allow read: if true;
+      // O perfil tem o email: só o próprio (e o administrador) o pode ler
+      allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
       allow create, update: if isValidId(userId) && isValidUser(request.resource.data) &&
         (request.auth != null && request.auth.uid == userId);
-      allow delete: if false;
+      // Apagar a conta (RGPD / Google Play)
+      allow delete: if request.auth != null && request.auth.uid == userId;
 
       // User favorites subcollection (synced when logged in)
       match /favorites/{favId} {
