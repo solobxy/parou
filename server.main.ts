@@ -66,6 +66,21 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
+// App Android (Trusted Web Activity): prova ao Android que a app pt.parou.app é do parou.pt,
+// para abrir em ecrã inteiro sem barra do browser. A chave de envio está aqui; a chave da
+// Google Play (assinatura da app) junta-se pela variável ANDROID_SHA256_EXTRA (separadas por vírgula).
+const SHA256_ANDROID = [
+  '13:BD:79:AE:A8:96:4D:FF:FD:7E:D3:12:46:F5:59:3A:C6:5D:5F:65:90:9C:C0:CB:56:FD:FA:60:EE:DE:27:3B',
+  ...String(process.env.ANDROID_SHA256_EXTRA || '').split(',').map((x) => x.trim()).filter(Boolean),
+];
+app.get('/.well-known/assetlinks.json', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json([{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: { namespace: 'android_app', package_name: 'pt.parou.app', sha256_cert_fingerprints: SHA256_ANDROID },
+  }]);
+});
+
 // Erros do browser (sem dados pessoais): ficam no registo do servidor para serem corrigidos
 let errosNaUltimaHora = 0;
 setInterval(() => { errosNaUltimaHora = 0; }, 3600_000);
