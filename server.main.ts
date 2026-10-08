@@ -50,7 +50,7 @@ import {
   incrementNotificationCounter 
 } from './src/server/centralAlertsEngine';
 import { RealtimeEngine } from './src/server/realtimeEngine';
-import { obterAlertas, aquecerAlertas } from './src/server/alertasEngine';
+import { obterAlertas, aquecerAlertas, obterCamadasMapa } from './src/server/alertasEngine';
 import {
   getNearbyTransitData,
   searchDestinationSuggestions,
@@ -795,6 +795,15 @@ app.get('/api/alertas', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Alertas API] Erro:', err);
     return res.status(500).json({ error: 'Não foi possível obter os alertas.' });
+  }
+});
+app.get('/api/mapa', async (_req: Request, res: Response) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await obterCamadasMapa());
+  } catch (err: any) {
+    console.error('[Mapa API] Erro:', err?.message || err);
+    res.status(500).json({ error: 'Não foi possível obter o mapa.' });
   }
 });
 aquecerAlertas();

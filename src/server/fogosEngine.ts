@@ -125,7 +125,9 @@ async function atualizar(): Promise<void> {
       const r = await fetch(URL, { headers, signal: AbortSignal.timeout(12000) });
       if (r.status === 429) {
         const espera = Number(r.headers.get('retry-after'));
-        proximaTentativa = Date.now() + (Number.isFinite(espera) && espera > 0 ? espera * 1000 + 5000 : INTERVALO_MS);
+        // Respeita o "Retry-After", mas nunca espera mais de ~1 h (o limite sem chave é por hora)
+        const esperaMs = Number.isFinite(espera) && espera > 0 ? espera * 1000 + 5000 : INTERVALO_MS;
+        proximaTentativa = Date.now() + Math.min(esperaMs, 65 * 60_000);
         console.warn(`[Fogos] Limite de pedidos; próxima tentativa às ${new Date(proximaTentativa).toISOString()}`);
         return;
       }
@@ -159,12 +161,31 @@ export function obterIncidentes(): { atualizado: string | null; incidentes: Inci
   };
 }
 
+// Só para os testes automáticos (capturas de ecrã): exemplos fixos quando não há dados
+function exemplosDeTeste(): Estado {
+  const h = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+  return {
+    atualizado: Date.now(),
+    incidentes: [
+      { id: 't1', tipo: 'incendio', natureza: 'Mato', local: 'Covelo', concelho: 'Gondomar', distrito: 'Porto', lat: 41.115, lon: -8.48, estado: 'Em Curso', corEstado: 'FF0000', meios: { humanos: 64, terrestres: 19, aereos: 2 }, inicio: h(95), importante: true, aAcalmar: false },
+      { id: 't2', tipo: 'incendio', natureza: 'Povoamento Florestal', local: 'São Pedro do Sul', concelho: 'São Pedro do Sul', distrito: 'Viseu', lat: 40.76, lon: -8.06, estado: 'Em Resolução', corEstado: 'FFA500', meios: { humanos: 31, terrestres: 9, aereos: 0 }, inicio: h(240), importante: false, aAcalmar: true },
+      { id: 't3', tipo: 'incendio', natureza: 'Agrícola', local: 'Alcácer do Sal', concelho: 'Alcácer do Sal', distrito: 'Setúbal', lat: 38.37, lon: -8.51, estado: 'Em Curso', corEstado: 'FF0000', meios: { humanos: 12, terrestres: 4, aereos: 1 }, inicio: h(30), importante: false, aAcalmar: false },
+      { id: 't4', tipo: 'acidente', natureza: 'Rodoviário - Colisão', local: 'A4 Valongo', concelho: 'Valongo', distrito: 'Porto', lat: 41.19, lon: -8.50, estado: 'Em Curso', corEstado: 'FF0000', meios: { humanos: 7, terrestres: 3, aereos: 0 }, inicio: h(12), importante: false, aAcalmar: false },
+    ],
+  };
+}
+
 let iniciado = false;
 /** Arranque: lê a última resposta guardada e mantém os dados atualizados em segundo plano. */
 export function iniciarFogos(): void {
   if (iniciado) return;
   iniciado = true;
   lerDoDisco();
+  if (process.env.FOGOS_TESTE === '1' && !estado) {
+    estado = exemplosDeTeste();
+    proximaTentativa = Date.now() + 24 * 3600_000;
+    return;
+  }
   setTimeout(() => atualizar().catch(() => {}), 20_000);
   setInterval(() => atualizar().catch(() => {}), 60_000);
 }
