@@ -242,8 +242,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Occurrences List: 1px dividing lines */}
       <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
         {filteredAndSortedOccurrences.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#6B6B6B]">
-            Sem ocorrências para os filtros indicados.
+          <div className="p-8 text-center text-sm text-[#6B6B6B] space-y-1">
+            {activeCount > 0 ? (
+              <p>Sem ocorrências para os filtros indicados.</p>
+            ) : (
+              <>
+                <p className="font-semibold text-[#111111]">Sem ocorrências nas últimas 24 horas.</p>
+                <p>Viste um acidente, um atraso ou uma avaria? Reporta para avisar quem vai a caminho.</p>
+              </>
+            )}
           </div>
         ) : (
           filteredAndSortedOccurrences.map((occ) => {
