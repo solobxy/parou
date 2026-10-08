@@ -100,7 +100,7 @@ export const PassosComputador: React.FC = () => (
 
 /** Botão compacto para o topo da página */
 export const BotaoInstalar: React.FC = () => {
-  const { disponivel, plataforma, iphone, instalar } = useInstalarApp();
+  const { disponivel, plataforma, instalar } = useInstalarApp();
   const [verPassos, setVerPassos] = useState(false);
   if (!disponivel) return null;
   const tocar = async () => {
@@ -111,12 +111,12 @@ export const BotaoInstalar: React.FC = () => {
     <div className="relative">
       <button
         onClick={tocar}
-        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#111111] hover:bg-[#2B2B2B] rounded-[8px] text-xs font-semibold text-[#FFFFFF] min-h-[44px] transition-colors cursor-pointer"
+        className="w-11 h-11 flex items-center justify-center bg-[#111111] hover:bg-[#2B2B2B] rounded-[10px] text-[#FFFFFF] transition-colors cursor-pointer"
         aria-label="Instalar a app PAROU"
+        title="Instalar a app"
         data-teste="instalar-topo"
       >
-        {iphone ? <Share className="w-4 h-4 stroke-[2]" /> : <Download className="w-4 h-4 stroke-[2]" />}
-        <span className="hidden min-[375px]:inline">Instalar</span>
+        <Download className="w-5 h-5 stroke-[2.25]" />
       </button>
       {verPassos && (
         <>
