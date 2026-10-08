@@ -15,8 +15,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'PAROU.PT - Alerta em Tempo Real';
   const options = {
     body: data.body || 'Nova alteração ou corte relevante na circulação em Portugal.',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/badge-96.png',
     vibrate: [200, 100, 200],
     tag: data.reportId ? `report-${data.reportId}` : 'parou-alert',
     renotify: true,
