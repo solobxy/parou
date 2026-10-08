@@ -7,6 +7,12 @@ export type LocationPermissionStatus =
   | 'denied'         // User denied permission (Permissão recusada)
   | 'unavailable';   // GPS unavailable or error (GPS indisponível)
 
+/** Porque é que a localização está bloqueada:
+ *  site     - o browser bloqueou a localização para este site
+ *  sistema  - o site tem autorização, mas a localização do telemóvel (ou do browser) está desligada
+ *  recusado - a pessoa fechou/recusou o pedido; pedir outra vez volta a mostrar a pergunta */
+export type MotivoBloqueio = 'site' | 'sistema' | 'recusado';
+
 export interface UserCoords {
   latitude: number;
   longitude: number;
@@ -78,6 +84,7 @@ export function useUserLocation() {
   const [status, setStatus] = useState<LocationPermissionStatus>(() => (memoriaPosicao ? 'active' : 'idle'));
   const [coords, setCoordsEstado] = useState<UserCoords | null>(() => memoriaPosicao);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [motivoBloqueio, setMotivoBloqueio] = useState<MotivoBloqueio | null>(null);
   const [followMode, setFollowMode] = useState<boolean>(true);
   const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
 
@@ -152,6 +159,7 @@ export function useUserLocation() {
       }
 
       gpsNestaSessao = true;
+      setMotivoBloqueio(null);
       setCoords(newCoords);
       setStatus('active');
       setErrorMessage(null);
@@ -225,6 +233,15 @@ export function useUserLocation() {
       esquecerPosicao();
       setStatus('denied');
       setErrorMessage('Permissão de localização recusada no navegador.');
+      // Descobre a causa: bloqueio do site, localização do telemóvel desligada ou pedido fechado
+      try {
+        navigator.permissions?.query({ name: 'geolocation' as PermissionName })
+          .then((r) => setMotivoBloqueio(r.state === 'granted' ? 'sistema' : r.state === 'prompt' ? 'recusado' : 'site'))
+          .catch(() => setMotivoBloqueio('site'));
+        if (!navigator.permissions?.query) setMotivoBloqueio('site');
+      } catch {
+        setMotivoBloqueio('site');
+      }
     } else if (previousCoordsRef.current) {
       // Falha passageira (túnel, interior): fica na última posição em vez de esconder tudo
       setStatus('active');
@@ -359,6 +376,7 @@ export function useUserLocation() {
           setCoords(null);
           esquecerPosicao();
           setStatus('denied');
+          setMotivoBloqueio('site');
           setErrorMessage('Permissão de localização recusada no navegador.');
         }
       } else if (!localEscolhido && previousCoordsRef.current && gpsNestaSessao) {
@@ -376,6 +394,7 @@ export function useUserLocation() {
           activateLocation(true);
         } else if (result.state === 'denied') {
           setStatus('denied');
+          setMotivoBloqueio('site');
         }
       };
     }).catch(() => {
@@ -383,6 +402,32 @@ export function useUserLocation() {
       if (jaDeuLocalizacao() && !localEscolhido) activateLocation(true);
     });
   }, [activateLocation, setCoords]);
+
+  // Ao voltar à app (ex.: depois de ligar a localização nas definições), tenta outra vez
+  // sozinho — sem a pessoa ter de carregar em nada
+  // (não volta a mostrar a pergunta a quem a fechou: isso só com um toque no botão)
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const motivoRef = useRef(motivoBloqueio);
+  motivoRef.current = motivoBloqueio;
+  const ultimaTentativaRef = useRef(0);
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - ultimaTentativaRef.current < 3000) return;
+      const st = statusRef.current;
+      if (st === 'unavailable' || (st === 'denied' && motivoRef.current !== 'recusado')) {
+        ultimaTentativaRef.current = Date.now();
+        activateLocation(true);
+      }
+    };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+    };
+  }, [activateLocation]);
 
   // Clean up watcher on unmount
   useEffect(() => {
@@ -397,6 +442,7 @@ export function useUserLocation() {
     status,
     coords,
     errorMessage,
+    motivoBloqueio,
     followMode,
     isRefreshingGps,
     setFollowMode,

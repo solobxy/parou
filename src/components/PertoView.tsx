@@ -115,7 +115,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   initialDestination,
   onClearInitialDestination,
 }) => {
-  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation } = useUserLocation();
+  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, motivoBloqueio } = useUserLocation();
+  // Passos para desbloquear (aparecem quando "Ativar localização" não chega)
+  const [ajudaLocalizacao, setAjudaLocalizacao] = useState<boolean>(false);
+  const eIphone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '');
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
   const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
@@ -655,6 +658,78 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const aPedir = gpsStatus === 'requesting' && !pedidoLento;
     const bloqueada = gpsStatus === 'denied';
     const semSinal = gpsStatus === 'unavailable' || (gpsStatus === 'requesting' && pedidoLento);
+    const telemovelDesligado = bloqueada && motivoBloqueio === 'sistema';
+    const recusou = bloqueada && motivoBloqueio === 'recusado';
+
+    // Bloqueada: três opções — pedir outra vez, tentar outra vez (depois de mudar as
+    // definições) e escolher um local à mão
+    if (bloqueada || semSinal) {
+      const titulo = telemovelDesligado || semSinal
+        ? 'Localização do telemóvel desligada'
+        : recusou ? 'Localização não autorizada' : 'Localização bloqueada';
+      const texto = telemovelDesligado || semSinal
+        ? 'Liga a Localização nas definições rápidas (desliza de cima para baixo). A poupança de bateria também a pode desligar.'
+        : recusou
+          ? 'Toca em Ativar localização e escolhe Permitir quando o telemóvel perguntar.'
+          : 'O browser está a bloquear a localização para a PAROU.';
+      const passos: string[] = telemovelDesligado || semSinal
+        ? (eIphone
+            ? ['Abre Definições › Privacidade e segurança › Serviços de localização e liga-os.', 'Em Safari (na mesma lista), escolhe «Durante a utilização».', 'Volta aqui: a PAROU tenta outra vez sozinha.']
+            : ['Desliza o dedo de cima para baixo no ecrã e liga a Localização.', 'Se a poupança de bateria estiver ligada, desliga-a ou permite a localização.', 'Volta aqui: a PAROU tenta outra vez sozinha.'])
+        : (eIphone
+            ? ['No Safari, toca em «aA» (ou ⋯) ao lado do endereço › Definições do site.', 'Em Localização, escolhe «Permitir».', 'Se não aparecer: Definições › Apps › Safari › Localização › «Perguntar» ou «Permitir».']
+            : ['Toca no ⓘ ou no cadeado ao lado do endereço.', 'Abre Permissões › Localização e escolhe «Permitir».', 'Volta aqui e toca em Tentar outra vez.']);
+      return (
+        <div className="w-full max-w-[340px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] px-5 pt-4 pb-3 text-center">
+          <span className="mx-auto w-12 h-12 rounded-full flex items-center justify-center bg-[#F4F4F2] text-[#111111]">
+            <MapPinOff className="w-5 h-5 stroke-[2.25]" />
+          </span>
+          <h3 className="mt-2.5 text-[17px] font-bold text-[#111111] leading-tight">{titulo}</h3>
+          <p className="mt-1.5 text-[13px] text-[#6B6B6B] leading-snug">{texto}</p>
+
+          {ajudaLocalizacao && (
+            <ol className="mt-3 text-left text-[12.5px] text-[#111111] leading-snug space-y-1.5 bg-[#F4F4F2] rounded-[12px] p-3 list-decimal pl-7">
+              {passos.map((p) => <li key={p}>{p}</li>)}
+            </ol>
+          )}
+
+          <button
+            onClick={() => {
+              activateLocation(true);
+              // Se o browser não chegar a perguntar (bloqueado), mostra como desbloquear
+              setTimeout(() => setAjudaLocalizacao(true), 1200);
+            }}
+            data-teste="ativar-localizacao"
+            className="mt-3.5 w-full h-12 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform cursor-pointer"
+          >
+            <Navigation className="w-[18px] h-[18px] stroke-[2.25]" />
+            Ativar localização
+          </button>
+          <button
+            onClick={() => activateLocation(true)}
+            data-teste="tentar-localizacao"
+            className="mt-2 w-full h-11 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] font-semibold text-[14px] flex items-center justify-center gap-2 active:bg-[#F4F4F2] transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4 stroke-[2.25]" />
+            Tentar outra vez
+          </button>
+          {!ajudaLocalizacao && (
+            <button
+              onClick={() => setAjudaLocalizacao(true)}
+              className="mt-1 w-full h-9 text-[12.5px] font-medium text-[#6B6B6B] cursor-pointer"
+            >
+              Como desbloquear?
+            </button>
+          )}
+          <button
+            onClick={() => { setPesquisarLocal(true); setDestinationQuery(''); }}
+            className={`${ajudaLocalizacao ? 'mt-2' : 'mt-0'} w-full h-10 text-[13px] font-semibold text-[#111111] underline-offset-2 hover:underline cursor-pointer`}
+          >
+            Ou escolhe um local
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className="w-full max-w-[340px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] px-5 pt-5 pb-4 text-center">
@@ -1225,8 +1300,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* Convite para ativar a localização (mapa desfocado por trás) */}
         {!localizacaoPronta && (
-          <div className="absolute inset-0 z-[25] bg-[#FFFFFF]/35 flex items-center justify-center px-4 pb-6 pt-3">
-            {conviteLocalizacao()}
+          <div className="absolute inset-0 z-[25] bg-[#FFFFFF]/35 flex flex-col items-center px-4 pb-6 pt-3 overflow-y-auto overscroll-contain">
+            {/* my-auto: ao centro quando cabe; se não couber (passos de ajuda), desliza */}
+            <div className="my-auto w-full flex justify-center">{conviteLocalizacao()}</div>
           </div>
         )}
       </main>
