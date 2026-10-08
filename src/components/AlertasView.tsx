@@ -27,7 +27,18 @@ import {
   Flame,
   Truck,
   Plane,
+  Bell,
+  X,
 } from 'lucide-react';
+import type { NotificationPreferences } from '../types';
+import {
+  getStoredNotificationPreferences,
+  saveStoredNotificationPreferences,
+  requestNotificationPermission,
+  sincronizarPush,
+  pushSuportado,
+} from '../services/notifications';
+import { CIDADES_OPTIONS } from '../data/mockData';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 
@@ -106,7 +117,103 @@ interface AlertasViewProps {
   ocorrenciasComunidade?: Occurrence[];
   onAbrirOcorrencia?: (o: Occurrence) => void;
   onVerMapa?: () => void;
+  /** As notificações foram ligadas a partir daqui (para a app atualizar o estado) */
+  onAvisosLigados?: (prefs: NotificationPreferences) => void;
 }
+
+const CHAVE_CONVITE_AVISOS = 'parou_convite_avisos_fechado';
+
+function semAcentosTxt(s: string) {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/** Nome do distrito do IPMA -> opção do ecrã das notificações (ex.: Funchal -> "Funchal (Madeira)") */
+function opcaoDistrito(nome: string): string {
+  const n = semAcentosTxt(nome);
+  const op = CIDADES_OPTIONS.find((o) => o !== 'Todas' && semAcentosTxt(o).replace(/\s*\(.*\)/, '') === n);
+  if (op) return op;
+  if (/angra|horta|acores/.test(n)) return 'Ponta Delgada (Açores)';
+  if (/porto santo|madeira/.test(n)) return 'Funchal (Madeira)';
+  return nome;
+}
+
+/** Convite para receber os avisos no telemóvel (só se o browser o permitir e ainda não estiverem ligados) */
+const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPreferences) => void }> = ({ distrito, onLigados }) => {
+  const [estado, setEstado] = useState<'oculto' | 'convite' | 'a-ligar' | 'ligado' | 'bloqueado'>(() => {
+    try {
+      if (localStorage.getItem(CHAVE_CONVITE_AVISOS) === '1') return 'oculto';
+      if (getStoredNotificationPreferences().enabled) return 'oculto';
+      if (!pushSuportado()) return 'oculto';
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') return 'oculto';
+      return 'convite';
+    } catch {
+      return 'oculto';
+    }
+  });
+  if (estado === 'oculto') return null;
+
+  const fechar = () => {
+    setEstado('oculto');
+    try { localStorage.setItem(CHAVE_CONVITE_AVISOS, '1'); } catch {}
+  };
+
+  const ligar = async () => {
+    setEstado('a-ligar');
+    const r = await requestNotificationPermission();
+    if (r.permission !== 'granted') { setEstado('bloqueado'); return; }
+    const atuais = getStoredNotificationPreferences();
+    const distritos = atuais.districts && atuais.districts.length > 0 ? atuais.districts : [opcaoDistrito(distrito)];
+    const prefs: NotificationPreferences = { ...atuais, enabled: true, districts: distritos };
+    saveStoredNotificationPreferences(prefs);
+    onLigados?.(prefs);
+    await sincronizarPush(prefs);
+    setEstado('ligado');
+    try { localStorage.setItem(CHAVE_CONVITE_AVISOS, '1'); } catch {}
+  };
+
+  return (
+    <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 flex items-start gap-3" data-teste="convite-avisos">
+      <div className="w-9 h-9 rounded-full bg-[#FFF1E8] text-[#FF6B1A] flex items-center justify-center shrink-0">
+        <Bell className="w-4.5 h-4.5 stroke-[2]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        {estado === 'ligado' ? (
+          <>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">Avisos ligados</div>
+            <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
+              Vais receber greves, mau tempo e perturbações graves. Para mudar os distritos, toca no sino lá em cima.
+            </div>
+          </>
+        ) : estado === 'bloqueado' ? (
+          <>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">As notificações estão bloqueadas</div>
+            <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
+              Permite-as nas definições do browser (cadeado ao lado do endereço) ou do telemóvel e tenta outra vez.
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">Recebe estes avisos no telemóvel</div>
+            <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
+              Greves, mau tempo e perturbações graves em {distrito}, mesmo com a app fechada.
+            </div>
+            <button
+              onClick={ligar}
+              disabled={estado === 'a-ligar'}
+              className="mt-2.5 h-9 px-3.5 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              data-teste="ligar-avisos"
+            >
+              <Bell className="w-4 h-4" /> {estado === 'a-ligar' ? 'A ligar…' : 'Ligar avisos'}
+            </button>
+          </>
+        )}
+      </div>
+      <button onClick={fechar} className="shrink-0 w-8 h-8 -mr-1 -mt-1 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
 
 // Cache ao nível do módulo: ao voltar ao separador a página aparece logo
 let ultimaResposta: RespostaAlertas | null = null;
@@ -288,7 +395,7 @@ function lerArea(): string {
   try { return localStorage.getItem('parou_alertas_area') || ''; } catch { return ''; }
 }
 
-export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade = [], onAbrirOcorrencia, onVerMapa }) => {
+export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade = [], onAbrirOcorrencia, onVerMapa, onAvisosLigados }) => {
   const [dados, setDados] = useState<RespostaAlertas | null>(ultimaResposta);
   const [aCarregar, setACarregar] = useState<boolean>(!ultimaResposta);
   const [erro, setErro] = useState<boolean>(false);
@@ -528,6 +635,8 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         </label>
         {dados && <span className="tabular-nums">Atualizado às {horaLisboa(dados.atualizado)}</span>}
       </div>
+
+      {dados && <ConviteAvisos distrito={dados.local.distrito} onLigados={onAvisosLigados} />}
 
       {erro && !dados && (
         <div className="rounded-[14px] border border-[#E6E6E3] p-5 text-center text-sm text-[#6B6B6B]">

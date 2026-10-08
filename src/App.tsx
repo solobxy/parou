@@ -869,6 +869,7 @@ export default function App() {
                 ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
+                onAvisosLigados={(p) => setNotificationPrefs(p)}
               />
             </div>
           ) : activeNavTab === 'coverage' ? (
@@ -1080,6 +1081,7 @@ export default function App() {
                 ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
+                onAvisosLigados={(p) => setNotificationPrefs(p)}
               />
             </div>
           )}
