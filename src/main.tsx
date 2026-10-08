@@ -50,3 +50,32 @@ createRoot(document.getElementById('root')!).render(
 );
 
 // O service worker (app instalável e rápida a abrir) é gerado e registado pelo vite-plugin-pwa
+
+// Versão nova: quando o service worker novo toma conta da página, recarrega para mostrar logo
+// a versão nova (sem isto, a primeira visita depois de uma atualização ainda mostrava a antiga).
+// Logo ao abrir recarrega de imediato; mais tarde, só quando a pessoa sai da app (sem a interromper).
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  const tinhaControlador = Boolean(navigator.serviceWorker.controller);
+  const recarregar = () => {
+    try {
+      const ultima = Number(sessionStorage.getItem('parou_recarregou') || 0);
+      if (Date.now() - ultima < 60_000) return; // nunca em ciclo
+      sessionStorage.setItem('parou_recarregou', String(Date.now()));
+    } catch {}
+    window.location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!tinhaControlador) return; // primeira instalação: a página já é a versão atual
+    if (performance.now() < 20_000 || document.visibilityState === 'hidden') {
+      recarregar();
+      return;
+    }
+    const quandoSair = () => {
+      if (document.visibilityState === 'hidden') {
+        document.removeEventListener('visibilitychange', quandoSair);
+        recarregar();
+      }
+    };
+    document.addEventListener('visibilitychange', quandoSair);
+  });
+}
