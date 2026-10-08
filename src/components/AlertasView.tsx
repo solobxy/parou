@@ -26,6 +26,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { Occurrence } from '../types';
+import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 
 // ---------------------------------------------------------------------------------
 // Tipos da resposta de /api/alertas
@@ -211,13 +212,16 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
   const [erro, setErro] = useState<boolean>(false);
   const [filtro, setFiltro] = useState<Filtro>('tudo');
   const [area, setArea] = useState<string>(lerArea);
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(() => {
+    const p = ultimaPosicaoConhecida();
+    return p ? { lat: p.latitude, lon: p.longitude } : null;
+  });
   const [verMaisDestaques, setVerMaisDestaques] = useState(false);
   const [verMaisNoticias, setVerMaisNoticias] = useState(false);
 
   // Usa o GPS só se já estiver autorizado (sem pedir nada neste separador)
   useEffect(() => {
-    if (area || typeof navigator === 'undefined' || !('geolocation' in navigator) || !('permissions' in navigator)) return;
+    if (area || coords || typeof navigator === 'undefined' || !('geolocation' in navigator) || !('permissions' in navigator)) return;
     navigator.permissions
       .query({ name: 'geolocation' as PermissionName })
       .then((r) => {
