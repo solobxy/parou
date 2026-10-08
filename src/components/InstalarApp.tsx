@@ -106,7 +106,7 @@ export const BotaoInstalar: React.FC = () => {
         data-teste="instalar-topo"
       >
         {iphone ? <Share className="w-4 h-4 stroke-[2]" /> : <Download className="w-4 h-4 stroke-[2]" />}
-        <span>Instalar</span>
+        <span className="hidden min-[375px]:inline">Instalar</span>
       </button>
       {verPassos && (
         <>
