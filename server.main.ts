@@ -1137,7 +1137,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
     });
 
     return res.json({
-      stops: mappedStops,
+      // Fins de linha (só chegadas) vão para o fim: não servem para apanhar transporte
+      stops: [...mappedStops.filter((s: any) => !s.arrivalsOnly), ...mappedStops.filter((s: any) => s.arrivalsOnly)],
       vehicles: mappedVehicles,
       alerts: nearbyAlerts,
       radiusMeters: raioUsado,
