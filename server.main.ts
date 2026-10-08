@@ -1378,20 +1378,43 @@ app.get('/diagnostico-unir', (_req: Request, res: Response) => {
   res.setHeader('X-Robots-Tag', 'noindex');
   res.setHeader('Cache-Control', 'no-store');
   res.send(`<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Diagnóstico UNIR | PAROU</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}li{margin:10px 0}.ok{color:#1F7A3A;font-weight:700}.mau{color:#D92D20;font-weight:700}code{font-size:12px;word-break:break-all}</style></head><body>
-<h1>Diagnóstico UNIR</h1><p>A testar a ligação deste telemóvel aos horários da UNIR (AMP)…</p><ol id="r"></ol>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}li{margin:8px 0}.ok{color:#1F7A3A;font-weight:700}.mau{color:#D92D20;font-weight:700}code{font-size:12px;word-break:break-all}</style></head><body>
+<h1>Diagnóstico UNIR (2)</h1><p>Deixa esta página aberta até aparecer <b>Concluído</b> (pode demorar 1 minuto). O resultado é enviado automaticamente para a PAROU.</p><ol id="r"></ol>
 <script>
 const r=document.getElementById('r');
-function linha(t,ok,extra){const li=document.createElement('li');li.innerHTML=t+': <span class="'+(ok?'ok':'mau')+'">'+(ok?'OK':'FALHOU')+'</span>'+(extra?'<br><code>'+extra+'</code>':'');r.appendChild(li);}
-const WFS='https://paragens.amp.pt/geoserver/paragens/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=paragens:paragens_geoserver&outputFormat=application/json&srsName=EPSG:4326&maxFeatures=3';
+function linha(t,ok,extra){const li=document.createElement('li');li.innerHTML=t+': <span class="'+(ok?'ok':'mau')+'">'+(ok?'OK':'FALHOU')+'</span>'+(extra?'<br><code>'+String(extra).replace(/</g,'&lt;').slice(0,200)+'</code>':'');r.appendChild(li);}
+const rel={quando:new Date().toISOString(),ua:navigator.userAgent,paginas:{},scripts:{},endpoints:{},achados:[]};
+async function ler(u,ms){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||12000);try{const x=await fetch(u,{signal:c.signal});const tx=await x.text();return {ok:true,status:x.status,texto:tx};}catch(e){return {ok:false,erro:String(e)};}finally{clearTimeout(t);}}
+const RE=/(acarto2\\/[A-Za-z0-9_]+|geoserver\\/[A-Za-z0-9_\\/]+\\?[^"'\\s]{0,200}|typeName=[A-Za-z0-9_:]+|https?:\\/\\/[A-Za-z0-9.\\-]*(amp|unir)[A-Za-z0-9.\\-]*\\/[^"'\\s)]{0,120})/g;
+function achar(txt,origem){const m=txt.match(RE)||[];for(const x of m){if(rel.achados.length<400&&!rel.achados.some(a=>a.v===x))rel.achados.push({v:x,o:origem});}}
 (async()=>{
-  try{await fetch('https://paragens.amp.pt/unirmap/',{mode:'no-cors'});linha('1. O telemóvel chega aos servidores da AMP',true);}catch(e){linha('1. O telemóvel chega aos servidores da AMP',false,String(e));}
-  let codigo='';
-  try{const x=await fetch(WFS);const j=await x.json();codigo=(j.features&&j.features[0]&&j.features[0].properties.codparagem)||'';linha('2. Lista de paragens legível pela app',true,'ex.: '+codigo+' '+((j.features[0]||{}).properties||{}).designacao);}catch(e){linha('2. Lista de paragens legível pela app',false,String(e));}
-  try{const d=new Date().toISOString().slice(0,10);const x=await fetch('https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+d+'&id='+encodeURIComponent(codigo||'x'));const t=await x.text();linha('3. Horários legíveis pela app',true,t.slice(0,160));}catch(e){linha('3. Horários legíveis pela app',false,String(e));}
-  const li=document.createElement('li');li.innerHTML='<b>Tira uma captura a este ecrã e manda ao Claude.</b>';r.appendChild(li);
+  const paginas=['https://qhoras.unirmobilidade.pt/','https://paragens.amp.pt/web/qihoras/pages/stop.html','https://paragens.amp.pt/unirmap/','https://paragens.amp.pt/web/horarios_pdf/pages/schedules.html?ut=1','https://paragens.amp.pt/web/qihoras/'];
+  for(const p of paginas){const x=await ler(p);rel.paginas[p]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,300)}:{erro:x.erro};linha('Página '+p,x.ok,x.ok?x.texto.length+' bytes':x.erro);
+    if(x.ok){achar(x.texto,p);const srcs=[...x.texto.matchAll(/(?:src|href)=["']([^"']+\\.(?:js|json)[^"']*)["']/g)].map(m=>new URL(m[1],p).href);
+      for(const s of srcs.slice(0,12)){if(rel.scripts[s])continue;const y=await ler(s);rel.scripts[s]=y.ok?{status:y.status,tam:y.texto.length}:{erro:y.erro};if(y.ok)achar(y.texto,s);}}}
+  const d=new Date().toISOString().slice(0,10);
+  const testes=['get_paragens','get_paragens_prg','get_linhas','get_linhas_prg','get_paragens_linha','get_percurso','get_percursos','get_horarios_linha','get_info_paragem','get_paragem','get_stops'];
+  for(const n of testes){const x=await ler('https://paragens.amp.pt/acarto2/'+n+'?dia='+d,8000);rel.endpoints[n]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,400)}:{erro:x.erro};}
+  for(const a of rel.achados.filter(a=>/acarto2\\//.test(a.v)).slice(0,20)){const n=a.v.split('/').pop();if(rel.endpoints[n])continue;const x=await ler('https://paragens.amp.pt/acarto2/'+n+'?dia='+d,8000);rel.endpoints[n]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,400)}:{erro:x.erro};}
+  linha('Endereços encontrados',rel.achados.length>0,rel.achados.length+' encontrados');
+  try{await fetch('/api/diagnostico-unir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rel)});linha('Resultado enviado à PAROU',true);}catch(e){linha('Resultado enviado à PAROU',false,String(e));}
+  const li=document.createElement('li');li.innerHTML='<b>Concluído.</b> Podes fechar a página e avisar o Claude.';r.appendChild(li);
 })();
 </script></body></html>`);
+});
+
+// Relatório enviado pela página de diagnóstico (guardado para análise; sem dados pessoais)
+app.post('/api/diagnostico-unir', (req: Request, res: Response) => {
+  try {
+    const txt = JSON.stringify(req.body || {}).slice(0, 400_000);
+    const pasta = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
+    fs.mkdirSync(pasta, { recursive: true });
+    fs.writeFileSync(path.join(pasta, `diag-unir-${Date.now()}.json`), txt);
+    console.log(`[Diag UNIR] relatório recebido (${txt.length} bytes)`);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false });
+  }
 });
 
 // (sitemap.xml: ver src/server/seo/paginas.ts — índice com páginas, linhas e paragens)
