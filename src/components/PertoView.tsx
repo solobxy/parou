@@ -82,7 +82,12 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
   try {
     const curZoom = map.getZoom();
     const targetZoom = Number.isFinite(zoom) ? zoom! : curZoom;
-    map.flyTo([lat, lon], targetZoom);
+    const distancia = map.getCenter().distanceTo([lat, lon]);
+    // Já está ali: não mexe (o GPS manda posições a cada segundo)
+    if (distancia < 15 && Math.abs(curZoom - targetZoom) < 0.01) return;
+    // Pequenos ajustes deslizam; só os saltos grandes fazem o "voo"
+    if (distancia < 2000) map.setView([lat, lon], targetZoom, { animate: true });
+    else map.flyTo([lat, lon], targetZoom, { duration: 0.8 });
   } catch (err) {
     console.warn('[PertoView] safeFlyTo error:', err);
   }
@@ -92,6 +97,11 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
 let lastNearbyStops: NearbyStopItem[] = [];
 let lastNearbyVehicles: NearbyVehicleItem[] = [];
 let lastNearbyAlerts: CentralAlert[] = [];
+let ultimoRaioUsado = 0;
+let ultimoFiltro: 'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos' = 'todos';
+// Vista do mapa e se segue o utilizador: ao voltar ao Perto fica tudo como estava
+let ultimaVistaMapa: { lat: number; lon: number; zoom: number; t: number } | null = null;
+let ultimoSeguir = true;
 
 export const PertoView: React.FC<PertoViewProps> = ({
   initialDestination,
@@ -114,8 +124,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
   const [dbLoadingMessage, setDbLoadingMessage] = useState<string>('A carregar horários…');
   const [selectedRadius, setSelectedRadius] = useState<number>(1000);
-  const [raioUsado, setRaioUsado] = useState<number>(0);
-  const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>('todos');
+  const [raioUsado, setRaioUsado] = useState<number>(ultimoRaioUsado);
+  const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>(ultimoFiltro);
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
   const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean } | null>(null);
@@ -135,14 +145,21 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const stopsMarkersRef = useRef<L.Marker[]>([]);
-  const [followMode, setFollowMode] = useState<boolean>(true);
-  const hasCenteredInitiallyRef = useRef<boolean>(false);
+  // Passados 10 min longe do Perto volta a seguir o utilizador (pode já estar noutro sítio)
+  const [followMode, setFollowMode] = useState<boolean>(
+    () => ultimoSeguir || !ultimaVistaMapa || Date.now() - ultimaVistaMapa.t > 10 * 60_000,
+  );
+  // Se já há posição ao abrir, o mapa nasce centrado nela (não precisa de "voar" até lá)
+  const hasCenteredInitiallyRef = useRef<boolean>(Boolean(userCoords));
   const isFetchingNearbyRef = useRef<boolean>(false);
   const retryAttemptRef = useRef<number>(0);
 
   useEffect(() => {
     setFavoriteStopIds(getFavoriteStopIds());
   }, []);
+
+  useEffect(() => { ultimoSeguir = followMode; }, [followMode]);
+  useEffect(() => { ultimoFiltro = activeFilterTab; }, [activeFilterTab]);
 
   const repetirPedidoRef = useRef<boolean>(false);
   const loadNearbyData = useCallback(async () => {
@@ -175,7 +192,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
           lastNearbyStops = data.stops;
           setStops(data.stops);
         }
-        if (typeof data.radiusMeters === 'number' && data.radiusMeters > 0) setRaioUsado(data.radiusMeters);
+        if (typeof data.radiusMeters === 'number' && data.radiusMeters > 0) {
+          ultimoRaioUsado = data.radiusMeters;
+          setRaioUsado(data.radiusMeters);
+        }
         if (data.vehicles) {
           lastNearbyVehicles = data.vehicles;
           setVehicles(data.vehicles);
@@ -357,12 +377,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const lat = userCoords?.latitude ?? 38.7253;
-    const lon = userCoords?.longitude ?? -9.1500;
+    // Volta à vista onde o utilizador deixou o mapa; senão centra na posição dele
+    const vista = !followMode && ultimaVistaMapa ? ultimaVistaMapa : null;
+    const lat = vista?.lat ?? userCoords?.latitude ?? 38.7253;
+    const lon = vista?.lon ?? userCoords?.longitude ?? -9.1500;
+    const zoomInicial = vista?.zoom ?? (userCoords ? 16 : 15);
 
     const map = L.map(mapContainerRef.current, {
       center: [lat, lon],
-      zoom: 15,
+      zoom: zoomInicial,
       maxZoom: 19,
       zoomControl: false,
       attributionControl: false,
@@ -388,6 +411,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
     }).addTo(map);
 
     map.on('dragstart', () => setFollowMode(false));
+    map.on('moveend', () => {
+      const c = map.getCenter();
+      ultimaVistaMapa = { lat: c.lat, lon: c.lng, zoom: map.getZoom(), t: Date.now() };
+    });
     mapRef.current = map;
 
     // ResizeObserver para manter o mapa atualizado
@@ -493,6 +520,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const marker = L.marker([lat, lon], { icon: stopIcon }).addTo(mapRef.current!);
       marker.on('click', () => {
         setSelectedStop(stop);
+        setFollowMode(false);
         safeFlyTo(mapRef.current, lat, lon, 16.5);
       });
 

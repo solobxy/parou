@@ -22,6 +22,7 @@ import { FilterState } from '../types';
 import { LineCard } from './LineCard';
 import { LineDetailModal } from './LineDetailModal';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 
 interface HorariosViewProps {
   filters?: FilterState;
@@ -44,7 +45,10 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [selectedMode, setSelectedMode] = useState<string>('Todos');
 
   // GPS & "Perto de mim"
-  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(() => {
+    const p = ultimaPosicaoConhecida();
+    return p ? { lat: p.latitude, lon: p.longitude } : null;
+  });
   const [nearLines, setNearLines] = useState<ApiLineItem[]>(lastNearLines);
   const [isNearLoading, setIsNearLoading] = useState<boolean>(false);
 
@@ -90,15 +94,24 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     });
   }, []);
 
-  // Request GPS
+  // Posição: usa logo a última conhecida (do Perto ou de outra visita) e depois atualiza
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        lembrarPosicao({
+          latitude: lat, longitude: lon, accuracy: Math.round(pos.coords.accuracy || 10),
+          heading: null, speed: null, timestamp: pos.timestamp || Date.now(), source: 'gps_high', isManual: false,
+        });
+        // Só troca se mudou mais de ~100 m (evita pedir tudo outra vez por nada)
+        setUserCoords((atual) =>
+          atual && Math.abs(atual.lat - lat) < 0.001 && Math.abs(atual.lon - lon) < 0.001 ? atual : { lat, lon },
+        );
       },
       () => {},
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 30000 }
     );
   }, []);
 

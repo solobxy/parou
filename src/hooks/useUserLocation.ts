@@ -26,15 +26,67 @@ function jaDeuLocalizacao(): boolean {
   try { return localStorage.getItem(CHAVE_LOCALIZACAO_OK) === '1'; } catch { return false; }
 }
 
+// Última posição conhecida, partilhada por todos os separadores. Fica em memória enquanto
+// a app está aberta (trocar de separador não volta ao início) e a do GPS fica também no
+// telemóvel, para a app abrir logo no sítio certo enquanto o GPS afina a posição.
+const CHAVE_ULTIMA_POSICAO = 'parou_ultima_posicao';
+const VALIDADE_POSICAO_GUARDADA_MS = 12 * 60 * 60 * 1000;
+let ultimaGravacao = 0;
+// Houve posição do GPS desde que a página abriu (o browser já deu autorização nesta visita)
+let gpsNestaSessao = false;
+
+function lerPosicaoGuardada(): UserCoords | null {
+  try {
+    if (typeof window === 'undefined' || !jaDeuLocalizacao()) return null;
+    const p = JSON.parse(localStorage.getItem(CHAVE_ULTIMA_POSICAO) || 'null');
+    if (!p || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return null;
+    if (Date.now() - Number(p.timestamp || 0) > VALIDADE_POSICAO_GUARDADA_MS) return null;
+    return { ...p, heading: null, speed: null, isManual: false };
+  } catch {
+    return null;
+  }
+}
+
+let memoriaPosicao: UserCoords | null = lerPosicaoGuardada();
+
+/** Última posição conhecida (GPS ou local escolhido), ou null. */
+export function ultimaPosicaoConhecida(): UserCoords | null {
+  return memoriaPosicao;
+}
+
+/** Guarda a posição para os outros separadores (e a do GPS no telemóvel, no máximo a cada 15 s). */
+export function lembrarPosicao(c: UserCoords | null) {
+  memoriaPosicao = c;
+  if (!c || c.isManual) return;
+  const agora = Date.now();
+  if (agora - ultimaGravacao < 15000) return;
+  ultimaGravacao = agora;
+  try {
+    localStorage.setItem(CHAVE_ULTIMA_POSICAO, JSON.stringify({
+      latitude: c.latitude, longitude: c.longitude, accuracy: c.accuracy, timestamp: c.timestamp, source: c.source,
+    }));
+  } catch {}
+}
+
+function esquecerPosicao() {
+  memoriaPosicao = null;
+  try { localStorage.removeItem(CHAVE_ULTIMA_POSICAO); } catch {}
+}
+
 export function useUserLocation() {
-  const [status, setStatus] = useState<LocationPermissionStatus>('idle');
-  const [coords, setCoords] = useState<UserCoords | null>(null);
+  // Começa já na última posição conhecida: ao voltar ao Perto o mapa não salta para Lisboa
+  const [status, setStatus] = useState<LocationPermissionStatus>(() => (memoriaPosicao ? 'active' : 'idle'));
+  const [coords, setCoordsEstado] = useState<UserCoords | null>(() => memoriaPosicao);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [followMode, setFollowMode] = useState<boolean>(true);
   const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
 
   const watchIdRef = useRef<number | null>(null);
-  const previousCoordsRef = useRef<UserCoords | null>(null);
+  const previousCoordsRef = useRef<UserCoords | null>(memoriaPosicao && !memoriaPosicao.isManual ? memoriaPosicao : null);
+  const setCoords = useCallback((c: UserCoords | null) => {
+    lembrarPosicao(c);
+    setCoordsEstado(c);
+  }, []);
 
   // Stop tracking and clean up
   const stopLocation = useCallback(() => {
@@ -44,9 +96,10 @@ export function useUserLocation() {
     }
     setStatus('idle');
     setCoords(null);
+    esquecerPosicao();
     setErrorMessage(null);
     setFollowMode(false);
-  }, []);
+  }, [setCoords]);
 
   // Request & activate location (with high accuracy priority + graceful standard fallback)
   const activateLocation = useCallback((forceHighAccuracy: boolean = true) => {
@@ -56,7 +109,8 @@ export function useUserLocation() {
       return;
     }
 
-    setStatus('requesting');
+    // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
+    if (!previousCoordsRef.current) setStatus('requesting');
     setErrorMessage(null);
 
     // Clear any previous watcher
@@ -87,6 +141,7 @@ export function useUserLocation() {
         isManual: false,
       };
 
+      gpsNestaSessao = true;
       setCoords(newCoords);
       setStatus('active');
       setErrorMessage(null);
@@ -130,7 +185,7 @@ export function useUserLocation() {
         (err) => {
           console.warn('[PAROU GPS watchPosition error]:', err.code, err.message);
           // If already got a position from getCurrentPosition, keep active
-          if (!previousCoordsRef.current) {
+          if (!previousCoordsRef.current || err.code === err.PERMISSION_DENIED) {
             handlePositionError(err);
           }
         },
@@ -141,13 +196,19 @@ export function useUserLocation() {
     } catch (err) {
       console.error('[PAROU GPS] Exceção watchPosition:', err);
     }
-  }, []);
+  }, [setCoords]);
 
   const handlePositionError = (error: GeolocationPositionError) => {
     console.warn('[PAROU GPS] Erro de geolocalização:', error.code, error.message);
     if (error.code === error.PERMISSION_DENIED) {
+      previousCoordsRef.current = null;
+      setCoords(null);
+      esquecerPosicao();
       setStatus('denied');
       setErrorMessage('Permissão de localização recusada no navegador.');
+    } else if (previousCoordsRef.current) {
+      // Falha passageira (túnel, interior): fica na última posição em vez de esconder tudo
+      setStatus('active');
     } else if (error.code === error.POSITION_UNAVAILABLE) {
       setStatus('unavailable');
       setErrorMessage('Sinal GPS temporariamente indisponível.');
@@ -212,7 +273,7 @@ export function useUserLocation() {
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     });
-  }, []);
+  }, [setCoords]);
 
   // Set manual coordinates when user clicks on map or searches address to fix inaccurate GPS
   const setManualLocation = useCallback((lat: number, lon: number, label?: string) => {
@@ -237,7 +298,7 @@ export function useUserLocation() {
     setCoords(manualCoords);
     setStatus('active');
     setFollowMode(true);
-  }, []);
+  }, [setCoords]);
 
   // Handle user dragging / panning map -> stop auto follow
   const handleMapInteraction = useCallback(() => {
@@ -263,17 +324,33 @@ export function useUserLocation() {
   const permissionStatusRef = useRef<PermissionStatus | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    // Um local escolhido à mão mantém-se ao trocar de separador (não é trocado pelo GPS)
+    const localEscolhido = Boolean(memoriaPosicao?.isManual);
     if (!('permissions' in navigator) || !navigator.permissions?.query) {
-      if (jaDeuLocalizacao()) activateLocation(true);
+      if (jaDeuLocalizacao() && !localEscolhido) activateLocation(true);
       return;
     }
     navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
       permissionStatusRef.current = result;
       if (result.state === 'granted') {
-        activateLocation(true);
+        if (!localEscolhido) activateLocation(true);
       } else if (result.state === 'denied') {
-        setStatus('denied');
-        setErrorMessage('Permissão de localização recusada no navegador.');
+        if (!localEscolhido) {
+          previousCoordsRef.current = null;
+          setCoords(null);
+          esquecerPosicao();
+          setStatus('denied');
+          setErrorMessage('Permissão de localização recusada no navegador.');
+        }
+      } else if (!localEscolhido && previousCoordsRef.current && gpsNestaSessao) {
+        // Alguns browsers (Safari) dizem 'prompt' mesmo depois de autorizarem nesta visita
+        activateLocation(true);
+      } else if (!localEscolhido && previousCoordsRef.current) {
+        // A autorização foi retirada entretanto: volta ao convite para ativar
+        previousCoordsRef.current = null;
+        setCoords(null);
+        esquecerPosicao();
+        setStatus('idle');
       }
       result.onchange = () => {
         if (result.state === 'granted') {
@@ -284,9 +361,9 @@ export function useUserLocation() {
       };
     }).catch(() => {
       // Sem Permissions API para geolocalização (ex.: Safari antigo)
-      if (jaDeuLocalizacao()) activateLocation(true);
+      if (jaDeuLocalizacao() && !localEscolhido) activateLocation(true);
     });
-  }, [activateLocation]);
+  }, [activateLocation, setCoords]);
 
   // Clean up watcher on unmount
   useEffect(() => {
