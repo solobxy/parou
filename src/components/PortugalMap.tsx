@@ -14,6 +14,7 @@ import { ACCURATE_PORTUGAL_DISTRICTS } from '../data/portugalDistrictsGeo';
 import { normalizeGeoString } from '../utils/mapClustering';
 import { ClusterDetailModal } from './ClusterDetailModal';
 import { PontoMapa, TipoPontoMapa, GrupoCamada, grupoDoPonto } from '../types/mapa';
+import { formatarQuando } from '../utils/quando';
 
 // Símbolos (desenhos dos ícones Lucide) para os pontos do mapa
 const SVG_ICONES: Record<TipoPontoMapa, string> = {
@@ -463,6 +464,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
           <div style="font-size:14px;font-weight:700;color:#111111;line-height:1.25">${escaparHtml(p.titulo)}</div>
           ${p.subtitulo ? `<div style="font-size:12.5px;color:#4B4B4B;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
+          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${p.tipo === 'aviso_tempo' ? 'Desde' : 'Início'}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>até</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
           <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">Fonte: ${ligacao}</div>
         </div>`,
         { closeButton: true, autoPanPadding: [24, 24] },

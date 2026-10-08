@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Occurrence, PublicSourceConfig } from '../types';
 import { fetchPublicSourcesList, syncPublicSourcesNow } from '../services/publicSourcesClient';
+import { quandoAconteceu } from '../utils/quando';
 
 interface PublicSourcesModalProps {
   isOpen: boolean;
@@ -191,7 +192,7 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-semibold text-[#111111] truncate">{occ.title}</span>
                       <span className="font-['Barlow_Condensed'] text-[#6B6B6B] tabular-nums shrink-0">
-                        {occ.reportedAt}
+                        {quandoAconteceu(occ)}
                       </span>
                     </div>
                     <div className="text-xs text-[#6B6B6B] line-clamp-1">{occ.description}</div>

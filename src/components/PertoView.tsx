@@ -119,6 +119,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Passos para desbloquear (aparecem quando "Ativar localização" não chega)
   const [ajudaLocalizacao, setAjudaLocalizacao] = useState<boolean>(false);
   const eIphone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '');
+  useEffect(() => { if (gpsStatus === 'active') setAjudaLocalizacao(false); }, [gpsStatus]);
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
   const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
@@ -687,12 +688,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <h3 className="mt-2.5 text-[17px] font-bold text-[#111111] leading-tight">{titulo}</h3>
           <p className="mt-1.5 text-[13px] text-[#6B6B6B] leading-snug">{texto}</p>
 
-          {ajudaLocalizacao && (
-            <ol className="mt-3 text-left text-[12.5px] text-[#111111] leading-snug space-y-1.5 bg-[#F4F4F2] rounded-[12px] p-3 list-decimal pl-7">
-              {passos.map((p) => <li key={p}>{p}</li>)}
-            </ol>
-          )}
-
           <button
             onClick={() => {
               activateLocation(true);
@@ -713,7 +708,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <RefreshCw className="w-4 h-4 stroke-[2.25]" />
             Tentar outra vez
           </button>
-          {!ajudaLocalizacao && (
+          {ajudaLocalizacao ? (
+            <ol className="mt-3 text-left text-[12.5px] text-[#111111] leading-snug space-y-1.5 bg-[#F4F4F2] rounded-[12px] p-3 list-decimal pl-7">
+              {passos.map((p) => <li key={p}>{p}</li>)}
+            </ol>
+          ) : (
             <button
               onClick={() => setAjudaLocalizacao(true)}
               className="mt-1 w-full h-9 text-[12.5px] font-medium text-[#6B6B6B] cursor-pointer"
@@ -1215,7 +1214,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       <main
         className={`perto-mapa relative order-first lg:order-none w-full shrink-0 lg:shrink lg:flex-1 lg:h-full lg:max-h-none bg-[#F4F4F2] overflow-hidden select-none transition-[height] duration-300 ${
           !localizacaoPronta
-            ? 'h-[52%] min-h-[320px] max-h-[460px]'
+            ? (ajudaLocalizacao && (gpsStatus === 'denied' || gpsStatus === 'unavailable') ? 'h-[82%]' : 'h-[52%] min-h-[320px] max-h-[460px]')
             : mapaExpandido ? 'h-[68%]' : 'h-[42%] min-h-[230px] max-h-[400px]'
         }`}
       >

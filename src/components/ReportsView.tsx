@@ -10,6 +10,7 @@ import {
 import { Occurrence, FilterState } from '../types';
 import { DISTRITOS_OPTIONS } from '../data/mockData';
 import { getAvailableConcelhos, countActiveFilters } from '../utils/filterUtils';
+import { quandoAconteceu } from '../utils/quando';
 
 interface ReportsViewProps {
   occurrences: Occurrence[];
@@ -281,7 +282,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                 <div className="shrink-0 flex items-center gap-2 text-right">
                   <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
-                    {occ.reportedAt}
+                    {quandoAconteceu(occ)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2]" />
                 </div>

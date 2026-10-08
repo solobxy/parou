@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, AlertTriangle, MapPin, Clock } from 'lucide-react';
 import { Occurrence } from '../types';
+import { quandoAconteceu } from '../utils/quando';
 
 interface FeaturedOccurrenceProps {
   occurrences: Occurrence[];
@@ -58,7 +59,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#6B6B6B] font-['Barlow_Condensed'] tabular-nums">
-            {current.reportedAt}
+            {quandoAconteceu(current)}
           </span>
           {occurrences.length > 1 && (
             <div className="flex items-center gap-1">

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout } from '../services/firebase';
+import { quandoAconteceu } from '../utils/quando';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -143,7 +144,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       <MapPin className="w-3 h-3 stroke-[2]" />
                       <span>{occ.district}</span>
                       <span>·</span>
-                      <span className="font-['Barlow_Condensed'] tabular-nums">{occ.reportedAt}</span>
+                      <span className="font-['Barlow_Condensed'] tabular-nums">{quandoAconteceu(occ)}</span>
                     </div>
                   </div>
 
