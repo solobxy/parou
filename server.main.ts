@@ -1371,46 +1371,88 @@ app.get('/robots.txt', (req: Request, res: Response) => {
 });
 
 // Diagnóstico da UNIR: os servidores da AMP não aceitam ligações do nosso servidor (fora de
-// Portugal). Esta página testa, a partir do telemóvel de quem a abre, se o browser consegue ler
-// os horários da AMP diretamente (se sim, a app pode buscá-los do lado do telemóvel).
+// Portugal). Esta página testa, a partir do telemóvel de quem a abre (em Portugal), que formas
+// tem o browser de ler os dados da AMP (CORS, JSONP, imagens do mapa) e envia o resultado.
 app.get('/diagnostico-unir', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('X-Robots-Tag', 'noindex');
   res.setHeader('Cache-Control', 'no-store');
   res.send(`<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Diagnóstico UNIR | PAROU</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}li{margin:8px 0}.ok{color:#1F7A3A;font-weight:700}.mau{color:#D92D20;font-weight:700}code{font-size:12px;word-break:break-all}</style></head><body>
-<h1>Diagnóstico UNIR (2)</h1><p>Deixa esta página aberta até aparecer <b>Concluído</b> (pode demorar 1 minuto). O resultado é enviado automaticamente para a PAROU.</p><ol id="r"></ol>
+<h1>Diagnóstico UNIR (3)</h1><p>Deixa esta página aberta até aparecer <b>Concluído</b> (pode demorar 1 a 2 minutos). O resultado é enviado automaticamente para a PAROU.</p><ol id="r"></ol>
 <script>
 const r=document.getElementById('r');
 function linha(t,ok,extra){const li=document.createElement('li');li.innerHTML=t+': <span class="'+(ok?'ok':'mau')+'">'+(ok?'OK':'FALHOU')+'</span>'+(extra?'<br><code>'+String(extra).replace(/</g,'&lt;').slice(0,200)+'</code>':'');r.appendChild(li);}
-const rel={quando:new Date().toISOString(),ua:navigator.userAgent,paginas:{},scripts:{},endpoints:{},achados:[]};
+const rel={versao:3,quando:new Date().toISOString(),ua:navigator.userAgent,testes:{}};
+const G='https://paragens.amp.pt/geoserver/';
+const WFS=(ws,tn,cb,max)=>G+ws+'/ows?service=WFS&version=1.0.0&request=GetFeature&typeName='+tn+'&outputFormat=text%2Fjavascript&format_options=callback%3A'+cb+'&srsName=EPSG%3A4326'+(max?'&maxFeatures='+max:'');
+let n=0;
+function jsonp(url,ms){return new Promise(res=>{const cb='__p'+(++n);let feito=false;const s=document.createElement('script');const fim=v=>{if(feito)return;feito=true;try{delete window[cb]}catch(e){}s.remove();res(v)};window[cb]=d=>fim({ok:true,d});s.onerror=()=>fim({ok:false,erro:'erro ao carregar'});s.onload=()=>setTimeout(()=>fim({ok:false,erro:'carregou sem resposta'}),100);setTimeout(()=>fim({ok:false,erro:'tempo esgotado'}),ms||20000);s.src=url.replace(/CB/g,cb);document.head.appendChild(s);});}
+function imagem(url,ms){return new Promise(res=>{const i=new Image();let feito=false;const fim=v=>{if(!feito){feito=true;res(v)}};i.onload=()=>fim({ok:true,w:i.naturalWidth,h:i.naturalHeight});i.onerror=()=>fim({ok:false,erro:'erro'});setTimeout(()=>fim({ok:false,erro:'tempo esgotado'}),ms||15000);i.src=url;});}
+async function semCors(url){try{const c=new AbortController();setTimeout(()=>c.abort(),12000);await fetch(url,{mode:'no-cors',signal:c.signal});return 'respondeu';}catch(e){return 'sem resposta: '+e;}}
 async function ler(u,ms){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||12000);try{const x=await fetch(u,{signal:c.signal});const tx=await x.text();return {ok:true,status:x.status,texto:tx};}catch(e){return {ok:false,erro:String(e)};}finally{clearTimeout(t);}}
-const RE=/(acarto2\\/[A-Za-z0-9_]+|geoserver\\/[A-Za-z0-9_\\/]+\\?[^"'\\s]{0,200}|typeName=[A-Za-z0-9_:]+|https?:\\/\\/[A-Za-z0-9.\\-]*(amp|unir)[A-Za-z0-9.\\-]*\\/[^"'\\s)]{0,120})/g;
-function achar(txt,origem){const m=txt.match(RE)||[];for(const x of m){if(rel.achados.length<400&&!rel.achados.some(a=>a.v===x))rel.achados.push({v:x,o:origem});}}
+function resumo(d){const f=(d&&d.features)||[];return {total:d&&d.totalFeatures,n:f.length,campos:f[0]?Object.keys(f[0].properties||{}):[],exemplo:f.slice(0,3)};}
+async function enviar(url,obj){try{const x=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});return x.ok;}catch(e){return false;}}
 (async()=>{
-  const paginas=['https://qhoras.unirmobilidade.pt/','https://paragens.amp.pt/web/qihoras/pages/stop.html','https://paragens.amp.pt/unirmap/','https://paragens.amp.pt/web/horarios_pdf/pages/schedules.html?ut=1','https://paragens.amp.pt/web/qihoras/'];
-  for(const p of paginas){const x=await ler(p);rel.paginas[p]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,300)}:{erro:x.erro};linha('Página '+p,x.ok,x.ok?x.texto.length+' bytes':x.erro);
-    if(x.ok){achar(x.texto,p);const srcs=[...x.texto.matchAll(/(?:src|href)=["']([^"']+\\.(?:js|json)[^"']*)["']/g)].map(m=>new URL(m[1],p).href);
-      for(const s of srcs.slice(0,12)){if(rel.scripts[s])continue;const y=await ler(s);rel.scripts[s]=y.ok?{status:y.status,tam:y.texto.length}:{erro:y.erro};if(y.ok)achar(y.texto,s);}}}
+  const T=rel.testes;
+  T.alcance=await semCors(G+'paragens/ows?service=WFS&request=GetCapabilities');
+  linha('Servidor do mapa da AMP alcançável',T.alcance==='respondeu',T.alcance);
+  // 1. Imagens do mapa (WMS) — funcionam sempre que o servidor responde
+  const bb='-8.64,41.13,-8.56,41.19';
+  const wms=l=>G+'paragens/wms?service=WMS&version=1.1.1&request=GetMap&layers='+l+'&styles=&bbox='+bb+'&width=256&height=256&srs=EPSG%3A4326&format=image%2Fpng&transparent=true';
+  T.wms={};
+  for(const l of ['paragens:paragens_geoserver','paragens:nao_existe_123','paragens:linhas_geoserver','paragens:percursos_geoserver','paragens:linhas','paragens:percursos','paragens:paragens']){T.wms[l]=await imagem(wms(l));}
+  linha('Mapa das paragens em imagem (WMS)',T.wms['paragens:paragens_geoserver'].ok,JSON.stringify(T.wms['paragens:paragens_geoserver']));
+  // 2. Lista de paragens por JSONP (contorna o CORS se a AMP o tiver ligado)
+  let a=await jsonp(WFS('paragens','paragens:paragens_geoserver','CB',5));
+  if(!a.ok){const b=await jsonp(G+'ows?service=WFS&version=1.0.0&request=GetFeature&typeName=paragens:paragens_geoserver&outputFormat=text%2Fjavascript&format_options=callback%3ACB&srsName=EPSG%3A4326&maxFeatures=5');T.jsonpAlt=b.ok?resumo(b.d):b.erro;if(b.ok)a=b;}
+  T.jsonp=a.ok?resumo(a.d):a.erro;
+  linha('Lista de paragens legível (JSONP)',a.ok,a.ok?JSON.stringify(T.jsonp.campos):a.erro);
+  let codigo=null;
+  if(a.ok){
+    const f=(a.d.features||[])[0];codigo=f&&f.properties&&(f.properties.codparagem||f.properties.cod_paragem||f.properties.id);
+    T.outrasCamadas={};
+    for(const tn of ['paragens:linhas_geoserver','paragens:percursos_geoserver','paragens:linhas','paragens:percursos']){const x=await jsonp(WFS('paragens',tn,'CB',2),12000);T.outrasCamadas[tn]=x.ok?resumo(x.d):x.erro;}
+    const t0=Date.now();const tudo=await jsonp(WFS('paragens','paragens:paragens_geoserver','CB',0),90000);
+    if(tudo.ok){const f=tudo.d.features||[];T.completo={n:f.length,ms:Date.now()-t0};const ok=await enviar('/api/diagnostico-unir/paragens',{quando:rel.quando,features:f});linha('Todas as paragens ('+f.length+') enviadas à PAROU',ok);}
+    else{T.completo=tudo.erro;linha('Todas as paragens',false,tudo.erro);}
+  }
+  // 3. Horários de uma paragem (CORS)
   const d=new Date().toISOString().slice(0,10);
-  const testes=['get_paragens','get_paragens_prg','get_linhas','get_linhas_prg','get_paragens_linha','get_percurso','get_percursos','get_horarios_linha','get_info_paragem','get_paragem','get_stops'];
-  for(const n of testes){const x=await ler('https://paragens.amp.pt/acarto2/'+n+'?dia='+d,8000);rel.endpoints[n]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,400)}:{erro:x.erro};}
-  for(const a of rel.achados.filter(a=>/acarto2\\//.test(a.v)).slice(0,20)){const n=a.v.split('/').pop();if(rel.endpoints[n])continue;const x=await ler('https://paragens.amp.pt/acarto2/'+n+'?dia='+d,8000);rel.endpoints[n]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,400)}:{erro:x.erro};}
-  linha('Endereços encontrados',rel.achados.length>0,rel.achados.length+' encontrados');
-  try{await fetch('/api/diagnostico-unir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rel)});linha('Resultado enviado à PAROU',true);}catch(e){linha('Resultado enviado à PAROU',false,String(e));}
+  for(const c of [codigo,'PRT1','1','GDM1'].filter(Boolean).slice(0,2)){const x=await ler('https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+d+'&id='+encodeURIComponent(c),12000);T['horarios_'+c]=x.ok?{status:x.status,tam:x.texto.length,inicio:x.texto.slice(0,3000)}:x.erro;}
+  if(codigo){const h=T['horarios_'+codigo];linha('Horários da paragem '+codigo,h&&h.status===200,h&&h.inicio?h.inicio.slice(0,150):String(h));}
+  const ok=await enviar('/api/diagnostico-unir',rel);linha('Resultado enviado à PAROU',ok);
   const li=document.createElement('li');li.innerHTML='<b>Concluído.</b> Podes fechar a página e avisar o Claude.';r.appendChild(li);
 })();
 </script></body></html>`);
 });
 
-// Relatório enviado pela página de diagnóstico (guardado para análise; sem dados pessoais)
+// Relatórios enviados pela página de diagnóstico (sem dados pessoais). Guarda só os 12 mais recentes.
+function guardarDiagnostico(prefixo: string, txt: string) {
+  const pasta = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
+  fs.mkdirSync(pasta, { recursive: true });
+  fs.writeFileSync(path.join(pasta, `${prefixo}-${Date.now()}.json`), txt);
+  const re = new RegExp(`^${prefixo}-\\d+\\.json$`);
+  const antigos = fs.readdirSync(pasta).filter((f) => re.test(f)).sort().reverse().slice(12);
+  for (const f of antigos) { try { fs.unlinkSync(path.join(pasta, f)); } catch {} }
+}
 app.post('/api/diagnostico-unir', (req: Request, res: Response) => {
   try {
     const txt = JSON.stringify(req.body || {}).slice(0, 400_000);
-    const pasta = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
-    fs.mkdirSync(pasta, { recursive: true });
-    fs.writeFileSync(path.join(pasta, `diag-unir-${Date.now()}.json`), txt);
+    guardarDiagnostico('diag-unir', txt);
     console.log(`[Diag UNIR] relatório recebido (${txt.length} bytes)`);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false });
+  }
+});
+app.post('/api/diagnostico-unir/paragens', (req: Request, res: Response) => {
+  try {
+    const f = Array.isArray(req.body?.features) ? req.body.features : [];
+    if (!f.length) return res.status(400).json({ ok: false });
+    const txt = JSON.stringify({ quando: req.body.quando, features: f });
+    guardarDiagnostico('diag-unir-paragens', txt);
+    console.log(`[Diag UNIR] ${f.length} paragens recebidas (${txt.length} bytes)`);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ ok: false });
