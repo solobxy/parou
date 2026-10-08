@@ -982,6 +982,8 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
   for (const w of avisos) {
     const nivel = String(w.awarenessLevelID || '');
     if (nivel !== 'orange' && nivel !== 'red') continue;
+    // Agitação marítima laranja não mexe com quem anda de transportes (só a vermelha)
+    if (/agita/i.test(String(w.awarenessTypeName || '')) && nivel !== 'red') continue;
     const fim = Date.parse(String(w.endTime || ''));
     const inicio = Date.parse(String(w.startTime || ''));
     if (!Number.isFinite(fim) || fim < agora) continue;
