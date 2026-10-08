@@ -47,6 +47,8 @@ export interface NearbyStopItem {
   arrivalsOnly?: boolean;
   isFavorite?: boolean;
   wheelchairAccessible?: boolean;
+  /** Códigos UNIR da AMP (ex. "vng:255"): as partidas são pedidas à AMP pelo telemóvel */
+  unirIds?: string[];
 }
 
 export interface NearbyVehicleItem {

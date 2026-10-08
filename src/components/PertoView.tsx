@@ -30,6 +30,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
+import { passagensUnir, partidasParaMostrar, codigosUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
   searchDestinations, 
@@ -176,6 +177,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
   const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean } | null>(null);
   const [favoriteStopIds, setFavoriteStopIds] = useState<Set<string>>(new Set());
+  // UNIR: horário do dia pedido à AMP pelo telemóvel (por paragem da lista)
+  const [unirPorParagem, setUnirPorParagem] = useState<Record<string, { t: number; ok: boolean; aCarregar: boolean; passagens: PassagemUnir[] }>>({});
+  const unirPedidosRef = useRef<Set<string>>(new Set());
+  const [, setTiqueUnir] = useState(0);
 
   // Search & Navigation
   const [destinationQuery, setDestinationQuery] = useState<string>('');
@@ -592,6 +597,42 @@ export const PertoView: React.FC<PertoViewProps> = ({
       return true;
     });
   }, [stops, activeFilterTab, favoriteStopIds]);
+
+  // UNIR: pede à AMP as partidas das paragens UNIR mais próximas e da paragem aberta
+  const unirPorParagemRef = useRef(unirPorParagem);
+  unirPorParagemRef.current = unirPorParagem;
+  const pedirUnir = useCallback((stop: NearbyStopItem) => {
+    const codigos = codigosUnir(stop as any);
+    if (!codigos.length) return;
+    const atual = unirPorParagemRef.current[stop.id];
+    if (unirPedidosRef.current.has(stop.id)) return;
+    if (atual && !atual.aCarregar && Date.now() - atual.t < (atual.ok ? 5 * 60_000 : 60_000)) return;
+    unirPedidosRef.current.add(stop.id);
+    setUnirPorParagem((m) => ({ ...m, [stop.id]: { t: Date.now(), ok: atual?.ok ?? true, aCarregar: true, passagens: atual?.passagens || [] } }));
+    passagensUnir(codigos)
+      .then((r) => setUnirPorParagem((m) => ({ ...m, [stop.id]: { t: Date.now(), ok: r.ok, aCarregar: false, passagens: r.passagens } })))
+      .catch(() => setUnirPorParagem((m) => ({ ...m, [stop.id]: { t: Date.now(), ok: false, aCarregar: false, passagens: [] } })))
+      .finally(() => unirPedidosRef.current.delete(stop.id));
+  }, []);
+  useEffect(() => {
+    filteredStops.slice(0, 6).forEach((st) => pedirUnir(st));
+  }, [filteredStops, pedirUnir]);
+  useEffect(() => {
+    if (selectedStop) pedirUnir(selectedStop);
+  }, [selectedStop?.id, pedirUnir]);
+  const temUnir = Object.keys(unirPorParagem).length > 0;
+  useEffect(() => {
+    if (!temUnir) return;
+    const t = setInterval(() => setTiqueUnir((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, [temUnir]);
+  const partidasUnirDe = (stop: NearbyStopItem | null): any[] => {
+    if (!stop) return [];
+    const e = unirPorParagem[stop.id];
+    if (!e?.passagens.length) return [];
+    const cores = new Map<string, string>((stop.lines || []).map((l) => [String(l.code), l.color]));
+    return partidasParaMostrar(e.passagens, cores);
+  };
 
   // Render Stops on Map
   useEffect(() => {
@@ -1045,7 +1086,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ) : filteredStops.length > 0 ? (
             filteredStops.map((stop) => {
               const isSelected = selectedStop?.id === stop.id;
-              const stopDeps = stop.nextDepartures || [];
+              const stopDeps = [...(stop.nextDepartures || []), ...partidasUnirDe(stop)];
               const IconeModo = iconeModo(stop.transportMode);
 
               // Detetar aviso de desatualizado uma única vez por grupo/operador
@@ -1222,14 +1263,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
               {(() => {
                 const proprias = selectedStop.nextDepartures || [];
                 const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
-                const deps = proprias.length > 0 ? proprias : (extra?.deps || []);
+                const unir = codigosUnir(selectedStop as any).length ? unirPorParagem[selectedStop.id] : undefined;
+                const deps = [...(proprias.length > 0 ? proprias : (extra?.deps || [])), ...partidasUnirDe(selectedStop)];
                 const sorted = sortDepartures(deps).slice(0, 12);
                 if (sorted.length === 0) {
+                  const aCarregarUnir = Boolean(unir?.aCarregar) || (codigosUnir(selectedStop as any).length > 0 && !unir);
                   return (
                     <div className="py-4 text-sm text-[#6B6B6B]">
                       {selectedStop.arrivalsOnly
                         ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
-                        : extra?.aCarregar || (!extra && proprias.length === 0) ? 'A carregar partidas…' : 'Sem partidas nas próximas horas.'}
+                        : extra?.aCarregar || aCarregarUnir || (!extra && proprias.length === 0 && !unir) ? 'A carregar partidas…'
+                        : unir && !unir.ok ? 'Não foi possível obter agora os horários da UNIR (vêm da AMP). Tenta outra vez daqui a pouco.'
+                        : 'Sem partidas nas próximas horas.'}
                     </div>
                   );
                 }
