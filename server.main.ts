@@ -65,6 +65,29 @@ process.env.DISABLE_HMR = 'true';
 const app = express();
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
+
+// Proteção contra abusos (robôs a pedir sem parar ou uma app com um erro em ciclo): limite
+// generoso por endereço IP. Nas redes móveis muitas pessoas partilham o mesmo IP, por isso
+// o limite é alto; uma pessoa normal faz umas dezenas de pedidos por minuto.
+const LIMITE_POR_MINUTO = Number(process.env.PAROU_LIMITE_API || 1500);
+const contagemIp = new Map<string, number>();
+let janelaIp = Date.now();
+const avisadosIp = new Set<string>();
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+  const agora = Date.now();
+  if (agora - janelaIp > 60_000) { contagemIp.clear(); avisadosIp.clear(); janelaIp = agora; }
+  const remoto = req.socket.remoteAddress || '';
+  const local = remoto === '127.0.0.1' || remoto === '::1' || remoto === '::ffff:127.0.0.1';
+  const ip = (local ? String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() : '') || remoto;
+  const n = (contagemIp.get(ip) || 0) + 1;
+  contagemIp.set(ip, n);
+  if (n > LIMITE_POR_MINUTO) {
+    if (!avisadosIp.has(ip)) { avisadosIp.add(ip); console.warn(`[Limite] Demasiados pedidos de ${ip.replace(/\d+$/, 'x')}`); }
+    res.setHeader('Retry-After', '30');
+    return res.status(429).json({ erro: 'Demasiados pedidos. Tenta daqui a pouco.' });
+  }
+  next();
+});
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
