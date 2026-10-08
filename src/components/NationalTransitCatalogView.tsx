@@ -145,77 +145,71 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
         ) : (
           filteredEntries.map((op) => {
             const isProbing = probingId === op.id;
+            const aberto = selectedEntry?.id === op.id;
+            const temCurto = Boolean(op.short_name && op.short_name !== op.official_name);
+            const titulo = temCurto ? op.short_name : op.official_name;
+            const ativo = op.sync_status === 'Online';
 
             return (
-              <div
-                key={op.id}
-                onClick={() => setSelectedEntry(selectedEntry?.id === op.id ? null : op)}
-                className="p-3.5 hover:bg-[#F4F4F2] transition-colors cursor-pointer flex items-center justify-between gap-3 min-h-[44px]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-[#111111] truncate">
-                      {op.official_name}
-                    </h3>
-                    {op.short_name && op.short_name !== op.official_name && (
-                      <span className="text-xs text-[#6B6B6B]">({op.short_name})</span>
+              <div key={op.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEntry(aberto ? null : op)}
+                  aria-expanded={aberto}
+                  className="w-full text-left p-3.5 hover:bg-[#F4F4F2] transition-colors cursor-pointer flex items-center justify-between gap-3 min-h-[44px]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[15px] font-semibold text-[#111111] truncate">{titulo}</h3>
+                    {temCurto && (
+                      <div className="text-xs text-[#6B6B6B] truncate">{op.official_name}</div>
                     )}
+                    <div className="text-xs text-[#6B6B6B] mt-0.5 truncate">
+                      {op.region} · {op.transport_modes.join(', ')}
+                    </div>
                   </div>
-                  <div className="text-xs text-[#6B6B6B] mt-0.5 truncate">
-                    {op.region} · {op.transport_modes.join(', ')}
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${ativo ? 'text-[#1F7A3A]' : 'text-[#6B6B6B]'}`}>
+                      <span className={`w-2 h-2 rounded-full ${ativo ? 'bg-[#1F9D55]' : 'bg-[#B5B5B0]'}`} />
+                      {ativo ? 'Ativo' : op.sync_status === 'Pendente' ? 'Pendente' : 'Sem dados'}
+                    </span>
+                    <ChevronRight className={`w-4 h-4 text-[#6B6B6B] stroke-[2] transition-transform ${aberto ? 'rotate-90' : ''}`} />
                   </div>
-                </div>
+                </button>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-xs font-semibold ${op.sync_status === 'Online' ? 'text-[#111111]' : 'text-[#6B6B6B]'}`}>
-                    {op.sync_status}
-                  </span>
-
-                  <button
-                    onClick={(e) => handleProbeSingle(e, op.id)}
-                    disabled={isProbing}
-                    className="p-1.5 text-[#6B6B6B] hover:text-[#111111] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-                    title="Testar"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 stroke-[2] ${isProbing ? 'animate-spin' : ''}`} />
-                  </button>
-
-                  <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2]" />
-                </div>
+                {aberto && (
+                  <div className="px-3.5 pb-3.5 -mt-1 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2 text-xs text-[#6B6B6B] bg-[#F4F4F2] rounded-[8px] p-3">
+                      <div>Região: <strong className="text-[#111111]">{op.region}</strong></div>
+                      <div>Fonte: <strong className="text-[#111111]">{op.source_type}</strong></div>
+                      <div>Transportes: <strong className="text-[#111111]">{op.transport_modes.join(', ')}</strong></div>
+                      <div>Estado: <strong className="text-[#111111]">{ativo ? 'Ativo' : op.sync_status}</strong></div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {onSelectOperatorForReports && (
+                        <button
+                          onClick={() => onSelectOperatorForReports(op.short_name || op.official_name)}
+                          className="px-3 h-9 bg-[#111111] text-[#FFFFFF] rounded-[8px] text-xs font-semibold cursor-pointer"
+                        >
+                          Ver ocorrências deste operador
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleProbeSingle(e, op.id)}
+                        disabled={isProbing}
+                        className="px-3 h-9 bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] rounded-[8px] text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-60"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 stroke-[2] ${isProbing ? 'animate-spin' : ''}`} />
+                        {isProbing ? 'A verificar…' : 'Verificar fonte'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
         )}
       </div>
-
-      {/* Detail Overlay */}
-      {selectedEntry && (
-        <div className="p-4 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#111111]">{selectedEntry.official_name}</h3>
-            <button
-              onClick={() => setSelectedEntry(null)}
-              className="text-xs text-[#6B6B6B] hover:text-[#111111]"
-            >
-              Fechar
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-[#6B6B6B]">
-            <div>Região: <strong className="text-[#111111]">{selectedEntry.region}</strong></div>
-            <div>Tipo de fonte: <strong className="text-[#111111]">{selectedEntry.source_type}</strong></div>
-            <div>Modos: <strong className="text-[#111111]">{selectedEntry.transport_modes.join(', ')}</strong></div>
-            <div>Estado: <strong className="text-[#111111]">{selectedEntry.sync_status}</strong></div>
-          </div>
-          {onSelectOperatorForReports && (
-            <button
-              onClick={() => onSelectOperatorForReports(selectedEntry.short_name || selectedEntry.official_name)}
-              className="px-3 py-1.5 bg-[#111111] text-[#FFFFFF] rounded-[6px] text-xs font-semibold cursor-pointer min-h-[36px]"
-            >
-              Ver reports deste operador
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 };

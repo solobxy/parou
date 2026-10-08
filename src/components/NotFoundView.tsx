@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, AlertTriangle, Clock } from 'lucide-react';
+import { Navigation, AlertTriangle, Clock } from 'lucide-react';
 
 interface NotFoundViewProps {
   onNavigateHome: () => void;
@@ -15,7 +15,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigateHome, onNa
         </h1>
 
         <p className="text-xs text-[#6B6B6B] mt-2">
-          O endereço pesquisado não está disponível.
+          Este endereço não existe ou mudou de sítio.
         </p>
 
         {/* Primary Action: Brand chamfer */}
@@ -24,17 +24,17 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigateHome, onNa
             onClick={onNavigateHome}
             className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-[8px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-xs min-h-[44px] cursor-pointer"
           >
-            <MapPin className="w-4 h-4 stroke-[2]" />
-            <span>Voltar ao mapa</span>
+            <Navigation className="w-4 h-4 stroke-[2]" />
+            <span>Ir para o início</span>
           </button>
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
-              onClick={() => onNavigateTab('reports')}
+              onClick={() => onNavigateTab('alertas')}
               className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[44px] cursor-pointer"
             >
               <AlertTriangle className="w-3.5 h-3.5 stroke-[2]" />
-              <span>Reports</span>
+              <span>Alertas</span>
             </button>
 
             <button

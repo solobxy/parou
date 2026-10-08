@@ -209,7 +209,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                             </span>
                             {isNearest && (
                               <span className="text-[10px] font-bold text-[#C2410C]">
-                                Perto de si
+                                Perto de ti
                               </span>
                             )}
                           </div>

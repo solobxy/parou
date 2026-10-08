@@ -172,26 +172,38 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             <>
               {/* Master toggle */}
               <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3] flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-[#111111]">Notificações ativas</div>
-                  <div className="text-xs text-[#6B6B6B]">Receber avisos no navegador.</div>
+                <div className="min-w-0 pr-3">
+                  <div className="text-sm font-semibold text-[#111111]">Receber avisos</div>
+                  <div className="text-xs text-[#6B6B6B] leading-snug">Greves, perturbações e ocorrências graves nos distritos que escolheres.</div>
                 </div>
 
                 <button
                   onClick={handleToggleEnabled}
-                  className={`px-3 py-1.5 rounded-[6px] text-xs font-semibold min-h-[36px] cursor-pointer ${
-                    prefs.enabled
-                      ? 'bg-[#111111] text-[#FFFFFF]'
-                      : 'bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111]'
+                  role="switch"
+                  aria-checked={prefs.enabled}
+                  aria-label={prefs.enabled ? 'Desligar avisos' : 'Ligar avisos'}
+                  className={`shrink-0 relative w-[52px] h-[30px] rounded-full transition-colors cursor-pointer ${
+                    prefs.enabled ? 'bg-[#111111]' : 'bg-[#D6D6D2]'
                   }`}
                 >
-                  {prefs.enabled ? 'Ativadas' : 'Desativadas'}
+                  <span className={`absolute top-[3px] w-6 h-6 rounded-full bg-[#FFFFFF] shadow transition-all ${prefs.enabled ? 'left-[25px]' : 'left-[3px]'}`} />
                 </button>
               </div>
+              {permissionState === 'denied' && (
+                <div className="p-3 rounded-[8px] border border-[#F3C5C1] bg-[#FDF2F1] text-xs text-[#111111] leading-snug">
+                  As notificações estão bloqueadas para a PAROU. Para as receberes, permite-as nas definições do browser
+                  (cadeado ao lado do endereço) ou do telemóvel e volta a ligar aqui.
+                </div>
+              )}
+              {permissionState === 'unsupported' && (
+                <div className="p-3 rounded-[8px] bg-[#F4F4F2] text-xs text-[#6B6B6B] leading-snug">
+                  Este browser não suporta notificações. No iPhone, adiciona a PAROU ao ecrã principal (Partilhar › Adicionar ao ecrã principal) e abre-a a partir daí.
+                </div>
+              )}
 
               {/* Districts selector */}
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold text-[#111111]">Distritos de interesse:</div>
+                <div className="text-xs font-semibold text-[#111111]">Distritos que te interessam</div>
                 <div className="flex flex-wrap gap-1.5">
                   {CIDADES_OPTIONS.filter((c) => c !== 'Todas').map((city) => {
                     const isSelected = (prefs.districts || []).includes(city);

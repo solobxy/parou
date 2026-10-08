@@ -177,39 +177,47 @@ export function isImportantTransportDisruption(occ: Occurrence): boolean {
   return false;
 }
 
+function normalizarLocal(s: string): string {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\(.*?\)/g, '').trim();
+}
+
+/** A ocorrência é num dos distritos escolhidos? (sem distritos escolhidos = todo o país) */
+export function ocorrenciaNosDistritos(occ: Pick<Occurrence, 'district' | 'concelho'>, distritos: string[]): boolean {
+  if (!distritos || distritos.length === 0) return true;
+  const d = normalizarLocal(occ.district || '');
+  const c = normalizarLocal(occ.concelho || '');
+  if (!d || d === 'nacional' || d === 'portugal' || d === 'todas') return true;
+  return distritos.some((escolhido) => {
+    const e = normalizarLocal(escolhido);
+    if (!e) return false;
+    if (d === e || c === e || d.includes(e) || e.includes(d)) return true;
+    // "Funchal (Madeira)" também apanha "Madeira"; "Ponta Delgada (Açores)" apanha "Açores"
+    const regiao = normalizarLocal((escolhido.match(/\((.*?)\)/) || [])[1] || '');
+    return Boolean(regiao) && (d.includes(regiao) || c.includes(regiao));
+  });
+}
+
 // Evaluation: Does this occurrence match the user's notification preferences?
 export function shouldNotifyOccurrence(
   occ: Occurrence,
   prefs: NotificationPreferences
 ): boolean {
   if (!prefs.enabled) return false;
-  if (occ.status === 'Ocultada') return false;
+  if (occ.status === 'Ocultada' || occ.status === 'Resolvida') return false;
 
-  // Filter 1: Severe only
-  if (prefs.severeOnly && occ.severity !== 'Grave') {
-    return false;
+  // Distritos escolhidos no ecrã das notificações (lista vazia = todo o país)
+  const distritos = (prefs.districts && prefs.districts.length > 0)
+    ? prefs.districts
+    : (prefs.selectedDistrict && prefs.selectedDistrict !== 'Todas' ? [prefs.selectedDistrict] : []);
+  if (!ocorrenciaNosDistritos(occ, distritos)) return false;
+
+  if (prefs.severeOnly && occ.severity !== 'Grave') return false;
+
+  // Por defeito só o que mexe mesmo com as viagens (greves, vias cortadas, avarias, graves)
+  if (prefs.importantTransportOnly) {
+    return isImportantTransportDisruption(occ) || occ.severity === 'Grave';
   }
-
-  // Filter 2: Important transport disruption (greves, cortes de via, avarias)
-  const isImportantDisruption = isImportantTransportDisruption(occ);
-  if (prefs.importantTransportOnly && isImportantDisruption) {
-    return true;
-  }
-
-  // Filter 3: Selected city/district match
-  if (prefs.selectedDistrict === 'Todas') {
-    return true;
-  }
-
-  const selectedLower = prefs.selectedDistrict.trim().toLowerCase();
-  const occDistrictLower = (occ.district || '').trim().toLowerCase();
-  const occConcelhoLower = (occ.concelho || '').trim().toLowerCase();
-
-  return (
-    occDistrictLower === selectedLower ||
-    occConcelhoLower === selectedLower ||
-    occDistrictLower.includes(selectedLower)
-  );
+  return true;
 }
 
 // Send system notification (PWA ServiceWorker or standard Notification)
