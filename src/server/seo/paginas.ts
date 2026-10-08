@@ -348,7 +348,7 @@ async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; 
     const porLinha = new Map<string, { destinos: Map<string, number>; horas: number[] }>();
     for (const x of pass) {
       codLinhas.add(x.linha);
-      const e = porLinha.get(x.linha) || { destinos: new Map(), horas: [] };
+      const e = porLinha.get(x.linha) || { destinos: new Map<string, number>(), horas: [] as number[] };
       if (x.destino) e.destinos.set(nomeBonito(x.destino), (e.destinos.get(nomeBonito(x.destino)) || 0) + 1);
       e.horas.push(x.programada);
       porLinha.set(x.linha, e);
@@ -601,7 +601,13 @@ function naoEncontrado(res: Response, o?: Operador) {
 
 export function registarPaginasSeo(app: Express) {
   // Prepara o índice em segundo plano, assim que os horários estiverem prontos
-  const preparar = () => { if (isDadosProntosPronto()) obterIndice(); else setTimeout(preparar, 30_000); };
+  const preparar = () => {
+    if (!isDadosProntosPronto()) { setTimeout(preparar, 30_000); return; }
+    obterIndice();
+    // Carris Metropolitana (API): linhas e paragens ficam em memória para as páginas abrirem depressa
+    void linhasCM().catch(() => {});
+    void paragensCM().catch(() => {});
+  };
   setTimeout(preparar, 45_000);
 
   const pronto = (req: Request, res: Response, next: NextFunction) => {

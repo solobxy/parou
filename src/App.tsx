@@ -1171,6 +1171,18 @@ export default function App() {
             <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">Greves</a>
           </nav>
         </div>
+        <div className="max-w-[1600px] mx-auto mt-4">
+          <nav aria-label="Horários por operador" className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-[11.5px]">
+            <span className="text-[#6B6B6B]">Horários:</span>
+            {[
+              ['carris-metropolitana', 'Carris Metropolitana'], ['metro-de-lisboa', 'Metro de Lisboa'], ['carris', 'Carris'], ['cp', 'CP'],
+              ['stcp', 'STCP'], ['metro-do-porto', 'Metro do Porto'], ['fertagus', 'Fertagus'], ['transtejo-soflusa', 'Transtejo e Soflusa'],
+              ['mobicascais', 'MobiCascais'], ['metro-sul-do-tejo', 'Metro Sul do Tejo'], ['smtuc', 'SMTUC'], ['tub-braga', 'TUB Braga'],
+            ].map(([slug, nome]) => (
+              <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{nome}</a>
+            ))}
+          </nav>
+        </div>
         <div className="max-w-[1600px] mx-auto mt-3 text-center sm:text-left text-[11px] text-[#6B6B6B]">
           Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap
         </div>

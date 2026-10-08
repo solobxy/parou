@@ -25,6 +25,7 @@ import {
   Maximize2,
   Minimize2,
   TrainFront,
+  TrainFrontTunnel,
   Navigation,
   ArrowLeft
 } from 'lucide-react';
@@ -53,6 +54,18 @@ interface PertoViewProps {
 }
 
 // Normalize transport mode
+// Símbolo e cor de cada tipo de transporte (mapa e cabeçalho da paragem)
+const SVG_BUS = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>';
+const SVG_COMBOIO = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/></svg>';
+const SVG_BARCO = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10.2V14"/><path d="M12 2v3"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M19.4 20A11.6 11.6 0 0 0 21 14l-8.2-3.6a2 2 0 0 0-1.6 0L3 14a11.6 11.6 0 0 0 2.8 7.8"/><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>';
+const SVG_METRO = '<span style="font:800 14px/1 Barlow, system-ui, sans-serif;color:#fff;letter-spacing:-.02em">M</span>';
+export const ESTILO_MODO: Record<'Autocarro' | 'Metro' | 'Comboio' | 'Barco', { cor: string; plural: string; simbolo: string }> = {
+  Autocarro: { cor: '#111111', plural: 'Autocarros', simbolo: SVG_BUS },
+  Metro: { cor: '#D92D20', plural: 'Metros', simbolo: SVG_METRO },
+  Comboio: { cor: '#1F7A3A', plural: 'Comboios', simbolo: SVG_COMBOIO },
+  Barco: { cor: '#0E7490', plural: 'Barcos', simbolo: SVG_BARCO },
+};
+
 export function normalizeTransportMode(modeStr: string = ''): 'Autocarro' | 'Metro' | 'Comboio' | 'Barco' {
   const m = String(modeStr || '').toLowerCase();
   if (m.includes('metro') || m.includes('subway') || m.includes('tram') || m.includes('mst')) return 'Metro';
@@ -594,18 +607,20 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
       const isSelected = selectedStop?.id === stop.id;
 
+      const estilo = ESTILO_MODO[normalizeTransportMode(stop.transportMode)] || ESTILO_MODO.Autocarro;
+      const tamanho = isSelected ? 34 : 26;
       const stopIcon = L.divIcon({
         className: 'custom-stop-marker-icon',
         html: `
-          <div style="background-color: ${isSelected ? '#111111' : '#FFFFFF'}; border: 2px solid #111111; box-shadow: 0 2px 5px rgba(0,0,0,0.2);" class="w-4 h-4 rounded-full flex items-center justify-center hover:scale-125 transition-transform cursor-pointer">
-            <div style="background-color: ${isSelected ? '#FFFFFF' : '#111111'};" class="w-1.5 h-1.5 rounded-full"></div>
+          <div title="${estilo.plural}" style="width:${tamanho}px;height:${tamanho}px;background:${estilo.cor};border:2px solid #FFFFFF;border-radius:9999px;display:flex;align-items:center;justify-content:center;box-shadow:${isSelected ? '0 0 0 3px #FF6B1A, 0 4px 10px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.28)'};cursor:pointer;transition:transform .15s">
+            ${estilo.simbolo}
           </div>
         `,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        iconSize: [tamanho, tamanho],
+        iconAnchor: [tamanho / 2, tamanho / 2],
       });
 
-      const marker = L.marker([lat, lon], { icon: stopIcon }).addTo(mapRef.current!);
+      const marker = L.marker([lat, lon], { icon: stopIcon, zIndexOffset: isSelected ? 1000 : 0, title: `${estilo.plural} – ${formatTransitName(stop.name)}` }).addTo(mapRef.current!);
       marker.on('click', () => {
         setSelectedStop(stop);
         setFollowMode(false);
@@ -641,7 +656,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   const iconeModo = (modo: string) => {
     const m = normalizeTransportMode(modo);
-    if (m === 'Metro' || m === 'Comboio') return TrainFront;
+    if (m === 'Metro') return TrainFrontTunnel;
+    if (m === 'Comboio') return TrainFront;
     if (m === 'Barco') return Ship;
     return Bus;
   };
@@ -1174,16 +1190,27 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <ArrowLeft className="w-5 h-5 stroke-[2.25]" />
                 </button>
                 <div className="min-w-0 flex-1 pt-0.5">
-                  <h4 className="font-semibold text-[17px] text-[#111111] leading-tight truncate">
-                    {formatTransitName(selectedStop.name)}
-                  </h4>
+                  {(() => {
+                    const estilo = ESTILO_MODO[normalizeTransportMode(selectedStop.transportMode)] || ESTILO_MODO.Autocarro;
+                    return (
+                      <h4 className="flex items-center gap-2 font-semibold text-[17px] text-[#111111] leading-tight min-w-0">
+                        <span
+                          className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center [&_svg]:w-[13px] [&_svg]:h-[13px] [&_span]:!text-[12px]"
+                          style={{ background: estilo.cor }}
+                          aria-hidden="true"
+                          dangerouslySetInnerHTML={{ __html: estilo.simbolo }}
+                        />
+                        <span className="truncate">{estilo.plural} – {formatTransitName(selectedStop.name)}</span>
+                      </h4>
+                    );
+                  })()}
                   {selectedStop.direction && (
                     <div className="text-[13px] font-medium text-[#111111]/75 mt-0.5 truncate">
                       {textoSentido(selectedStop)}
                     </div>
                   )}
                   <div className="text-xs text-[#6B6B6B] mt-0.5">
-                    {normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
+                    {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
                     {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
                   </div>
                 </div>
