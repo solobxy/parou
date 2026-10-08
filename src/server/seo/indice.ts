@@ -2,7 +2,7 @@
 // legíveis (ex.: /linhas/stcp/801-av-aliados-s-pedro-da-cova, /paragens/stcp/passal).
 // É construído a partir da base de horários e refeito quando chega uma base nova.
 import { getDatabase } from '../db/gtfsDatabase';
-import { getManifestData } from '../dadosProntos';
+import { getVersaoBaseAtiva } from '../dadosProntos';
 import { nomeBonito, semAcentos, slug } from './texto';
 
 export interface Operador {
@@ -117,7 +117,7 @@ let indice: Indice | null = null;
 let aConstruir = false;
 
 function versaoAtual(): string {
-  try { return String(getManifestData()?.built_at || 'local'); } catch { return 'local'; }
+  try { return String(getVersaoBaseAtiva() || 'local'); } catch { return 'local'; }
 }
 
 function construir(): Indice {

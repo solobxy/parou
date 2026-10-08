@@ -109,6 +109,14 @@ export function getManifestData(): any {
   return manifestData;
 }
 
+// Versão (built_at) da base que está mesmo em uso. O manifesto novo chega antes de a base nova
+// estar descarregada; quem guarda resultados em memória (índice das páginas públicas) deve usar
+// esta versão, senão refaz o índice com a base antiga e fica com ela até à atualização seguinte.
+let versaoBaseAtiva: string | null = null;
+export function getVersaoBaseAtiva(): string | null {
+  return versaoBaseAtiva;
+}
+
 export function getManifestFeedsMap(): Map<string, any> {
   return manifestFeedsMap;
 }
@@ -156,6 +164,7 @@ export async function atualizarDados(): Promise<void> {
     const builtAt = manifest?.built_at || atual;
     if (atual && atual === manifest.built_at && (basePronta || baseValida(DB_FILE))) {
       basePronta = true;
+      versaoBaseAtiva = builtAt || versaoBaseAtiva;
       estado = { ...estado, ...totais, dataset_built_at: builtAt, isLoading: false, message: 'Todos os operadores carregados', updatedAt: new Date().toISOString() };
       return;
     }
@@ -185,6 +194,7 @@ export async function atualizarDados(): Promise<void> {
     reloadDatabaseConnection();
     basePronta = true;
     try { if (builtAt) setAppState('dataset_built_at', builtAt); } catch {}
+    versaoBaseAtiva = builtAt || versaoBaseAtiva;
     estado = { ...estado, ...totais, dataset_built_at: builtAt, isLoading: false, message: 'Todos os operadores carregados', updatedAt: new Date().toISOString() };
     console.log(`[Dados prontos] Base de ${manifest.built_at} ativa (${totais.loadedOperators}/${totais.totalOperators} operadores).`);
   } catch (err: any) {
