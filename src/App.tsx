@@ -79,6 +79,7 @@ import {
 } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { iniciarCopiaDados } from './services/copiaDados';
+import { usePontosMapa } from './hooks/usePontosMapa';
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -329,7 +330,11 @@ export default function App() {
 
   // Filter recent occurrences list with unified 7-dimensional matcher
   const filteredRecentOccurrences = useMemo(() => {
-    return recentOccurrences.filter((item) => matchOccurrence(item, filters));
+    // Só as atuais (últimas 24 h, não resolvidas)
+    const limite = Date.now() - 24 * 3600_000;
+    return recentOccurrences.filter((item) =>
+      item.status !== 'Resolvida' && item.status !== 'Ocultada' && (item.timestamp || 0) >= limite && matchOccurrence(item, filters),
+    );
   }, [recentOccurrences, filters]);
 
   // Unified occurrences list for the dedicated Reports page
@@ -341,29 +346,45 @@ export default function App() {
     return Array.from(map.values());
   }, [featuredOccurrences, importantOccurrences, recentOccurrences]);
 
+  // O que se mostra no Mapa e nos contadores: só ocorrências atuais (últimas 24 h e não
+  // resolvidas). Uma greve de ontem ou um acidente já resolvido não interessam a ninguém.
+  const ocorrenciasAtuais = useMemo(() => {
+    const limite = Date.now() - 24 * 3600_000;
+    return allReportsList.filter((o) =>
+      o && o.status !== 'Resolvida' && o.status !== 'Ocultada' && (o.timestamp || 0) >= limite,
+    );
+  }, [allReportsList]);
+
+  // Incêndios, avisos e perturbações atuais (com posição) para o Mapa
+  const camadasMapa = usePontosMapa(activeNavTab === 'mapa' || activeMobileView === 'mapa');
+
   // Dynamic real-time district counts computed directly from Firestore reports
   const districtCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    allReportsList.forEach((report) => {
+    ocorrenciasAtuais.forEach((report) => {
       if (report.district) {
         const key = report.district.trim().toLowerCase();
         counts[key] = (counts[key] || 0) + 1;
       }
     });
     return counts;
-  }, [allReportsList]);
+  }, [ocorrenciasAtuais]);
 
-  // Real-time automatic statistics counters
-  const totalAlertsCount = allReportsList.length;
-  const severeCount = useMemo(() => allReportsList.filter((r) => r.severity === 'Grave' || r.type === 'CORTE').length, [allReportsList]);
+  // Real-time automatic statistics counters (só o que está a acontecer agora)
+  const pontosMapa = camadasMapa?.pontos || [];
+  const totalAlertsCount = ocorrenciasAtuais.length + pontosMapa.length;
+  const severeCount = useMemo(
+    () => ocorrenciasAtuais.filter((r) => r.severity === 'Grave' || r.type === 'CORTE').length + pontosMapa.filter((p) => p.gravidade === 'Grave').length,
+    [ocorrenciasAtuais, pontosMapa],
+  );
   const districtsWithAlertsCount = useMemo(() => Object.keys(districtCounts).length, [districtCounts]);
-  const verifiedCount = useMemo(() => allReportsList.filter((r) => r.isCommunityVerified).length, [allReportsList]);
-  const publicReportsCount = useMemo(() => allReportsList.filter((r) => !!r.sourceName || !!r.sourceType).length, [allReportsList]);
+  const verifiedCount = useMemo(() => ocorrenciasAtuais.filter((r) => r.isCommunityVerified).length, [ocorrenciasAtuais]);
+  const publicReportsCount = useMemo(() => ocorrenciasAtuais.filter((r) => !!r.sourceName || !!r.sourceType).length + pontosMapa.length, [ocorrenciasAtuais, pontosMapa]);
 
   // Synchronized counts matching the 7 active filters for both Reports & Transportes
   const matchingReportsCount = useMemo(() => {
-    return allReportsList.filter((item) => matchOccurrence(item, filters)).length;
-  }, [allReportsList, filters]);
+    return ocorrenciasAtuais.filter((item) => matchOccurrence(item, filters)).length;
+  }, [ocorrenciasAtuais, filters]);
 
   const [matchingTransitCount, setMatchingTransitCount] = useState<number>(0);
 
@@ -743,7 +764,7 @@ export default function App() {
             /* Dedicated Reports Page on Desktop */
             <div className="max-w-6xl mx-auto py-2">
               <ReportsView
-                occurrences={allReportsList}
+                occurrences={ocorrenciasAtuais}
                 onSelectOccurrence={handleSelectOccurrence}
                 onOpenReportModal={() => setIsReportModalOpen(true)}
                 lastUpdated={lastUpdated}
@@ -812,7 +833,7 @@ export default function App() {
           ) : activeNavTab === 'alertas' ? (
             <div className="w-full mx-auto py-2">
               <AlertasView
-                ocorrenciasComunidade={allReportsList}
+                ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
               />
@@ -846,8 +867,10 @@ export default function App() {
                   activeViewMode={mapViewMode}
                   onViewModeChange={setMapViewMode}
                   districtCounts={districtCounts}
-                  occurrences={allReportsList}
+                  occurrences={ocorrenciasAtuais}
                   onSelectOccurrence={handleSelectOccurrence}
+                  pontos={pontosMapa}
+                  incendiosAtualizado={camadasMapa?.incendiosAtualizado}
                 />
               </section>
 
@@ -895,9 +918,11 @@ export default function App() {
                 activeViewMode={mapViewMode}
                 onViewModeChange={setMapViewMode}
                 districtCounts={districtCounts}
-                occurrences={allReportsList}
+                occurrences={ocorrenciasAtuais}
                 onSelectOccurrence={handleSelectOccurrence}
                 onReport={() => setIsReportModalOpen(true)}
+                pontos={pontosMapa}
+                incendiosAtualizado={camadasMapa?.incendiosAtualizado}
               />
 
               {selectedDistrictOnMap ? (
@@ -942,7 +967,7 @@ export default function App() {
           {activeMobileView === 'reports' && (
             <div className="space-y-3.5">
               <ReportsView
-                occurrences={allReportsList}
+                occurrences={ocorrenciasAtuais}
                 onSelectOccurrence={handleSelectOccurrence}
                 onOpenReportModal={() => setIsReportModalOpen(true)}
                 lastUpdated={lastUpdated}
@@ -1019,7 +1044,7 @@ export default function App() {
           {(activeMobileView === 'alertas' || activeNavTab === 'alertas') && (
             <div className="-mx-3 sm:-mx-6">
               <AlertasView
-                ocorrenciasComunidade={allReportsList}
+                ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
               />

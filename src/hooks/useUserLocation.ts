@@ -141,6 +141,16 @@ export function useUserLocation() {
         isManual: false,
       };
 
+      // Uma leitura aproximada (rede) não substitui uma melhor e recente do GPS
+      const anterior = previousCoordsRef.current;
+      if (
+        anterior && !anterior.isManual && gpsNestaSessao &&
+        newCoords.accuracy > anterior.accuracy * 2 && newCoords.accuracy > 60 &&
+        Date.now() - anterior.timestamp < 60_000
+      ) {
+        return;
+      }
+
       gpsNestaSessao = true;
       setCoords(newCoords);
       setStatus('active');
@@ -149,14 +159,23 @@ export function useUserLocation() {
       try { localStorage.setItem(CHAVE_LOCALIZACAO_OK, '1'); } catch {}
     };
 
-    // Primary attempt: high accuracy with tight fallback
+    // 1. Posição rápida: a aproximada (rede/Wi-Fi ou a última do telemóvel) chega quase de
+    //    imediato e já dá para mostrar as paragens; o GPS afina a seguir, sem a pessoa esperar.
+    navigator.geolocation.getCurrentPosition(
+      (pos) => handleSuccess(pos, 'gps_low'),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) handlePositionError(err);
+      },
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 2 * 60_000 }
+    );
+
+    // 2. Posição precisa (GPS)
     const primaryOptions: PositionOptions = {
       enableHighAccuracy: forceHighAccuracy,
-      timeout: 10000,
+      timeout: 15000,
       maximumAge: forceHighAccuracy ? 0 : 5000,
     };
 
-    // Immediate one-shot position check first for rapid UI centering
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         handleSuccess(pos, forceHighAccuracy ? 'gps_high' : 'gps_low');

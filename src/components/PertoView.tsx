@@ -592,7 +592,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
       ? (dbLoadingMessage || 'A carregar horários…')
       : userCoords?.isManual
         ? `Perto de ${userCoords.locationLabel || 'local escolhido'}`
-        : `${filteredStops.length} ${filteredStops.length === 1 ? 'paragem' : 'paragens'} até ${raioTexto}`;
+        : `${filteredStops.length} ${filteredStops.length === 1 ? 'paragem' : 'paragens'} até ${raioTexto}${
+            userCoords && userCoords.accuracy > 150 ? ' · a afinar a posição…' : ''
+          }`;
 
   const iconeModo = (modo: string) => {
     const m = normalizeTransportMode(modo);

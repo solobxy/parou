@@ -730,3 +730,156 @@ export function aquecerAlertas(): void {
   // a informação mais recente, sem esperar pelas fontes)
   setInterval(aquecer, 3 * 60_000);
 }
+
+// ---------------------------------------------------------------------------------
+// Mapa: o que está a acontecer agora, com posição, para o separador Mapa
+// (incêndios e ocorrências da Proteção Civil no sítio exato; avisos do IPMA na capital
+// de distrito; perturbações e greves dos operadores na cidade do operador).
+// Só entra o que está ativo neste momento (ou começa nas próximas 12 h).
+// ---------------------------------------------------------------------------------
+export type TipoPontoMapa = 'incendio' | 'acidente' | 'inundacao' | 'protecao_civil' | 'aviso_tempo' | 'greve' | 'perturbacao' | 'obras';
+
+export interface PontoMapa {
+  id: string;
+  tipo: TipoPontoMapa;
+  lat: number;
+  lon: number;
+  titulo: string;
+  subtitulo: string;
+  /** cor principal do símbolo */
+  cor: string;
+  gravidade: 'Grave' | 'Moderada' | 'Informativo';
+  fonte: string;
+  url?: string;
+  inicio?: string | null;
+  fim?: string | null;
+  distrito?: string;
+}
+
+const CENTRO_OPERADOR: Array<{ re: RegExp; lat: number; lon: number }> = [
+  { re: /metro de lisboa|metropolitano de lisboa/, lat: 38.7253, lon: -9.15 },
+  { re: /carris metropolitana|tml|transportes metropolitanos de lisboa/, lat: 38.70, lon: -9.10 },
+  { re: /\bcarris\b/, lat: 38.7139, lon: -9.1394 },
+  { re: /fertagus/, lat: 38.62, lon: -9.10 },
+  { re: /transtejo|soflusa|ttsl/, lat: 38.7066, lon: -9.1336 },
+  { re: /metro do porto/, lat: 41.1496, lon: -8.6109 },
+  { re: /stcp/, lat: 41.1579, lon: -8.6291 },
+  { re: /\bunir\b/, lat: 41.18, lon: -8.60 },
+  { re: /mts|metro transportes do sul/, lat: 38.66, lon: -9.16 },
+  { re: /\bcp\b|comboios de portugal/, lat: 38.7139, lon: -9.1225 },
+];
+
+function jitter(id: string, raio = 0.035): [number, number] {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const ang = (h % 360) * (Math.PI / 180);
+  const r = raio * (0.35 + ((h >>> 9) % 100) / 150);
+  return [Math.sin(ang) * r, Math.cos(ang) * r * 1.3];
+}
+
+export async function obterCamadasMapa(): Promise<{ atualizado: string; incendiosAtualizado: string | null; pontos: PontoMapa[] }> {
+  const pontos: PontoMapa[] = [];
+  const agora = Date.now();
+
+  // 1. Proteção Civil (Fogos.pt): incêndios, acidentes, inundações — posição exata
+  const pc = obterIncidentes();
+  for (const i of pc.incidentes) {
+    const tipo: TipoPontoMapa = i.tipo === 'incendio' ? 'incendio' : i.tipo === 'acidente' ? 'acidente' : i.tipo === 'inundacao' ? 'inundacao' : 'protecao_civil';
+    pontos.push({
+      id: `pc:${i.id}`,
+      tipo,
+      lat: i.lat,
+      lon: i.lon,
+      titulo: `${i.natureza.split(/ - |\//)[0].trim() || 'Ocorrência'} · ${i.local || i.concelho}`,
+      subtitulo: [i.estado, [i.concelho, i.distrito].filter(Boolean).join(', '), i.meios.humanos ? `${i.meios.humanos} operacionais, ${i.meios.terrestres} veículos${i.meios.aereos ? `, ${i.meios.aereos} aéreos` : ''}` : ''].filter(Boolean).join(' · '),
+      cor: tipo === 'incendio' ? (i.aAcalmar ? '#F59E0B' : '#D92D20') : tipo === 'inundacao' ? '#2563EB' : '#FF6B1A',
+      gravidade: i.importante || i.meios.humanos >= 50 ? 'Grave' : 'Moderada',
+      fonte: 'Fogos.pt (ANEPC)',
+      url: 'https://fogos.pt',
+      inicio: i.inicio,
+      distrito: i.distrito,
+    });
+  }
+
+  // 2. Avisos meteorológicos do IPMA ativos (ou nas próximas 12 h), na capital de distrito
+  const distritos = await obterDistritos().catch(() => DISTRITOS_RECURSO);
+  const porArea = new Map(distritos.map((d) => [d.area, d]));
+  const brutos = await emCache('ipma:avisos', 5 * 60_000, async () => {
+    const j = await buscarJson('https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json');
+    if (!Array.isArray(j)) throw new Error('formato inesperado');
+    return j as any[];
+  }, [] as any[]);
+  const nomesNivel: Record<string, string> = { yellow: 'amarelo', orange: 'laranja', red: 'vermelho' };
+  const coresNivel: Record<string, string> = { yellow: '#EAB308', orange: '#FF6B1A', red: '#D92D20' };
+  const avisosPorDistrito = new Map<string, any[]>();
+  for (const w of brutos) {
+    const nivel = String(w.awarenessLevelID || '');
+    if (!nomesNivel[nivel]) continue;
+    const fim = Date.parse(String(w.endTime || ''));
+    const inicio = Date.parse(String(w.startTime || ''));
+    if (!Number.isFinite(fim) || fim < agora) continue;
+    if (Number.isFinite(inicio) && inicio - agora > 12 * 3600_000) continue;
+    const area = String(w.idAreaAviso || '');
+    if (!porArea.has(area)) continue;
+    avisosPorDistrito.set(area, [...(avisosPorDistrito.get(area) || []), w]);
+  }
+  const pesoNivel: Record<string, number> = { red: 3, orange: 2, yellow: 1 };
+  for (const [area, lista] of avisosPorDistrito) {
+    const d = porArea.get(area)!;
+    lista.sort((a, b) => pesoNivel[b.awarenessLevelID] - pesoNivel[a.awarenessLevelID]);
+    const pior = lista[0];
+    const tipos = Array.from(new Set(lista.map((w) => String(w.awarenessTypeName || 'Aviso'))));
+    const [dLat, dLon] = jitter(`aviso:${area}`, 0.06);
+    pontos.push({
+      id: `ipma:${area}`,
+      tipo: 'aviso_tempo',
+      lat: d.lat + dLat,
+      lon: d.lon + dLon,
+      titulo: `Aviso ${nomesNivel[pior.awarenessLevelID]} · ${d.nome}`,
+      subtitulo: `${tipos.join(', ')} · até ${DateTime.fromISO(String(pior.endTime), { zone: ZONA }).toFormat("dd/LL 'às' HH:mm")}`,
+      cor: coresNivel[pior.awarenessLevelID],
+      gravidade: pior.awarenessLevelID === 'red' ? 'Grave' : pior.awarenessLevelID === 'orange' ? 'Moderada' : 'Informativo',
+      fonte: 'IPMA',
+      url: 'https://www.ipma.pt/pt/otempo/prev-sam/',
+      inicio: String(pior.startTime || ''),
+      fim: String(pior.endTime || ''),
+      distrito: d.nome,
+    });
+  }
+
+  // 3. Perturbações, greves e obras anunciadas pelos operadores (ativas agora)
+  const oficiais = await Promise.race([
+    getCentralAlerts().catch(() => []),
+    new Promise<any[]>((r) => setTimeout(() => r([]), 3500)),
+  ]);
+  for (const a of oficiais as any[]) {
+    if (a.status !== 'Ativo') continue;
+    if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue;
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    if (Number.isFinite(fimMs) && fimMs < agora) continue;
+    const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
+    const op = semAcentos(String(a.operador || ''));
+    const centro = CENTRO_OPERADOR.find((c) => c.re.test(op));
+    if (!centro) continue;
+    const id = String(a.id);
+    const [dLat, dLon] = jitter(id);
+    const tipo: TipoPontoMapa = a.tipo === 'greve' ? 'greve' : a.tipo === 'obras' ? 'obras' : 'perturbacao';
+    pontos.push({
+      id: `op:${id}`,
+      tipo,
+      lat: centro.lat + dLat,
+      lon: centro.lon + dLon,
+      titulo: String(a.título || 'Perturbação').replace(/\s+/g, ' ').trim(),
+      subtitulo: [String(a.operador || ''), Array.isArray(a.linhas) && a.linhas.length ? `Linhas ${a.linhas.slice(0, 4).join(', ')}` : '', Number.isFinite(fimMs) ? `até ${DateTime.fromMillis(fimMs, { zone: ZONA }).toFormat("dd/LL 'às' HH:mm")}` : ''].filter(Boolean).join(' · '),
+      cor: tipo === 'greve' ? '#D92D20' : '#111111',
+      gravidade: a.severity === 'Grave' ? 'Grave' : a.severity === 'Moderada' ? 'Moderada' : 'Informativo',
+      fonte: String(a.operador || 'Operador'),
+      url: String(a.source_url || '') || undefined,
+      inicio: a.start_datetime || null,
+      fim: a.end_datetime || null,
+    });
+  }
+
+  return { atualizado: new Date().toISOString(), incendiosAtualizado: pc.atualizado, pontos };
+}
