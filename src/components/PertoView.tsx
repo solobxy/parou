@@ -109,6 +109,30 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
 }
 
 // "Sentido Cordoaria · Hosp. S. João" (só vem quando há paragens com o mesmo nome)
+/**
+ * Partidas a mostrar na paragem: a próxima de cada linha (e sentido) — senão as linhas pouco
+ * frequentes, como as da UNIR, nunca apareciam — mais as partidas seguintes até um limite.
+ */
+function escolherPartidas(ordenadas: any[], seguintes = 12): any[] {
+  const vistas = new Set<string>();
+  let extra = 0;
+  return ordenadas.filter((d) => {
+    const chave = `${d.lineCode || d.route_short_name || ''}|${String(d.destination || d.headsign || '').toLowerCase()}`;
+    if (!vistas.has(chave)) { vistas.add(chave); return true; }
+    if (extra < seguintes) { extra += 1; return true; }
+    return false;
+  });
+}
+
+/** Distância em metros entre dois pontos (suficiente para paragens que ficam no mesmo sítio) */
+function metrosEntre(a: { latitude?: number | string; longitude?: number | string }, b: { latitude?: number | string; longitude?: number | string }): number {
+  const la = Number(a.latitude), lo = Number(a.longitude), lb = Number(b.latitude), lp = Number(b.longitude);
+  if (![la, lo, lb, lp].every(Number.isFinite)) return Infinity;
+  const dy = (lb - la) * 111_320;
+  const dx = (lp - lo) * 111_320 * Math.cos((la * Math.PI) / 180);
+  return Math.hypot(dx, dy);
+}
+
 function textoSentido(stop: NearbyStopItem): string {
   if (!stop.direction) return '';
   if (stop.arrivalsOnly) return stop.direction;
@@ -663,12 +687,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const t = setInterval(() => setTiqueUnir((n) => n + 1), 30_000);
     return () => clearInterval(t);
   }, [temUnir]);
-  const partidasUnirDe = (stop: NearbyStopItem | null): any[] => {
+  const partidasUnirDe = (stop: NearbyStopItem | null, todas = false): any[] => {
     if (!stop) return [];
     const e = unirPorParagem[stop.id];
     if (!e?.passagens.length) return [];
     const cores = new Map<string, string>((stop.lines || []).map((l) => [String(l.code), l.color]));
-    return partidasParaMostrar(e.passagens, cores);
+    return partidasParaMostrar(e.passagens, cores, todas ? Infinity : 40);
   };
 
   // Render Stops on Map
@@ -1335,6 +1359,33 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   </div>
                 </div>
               </div>
+              {/* Outras paragens no mesmo sítio (ex.: STCP e UNIR no mesmo poste): trocar sem voltar à lista */}
+              {(() => {
+                const grupo = filteredStops
+                  .filter((s) => s.id === selectedStop.id || metrosEntre(s, selectedStop) <= 30)
+                  .sort((x, y) => String(x.operatorName || '').localeCompare(String(y.operatorName || '')) || String(x.id).localeCompare(String(y.id)));
+                if (grupo.length < 2) return null;
+                return (
+                  <div className="mt-2.5 -mx-3 px-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-teste="paragens-mesmo-sitio">
+                    {grupo.map((s) => {
+                      const ativa = s.id === selectedStop.id;
+                      const sentido = s.direction && !s.arrivalsOnly ? ` · ${formatTransitName(s.direction.split(' · ')[0])}` : '';
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => { if (!ativa) setSelectedStop(s); }}
+                          aria-pressed={ativa}
+                          className={`shrink-0 max-w-[230px] h-9 px-3 rounded-full border text-[13px] font-semibold truncate cursor-pointer ${
+                            ativa ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#E6E6E3] text-[#111111] active:bg-[#F4F4F2]'
+                          }`}
+                        >
+                          {(s.operatorName || 'Paragem')}{sentido}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Partidas da paragem */}
@@ -1343,8 +1394,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 const proprias = selectedStop.nextDepartures || [];
                 const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
                 const unir = codigosUnir(selectedStop as any).length ? unirPorParagem[selectedStop.id] : undefined;
-                const deps = [...(proprias.length > 0 ? proprias : (extra?.deps || [])), ...partidasUnirDe(selectedStop)];
-                const sorted = sortDepartures(deps).slice(0, 12);
+                const deps = [...(proprias.length > 0 ? proprias : (extra?.deps || [])), ...partidasUnirDe(selectedStop, true)];
+                const sorted = escolherPartidas(sortDepartures(deps));
                 if (sorted.length === 0) {
                   const aCarregarUnir = Boolean(unir?.aCarregar) || (codigosUnir(selectedStop as any).length > 0 && !unir);
                   return (
