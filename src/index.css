@@ -213,3 +213,16 @@ html.pagina-fixa body {
     bottom: 16px;
   }
 }
+
+/* Rota planeada no mapa (Perto): etiquetas das paragens de embarque e desembarque */
+.leaflet-tooltip.parou-rota-tip {
+  background: #111111;
+  color: #FFFFFF;
+  border: 2px solid #FFFFFF;
+  border-radius: 6px;
+  padding: 3px 7px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+.leaflet-tooltip-top.parou-rota-tip::before { border-top-color: #111111; }
+.leaflet-tooltip-bottom.parou-rota-tip::before { border-bottom-color: #111111; }

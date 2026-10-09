@@ -30,7 +30,7 @@ interface Paragem { id: string; feed: string; nome: string; lat: number; lon: nu
 interface Linha { short: string; long: string; tipo: number; cor: string; feed: string }
 interface Perna {
   trip: string; route: string; feed: string; destinoViagem: string;
-  de: string; para: string; parte: number; chega: number; paragens: number;
+  de: string; para: string; parte: number; chega: number; paragens: number; sa?: number; sb?: number;
 }
 
 export interface CandidatoUnir {
@@ -38,6 +38,7 @@ export interface CandidatoUnir {
   origem: { codigo: string; nome: string; metros: number; minutos: number };
   destino: { codigo: string; nome: string; metros: number; minutos: number };
   anteriores?: Array<{ codigo: string; passos: number }>;
+  pontos?: Array<{ lat: number; lon: number; nome?: string }>;
 }
 
 function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -91,6 +92,21 @@ function modoDaLinha(l: Linha | undefined, modoFeed: string | undefined): Modo {
     case 4: return 'Barco';
     default: return 'Autocarro';
   }
+}
+
+/** Os troços a pé ligam o ponto de partida/chegada às paragens de embarque e desembarque */
+export function ligarTrocosAPe(legs: RouteLeg[], origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): void {
+  let atual: { lat: number; lon: number } = origem;
+  legs.forEach((l, i) => {
+    if (l.mode === 'TRANSIT') {
+      const ps = l.pontos;
+      if (ps && ps.length) atual = ps[ps.length - 1];
+      return;
+    }
+    const prox = legs.slice(i + 1).find((x) => x.mode === 'TRANSIT' && x.pontos && x.pontos.length);
+    const fim = prox ? prox.pontos![0] : destino;
+    l.pontos = [{ lat: atual.lat, lon: atual.lon }, { lat: fim.lat, lon: fim.lon }];
+  });
 }
 
 export async function planearViagem(
@@ -159,6 +175,7 @@ export async function planearViagem(
     // Chip curto: a CP usa nomes de serviço longos ("Linha de Braga")
     const codigo = p.feed === 'cp' ? 'CP' : (l?.short || '').length > 6 ? (l?.short || '').slice(0, 5) : (l?.short || '');
     return {
+      _perna: p,
       mode: 'TRANSIT',
       instruction: `Apanhar ${modo === 'Metro' ? 'o metro' : modo === 'Comboio' ? 'o comboio' : modo === 'Barco' ? 'o barco' : 'a linha'} ${p.feed === 'cp' ? `(${l?.short || l?.long || 'CP'})` : (l?.short || '')} às ${hm(p.parte - desvio)} em ${de}${p.destinoViagem ? `, sentido ${p.destinoViagem}` : ''}; sair em ${para} (${p.paragens} ${p.paragens === 1 ? 'paragem' : 'paragens'}) às ${hm(p.chega - desvio)}`,
       transportMode: modo,
@@ -173,7 +190,7 @@ export async function planearViagem(
       isRealtime: false,
       departureTime: hm(p.parte - desvio),
       arrivalTime: hm(p.chega - desvio),
-    };
+    } as RouteLeg;
   };
 
   if (O.length && D.length) {
@@ -183,7 +200,7 @@ export async function planearViagem(
       // -------------------------------------------------------------- diretas
       const diretas = db.prepare(`
         SELECT a.trip_id AS trip, a.stop_id AS de, a.departure_secs AS parte, b.stop_id AS para, b.arrival_secs AS chega,
-               b.stop_sequence - a.stop_sequence AS n, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
+               b.stop_sequence - a.stop_sequence AS n, a.stop_sequence AS sa, b.stop_sequence AS sb, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
         FROM stop_times a INDEXED BY idx_stop_times_stop
         JOIN stop_times b INDEXED BY idx_stop_times_trip_seq ON b.trip_id = a.trip_id AND b.stop_sequence > a.stop_sequence
         JOIN trips t ON t.trip_id = a.trip_id
@@ -195,7 +212,7 @@ export async function planearViagem(
         const andarO = minO.get(r.de) || 1, andarD = minD.get(r.para) || 1;
         if (r.parte < base + andarO * 60 - 30) continue; // não dá para chegar à paragem a tempo
         const chegada = (r.chega || r.parte) + andarD * 60 - dia.desvio;
-        const perna: Perna = { trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: r.chega || r.parte, paragens: r.n };
+        const perna: Perna = { trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: r.chega || r.parte, paragens: r.n, sa: r.sa, sb: r.sb };
         const saida = r.parte - dia.desvio - andarO * 60;
         opcoes.push({
           id: `d-${r.trip}-${r.de}-${r.para}`, type: 'fastest', title: 'Direto', badgeLabel: 'Direto',
@@ -216,7 +233,7 @@ export async function planearViagem(
       // -------------------------------------------------------------- um transbordo
       const perna1 = db.prepare(`
         SELECT a.trip_id AS trip, a.stop_id AS de, a.departure_secs AS parte, b.stop_id AS para, b.arrival_secs AS chega,
-               b.stop_sequence - a.stop_sequence AS n, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
+               b.stop_sequence - a.stop_sequence AS n, a.stop_sequence AS sa, b.stop_sequence AS sb, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
         FROM stop_times a INDEXED BY idx_stop_times_stop
         JOIN stop_times b INDEXED BY idx_stop_times_trip_seq ON b.trip_id = a.trip_id AND b.stop_sequence > a.stop_sequence
         JOIN trips t ON t.trip_id = a.trip_id
@@ -232,12 +249,12 @@ export async function planearViagem(
         const atual = chegaA.get(r.para);
         // a contar com o tempo a pé até à paragem de partida (sair mais tarde é melhor, a igual chegada)
         if (!atual || ch < atual.chega || (ch === atual.chega && r.parte > atual.parte)) {
-          chegaA.set(r.para, { trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: ch, paragens: r.n });
+          chegaA.set(r.para, { trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: ch, paragens: r.n, sa: r.sa, sb: r.sb });
         }
       }
       const perna2 = db.prepare(`
         SELECT a.trip_id AS trip, a.stop_id AS de, a.departure_secs AS parte, b.stop_id AS para, b.arrival_secs AS chega,
-               b.stop_sequence - a.stop_sequence AS n, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
+               b.stop_sequence - a.stop_sequence AS n, a.stop_sequence AS sa, b.stop_sequence AS sb, t.route_id AS route, t.service_id AS sv, t.feed_id AS feed, t.trip_headsign AS hs
         FROM stop_times b INDEXED BY idx_stop_times_stop
         JOIN stop_times a INDEXED BY idx_stop_times_trip_seq ON a.trip_id = b.trip_id AND a.stop_sequence < b.stop_sequence
         JOIN trips t ON t.trip_id = b.trip_id
@@ -247,7 +264,7 @@ export async function planearViagem(
       for (const r of perna2) {
         if (!dia.ativo(r.feed).has(r.sv)) continue;
         const l = partemDe.get(r.de) || [];
-        l.push({ trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: r.chega || r.parte, paragens: r.n });
+        l.push({ trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: r.chega || r.parte, paragens: r.n, sa: r.sa, sb: r.sb });
         partemDe.set(r.de, l);
       }
       if (chegaA.size && partemDe.size) {
@@ -331,6 +348,25 @@ export async function planearViagem(
     escolhidas.push(o);
     if (escolhidas.length >= 4) break;
   }
+  // Percursos para desenhar no mapa (só das opções escolhidas): as paragens de cada viagem e os troços a pé
+  const qPontos = db.prepare(
+    `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
+     WHERE st.trip_id = ? AND st.stop_sequence BETWEEN ? AND ? ORDER BY st.stop_sequence`,
+  );
+  for (const o of escolhidas) {
+    for (const l of o.legs as any[]) {
+      const p: Perna | undefined = l._perna;
+      delete l._perna;
+      if (l.mode === 'TRANSIT' && p?.sa != null && p?.sb != null) {
+        try {
+          l.pontos = (qPontos.all(p.trip, p.sa, p.sb) as Array<{ lat: number; lon: number; nome: string }>)
+            .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+        } catch { /* sem desenho, o resto funciona */ }
+      }
+    }
+    ligarTrocosAPe(o.legs, { lat: oLat, lon: oLon }, { lat: dLat, lon: dLon });
+  }
+
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
   const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, ...o }) => {
     if (melhor && o.id === melhor.id) return { ...o, badgeLabel: o.transfersCount ? 'Mais rápido · 1 transbordo' : 'Mais rápido' };
@@ -359,13 +395,20 @@ export async function planearViagem(
       const queAnteriores = db.prepare(
         'SELECT stop_id AS id, stop_sequence AS seq FROM stop_routes WHERE route_id = ? AND direction_id = ? AND stop_sequence > ? AND stop_sequence < ? ORDER BY stop_sequence DESC LIMIT 3',
       );
+      const quePercurso = db.prepare(
+        `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+         WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence BETWEEN ? AND ? ORDER BY sr.stop_sequence`,
+      );
       for (const { r } of Array.from(melhor.values()).sort((a, b) => a.custo - b.custo).slice(0, 5)) {
         const l = linha(r.route);
         const po = mO.get(r.de)!, pd = mD.get(r.para)!;
         const anteriores = (queAnteriores.all(r.route, r.sentido, r.sa, r.sb) as Array<{ id: string; seq: number }>)
           .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: r.sb - a.seq }));
+        const pontos = (quePercurso.all(r.route, r.sentido, r.sa, r.sb) as Array<{ lat: number; lon: number; nome: string }>)
+          .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
         unir.push({
           anteriores,
+          pontos,
           linha: l?.short || r.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: r.sentido, paragens: r.sb - r.sa,
           origem: { codigo: r.de.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos },
           destino: { codigo: r.para.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos },
