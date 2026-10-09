@@ -1053,6 +1053,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         destination: d.headsign || 'Terminal',
         operatorName: d.operator_name || opName,
         operatorId: d.feed_id,
+        tripId: d.trip_id,
+        stopId: d.stop_id,
         transportMode: primaryMode as any,
         departureTime: d.display_text,
         displayText: d.display_text,
@@ -1571,6 +1573,7 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 // ==========================================
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
+import { percursoDeViagem, percursoUnir } from './src/server/percursoLinha';
 import { DebugEngine } from './src/server/debugEngine';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)
@@ -1585,6 +1588,29 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[API /transit/stop/:id] Erro:', err);
     return res.status(500).json({ error: 'Erro ao obter partidas da paragem', details: err?.message });
+  }
+});
+
+// Percurso de uma linha (paragens por ordem, com coordenadas e horas) para desenhar no mapa:
+//   ?trip=<trip_id>&stop=<paragem de onde parte>            (linhas com horários na base)
+//   ?route=<linha UNIR>&stop=<paragem>&sentido=<n>&destino=<texto>   (UNIR)
+app.get('/api/transit/percurso', (req: Request, res: Response) => {
+  try {
+    const txt = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : '');
+    const stop = txt(req.query.stop);
+    const trip = txt(req.query.trip);
+    const route = txt(req.query.route);
+    const percurso = trip
+      ? percursoDeViagem(trip, stop || undefined)
+      : route && stop
+        ? percursoUnir(route, stop, txt(req.query.sentido) || undefined, txt(req.query.destino) || undefined)
+        : null;
+    if (!percurso) return res.status(404).json({ error: 'Percurso indisponível para esta linha.' });
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json(percurso);
+  } catch (err: any) {
+    console.error('[API /transit/percurso] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter o percurso da linha' });
   }
 });
 

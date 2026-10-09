@@ -27,7 +27,8 @@ import {
   TrainFront,
   TrainFrontTunnel,
   Navigation,
-  ArrowLeft
+  ArrowLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
@@ -236,6 +237,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const rotaLayerRef = useRef<L.LayerGroup | null>(null);
+  const linhaLayerRef = useRef<L.LayerGroup | null>(null);
+  const pedidoLinhaRef = useRef(0);
+  const [linhaAberta, setLinhaAberta] = useState<{
+    linha: string; cor?: string; destino: string; estado: 'a-carregar' | 'ok' | 'erro';
+    percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number };
+  } | null>(null);
   const stopsMarkersRef = useRef<L.Marker[]>([]);
   // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
@@ -511,6 +518,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
             lineColor: d.route_color ? (String(d.route_color).startsWith('#') ? d.route_color : `#${d.route_color}`) : undefined,
             destination: d.headsign || 'Terminal',
             operatorName: d.operator_name,
+            operatorId: d.feed_id,
+            tripId: d.trip_id,
+            stopId: d.stop_id,
             departureTime: d.display_text,
             displayText: d.display_text,
             scheduledTime: d.scheduled_time,
@@ -675,6 +685,106 @@ export const PertoView: React.FC<PertoViewProps> = ({
         .addTo(mapRef.current);
     }
   }, [userCoords]);
+
+  // Tocar numa partida: mostra no mapa o percurso da linha e as suas paragens
+  const abrirLinha = (dep: any) => {
+    const pedido = ++pedidoLinhaRef.current;
+    const linha = String(dep.lineCode || dep.route_short_name || '');
+    const base = { linha, cor: dep.lineColor as string | undefined, destino: formatTransitName(dep.destination || dep.headsign || '') };
+    let url = '';
+    if (dep.tripId) {
+      url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}`;
+    } else if (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem) {
+      url = `/api/transit/percurso?route=${encodeURIComponent(`unir:${dep.unirLinha}`)}&stop=${encodeURIComponent(`unir:${dep.unirParagem}`)}&sentido=${encodeURIComponent(dep.unirSentido || '')}&destino=${encodeURIComponent(dep.destination || '')}`;
+    }
+    if (!url) { setLinhaAberta({ ...base, estado: 'erro' }); return; }
+    setLinhaAberta({ ...base, estado: 'a-carregar' });
+    fetch(url, { signal: AbortSignal.timeout(15000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (pedido !== pedidoLinhaRef.current) return;
+        if (!p?.paragens?.length) { setLinhaAberta({ ...base, estado: 'erro' }); return; }
+        setLinhaAberta({
+          linha: base.linha || p.linha || '',
+          cor: base.cor || p.cor,
+          destino: base.destino || formatTransitName(p.destino || ''),
+          estado: 'ok',
+          percurso: { paragens: p.paragens, indice: Number.isFinite(p.indice) ? p.indice : -1 },
+        });
+      })
+      .catch(() => { if (pedido === pedidoLinhaRef.current) setLinhaAberta({ ...base, estado: 'erro' }); });
+  };
+  const fecharLinha = () => { pedidoLinhaRef.current++; setLinhaAberta(null); };
+  // Mudar de paragem fecha o percurso aberto
+  useEffect(() => { pedidoLinhaRef.current++; setLinhaAberta(null); }, [selectedStop?.id]);
+
+  // Percurso da linha desenhado no mapa: o que falta percorrer a laranja, o que já passou esbatido
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    linhaLayerRef.current?.remove();
+    linhaLayerRef.current = null;
+    const percurso = linhaAberta?.percurso;
+    if (!percurso) return;
+    const pts = percurso.paragens.filter((p) => isValidCoordinate(p.lat, p.lon));
+    if (pts.length < 2) return;
+    const indice = percurso.indice >= 0 && percurso.indice < pts.length ? percurso.indice : 0;
+    const todos: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
+    const restante = todos.slice(indice);
+    const grupo = L.layerGroup();
+    const nomeTip = (nome: string, extra?: string) =>
+      `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(formatTransitName(nome))}${extra ? `<span style="font-weight:500;opacity:.75"> · ${escaparHtmlMapa(extra)}</span>` : ''}</span>`;
+
+    if (indice > 0) {
+      L.polyline(todos.slice(0, indice + 1), { color: '#FFFFFF', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+      L.polyline(todos.slice(0, indice + 1), { color: '#FF6B1A', weight: 5, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+    }
+    L.polyline(restante, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+    L.polyline(restante, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+
+    pts.forEach((p, i) => {
+      if (i === indice || i === pts.length - 1) return;
+      const passou = i < indice;
+      L.circleMarker([p.lat, p.lon], { radius: 3.5, color: '#FF6B1A', weight: 2, opacity: passou ? 0.5 : 1, fillColor: '#FFFFFF', fillOpacity: 1 })
+        .bindTooltip(nomeTip(p.nome, p.hora), { direction: 'top', offset: [0, -4], className: 'parou-rota-tip' })
+        .addTo(grupo);
+    });
+    // Onde estou
+    const aqui = pts[indice];
+    L.circleMarker([aqui.lat, aqui.lon], { radius: 9, color: '#111111', weight: 3, fillColor: '#FF6B1A', fillOpacity: 1 })
+      .bindTooltip(nomeTip(aqui.nome, aqui.hora), { permanent: true, direction: 'top', offset: [0, -9], className: 'parou-rota-tip' })
+      .addTo(grupo);
+    // Fim da linha
+    const fim = pts[pts.length - 1];
+    if (pts.length - 1 !== indice) {
+      L.marker([fim.lat, fim.lon], {
+        zIndexOffset: 900,
+        icon: L.divIcon({
+          className: 'parou-rota-destino',
+          html: '<div style="width:26px;height:26px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        }),
+      }).bindTooltip(nomeTip(fim.nome, fim.hora), { permanent: true, direction: 'bottom', offset: [0, 12], className: 'parou-rota-tip' }).addTo(grupo);
+    }
+
+    grupo.addTo(map);
+    linhaLayerRef.current = grupo;
+    setFollowMode(false);
+    try {
+      map.fitBounds(L.latLngBounds(restante.length > 1 ? restante : todos), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 40], maxZoom: 16, animate: true });
+    } catch (err) {
+      console.warn('[PertoView] fitBounds da linha:', err);
+    }
+  }, [linhaAberta?.percurso]);
+
+  // Ao abrir o percurso, a lista fica na paragem onde estou
+  const paragemAquiRef = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    if (linhaAberta?.estado !== 'ok') return;
+    const t = setTimeout(() => paragemAquiRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+    return () => clearTimeout(t);
+  }, [linhaAberta?.estado, linhaAberta?.percurso]);
 
   // Rota escolhida desenhada no mapa: linha laranja com as paragens, troços a pé a tracejado
   useEffect(() => {
@@ -1509,8 +1619,94 @@ export const PertoView: React.FC<PertoViewProps> = ({
               })()}
             </div>
 
+            {/* Percurso da linha escolhida (também desenhado no mapa) */}
+            {linhaAberta && (
+              <div className="flex-1 min-h-0 flex flex-col" data-teste="percurso-linha">
+                <div className="shrink-0 px-4 py-2.5 flex items-center gap-2.5 border-b border-[#E6E6E3]">
+                  <button
+                    onClick={fecharLinha}
+                    className="shrink-0 h-9 pl-2 pr-3 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[13px] font-semibold text-[#111111] flex items-center gap-1 cursor-pointer"
+                    aria-label="Voltar às partidas da paragem"
+                  >
+                    <ArrowLeft className="w-4 h-4 stroke-[2.25]" />
+                    Partidas
+                  </button>
+                  <LineChip number={linhaAberta.linha || '—'} color={linhaAberta.cor} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-semibold text-[#111111] truncate">{linhaAberta.destino || 'Percurso'}</div>
+                    {linhaAberta.estado === 'ok' && linhaAberta.percurso && (() => {
+                      const { paragens, indice } = linhaAberta.percurso;
+                      const faltam = indice >= 0 ? paragens.length - 1 - indice : paragens.length;
+                      return (
+                        <div className="text-xs text-[#6B6B6B]">
+                          {faltam > 0 ? `${faltam} ${faltam === 1 ? 'paragem' : 'paragens'} até ao fim` : 'Fim de linha'}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
+                  {linhaAberta.estado === 'a-carregar' && (
+                    <div className="py-4 text-sm text-[#6B6B6B]">A carregar percurso…</div>
+                  )}
+                  {linhaAberta.estado === 'erro' && (
+                    <div className="py-4 text-sm text-[#6B6B6B]">Percurso indisponível para esta linha.</div>
+                  )}
+                  {linhaAberta.estado === 'ok' && linhaAberta.percurso && (
+                    <ol className="py-2">
+                      {linhaAberta.percurso.paragens.map((p, i, todas) => {
+                        const indice = linhaAberta.percurso!.indice;
+                        const aqui = i === indice;
+                        const passou = indice >= 0 && i < indice;
+                        const primeira = i === 0;
+                        const ultima = i === todas.length - 1;
+                        return (
+                          <li key={`${p.id}-${i}`} ref={aqui ? paragemAquiRef : undefined}>
+                            <button
+                              onClick={() => safeFlyTo(mapRef.current, p.lat, p.lon, 16.5)}
+                              className="w-full flex items-stretch gap-3 text-left cursor-pointer active:bg-[#F4F4F2] rounded-[8px]"
+                            >
+                              <span className="relative w-5 shrink-0 flex justify-center" aria-hidden="true">
+                                <span
+                                  className={`absolute left-1/2 -translate-x-1/2 w-[4px] ${primeira ? 'top-1/2' : 'top-0'} ${ultima ? 'bottom-1/2' : 'bottom-0'} ${passou ? 'bg-[#FF6B1A]/35' : 'bg-[#FF6B1A]'}`}
+                                />
+                                <span
+                                  className={`relative self-center rounded-full border-2 ${
+                                    aqui ? 'w-4 h-4 bg-[#FF6B1A] border-[#111111]'
+                                    : ultima ? 'w-4 h-4 bg-[#111111] border-[#FF6B1A]'
+                                    : `w-2.5 h-2.5 bg-[#FFFFFF] ${passou ? 'border-[#FF6B1A]/50' : 'border-[#FF6B1A]'}`
+                                  }`}
+                                />
+                              </span>
+                              <span className="min-w-0 flex-1 py-2.5 flex items-center justify-between gap-2">
+                                <span className="min-w-0">
+                                  <span className={`block truncate text-[14px] ${aqui ? 'font-bold text-[#111111]' : passou ? 'font-medium text-[#6B6B6B]' : 'font-medium text-[#111111]'}`}>
+                                    {formatTransitName(p.nome)}
+                                  </span>
+                                  {aqui && <span className="block text-[11px] font-semibold text-[#FF6B1A]">Estás aqui</span>}
+                                  {!aqui && ultima && <span className="block text-[11px] font-semibold text-[#6B6B6B]">Fim de linha</span>}
+                                </span>
+                                {p.hora && (
+                                  <span className={`shrink-0 font-['Barlow_Condensed'] text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
+                                    {p.hora}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                  {linhaAberta.estado === 'ok' && linhaAberta.percurso && !linhaAberta.percurso.paragens.some((p) => p.hora) && (
+                    <p className="pb-2 text-[11px] text-[#6B6B6B]">Mostra as paragens por ordem; as horas de passagem não estão disponíveis para esta linha.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Partidas da paragem */}
-            <div className="flex-1 min-h-0 px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain">
+            <div className={`flex-1 min-h-0 px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain ${linhaAberta ? 'hidden' : ''}`}>
               {(() => {
                 const proprias = selectedStop.nextDepartures || [];
                 const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
@@ -1548,8 +1744,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     {sorted.map((dep: any, dIdx: number) => {
                       const parsed = parseDepartureTime(dep);
                       const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
+                      const podeAbrir = Boolean(dep.tripId || (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem));
                       return (
-                        <div key={dIdx} className="py-2.5 flex items-center justify-between gap-2">
+                        <div
+                          key={dIdx}
+                          role={podeAbrir ? 'button' : undefined}
+                          tabIndex={podeAbrir ? 0 : undefined}
+                          onClick={podeAbrir ? () => abrirLinha(dep) : undefined}
+                          onKeyDown={podeAbrir ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirLinha(dep); } } : undefined}
+                          aria-label={podeAbrir ? `Ver o percurso da linha ${dep.lineCode || ''} para ${destination}` : undefined}
+                          className={`py-2.5 flex items-center justify-between gap-2 ${podeAbrir ? 'cursor-pointer active:bg-[#F4F4F2]' : ''}`}
+                        >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
                             <div className="min-w-0">
@@ -1561,26 +1766,29 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               )}
                             </div>
                           </div>
-                          <div className="shrink-0 flex flex-col items-end text-right">
-                            <div className="flex items-center gap-1">
-                              {parsed.isRealtime && (
-                                <Radio 
-                                  className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
+                          <div className="shrink-0 flex items-center gap-1">
+                            <div className="flex flex-col items-end text-right">
+                              <div className="flex items-center gap-1">
+                                {parsed.isRealtime && (
+                                  <Radio
+                                    className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`}
+                                    style={{ color: parsed.textColor }}
+                                  />
+                                )}
+                                <span
+                                  className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
                                   style={{ color: parsed.textColor }}
-                                />
+                                >
+                                  {parsed.bigText}
+                                </span>
+                              </div>
+                              {parsed.subText && (
+                                <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                                  {parsed.subText}
+                                </span>
                               )}
-                              <span 
-                                className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                                style={{ color: parsed.textColor }}
-                              >
-                                {parsed.bigText}
-                              </span>
                             </div>
-                            {parsed.subText && (
-                              <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                                {parsed.subText}
-                              </span>
-                            )}
+                            {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
                           </div>
                         </div>
                       );

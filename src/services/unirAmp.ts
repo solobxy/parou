@@ -22,6 +22,8 @@ export interface PassagemUnir {
   sentido: string;
   /** Identificador da viagem na AMP (igual em todas as paragens da viagem) */
   viagem: string;
+  /** Código da paragem (ex.: gon:1031) a que esta passagem se refere */
+  paragem: string;
 }
 
 interface Entrada { t: number; ok: boolean; lista: PassagemUnir[]; nome?: string }
@@ -70,6 +72,7 @@ async function pedir(codigo: string, desvioDias: number): Promise<Entrada> {
           parcial: /parcelar/i.test(String(x.abrev || '')),
           sentido: limpar(x.sentido),
           viagem: limpar(x.trip_id),
+          paragem: codigo,
         };
       }).filter((x: PassagemUnir) => x.linha && Number.isFinite(x.segundos));
       lista.sort((a, b) => a.segundos - b.segundos);
@@ -132,6 +135,10 @@ export function partidasParaMostrar(passagens: PassagemUnir[], corPorLinha?: Map
         destination: x.destino || 'UNIR',
         operatorName: x.parcial ? 'UNIR · percurso parcial' : 'UNIR',
         operatorId: 'unir',
+        // Para abrir o percurso da linha no mapa
+        unirLinha: x.linha,
+        unirParagem: x.paragem,
+        unirSentido: x.sentido,
         transportMode: 'Autocarro',
         departureTime: texto,
         displayText: texto,
