@@ -1578,7 +1578,9 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
   try {
     const stopId = req.params.id;
     const timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
-    const data = await DepartureEngine.nextDepartures(stopId, timeParam || new Date());
+    // ?linhas=1 (paragem aberta na app): a próxima partida de cada linha + as seguintes
+    const umaPorLinha = req.query.linhas === '1';
+    const data = await DepartureEngine.nextDepartures(stopId, timeParam || new Date(), 15, { umaPorLinha });
     return res.json(data);
   } catch (err: any) {
     console.error('[API /transit/stop/:id] Erro:', err);

@@ -477,37 +477,43 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setRotasCalculadas(false);
   };
 
+  // Paragem aberta: pede ao servidor a próxima partida de CADA linha (a lista "perto" só traz 5
+  // partidas por paragem e as linhas menos frequentes ficavam de fora) e atualiza de 30 em 30 s
   useEffect(() => {
     if (!selectedStop) return;
-    if ((selectedStop.nextDepartures || []).length > 0) return;
-    if (partidasExtra?.id === selectedStop.id && !partidasExtra.aCarregar) return;
+    const id = selectedStop.id;
     let cancelado = false;
-    setPartidasExtra({ id: selectedStop.id, deps: [], aCarregar: true });
-    fetch(`/api/transit/stop/${encodeURIComponent(selectedStop.id)}`, { signal: AbortSignal.timeout(15000) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelado) return;
-        const agora = Math.floor(Date.now() / 1000);
-        const deps = (data?.departures || []).map((d: any) => ({
-          lineCode: d.route_short_name || d.route_id,
-          lineName: d.route_long_name || d.route_short_name || '',
-          lineColor: d.route_color ? (String(d.route_color).startsWith('#') ? d.route_color : `#${d.route_color}`) : undefined,
-          destination: d.headsign || 'Terminal',
-          operatorName: d.operator_name,
-          departureTime: d.display_text,
-          displayText: d.display_text,
-          scheduledTime: d.scheduled_time,
-          expectedTime: d.is_realtime && d.realtime_time ? d.realtime_time : undefined,
-          etaMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
-          departureMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
-          isRealtime: d.state === 'TEMPO REAL',
-          state: d.state,
-          statusDescription: d.state_reason || d.state,
-        }));
-        setPartidasExtra({ id: selectedStop.id, deps, aCarregar: false });
-      })
-      .catch(() => { if (!cancelado) setPartidasExtra({ id: selectedStop.id, deps: [], aCarregar: false }); });
-    return () => { cancelado = true; };
+    const carregar = (silencioso: boolean) => {
+      if (!silencioso) setPartidasExtra((atual) => ({ id, deps: atual?.id === id ? atual.deps : [], aCarregar: true }));
+      fetch(`/api/transit/stop/${encodeURIComponent(id)}?linhas=1`, { signal: AbortSignal.timeout(15000) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelado) return;
+          const agora = Math.floor(Date.now() / 1000);
+          const deps = (data?.departures || []).map((d: any) => ({
+            lineCode: d.route_short_name || d.route_id,
+            lineName: d.route_long_name || d.route_short_name || '',
+            lineColor: d.route_color ? (String(d.route_color).startsWith('#') ? d.route_color : `#${d.route_color}`) : undefined,
+            destination: d.headsign || 'Terminal',
+            operatorName: d.operator_name,
+            departureTime: d.display_text,
+            displayText: d.display_text,
+            scheduledTime: d.scheduled_time,
+            expectedTime: d.is_realtime && d.realtime_time ? d.realtime_time : undefined,
+            etaMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
+            departureMinutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
+            countdown_minutes: Math.max(0, Math.round(((d.realtime_epoch_secs || d.dep_epoch_secs) - agora) / 60)),
+            isRealtime: d.state === 'TEMPO REAL',
+            state: d.state,
+            statusDescription: d.state_reason || d.state,
+          }));
+          setPartidasExtra({ id, deps, aCarregar: false });
+        })
+        .catch(() => { if (!cancelado) setPartidasExtra((atual) => ({ id, deps: atual?.id === id ? atual.deps : [], aCarregar: false })); });
+    };
+    carregar(false);
+    const t = setInterval(() => carregar(true), 30_000);
+    return () => { cancelado = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStop?.id]);
 
@@ -1404,7 +1410,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 const proprias = selectedStop.nextDepartures || [];
                 const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
                 const unir = codigosUnir(selectedStop as any).length ? unirPorParagem[selectedStop.id] : undefined;
-                const deps = [...(proprias.length > 0 ? proprias : (extra?.deps || [])), ...partidasUnirDe(selectedStop, true)];
+                const deps = [...((extra && extra.deps.length > 0) ? extra.deps : proprias), ...partidasUnirDe(selectedStop, true)];
                 const sorted = escolherPartidas(sortDepartures(deps));
                 if (sorted.length === 0) {
                   const aCarregarUnir = Boolean(unir?.aCarregar) || (codigosUnir(selectedStop as any).length > 0 && !unir);
