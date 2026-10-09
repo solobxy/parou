@@ -226,6 +226,8 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
     return (partes[0] % 24) * 3600 + partes[1] * 60;
   };
   const horaSaidaBus = hmDe(p.segundos);
+  // Próximas partidas da mesma linha nesta paragem ("também às 13:08, 13:38")
+  const tambem = Array.from(new Set(apanhaveis.filter((x) => x.epoch > p.epoch).map((x) => hmDe(x.segundos)))).slice(0, 2);
   const horaChegadaBus = hmDe(segsDe(melhor.chegada));
   const destino = p.destino || c.nome || '';
   return {
@@ -243,7 +245,7 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
       { mode: 'WALK', instruction: `Ir a pé até ${c.origem.nome}`, durationMinutes: c.origem.minutos, distanceMeters: c.origem.metros },
       {
         mode: 'TRANSIT',
-        instruction: `Apanhar a linha ${c.linha} da UNIR às ${horaSaidaBus} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) ${estimada ? 'por volta das' : 'às'} ${horaChegadaBus}`,
+        instruction: `Apanhar a linha ${c.linha} da UNIR às ${horaSaidaBus} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) ${estimada ? 'por volta das' : 'às'} ${horaChegadaBus}${tambem.length ? `. Também às ${tambem.join(', ')}` : ''}`,
         transportMode: c.linha === '9901' || c.linha === '9902' ? 'Barco' : 'Autocarro',
         lineCode: c.linha,
         lineName: c.nome,
