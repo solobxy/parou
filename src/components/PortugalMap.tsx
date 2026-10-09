@@ -66,8 +66,8 @@ export const PORTUGAL_DISTRICT_LOCATIONS: Record<string, { lat: number; lon: num
 interface PortugalMapProps {
   selectedDistrict: string | null;
   onSelectDistrict: (districtName: string | null) => void;
-  activeViewMode: 'cidades' | 'concelhos' | 'distritos';
-  onViewModeChange: (mode: 'cidades' | 'concelhos' | 'distritos') => void;
+  activeViewMode?: 'cidades' | 'concelhos' | 'distritos';
+  onViewModeChange?: (mode: 'cidades' | 'concelhos' | 'distritos') => void;
   districtCounts?: Record<string, number>;
   occurrences?: Occurrence[];
   onSelectOccurrence?: (occurrence: Occurrence) => void;
@@ -83,8 +83,7 @@ interface PortugalMapProps {
 export const PortugalMap: React.FC<PortugalMapProps> = ({
   selectedDistrict,
   onSelectDistrict,
-  activeViewMode,
-  onViewModeChange,
+  activeViewMode = 'cidades',
   districtCounts,
   occurrences = [],
   onSelectOccurrence,
@@ -107,7 +106,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       if (n.has(g)) n.delete(g); else n.add(g);
       return n;
     });
-  const [activeArchipelago, setActiveArchipelago] = useState<'continental' | 'madeira' | 'acores' | 'tudo'>('continental');
+  const [activeArchipelago, setActiveArchipelago] = useState<'continental' | 'madeira' | 'acores'>('continental');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentZoom, setCurrentZoom] = useState<number>(6);
 
@@ -265,7 +264,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   }, []);
 
   // Mudar de Arquipélago
-  const handleArchipelagoChange = (arch: 'continental' | 'madeira' | 'acores' | 'tudo') => {
+  const handleArchipelagoChange = (arch: 'continental' | 'madeira' | 'acores') => {
     setActiveArchipelago(arch);
     onSelectDistrict(null);
     if (!mapRef.current) return;
@@ -276,8 +275,6 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       mapRef.current.flyTo([32.75, -16.95], 9.5);
     } else if (arch === 'acores') {
       mapRef.current.flyTo([37.74, -25.67], 7.8);
-    } else if (arch === 'tudo') {
-      mapRef.current.flyTo([37.5, -17.0], 5.0);
     }
   };
 
@@ -518,26 +515,9 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
           {/* Mode & Region Controls */}
           <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
-            {/* View Mode */}
-            <div className="flex items-center bg-[#F4F4F2] rounded-[6px] p-0.5 border border-[#E6E6E3]">
-              {(['distritos', 'concelhos', 'cidades'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => onViewModeChange(mode)}
-                  className={`px-2 py-1 rounded-[4px] text-xs font-medium capitalize transition-colors cursor-pointer min-h-[32px] ${
-                    activeViewMode === mode
-                      ? 'bg-[#FFFFFF] text-[#111111] font-bold shadow-xs'
-                      : 'text-[#6B6B6B] hover:text-[#111111]'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-
             {/* Archipelago Switcher */}
             <div className="flex items-center bg-[#F4F4F2] rounded-[6px] p-0.5 border border-[#E6E6E3]">
-              {(['continental', 'madeira', 'acores', 'tudo'] as const).map((arch) => (
+              {(['continental', 'madeira', 'acores'] as const).map((arch) => (
                 <button
                   key={arch}
                   onClick={() => handleArchipelagoChange(arch)}
