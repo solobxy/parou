@@ -91,6 +91,20 @@ function isValidCoordinate(lat: unknown, lon: unknown): lat is number {
   );
 }
 
+/** Texto preto ou branco, conforme a cor de fundo (para o número da linha no mapa) */
+function corTextoSobre(fundo?: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(fundo || '').trim());
+  if (!m) return '#FFFFFF';
+  const n = parseInt(m[1], 16);
+  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const L_ = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L_ > 0.4 ? '#111111' : '#FFFFFF';
+}
+
+function escaparHtmlMapa(t: string): string {
+  return String(t || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
   if (!map) return;
   if (!isValidCoordinate(lat, lon)) return;
@@ -221,6 +235,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const rotaLayerRef = useRef<L.LayerGroup | null>(null);
   const stopsMarkersRef = useRef<L.Marker[]>([]);
   // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
@@ -420,7 +435,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada
       const candidatos = (res.unir || []).slice(0, 4);
       if (candidatos.length) {
-        const extra = (await Promise.all(candidatos.map((c) => viagemUnir(c, destName).catch(() => null))))
+        const extra = (await Promise.all(candidatos.map((c) => viagemUnir(c, destName, res.originCoords, res.destCoords).catch(() => null))))
           .filter(Boolean) as TransitRouteOption[];
         if (pedido !== pedidoRotasRef.current) return;
         if (extra.length) {
@@ -660,6 +675,96 @@ export const PertoView: React.FC<PertoViewProps> = ({
         .addTo(mapRef.current);
     }
   }, [userCoords]);
+
+  // Rota escolhida desenhada no mapa: linha laranja com as paragens, troços a pé a tracejado
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    rotaLayerRef.current?.remove();
+    rotaLayerRef.current = null;
+    if (!selectedRoute) return;
+
+    const grupo = L.layerGroup();
+    const limites: L.LatLngTuple[] = [];
+    const nomeTip = (nome: string, extra?: string) =>
+      `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(formatTransitName(nome))}${extra ? `<span style="font-weight:500;opacity:.75"> · ${escaparHtmlMapa(extra)}</span>` : ''}</span>`;
+
+    selectedRoute.legs.forEach((leg) => {
+      const pts = (leg.pontos || []).filter((p) => isValidCoordinate(p.lat, p.lon));
+      if (pts.length < 2) return;
+      const linha: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
+      linha.forEach((p) => limites.push(p));
+
+      if (leg.mode === 'WALK') {
+        L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+        L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
+        return;
+      }
+
+      // Troço de transporte: linha laranja com contorno branco
+      L.polyline(linha, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+      L.polyline(linha, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+
+      // Paragens intermédias
+      pts.slice(1, -1).forEach((p) => {
+        L.circleMarker([p.lat, p.lon], { radius: 3.5, color: '#FF6B1A', weight: 2, fillColor: '#FFFFFF', fillOpacity: 1, interactive: !!p.nome })
+          .bindTooltip(nomeTip(p.nome || ''), { direction: 'top', offset: [0, -4], className: 'parou-rota-tip' })
+          .addTo(grupo);
+      });
+
+      // Embarque e desembarque
+      const primeiro = pts[0];
+      const ultimo = pts[pts.length - 1];
+      L.circleMarker([primeiro.lat, primeiro.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
+        .bindTooltip(nomeTip(leg.fromStopName || primeiro.nome || '', leg.departureTime), { permanent: true, direction: 'top', offset: [0, -8], className: 'parou-rota-tip' })
+        .addTo(grupo);
+      L.circleMarker([ultimo.lat, ultimo.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
+        .bindTooltip(nomeTip(leg.toStopName || ultimo.nome || '', leg.arrivalTime), { permanent: true, direction: 'bottom', offset: [0, 8], className: 'parou-rota-tip' })
+        .addTo(grupo);
+
+      // Número da linha a meio do percurso
+      const meio = pts[Math.floor(pts.length / 2)];
+      const fundo = leg.lineColor || '#111111';
+      L.marker([meio.lat, meio.lon], {
+        interactive: false,
+        zIndexOffset: 500,
+        icon: L.divIcon({
+          className: 'parou-rota-linha',
+          html: `<div style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 6px;border-radius:5px;background:${fundo};color:${corTextoSobre(fundo)};border:2px solid #FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,.35);font:700 13px/1 'Barlow Condensed',Inter,sans-serif;white-space:nowrap">${escaparHtmlMapa(leg.lineCode || '')}</div>`,
+          iconSize: [40, 22],
+          iconAnchor: [20, 11],
+        }),
+      }).addTo(grupo);
+    });
+
+    // Destino
+    if (selectedDestination && isValidCoordinate(selectedDestination.latitude, selectedDestination.longitude)) {
+      limites.push([selectedDestination.latitude, selectedDestination.longitude]);
+      L.marker([selectedDestination.latitude, selectedDestination.longitude], {
+        zIndexOffset: 900,
+        title: selectedDestination.title,
+        icon: L.divIcon({
+          className: 'parou-rota-destino',
+          html: '<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+      }).addTo(grupo);
+    }
+
+    grupo.addTo(map);
+    rotaLayerRef.current = grupo;
+
+    if (limites.length > 1) {
+      setFollowMode(false);
+      try {
+        map.fitBounds(L.latLngBounds(limites), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 36], maxZoom: 16, animate: true });
+      } catch (err) {
+        console.warn('[PertoView] fitBounds da rota:', err);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoute?.id]);
 
   // Filter Stops
   const filteredStops = useMemo(() => {

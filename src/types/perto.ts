@@ -91,7 +91,11 @@ export interface RouteLeg {
   isRealtime?: boolean;
   departureTime?: string;
   arrivalTime?: string;
+  /** Para desenhar no mapa: paragens do percurso (embarque → desembarque) ou os dois extremos do troço a pé */
+  pontos?: PontoRota[];
 }
+
+export interface PontoRota { lat: number; lon: number; nome?: string }
 
 export interface TransitRouteOption {
   id: string;
@@ -121,6 +125,8 @@ export interface CandidatoUnir {
   destino: { codigo: string; nome: string; metros: number; minutos: number };
   /** Paragens imediatamente antes do destino, na mesma linha e sentido (a AMP não lista chegadas ao fim da linha) */
   anteriores?: Array<{ codigo: string; passos: number }>;
+  /** Paragens da linha entre a origem e o destino, para desenhar o percurso no mapa */
+  pontos?: PontoRota[];
 }
 
 export interface DestinationSuggestion {

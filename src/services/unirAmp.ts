@@ -170,7 +170,10 @@ function hmDe(segundos: number): string {
 const motivosFalha: string[] = [];
 export function motivosFalhaUnir(): string[] { return motivosFalha.splice(0, motivosFalha.length); }
 
-export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<TransitRouteOption | null> {
+export async function viagemUnir(
+  c: CandidatoUnir, destNome: string,
+  coordOrigem?: { lat: number; lon: number }, coordDestino?: { lat: number; lon: number },
+): Promise<TransitRouteOption | null> {
   const [o, d] = await Promise.all([pedir(c.origem.codigo, 0), pedir(c.destino.codigo, 0)]);
   const etiqueta = `${c.linha} ${c.origem.codigo}→${c.destino.codigo}`;
   if (!o.ok) { motivosFalha.push(`${etiqueta}: origem sem resposta`); return null; }
@@ -226,6 +229,7 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
     return (partes[0] % 24) * 3600 + partes[1] * 60;
   };
   const horaSaidaBus = hmDe(p.segundos);
+  const pontosLinha = c.pontos || [];
   // Próximas partidas da mesma linha nesta paragem ("também às 13:08, 13:38")
   const tambem = Array.from(new Set(apanhaveis.filter((x) => x.epoch > p.epoch).map((x) => hmDe(x.segundos)))).slice(0, 2);
   const horaChegadaBus = hmDe(segsDe(melhor.chegada));
@@ -242,7 +246,7 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
     walkingMinutes: c.origem.minutos + c.destino.minutos,
     transfersCount: 0,
     legs: [
-      { mode: 'WALK', instruction: `Ir a pé até ${c.origem.nome}`, durationMinutes: c.origem.minutos, distanceMeters: c.origem.metros },
+      { mode: 'WALK', instruction: `Ir a pé até ${c.origem.nome}`, durationMinutes: c.origem.minutos, distanceMeters: c.origem.metros, ...(coordOrigem && pontosLinha.length ? { pontos: [coordOrigem, pontosLinha[0]] } : {}) },
       {
         mode: 'TRANSIT',
         instruction: `Apanhar a linha ${c.linha} da UNIR às ${horaSaidaBus} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) ${estimada ? 'por volta das' : 'às'} ${horaChegadaBus}${tambem.length ? `. Também às ${tambem.join(', ')}` : ''}`,
@@ -258,8 +262,9 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
         isRealtime: false,
         departureTime: horaSaidaBus,
         arrivalTime: horaChegadaBus,
+        ...(pontosLinha.length ? { pontos: pontosLinha } : {}),
       },
-      { mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: c.destino.minutos, distanceMeters: c.destino.metros },
+      { mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: c.destino.minutos, distanceMeters: c.destino.metros, ...(coordDestino && pontosLinha.length ? { pontos: [pontosLinha[pontosLinha.length - 1], coordDestino] } : {}) },
     ],
     realtimeStatus: 'PROGRAMADO',
     realtimeLabel: estimada ? 'Horário da AMP · chegada estimada' : 'Horário da AMP',
