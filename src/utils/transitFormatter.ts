@@ -225,7 +225,9 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     const diaDep = depDate.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
     const diaHoje = now.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
     if (diaDep !== diaHoje) {
-      subText = 'amanhã';
+      // "amanhã" só no dia seguinte; mais longe (linhas que hoje não passam), o dia da semana
+      const dias = Math.round((Date.parse(depDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })) - Date.parse(now.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' }))) / 86400000);
+      subText = dias >= 2 ? depDate.toLocaleDateString('pt-PT', { weekday: 'long', timeZone: 'Europe/Lisbon' }) : 'amanhã';
     } else {
       const h = Math.floor(effectiveMinutes / 60);
       const m = effectiveMinutes % 60;

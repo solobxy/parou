@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
 import { 
   queryDeparturesForStop, 
+  queryNextByLineForStop,
   getActiveServiceIds, 
   getMaxStopSequence, 
   getFrequenciesForTrip,
@@ -13,6 +14,27 @@ import { StopsEngine, UnifiedStop } from './stopsEngine';
 import { RealtimeEngine, LiveDeparture } from './realtimeEngine';
 import { getUnirStopDepartures } from './unirQiHorasService';
 import { getFeedTimezone } from './dadosProntos';
+
+/**
+ * Na paragem aberta queremos ver TODAS as linhas que lá passam: a primeira partida de cada linha
+ * (e destino) mais as partidas seguintes, por ordem de hora, até `seguintes`.
+ */
+function comProximaDeCadaLinha<T>(ordenadas: T[], seguintes: number, chave: (t: T) => string, tetoLinhas = 60): T[] {
+  const vistas = new Set<string>();
+  const escolhidas = new Set<T>();
+  for (const t of ordenadas) {
+    const k = chave(t);
+    if (!vistas.has(k) && vistas.size < tetoLinhas) { vistas.add(k); escolhidas.add(t); }
+  }
+  let extra = 0;
+  for (const t of ordenadas) {
+    if (escolhidas.has(t)) continue;
+    if (extra >= seguintes) break;
+    escolhidas.add(t);
+    extra += 1;
+  }
+  return ordenadas.filter((t) => escolhidas.has(t));
+}
 
 export interface DepartureResult {
   stop: {
@@ -140,10 +162,12 @@ export class DepartureEngine {
   public static async nextDepartures(
     stopParam: UnifiedStop | string,
     nowInput: Date | string = new Date(),
-    maxResults = 15
+    maxResults = 15,
+    opcoes: { umaPorLinha?: boolean } = {}
   ): Promise<DepartureResult> {
+    const umaPorLinha = Boolean(opcoes.umaPorLinha);
     const stopIdKey = typeof stopParam === 'string' ? stopParam : stopParam?.id;
-    const cacheKey = `${stopIdKey}_${maxResults}`;
+    const cacheKey = `${stopIdKey}_${maxResults}${umaPorLinha ? '_linhas' : ''}`;
     if (stopIdKey) {
       const cached = nextDeparturesCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -249,7 +273,7 @@ export class DepartureEngine {
         const maxSecs = 172800;
 
         // Já há partidas suficientes antes do início deste dia: os dias seguintes não mudam nada
-        if (d >= 1 && collectedCandidates.length >= maxResults) {
+        if (!umaPorLinha && d >= 1 && collectedCandidates.length >= maxResults) {
           const epocas = collectedCandidates.map((c) => c.depEpochSecs).sort((a, b) => a - b);
           if (epocas[maxResults - 1] <= serviceDayStartSecs) break;
         }
@@ -257,13 +281,11 @@ export class DepartureEngine {
         const activeServiceIds = getActiveServiceIds(feedId, dateStr, dayOfWeekName);
         if (activeServiceIds.size === 0) continue;
 
-        const rawRows = queryDeparturesForStop(
-          feedId,
-          memberStopId,
-          Array.from(activeServiceIds),
-          minSecs,
-          maxSecs
-        );
+        const idsServico = Array.from(activeServiceIds);
+        const rawRows = queryDeparturesForStop(feedId, memberStopId, idsServico, minSecs, maxSecs);
+        // Para a paragem aberta: junta a primeira partida de cada linha (as menos frequentes não
+        // cabem nas 60 primeiras partidas das paragens movimentadas)
+        if (umaPorLinha) rawRows.push(...queryNextByLineForStop(feedId, memberStopId, idsServico, minSecs, maxSecs));
 
         for (const row of rawRows) {
           if (row.pickup_type === 1) continue;
@@ -393,11 +415,13 @@ export class DepartureEngine {
     // Sort all collected departures chronologically by depEpochSecs
     uniqueCandidates.sort((a, b) => a.depEpochSecs - b.depEpochSecs);
 
-    // Take top candidates
-    const topCandidates = uniqueCandidates.slice(0, maxResults);
+    // Take top candidates (na paragem aberta: a próxima de cada linha + as seguintes)
+    const topCandidates = umaPorLinha
+      ? comProximaDeCadaLinha(uniqueCandidates, maxResults, (c) => `${c.raw.feed_id}|${c.raw.route_id}|${c.raw.trip_headsign || ''}`)
+      : uniqueCandidates.slice(0, maxResults);
 
     // Initial LiveDeparture items (PROGRAMADO state initially)
-    const initialDepartures: LiveDeparture[] = [
+    const initialDeparturesTodas: LiveDeparture[] = [
       ...cmDirectDepartures.filter((d) => ((d.is_realtime && d.realtime_epoch_secs !== undefined) ? d.realtime_epoch_secs : d.dep_epoch_secs) >= nowEpochSecs),
       ...unirDirectDepartures.filter((d) => ((d.is_realtime && d.realtime_epoch_secs !== undefined) ? d.realtime_epoch_secs : d.dep_epoch_secs) >= nowEpochSecs),
       ...topCandidates.map((c) => {
@@ -433,8 +457,10 @@ export class DepartureEngine {
         } as LiveDeparture;
       })
     ]
-      .sort((a, b) => ((a.is_realtime && a.realtime_epoch_secs !== undefined) ? a.realtime_epoch_secs : a.dep_epoch_secs) - ((b.is_realtime && b.realtime_epoch_secs !== undefined) ? b.realtime_epoch_secs : b.dep_epoch_secs))
-      .slice(0, maxResults);
+      .sort((a, b) => ((a.is_realtime && a.realtime_epoch_secs !== undefined) ? a.realtime_epoch_secs : a.dep_epoch_secs) - ((b.is_realtime && b.realtime_epoch_secs !== undefined) ? b.realtime_epoch_secs : b.dep_epoch_secs));
+    const initialDepartures = umaPorLinha
+      ? comProximaDeCadaLinha(initialDeparturesTodas, maxResults, (d) => `${d.feed_id}|${d.route_id}|${d.headsign || ''}`)
+      : initialDeparturesTodas.slice(0, maxResults);
 
     // 4. Enrich with Real-time merge (Carris Metropolitana, GTFS-RT, Metro de Lisboa, CP flag)
     const enrichedDepartures = await comPrazo(
