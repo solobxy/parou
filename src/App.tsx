@@ -103,7 +103,6 @@ export default function App() {
   // Favoritos: cópia no servidor para nunca se perderem (repõe se o browser os apagar)
   useEffect(() => { iniciarCopiaDados(); }, []);
 
-  const [mapViewMode, setMapViewMode] = useState<'cidades' | 'concelhos' | 'distritos'>('cidades');
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);
   // Páginas Sobre / Privacidade / Termos
@@ -894,8 +893,6 @@ export default function App() {
                 <PortugalMap
                   selectedDistrict={selectedDistrictOnMap}
                   onSelectDistrict={handleDistrictSelectFromMap}
-                  activeViewMode={mapViewMode}
-                  onViewModeChange={setMapViewMode}
                   districtCounts={districtCounts}
                   occurrences={ocorrenciasAtuais}
                   onSelectOccurrence={handleSelectOccurrence}
@@ -945,8 +942,6 @@ export default function App() {
               <PortugalMap
                 selectedDistrict={selectedDistrictOnMap}
                 onSelectDistrict={handleDistrictSelectFromMap}
-                activeViewMode={mapViewMode}
-                onViewModeChange={setMapViewMode}
                 districtCounts={districtCounts}
                 occurrences={ocorrenciasAtuais}
                 onSelectOccurrence={handleSelectOccurrence}
