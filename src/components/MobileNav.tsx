@@ -52,7 +52,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                 <Icon className="w-5 h-5 stroke-[2]" />
                 {tab.count !== undefined && tab.count > 0 && (
                   <span
-                    className={`absolute -top-1 -right-2 flex h-3.5 min-w-[14px] px-1 items-center justify-center rounded-full text-[9px] font-bold ${
+                    className={`absolute -top-1 -right-2 flex h-3.5 min-w-[14px] px-1 items-center justify-center rounded-full text-[10px] font-bold ${
                       isActive ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#D92D20] text-[#FFFFFF]'
                     }`}
                   >

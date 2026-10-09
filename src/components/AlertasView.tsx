@@ -725,12 +725,12 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           <div className="flex items-start gap-3">
             <div className={`w-11 h-11 rounded-[12px] flex flex-col items-center justify-center shrink-0 ${feriado.emDias === 0 ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111]'}`}>
               <span className="font-['Barlow_Condensed'] text-[18px] font-bold leading-none tabular-nums">{Number(feriado.data.slice(8, 10))}</span>
-              <span className="text-[9px] uppercase tracking-wider font-semibold opacity-70">
+              <span className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
                 {['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(feriado.data.slice(5, 7)) - 1]}
               </span>
             </div>
             <div className="min-w-0 flex-1">
-              <div className={`text-[11px] uppercase tracking-[0.12em] font-semibold ${feriado.emDias === 0 ? 'text-[#111111]/70' : 'text-[#6B6B6B]'}`}>
+              <div className={`text-[11px] uppercase tracking-[0.12em] font-semibold ${feriado.emDias === 0 ? 'text-[#111111]/85' : 'text-[#6B6B6B]'}`}>
                 {feriado.emDias === 0 ? 'Hoje é feriado' : feriado.ambito === 'tolerancia' ? 'Próxima tolerância' : 'Próximo feriado'}
                 {feriado.ambito === 'municipal' && feriado.local ? ` · ${feriado.local}` : ''}
                 {feriado.ambito === 'regional' && feriado.local ? ` · ${feriado.local}` : ''}
