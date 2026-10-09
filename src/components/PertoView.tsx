@@ -30,7 +30,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
-import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, type PassagemUnir } from '../services/unirAmp';
+import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
   searchDestinations, 
@@ -427,6 +427,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
           routes = ordenar([...routes, ...extra]);
           setCalculatedRoutes(routes);
           setSelectedRoute(routes[0]);
+        }
+        const motivos = motivosFalhaUnir();
+        if (!extra.length && motivos.length) {
+          // Só linhas e códigos de paragens, nada que identifique quem pesquisou
+          try {
+            fetch('/api/diagnostico-unir', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ versao: 5, tipo: 'planeador', quando: new Date().toISOString(), motivos }),
+            }).catch(() => {});
+          } catch {}
         }
       }
     } catch (err) {

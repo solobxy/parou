@@ -119,6 +119,8 @@ export interface CandidatoUnir {
   paragens: number;
   origem: { codigo: string; nome: string; metros: number; minutos: number };
   destino: { codigo: string; nome: string; metros: number; minutos: number };
+  /** Paragens imediatamente antes do destino, na mesma linha e sentido (a AMP não lista chegadas ao fim da linha) */
+  anteriores?: Array<{ codigo: string; passos: number }>;
 }
 
 export interface DestinationSuggestion {
