@@ -94,7 +94,7 @@ export interface ResultadoUnir { ok: boolean; passagens: PassagemUnir[] }
  * Próximas passagens nas paragens UNIR indicadas (códigos da AMP, ex. "vng:255").
  * Junta o dia seguinte quando já é tarde, para mostrar as primeiras da manhã.
  */
-export async function passagensUnir(codigos: string[], max = 40): Promise<ResultadoUnir> {
+export async function passagensUnir(codigos: string[], max = 600): Promise<ResultadoUnir> {
   const lista = Array.from(new Set(codigos.map((c) => c.replace(/^unir:/, '').trim()).filter(Boolean))).slice(0, 3);
   if (!lista.length) return { ok: true, passagens: [] };
   const { segundos } = agoraLisboa();
@@ -112,16 +112,18 @@ export async function passagensUnir(codigos: string[], max = 40): Promise<Result
 }
 
 /** Converte para o formato de partida que a app mostra (minutos calculados agora) */
-export function partidasParaMostrar(passagens: PassagemUnir[], corPorLinha?: Map<string, string>): any[] {
+export function partidasParaMostrar(passagens: PassagemUnir[], corPorLinha?: Map<string, string>, limite = Infinity): any[] {
   const agora = Math.floor(Date.now() / 1000);
+  const hojeTxt = new Date().toLocaleDateString('pt-PT', { timeZone: ZONA });
   return passagens
     .filter((x) => x.epoch >= agora - 60)
+    .slice(0, limite)
     .map((x) => {
       const min = Math.max(0, Math.round((x.epoch - agora) / 60));
       const hh = String(Math.floor((x.segundos % 86400) / 3600)).padStart(2, '0');
       const mm = String(Math.floor((x.segundos % 3600) / 60)).padStart(2, '0');
       const horaTxt = `${hh}:${mm}`;
-      const amanha = x.epoch - agora > 0 && new Date(x.epoch * 1000).toLocaleDateString('pt-PT', { timeZone: ZONA }) !== new Date().toLocaleDateString('pt-PT', { timeZone: ZONA });
+      const amanha = min >= 60 && new Date(x.epoch * 1000).toLocaleDateString('pt-PT', { timeZone: ZONA }) !== hojeTxt;
       const texto = min < 60 ? `${horaTxt} · Programado · daqui a ~${min} min` : amanha ? `amanhã às ${horaTxt}` : `${horaTxt} · Programado`;
       return {
         lineCode: x.linha,
