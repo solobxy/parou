@@ -1683,7 +1683,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   <span className={`block truncate text-[14px] ${aqui ? 'font-bold text-[#111111]' : passou ? 'font-medium text-[#6B6B6B]' : 'font-medium text-[#111111]'}`}>
                                     {formatTransitName(p.nome)}
                                   </span>
-                                  {aqui && <span className="block text-[11px] font-semibold text-[#FF6B1A]">Estás aqui</span>}
+                                  {aqui && <span className="block text-[11px] font-semibold text-[#C2410C]">Estás aqui</span>}
                                   {!aqui && ultima && <span className="block text-[11px] font-semibold text-[#6B6B6B]">Fim de linha</span>}
                                 </span>
                                 {p.hora && (
@@ -1715,11 +1715,28 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 const sorted = escolherPartidas(sortDepartures(deps));
                 if (sorted.length === 0) {
                   const aCarregarUnir = Boolean(unir?.aCarregar) || (codigosUnir(selectedStop as any).length > 0 && !unir);
+                  const aCarregarPartidas = !selectedStop.arrivalsOnly && Boolean(extra?.aCarregar || aCarregarUnir || (!extra && proprias.length === 0 && !unir));
+                  if (aCarregarPartidas) {
+                    // Esqueleto com a forma das partidas: a lista parece já a chegar, em vez de uma frase solta
+                    return (
+                      <div role="status" aria-live="polite" className="divide-y divide-[#E6E6E3]" data-teste="partidas-a-carregar">
+                        <span className="sr-only">A carregar partidas…</span>
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} className="py-3 flex items-center justify-between gap-3" aria-hidden="true">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className="parou-esqueleto w-8 h-7 shrink-0" />
+                              <span className="parou-esqueleto h-4 flex-1 max-w-[190px]" />
+                            </div>
+                            <span className="parou-esqueleto h-6 w-12 shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
                   return (
                     <div className="py-4 text-sm text-[#6B6B6B]">
                       {selectedStop.arrivalsOnly
                         ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
-                        : extra?.aCarregar || aCarregarUnir || (!extra && proprias.length === 0 && !unir) ? 'A carregar partidas…'
                         : unir && !unir.ok ? 'Não foi possível obter agora os horários da UNIR (vêm da AMP). Tenta outra vez daqui a pouco.'
                         : 'Sem partidas nas próximas horas.'}
                     </div>

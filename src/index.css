@@ -80,6 +80,52 @@ html.pagina-fixa body {
   clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
 }
 
+/* Foco visível para quem usa teclado (WCAG 2.4.7): contorno escuro com halo branco, legível
+   sobre qualquer fundo (o laranja da marca sozinho não chega a 3:1 sobre branco).
+   Só aparece com o teclado (:focus-visible), nunca ao tocar. */
+:where(button, a[href], summary, [role='button'], [role='tab'], [role='switch'], [tabindex]:not([tabindex='-1'])):not(.leaflet-container):focus-visible {
+  outline: 3px solid #111111;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #FFFFFF;
+}
+/* O chanfro (clip-path) corta o que fica fora do botão: o contorno vai por dentro */
+.brand-chamfer:focus-visible {
+  outline-offset: -4px;
+  box-shadow: none;
+}
+
+/* Títulos com linhas equilibradas (evita uma palavra sozinha na última linha) */
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+
+/* Esqueleto de carregamento: a forma do que vai aparecer, em vez de uma frase solta */
+.parou-esqueleto {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #F4F4F2 25%, #E6E6E3 40%, #F4F4F2 60%);
+  background-size: 300% 100%;
+  animation: parou-esqueleto 1.4s ease-in-out infinite;
+}
+@keyframes parou-esqueleto {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+
+/* Quem pede menos movimento no telemóvel/sistema: sem animações decorativas nem transições
+   (mantém o círculo a rodar, que indica carregamento, e não mexe no mapa do Leaflet) */
+@media (prefers-reduced-motion: reduce) {
+  :where(body *):not(.leaflet-container *, .animate-spin) {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+  .animate-ping {
+    animation: none;
+  }
+}
+
 /* Tabular Numbers for Timetable & Countdown */
 .font-tabular {
   font-family: var(--font-condensed);
