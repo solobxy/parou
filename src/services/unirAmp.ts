@@ -165,29 +165,68 @@ function hmDe(segundos: number): string {
   return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
 }
 
+// Motivos pelos quais uma ligação não foi completada (só códigos de paragens e contagens, sem dados
+// pessoais): a PertoView envia-os ao servidor quando nenhuma ligação UNIR resulta, para a corrigirmos.
+const motivosFalha: string[] = [];
+export function motivosFalhaUnir(): string[] { return motivosFalha.splice(0, motivosFalha.length); }
+
 export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<TransitRouteOption | null> {
   const [o, d] = await Promise.all([pedir(c.origem.codigo, 0), pedir(c.destino.codigo, 0)]);
-  if (!o.ok || !d.ok) return null;
+  const etiqueta = `${c.linha} ${c.origem.codigo}→${c.destino.codigo}`;
+  if (!o.ok) { motivosFalha.push(`${etiqueta}: origem sem resposta`); return null; }
   const agora = Math.floor(Date.now() / 1000);
-  const chegadas = new Map<string, PassagemUnir>();
-  for (const x of d.lista) if (x.linha === c.linha && x.viagem) chegadas.set(x.viagem, x);
-  let melhor: { p: PassagemUnir; q: PassagemUnir } | null = null;
-  for (const p of o.lista) {
-    if (p.linha !== c.linha || !p.viagem) continue;
-    if (p.epoch < agora + c.origem.minutos * 60 - 30) continue; // não dá para chegar à paragem a tempo
-    const q = chegadas.get(p.viagem);
-    if (!q || q.segundos <= p.segundos) continue;
-    if (!melhor || q.epoch < melhor.q.epoch) melhor = { p, q };
+  // Viagens da linha na paragem de origem a que ainda se chega a tempo
+  const apanhaveis = o.lista.filter((p) => p.linha === c.linha && p.viagem && p.epoch >= agora + c.origem.minutos * 60 - 30);
+  if (!apanhaveis.length) { motivosFalha.push(`${etiqueta}: sem viagens na origem (${o.lista.filter((p) => p.linha === c.linha).length} da linha)`); return null; }
+
+  let melhor: { p: PassagemUnir; chegada: number; estimada: boolean } | null = null;
+
+  // 1) A hora exata da AMP no destino (a mesma viagem passa nas duas paragens)
+  if (d.ok) {
+    const chegadas = new Map<string, PassagemUnir>();
+    for (const x of d.lista) if (x.linha === c.linha && x.viagem) chegadas.set(x.viagem, x);
+    for (const p of apanhaveis) {
+      const q = chegadas.get(p.viagem);
+      if (!q || q.segundos <= p.segundos) continue;
+      if (!melhor || q.epoch < melhor.chegada) melhor = { p, chegada: q.epoch, estimada: false };
+    }
   }
-  if (!melhor) return null;
-  const { p, q } = melhor;
-  const chegadaFinal = q.epoch + c.destino.minutos * 60;
+
+  // 2) No fim da linha (ex.: Campanhã) a AMP só lista partidas, não há "chegada": usa a paragem
+  //    imediatamente antes e soma o tempo médio entre paragens dessa viagem
+  if (!melhor && c.anteriores?.length) {
+    const respostas = await Promise.all(c.anteriores.map((a) => pedir(a.codigo, 0)));
+    for (let i = 0; i < c.anteriores.length && !melhor; i++) {
+      const ant = c.anteriores[i];
+      const r = respostas[i];
+      if (!r.ok) continue;
+      const mapa = new Map<string, PassagemUnir>();
+      for (const x of r.lista) if (x.linha === c.linha && x.viagem) mapa.set(x.viagem, x);
+      for (const p of apanhaveis) {
+        const q = mapa.get(p.viagem);
+        if (!q || q.segundos <= p.segundos) continue;
+        const entre = Math.max(1, c.paragens - ant.passos);
+        const ritmo = Math.min(180, Math.max(45, (q.segundos - p.segundos) / entre));
+        const chegada = q.epoch + Math.round(ant.passos * ritmo);
+        if (!melhor || chegada < melhor.chegada) melhor = { p, chegada, estimada: true };
+      }
+    }
+  }
+
+  if (!melhor) {
+    motivosFalha.push(`${etiqueta}: viagem não encontrada no destino (${d.ok ? d.lista.filter((x) => x.linha === c.linha).length : 'sem resposta'}) nem nas ${c.anteriores?.length || 0} anteriores`);
+    return null;
+  }
+  const { p, estimada } = melhor;
+  const chegadaFinal = melhor.chegada + c.destino.minutos * 60;
   const saida = p.epoch - c.origem.minutos * 60;
   const total = Math.max(1, Math.round((chegadaFinal - agora) / 60));
-  const segsAgora = (epoch: number) => {
+  const segsDe = (epoch: number) => {
     const partes = new Intl.DateTimeFormat('en-GB', { timeZone: ZONA, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(epoch * 1000)).split(':').map(Number);
     return (partes[0] % 24) * 3600 + partes[1] * 60;
   };
+  const horaSaidaBus = hmDe(p.segundos);
+  const horaChegadaBus = hmDe(segsDe(melhor.chegada));
   const destino = p.destino || c.nome || '';
   return {
     id: `unir-${c.linha}-${p.viagem}`,
@@ -195,8 +234,8 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
     title: 'Direto',
     badgeLabel: 'Direto',
     totalDurationMinutes: total,
-    departureTime: hmDe(segsAgora(saida)),
-    arrivalTime: hmDe(segsAgora(chegadaFinal)),
+    departureTime: hmDe(segsDe(saida)),
+    arrivalTime: hmDe(segsDe(chegadaFinal)),
     walkingDistanceMeters: c.origem.metros + c.destino.metros,
     walkingMinutes: c.origem.minutos + c.destino.minutos,
     transfersCount: 0,
@@ -204,7 +243,7 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
       { mode: 'WALK', instruction: `Ir a pé até ${c.origem.nome}`, durationMinutes: c.origem.minutos, distanceMeters: c.origem.metros },
       {
         mode: 'TRANSIT',
-        instruction: `Apanhar a linha ${c.linha} da UNIR às ${hmDe(p.segundos)} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) às ${hmDe(q.segundos)}`,
+        instruction: `Apanhar a linha ${c.linha} da UNIR às ${horaSaidaBus} em ${c.origem.nome}${destino ? `, sentido ${destino}` : ''}; sair em ${c.destino.nome} (${c.paragens} ${c.paragens === 1 ? 'paragem' : 'paragens'}) ${estimada ? 'por volta das' : 'às'} ${horaChegadaBus}`,
         transportMode: c.linha === '9901' || c.linha === '9902' ? 'Barco' : 'Autocarro',
         lineCode: c.linha,
         lineName: c.nome,
@@ -213,15 +252,15 @@ export async function viagemUnir(c: CandidatoUnir, destNome: string): Promise<Tr
         fromStopName: c.origem.nome,
         toStopName: c.destino.nome,
         stopsCount: c.paragens,
-        durationMinutes: Math.max(1, Math.round((q.segundos - p.segundos) / 60)),
+        durationMinutes: Math.max(1, Math.round((melhor.chegada - p.epoch) / 60)),
         isRealtime: false,
-        departureTime: hmDe(p.segundos),
-        arrivalTime: hmDe(q.segundos),
+        departureTime: horaSaidaBus,
+        arrivalTime: horaChegadaBus,
       },
       { mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: c.destino.minutos, distanceMeters: c.destino.metros },
     ],
     realtimeStatus: 'PROGRAMADO',
-    realtimeLabel: 'Horário da AMP',
+    realtimeLabel: estimada ? 'Horário da AMP · chegada estimada' : 'Horário da AMP',
     relevantAlerts: [],
   };
 }

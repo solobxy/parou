@@ -37,6 +37,7 @@ export interface CandidatoUnir {
   linha: string; nome: string; cor: string; sentido: number; paragens: number;
   origem: { codigo: string; nome: string; metros: number; minutos: number };
   destino: { codigo: string; nome: string; metros: number; minutos: number };
+  anteriores?: Array<{ codigo: string; passos: number }>;
 }
 
 function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -355,10 +356,16 @@ export async function planearViagem(
         const a = melhor.get(k);
         if (!a || custo < a.custo) melhor.set(k, { r, custo });
       }
+      const queAnteriores = db.prepare(
+        'SELECT stop_id AS id, stop_sequence AS seq FROM stop_routes WHERE route_id = ? AND direction_id = ? AND stop_sequence > ? AND stop_sequence < ? ORDER BY stop_sequence DESC LIMIT 3',
+      );
       for (const { r } of Array.from(melhor.values()).sort((a, b) => a.custo - b.custo).slice(0, 5)) {
         const l = linha(r.route);
         const po = mO.get(r.de)!, pd = mD.get(r.para)!;
+        const anteriores = (queAnteriores.all(r.route, r.sentido, r.sa, r.sb) as Array<{ id: string; seq: number }>)
+          .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: r.sb - a.seq }));
         unir.push({
+          anteriores,
           linha: l?.short || r.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: r.sentido, paragens: r.sb - r.sa,
           origem: { codigo: r.de.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos },
           destino: { codigo: r.para.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos },
