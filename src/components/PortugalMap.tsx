@@ -499,7 +499,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         const lat = g.pontos.reduce((s, q) => s + q.lat, 0) / n;
         const lon = g.pontos.reduce((s, q) => s + q.lon, 0) / n;
         // Triângulo de aviso (são ocorrências, não paragens) com o número lá dentro
-        const larg = n >= 100 ? 54 : n >= 10 ? 48 : 44;
+        const larg = n >= 100 ? 66 : n >= 10 ? 58 : 48;
         const alt = Math.round(larg * 0.92);
         const cor = grave ? '#D92D20' : '#111111';
         const icone = L.divIcon({
@@ -508,7 +508,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
             <svg xmlns="http://www.w3.org/2000/svg" width="${larg}" height="${alt}" viewBox="0 0 48 44" aria-hidden="true">
               <path d="M24 4.2 L44.2 39.2 Q45.4 41.4 42.9 41.4 H5.1 Q2.6 41.4 3.8 39.2 Z" fill="${cor}" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
             </svg>
-            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.4)}px;text-align:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 15 : 18}px;line-height:1">${n}</span>
+            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.46)}px;text-align:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 16 : n >= 10 ? 17 : 19}px;line-height:1">${n}</span>
           </div>`,
           iconSize: [larg, alt],
           iconAnchor: [larg / 2, alt * 0.62],
