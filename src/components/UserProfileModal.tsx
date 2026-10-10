@@ -16,6 +16,7 @@ import { eAdmin } from '../utils/admin';
 import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
 import { MedalhaPioneiro } from './MedalhaPioneiro';
+import { SeloCriador } from './SeloCriador';
 import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
@@ -123,6 +124,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-bold text-[#111111] truncate flex items-center gap-1.5">
               <span className="truncate">{user.displayName}</span>
+              {user.admin && <SeloCriador />}
               {user.pioneiro && <MedalhaPioneiro />}
             </h3>
             <p className="text-xs text-[#6B6B6B] truncate">
@@ -323,6 +325,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         onFechar={() => setEditorAvatar(false)}
         avatar={user.avatar}
         pontos={user.reputationPoints}
+        tudoAberto={Boolean(user.admin)}
         onGuardado={() => setEditorAvatar(false)}
       />
     </div>

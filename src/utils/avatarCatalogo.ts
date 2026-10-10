@@ -16,6 +16,7 @@ export interface ItemAvatar {
   rep?: number; // reputação mínima para usar a peça
   hex?: string; // só nas cores
   cor?: string; // só nas personagens: cor que lhes assenta bem (a app sugere-a ao escolher)
+  exclusivo?: boolean; // reservada à conta de Criador (nunca se ganha com reputação)
 }
 
 export interface CategoriaAvatar {
@@ -158,6 +159,7 @@ export const CATEGORIAS_AVATAR: CategoriaAvatar[] = [
       { id: 'escudo', nome: 'Escudo', rep: 100 },
       { id: 'diamante', nome: 'Diamante', rep: 200 },
       { id: 'ouro', nome: 'Medalha de ouro', rep: 200 },
+      { id: 'criador', nome: 'Criador da PAROU', exclusivo: true },
     ],
   },
 ];
@@ -181,7 +183,7 @@ export function avatarOuPadrao(entrada: unknown): ConfigAvatar {
  * Confirma uma escolha de avatar: as peças indicadas têm de existir e a reputação tem de chegar.
  * Categorias em falta ficam com o valor padrão (versões antigas da app não conhecem as novas).
  */
-export function validarAvatar(entrada: unknown, reputacao: number): { ok: true; config: ConfigAvatar } | { ok: false; erro: string } {
+export function validarAvatar(entrada: unknown, reputacao: number, tudoAberto = false): { ok: true; config: ConfigAvatar } | { ok: false; erro: string } {
   if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) return { ok: false, erro: 'Avatar inválido.' };
   const config = { ...AVATAR_PADRAO };
   for (const cat of CATEGORIAS_AVATAR) {
@@ -190,7 +192,8 @@ export function validarAvatar(entrada: unknown, reputacao: number): { ok: true; 
     if (typeof v !== 'string') return { ok: false, erro: 'Avatar inválido.' };
     const item = cat.itens.find((i) => i.id === v);
     if (!item) return { ok: false, erro: 'Avatar inválido.' };
-    if ((item.rep || 0) > reputacao) return { ok: false, erro: 'Ainda não tens reputação para uma das peças escolhidas.' };
+    if (item.exclusivo && !tudoAberto) return { ok: false, erro: 'Uma das peças escolhidas não está disponível para a tua conta.' };
+    if (!tudoAberto && (item.rep || 0) > reputacao) return { ok: false, erro: 'Ainda não tens reputação para uma das peças escolhidas.' };
     config[cat.id] = v;
   }
   return { ok: true, config };

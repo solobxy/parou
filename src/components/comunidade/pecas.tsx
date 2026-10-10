@@ -3,17 +3,19 @@ import { ArrowBigUp, ArrowBigDown, BadgeCheck } from 'lucide-react';
 import { t } from '../../i18n';
 import { Avatar } from '../Avatar';
 import { MedalhaPioneiro } from '../MedalhaPioneiro';
+import { SeloCriador } from '../SeloCriador';
 import { AutorConversa, TipoConversa } from '../../services/comunidade';
 import { tempoRelativo } from '../../utils/tempo';
 
 export const ROTULO_TIPO: Record<TipoConversa, string> = {
-  queixa: 'Queixa', pergunta: 'Pergunta', elogio: 'Elogio', conversa: 'Conversa',
+  queixa: 'Queixa', pergunta: 'Pergunta', elogio: 'Elogio', conversa: 'Conversa', novidade: 'Novidade',
 };
 const COR_TIPO: Record<TipoConversa, string> = {
   queixa: 'bg-[#FDECEA] text-[#9F1D14]',
   pergunta: 'bg-[#E8F0FE] text-[#1B4DB1]',
   elogio: 'bg-[#E6F6EC] text-[#14693A]',
   conversa: 'bg-[#F4F4F2] text-[#4A4A4A]',
+  novidade: 'bg-[#FF6B1A] text-[#111111]',
 };
 
 export const EtiquetaTipo: React.FC<{ tipo: TipoConversa }> = ({ tipo }) => (
@@ -43,6 +45,7 @@ export const AutorLinha: React.FC<{
       <div className="min-w-0 leading-tight">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[14.5px] font-bold text-[#111111] truncate max-w-[180px] sm:max-w-[260px]">{nome}</span>
+          {autor.criador && <SeloCriador />}
           {autor.pioneiro && <MedalhaPioneiro />}
           {(oficial || autor.operador) && (
             <span className="inline-flex items-center gap-1 h-[20px] pl-1 pr-2 rounded-full bg-[#FF6B1A] text-[#111111] text-[11px] font-bold">

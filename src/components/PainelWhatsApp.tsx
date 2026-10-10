@@ -133,7 +133,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
           )}
         </div>
 
-        <div role="tablist" aria-label="Secções" className="flex gap-1.5 sm:gap-2 mt-4 overflow-x-auto pb-1 [scrollbar-width:none]">
+        <div role="tablist" aria-label="Secções" className="flex gap-1 min-[360px]:gap-1.5 sm:gap-2 mt-4 overflow-x-auto pb-1 [scrollbar-width:none]">
           {abas.map((x) => (
             <button
               key={x.id}
@@ -141,7 +141,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
               type="button"
               aria-selected={aba === x.id}
               onClick={() => setAba(x.id)}
-              className={`shrink-0 h-11 px-3 sm:px-4 rounded-full text-[14px] font-semibold cursor-pointer ${aba === x.id ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] hover:bg-[#E6E6E3]'}`}
+              className={`shrink-0 h-11 px-2.5 min-[360px]:px-3 sm:px-4 rounded-full text-[14px] font-semibold cursor-pointer ${aba === x.id ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] hover:bg-[#E6E6E3]'}`}
             >
               {x.nome}{x.n !== undefined ? <span className="ml-1.5 opacity-70 tabular-nums">{x.n}</span> : null}
             </button>

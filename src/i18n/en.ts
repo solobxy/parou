@@ -905,4 +905,11 @@ export const EN: Record<string, string> = {
   'Diamante': 'Diamond',
   'Medalha de ouro': 'Gold medal',
   'Assim aparece nos comentários': 'How it looks in comments',
+  'Criador': 'Creator',
+  'Criador da PAROU': 'Creator of PAROU',
+  'Conta de Criador: tens todas as peças desbloqueadas.': 'Creator account: you have every item unlocked.',
+  'Uma das peças escolhidas não está disponível para a tua conta.': 'One of the chosen items isn\'t available for your account.',
+  'Novidade': 'Update',
+  'Novidades': 'Updates',
+  'Novidades da PAROU': 'PAROU updates',
 };

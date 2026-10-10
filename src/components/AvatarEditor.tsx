@@ -21,16 +21,20 @@ interface AvatarEditorProps {
   onFechar: () => void;
   avatar?: Partial<ConfigAvatar> | null;
   pontos: number;
+  /** Conta de Criador: tudo desbloqueado, incluindo a medalha exclusiva */
+  tudoAberto?: boolean;
   /** Quando a pessoa guarda (a app atualiza o perfil sozinha) */
   onGuardado?: (avatar: ConfigAvatar) => void;
 }
 
-export const AvatarEditor: React.FC<AvatarEditorProps> = ({ aberta, onFechar, avatar, pontos, onGuardado }) => {
+export const AvatarEditor: React.FC<AvatarEditorProps> = ({ aberta, onFechar, avatar, pontos, tudoAberto, onGuardado }) => {
   if (!aberta) return null;
-  return <Conteudo onFechar={onFechar} avatar={avatar} pontos={pontos} onGuardado={onGuardado} />;
+  return <Conteudo onFechar={onFechar} avatar={avatar} pontos={pontos} tudoAberto={tudoAberto} onGuardado={onGuardado} />;
 };
 
-const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avatar, pontos, onGuardado }) => {
+const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avatar, pontos: pontosReais, tudoAberto, onGuardado }) => {
+  // Na conta de Criador nada fica bloqueado (os pontos mostrados continuam a ser os verdadeiros)
+  const pontos = tudoAberto ? 1_000_000 : pontosReais;
   const inicial = useMemo(() => avatarOuPadrao(avatar), [avatar]);
   const [cfg, setCfg] = useState<ConfigAvatar>(inicial);
   const [historico, setHistorico] = useState<ConfigAvatar[]>([]);
@@ -40,6 +44,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
   const temporizadorAviso = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const categoria = CATEGORIAS_AVATAR.find((c) => c.id === aba)!;
+  const itensVisiveis = categoria.itens.filter((i) => !i.exclusivo || tudoAberto);
   const alterado = JSON.stringify(cfg) !== JSON.stringify(inicial);
 
   // Próxima peça por abrir (a mais barata)
@@ -86,7 +91,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
   const aoAcaso = () => {
     const novo: ConfigAvatar = { ...cfg };
     for (const c of CATEGORIAS_AVATAR) {
-      const livres = c.itens.filter((i) => (i.rep || 0) <= pontos);
+      const livres = c.itens.filter((i) => (i.rep || 0) <= pontos && (!i.exclusivo || tudoAberto));
       novo[c.id] = livres[Math.floor(Math.random() * livres.length)].id;
     }
     setHistorico((h) => [...h.slice(-20), cfg]);
@@ -177,13 +182,15 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
           <div className="rounded-[12px] bg-[#F4F4F2] border border-[#E6E6E3] p-3 mt-1">
             <div className="flex items-baseline justify-between">
               <span className="text-[13px] font-semibold text-[#111111]">{t('Reputação')}</span>
-              <span className="font-condensada text-[24px] leading-none font-bold tabular-nums text-[#111111]">{pontos} <span className="text-[14px] text-[#6B6B6B]">{t('pts')}</span></span>
+              <span className="font-condensada text-[24px] leading-none font-bold tabular-nums text-[#111111]">{pontosReais} <span className="text-[14px] text-[#6B6B6B]">{t('pts')}</span></span>
             </div>
             <div className="h-2 rounded-full bg-[#E6E6E3] mt-2 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progresso} aria-label={t('Progresso para a próxima peça')}>
               <div className="h-full rounded-full bg-[#FF6B1A]" style={{ width: `${progresso}%` }} />
             </div>
             <p className="text-[12.5px] text-[#4A4A4A] leading-snug mt-2">
-              {proxima
+              {tudoAberto
+                ? t('Conta de Criador: tens todas as peças desbloqueadas.')
+                : proxima
                 ? t('Faltam {n} pontos para desbloquear: {nome}.', { n: proxima.rep - pontos, nome: t(proxima.nome) })
                 : t('Já tens todas as peças desbloqueadas. Vêm aí mais.')}
               {' '}{t('Ganhas pontos ao reportar ocorrências, publicar, responder e quando confirmam o que escreves.')}
@@ -209,7 +216,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
           </div>
 
           <div role="tabpanel" className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mt-2">
-            {categoria.itens.map((item) => {
+            {itensVisiveis.map((item) => {
               const bloqueado = (item.rep || 0) > pontos;
               const escolhido = cfg[categoria.id] === item.id;
               const miniatura = { ...cfg, [categoria.id]: item.id };

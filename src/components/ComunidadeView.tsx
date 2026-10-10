@@ -24,7 +24,7 @@ const ORDENS: Array<{ id: Ordem; nome: string }> = [
   { id: 'em-alta', nome: 'Em alta' },
   { id: 'perto', nome: 'Perto de ti' },
 ];
-const PLURAL_TIPO: Record<TipoConversa, string> = { queixa: 'Queixas', pergunta: 'Perguntas', elogio: 'Elogios', conversa: 'Conversas' };
+const PLURAL_TIPO: Record<TipoConversa, string> = { queixa: 'Queixas', pergunta: 'Perguntas', elogio: 'Elogios', conversa: 'Conversas', novidade: 'Novidades' };
 
 const ROTA_CONVERSA = /^\/comunidade\/(pub-[a-z0-9]{1,12}-[a-f0-9]{10})\/?$/i;
 const idDaRota = (): string | null => {
@@ -441,6 +441,7 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
           onFechar={() => setEditorAvatar(false)}
           avatar={currentUser.avatar}
           pontos={pontosAtuais}
+          tudoAberto={Boolean(currentUser.admin)}
           onGuardado={() => setEditorAvatar(false)}
         />
       )}
