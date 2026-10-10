@@ -438,6 +438,7 @@ async function ocorrenciasOficiais(regiao: Regiao, distrito: string): Promise<Oc
     if (Number.isFinite(fimMs) && fimMs < agoraMs) continue;
     const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
     if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agoraMs - inicioMs > 30 * 3600_000) continue;
+    if (avisoSemFimAntigo(a, fimMs, inicioMs, agoraMs)) continue;
     if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue; // o tempo tem secção própria
     // A região vem do operador (Carris Metropolitana -> Lisboa, STCP/UNIR -> Porto); os
     // municípios só contam para alertas sem região definida.
@@ -777,6 +778,14 @@ function jitter(id: string, raio = 0.035): [number, number] {
   return [Math.sin(ang) * r, Math.cos(ang) * r * 1.3];
 }
 
+/** Aviso de operador sem data de fim que já é antigo: provavelmente já não se aplica.
+ *  Obras duram mais (até 60 dias); o resto (perturbações, desvios) só até 3 dias. */
+function avisoSemFimAntigo(a: any, fimMs: number, inicioMs: number, agora: number): boolean {
+  if (Number.isFinite(fimMs) || !Number.isFinite(inicioMs)) return false;
+  const limiteDias = a.tipo === 'obras' ? 60 : 3;
+  return agora - inicioMs > limiteDias * 24 * 3600_000;
+}
+
 export async function obterCamadasMapa(): Promise<{ atualizado: string; incendiosAtualizado: string | null; pontos: PontoMapa[] }> {
   const pontos: PontoMapa[] = [];
   const agora = Date.now();
@@ -862,6 +871,7 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
     if (Number.isFinite(inicioMs) && inicioMs > agora) continue;
     if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
+    if (avisoSemFimAntigo(a, fimMs, inicioMs, agora)) continue;
     const op = semAcentos(String(a.operador || ''));
     const centro = CENTRO_OPERADOR.find((c) => c.re.test(op));
     if (!centro) continue;

@@ -843,7 +843,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const paragemAquiRef = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
     if (linhaAberta?.estado !== 'ok') return;
-    const t = setTimeout(() => paragemAquiRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+    // Desliza só a lista do percurso (scrollIntoView também deslizava o ecrã inteiro e o mapa
+    // ficava meio escondido debaixo do cabeçalho)
+    const t = setTimeout(() => {
+      const li = paragemAquiRef.current;
+      const lista = li?.closest('.overflow-y-auto') as HTMLElement | null;
+      if (!li || !lista) return;
+      const rLi = li.getBoundingClientRect();
+      const rLista = lista.getBoundingClientRect();
+      const alvo = lista.scrollTop + (rLi.top - rLista.top) - lista.clientHeight / 2 + rLi.height / 2;
+      lista.scrollTo({ top: Math.max(0, alvo), behavior: 'smooth' });
+    }, 80);
     return () => clearTimeout(t);
   }, [linhaAberta?.estado, linhaAberta?.percurso]);
 
@@ -1236,7 +1246,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   return (
-    <div className="relative flex flex-col lg:flex-row w-full h-full bg-[#FFFFFF] overflow-hidden">
+    <div
+      className="relative flex flex-col lg:flex-row w-full h-full bg-[#FFFFFF] overflow-hidden"
+      // O ecrã do Perto nunca desliza como um todo (só as listas lá dentro)
+      onScroll={(e) => { const el = e.currentTarget; if (el.scrollTop || el.scrollLeft) { el.scrollTop = 0; el.scrollLeft = 0; } }}
+    >
       {/* Painel: Transportes perto */}
       <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
         {/* Cabeçalho (telemóvel) */}

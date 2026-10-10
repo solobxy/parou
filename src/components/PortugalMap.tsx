@@ -4,6 +4,8 @@ import {
   ZoomIn, 
   ZoomOut, 
   RotateCcw, 
+  LocateFixed,
+  Loader2,
   Maximize2, 
   Minimize2, 
   X,
@@ -95,6 +97,9 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   // Camadas visíveis (chips por cima do mapa)
   const [camadasOcultas, setCamadasOcultas] = useState<Set<GrupoCamada>>(new Set());
   const pontosMarkersRef = useRef<L.Marker[]>([]);
+  const euMarcadorRef = useRef<L.Marker | null>(null);
+  const [aLocalizar, setALocalizar] = useState(false);
+  const [erroLocalizar, setErroLocalizar] = useState<string | null>(null);
   const contagemCamadas = useMemo(() => {
     const c: Record<GrupoCamada, number> = { incendios: 0, tempo: 0, estrada: 0, transportes: 0, comunidade: occurrences.length };
     for (const p of pontos) c[grupoDoPonto(p.tipo)] += 1;
@@ -284,6 +289,39 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
   const handleZoomOut = () => {
     mapRef.current?.zoomOut();
+  };
+
+  // Centrar na minha posição (com o ponto azul onde estou)
+  const centrarEmMim = () => {
+    const map = mapRef.current;
+    if (!map || aLocalizar) return;
+    if (!('geolocation' in navigator)) { setErroLocalizar('Este browser não dá a localização.'); return; }
+    setALocalizar(true);
+    setErroLocalizar(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setALocalizar(false);
+        const { latitude, longitude } = pos.coords;
+        euMarcadorRef.current?.remove();
+        euMarcadorRef.current = L.marker([latitude, longitude], {
+          interactive: false,
+          zIndexOffset: 2000,
+          icon: L.divIcon({
+            className: 'parou-eu',
+            html: '<div style="width:18px;height:18px;border-radius:9999px;background:#2563EB;border:3px solid #FFFFFF;box-shadow:0 0 0 6px rgba(37,99,235,.2),0 2px 6px rgba(0,0,0,.3)"></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+          }),
+        }).addTo(map);
+        map.flyTo([latitude, longitude], Math.max(map.getZoom(), 12), { duration: 0.8 });
+      },
+      (err) => {
+        setALocalizar(false);
+        setErroLocalizar(err.code === 1 ? 'Permite a localização nas definições do browser.' : 'Não foi possível obter a tua posição.');
+        setTimeout(() => setErroLocalizar(null), 4000);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 },
+    );
   };
 
   const handleResetZoom = () => {
@@ -631,6 +669,15 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           {/* Map Floating Controls */}
           <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 shadow-sm">
             <button
+              onClick={centrarEmMim}
+              className="w-10 h-10 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
+              title="Centrar na minha posição"
+              aria-label="Centrar na minha posição"
+              data-teste="mapa-centrar-em-mim"
+            >
+              {aLocalizar ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />}
+            </button>
+            <button
               onClick={handleZoomIn}
               className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
               title="Aproximar"
@@ -655,6 +702,12 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
               <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
             </button>
           </div>
+
+          {erroLocalizar && (
+            <div role="status" className="absolute top-3 left-3 right-16 z-30 rounded-[8px] bg-[#111111] text-[#FFFFFF] text-[13px] px-3 py-2 shadow-md">
+              {erroLocalizar}
+            </div>
+          )}
 
           {/* Reportar ocorrência — encaixado no canto do mapa */}
           {onReport && (
