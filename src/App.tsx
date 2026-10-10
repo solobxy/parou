@@ -1021,8 +1021,8 @@ export default function App() {
 
           {/* 4. Tab Horários */}
           {activeMobileView === 'horarios' && (
-            <div className="space-y-3.5">
-              <HorariosView 
+            <div className="space-y-3.5 -mx-3 sm:-mx-6">
+              <HorariosView
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}

@@ -117,21 +117,21 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto py-2 px-3 sm:px-0">
+    <div className="space-y-4 max-w-4xl mx-auto py-2 px-1 sm:px-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
-        <div>
+      <div className="flex flex-row items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
             Favoritos
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            As suas paragens e linhas guardadas.
+            As tuas paragens e linhas guardadas.
           </p>
         </div>
 
         <button
           onClick={() => setIsQuickAddOpen(!isQuickAddOpen)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
+          className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Adicionar</span>
@@ -206,8 +206,18 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
       {/* List */}
       <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
         {displayedFavorites.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#6B6B6B]">
-            Sem favoritos guardados.
+          <div className="px-6 py-10 text-center">
+            <Star className="w-8 h-8 mx-auto text-[#6B6B6B] stroke-[1.75]" aria-hidden="true" />
+            {(countsByCategory['todos'] || 0) === 0 ? (
+              <>
+                <div className="mt-3 text-[15px] font-semibold text-[#111111]">Ainda não guardaste nada</div>
+                <p className="mt-1 text-sm text-[#6B6B6B] max-w-[30ch] mx-auto">
+                  Toca na estrela de uma paragem ou linha e ela fica aqui, sempre à mão.
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-[#6B6B6B]">Nada guardado neste separador.</p>
+            )}
           </div>
         ) : (
           displayedFavorites.map((item) => {
