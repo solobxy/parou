@@ -694,9 +694,9 @@ export default function App() {
       setActiveNavTab('coverage');
       setActiveMobileView('catalogo');
       document.title = 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU';
-    } else if (pathname === '/sobre' || pathname === '/privacidade' || pathname === '/termos') {
+    } else if (pathname === '/sobre' || pathname === '/privacidade' || pathname === '/termos' || pathname === '/contactar') {
       setPaginaInfo(pathname.slice(1) as PaginaInfo);
-      document.title = pathname === '/sobre' ? 'Sobre a PAROU' : pathname === '/privacidade' ? 'Política de privacidade | PAROU' : 'Termos de utilização | PAROU';
+      document.title = pathname === '/sobre' ? 'Sobre a PAROU' : pathname === '/privacidade' ? 'Política de privacidade | PAROU' : pathname === '/contactar' ? 'Contactar | PAROU' : 'Termos de utilização | PAROU';
       return;
     } else if (pathname === '/404') {
       setIsNotFound(true);
@@ -1168,6 +1168,7 @@ export default function App() {
               ['/sobre', 'Sobre', () => abrirPaginaInfo('sobre')],
               ['/privacidade', 'Privacidade', () => abrirPaginaInfo('privacidade')],
               ['/termos', 'Termos', () => abrirPaginaInfo('termos')],
+              ['/contactar', 'Contactar', () => abrirPaginaInfo('contactar')],
             ] as Array<[string, string, () => void]>).map(([href, nome, abrir]) => (
               <a
                 key={href}

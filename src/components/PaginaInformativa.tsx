@@ -1,7 +1,7 @@
 import React from 'react';
-import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText } from 'lucide-react';
+import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide-react';
 
-export type PaginaInfo = 'sobre' | 'privacidade' | 'termos';
+export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar';
 
 interface Props {
   pagina: PaginaInfo;
@@ -10,6 +10,8 @@ interface Props {
 }
 
 const CONTACTO = 'diniscash@gmail.com';
+const TELEFONE = '913 488 258';
+const TELEFONE_LINK = '+351913488258';
 const ATUALIZADO = '8 de outubro de 2026';
 
 function Secao({ titulo, children, id }: { titulo: string; children: React.ReactNode; id?: string }) {
@@ -52,6 +54,9 @@ function Sobre({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
         <a href={`mailto:${CONTACTO}?subject=PAROU`} className="inline-flex items-center gap-2 h-11 px-4 rounded-[12px] bg-[#111111] text-[#FFFFFF] font-semibold text-[14px]">
           <Mail className="w-4 h-4" /> {CONTACTO}
         </a>
+        <p>
+          <button onClick={() => onAbrir('contactar')} className="underline font-semibold cursor-pointer">Ver todos os contactos</button>
+        </p>
       </Secao>
       <div className="grid grid-cols-2 gap-2 pt-2">
         <button onClick={() => onAbrir('privacidade')} className="h-12 rounded-[12px] border border-[#E6E6E3] text-[14px] font-semibold text-[#111111] flex items-center justify-center gap-2 cursor-pointer">
@@ -209,10 +214,51 @@ function Termos() {
   );
 }
 
+function Contactar() {
+  const linha = 'flex items-center gap-3 min-h-[56px] px-4 py-2 rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] active:bg-[#F4F4F2]';
+  return (
+    <>
+      <p className="text-[15.5px] text-[#2B2B2B] leading-relaxed">
+        A PAROU é um projeto feito por uma pessoa, para toda a gente. Se tens uma dúvida, uma sugestão, encontraste um erro, queres
+        propor uma parceria ou és um operador e queres partilhar dados, fala comigo — para qualquer questão ou assunto.
+        Respondo pessoalmente, normalmente em poucos dias.
+      </p>
+      <div className="rounded-[14px] bg-[#F4F4F2] p-4 flex gap-3">
+        <MessageCircle className="w-5 h-5 text-[#FF6B1A] shrink-0 mt-0.5" />
+        <div className="text-[14px] text-[#111111] leading-snug">
+          <div className="font-bold text-[16px]">Dinis Sousa</div>
+          <div className="text-[#6B6B6B]">Autor da PAROU.PT</div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <a href={`mailto:${CONTACTO}?subject=PAROU`} className={linha}>
+          <Mail className="w-5 h-5 text-[#111111] shrink-0" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-[12px] text-[#6B6B6B]">Email</span>
+            <span className="text-[15px] font-semibold text-[#111111] break-all">{CONTACTO}</span>
+          </span>
+        </a>
+        <a href={`tel:${TELEFONE_LINK}`} className={linha}>
+          <Phone className="w-5 h-5 text-[#111111] shrink-0" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-[12px] text-[#6B6B6B]">Telemóvel</span>
+            <span className="text-[15px] font-semibold text-[#111111]">{TELEFONE}</span>
+          </span>
+        </a>
+      </div>
+      <Secao titulo="Sobre o que me podes escrever">
+        <p>Erros nos horários ou nas paragens, linhas em falta, sugestões de melhoria, imprensa e parcerias, dados de operadores, pedidos sobre os teus dados (RGPD) ou simplesmente uma palavra de ajuda.</p>
+        <p>Para dúvidas de privacidade ou para apagar a conta, vê também a <a className="underline font-semibold" href="/privacidade">política de privacidade</a>.</p>
+      </Secao>
+    </>
+  );
+}
+
 const TITULOS: Record<PaginaInfo, { titulo: string; icone: React.ElementType }> = {
   sobre: { titulo: 'Sobre a PAROU', icone: Database },
   privacidade: { titulo: 'Política de privacidade', icone: ShieldCheck },
   termos: { titulo: 'Termos de utilização', icone: FileText },
+  contactar: { titulo: 'Contactar', icone: Mail },
 };
 
 export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }) => {
@@ -223,7 +269,7 @@ export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }
         <ArrowLeft className="w-4 h-4" /> Voltar
       </button>
       <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#111111]">{titulo}</h1>
-      {pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : <Termos />}
+      {pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : <Termos />}
     </article>
   );
 };

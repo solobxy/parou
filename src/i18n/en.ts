@@ -30,6 +30,7 @@ export const EN: Record<string, string> = {
   'Sobre': 'About',
   'Privacidade': 'Privacy',
   'Termos': 'Terms',
+  'Contactar': 'Contact',
   'Linhas e horários': 'Lines and timetables',
   'Greves': 'Strikes',
   'Horários por operador': 'Timetables by operator',

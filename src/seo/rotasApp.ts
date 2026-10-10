@@ -21,6 +21,7 @@ export const ROTAS: Record<string, Meta> = {
   '/sobre': { titulo: 'Sobre a PAROU — transportes em tempo real, grátis', descricao: 'A PAROU é uma app gratuita e sem fins lucrativos com os transportes perto de ti em tempo real, horários de todas as linhas, greves e alertas em Portugal.', canonico: '/sobre', indexar: true },
   '/privacidade': { titulo: 'Política de privacidade | PAROU', descricao: 'Que dados a PAROU usa, para quê e quais são os teus direitos (RGPD).', canonico: '/privacidade', indexar: true },
   '/termos': { titulo: 'Termos de utilização | PAROU', descricao: 'Termos de utilização da PAROU, serviço gratuito de informação sobre transportes públicos em Portugal.', canonico: '/termos', indexar: true },
+  '/contactar': { titulo: 'Contactar a PAROU | Dinis Sousa', descricao: 'Fala com o autor da PAROU: email e telemóvel para dúvidas, sugestões, erros nos horários, parcerias e dados de operadores.', canonico: '/contactar', indexar: true },
   '/favoritos': { titulo: 'Os meus favoritos | PAROU', descricao: 'As tuas linhas e paragens favoritas na PAROU.', canonico: '/favoritos', indexar: false },
   '/atrasos': { titulo: 'Atrasos nos transportes agora | PAROU', descricao: 'Atrasos reportados pela comunidade nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
   '/acidentes': { titulo: 'Acidentes de trânsito agora | PAROU', descricao: 'Acidentes reportados nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
