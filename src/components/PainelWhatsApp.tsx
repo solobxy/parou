@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Copy, ExternalLink, MessageCircle, RefreshCw, Undo2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, MessageCircle, RefreshCw, Share2, Undo2 } from 'lucide-react';
 import { Folha } from './Folha';
 import { eAdmin } from '../utils/admin';
 import { utilizadorAutenticado } from '../services/conta';
@@ -255,6 +255,26 @@ const CartaoNovidade: React.FC<{
   n: NovidadeCanal; valor: string; onMudar: (v: string) => void; copiado: boolean; onCopiar: (el: HTMLTextAreaElement | null) => void; onPublicado: () => void;
 }> = ({ n, valor, onMudar, copiado, onCopiar, onPublicado }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const [aPartilhar, setAPartilhar] = useState(false);
+  const [falhouPartilha, setFalhouPartilha] = useState(false);
+  const temImagens = Boolean(n.imagens && n.imagens.length);
+  const podePartilhar = temImagens && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+  // Abre a folha de partilha do telemóvel com o texto e as imagens (escolhe-se o WhatsApp lá)
+  const partilhar = async () => {
+    setFalhouPartilha(false); setAPartilhar(true);
+    try {
+      const ficheiros = await Promise.all((n.imagens || []).map(async (src) => {
+        const r = await fetch(src);
+        if (!r.ok) throw new Error('imagem');
+        return new File([await r.blob()], src.split('/').pop() || 'imagem.jpg', { type: 'image/jpeg' });
+      }));
+      const dados = { text: valor, files: ficheiros };
+      if (!navigator.canShare(dados)) throw new Error('sem partilha');
+      await navigator.share(dados);
+    } catch (err) {
+      if ((err as { name?: string })?.name !== 'AbortError') setFalhouPartilha(true);
+    } finally { setAPartilhar(false); }
+  };
   const primeiro = n.etiqueta === 'Primeiro post';
   const dia = n.data.split('-').reverse().slice(0, 2).join('/');
   return (
@@ -264,6 +284,18 @@ const CartaoNovidade: React.FC<{
         <span className="text-[13.5px] font-semibold text-[#111111]">{n.titulo}</span>
         <span className="text-[12.5px] text-[#6B6B6B]">· {dia}</span>
       </div>
+      {temImagens && (
+        <div className="mb-2" data-teste="imagens-novidade">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {(n.imagens || []).map((src, i) => (
+              <a key={src} href={src} download className="shrink-0 block w-[132px] h-[132px] rounded-[12px] overflow-hidden border border-[#E6E6E3] bg-[#F4F4F2]" aria-label={`Guardar imagem ${i + 1} de ${n.titulo}`}>
+                <img src={src} alt={`Imagem ${i + 1} para ${n.titulo}`} width={132} height={132} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              </a>
+            ))}
+          </div>
+          <p className="text-[12.5px] text-[#6B6B6B] mt-1">Toca na imagem para a guardar e junta-a ao texto no WhatsApp.</p>
+        </div>
+      )}
       <label className="sr-only" htmlFor={`wa-nov-${n.id}`}>Texto para o WhatsApp: {n.titulo}</label>
       <textarea
         id={`wa-nov-${n.id}`}
@@ -277,8 +309,14 @@ const CartaoNovidade: React.FC<{
         <button type="button" onClick={() => onCopiar(ref.current)} className={`${botao} flex-1 min-w-[140px] bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-novidade-pronta">
           {copiado ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
         </button>
+        {podePartilhar && (
+          <button type="button" onClick={() => void partilhar()} disabled={aPartilhar} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-novidade">
+            <Share2 className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />{aPartilhar ? 'A preparar…' : 'Partilhar com imagem'}
+          </button>
+        )}
         <button type="button" onClick={onPublicado} className={`${botao} bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] border border-[#E6E6E3]`} data-teste="ja-publiquei-novidade">Já publiquei</button>
       </div>
+      {falhouPartilha && <p role="alert" className="mt-1.5 text-[13px] text-[#9F1D14]">Não deu para abrir a partilha. Guarda a imagem e copia o texto.</p>}
     </li>
   );
 };

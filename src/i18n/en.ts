@@ -912,4 +912,5 @@ export const EN: Record<string, string> = {
   'Novidade': 'Update',
   'Novidades': 'Updates',
   'Novidades da PAROU': 'PAROU updates',
+  'Abrir imagem {n}': 'Open image {n}',
 };

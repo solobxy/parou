@@ -8,6 +8,7 @@ import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { Compositor } from './comunidade/Compositor';
 import { Discussao } from './comunidade/Discussao';
 import { AcoesConteudo, AlvoAcoes } from './comunidade/AcoesConteudo';
+import { ImagensPost } from './comunidade/ImagensPost';
 import { AutorLinha, EtiquetaTipo, Etiqueta, VotoPilula, OPERADORES_COMUNIDADE, textoDeErro } from './comunidade/pecas';
 import { listarConversas, votar, Publicacao, TipoConversa, TIPOS_CONVERSA } from '../services/comunidade';
 import { posicaoAtual } from '../utils/posicao';
@@ -396,6 +397,7 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
                         </a>
                       </h2>
                       {p.texto && <p className="mt-1.5 text-[15px] leading-[1.5] text-[#2B2B2B] line-clamp-3 break-words [overflow-wrap:anywhere]">{p.texto}</p>}
+                      <ImagensPost imagens={p.imagens} alt={p.titulo} />
 
                       <div className="mt-3 flex items-center gap-3">
                         <VotoPilula pontos={p.pontos} meuVoto={p.meuVoto} desativado={p.meu} aoVotar={(v) => aoVotar(p, v)} />
