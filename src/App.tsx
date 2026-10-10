@@ -24,12 +24,9 @@ import { ImportantOccurrencesList } from './components/ImportantOccurrencesList'
 import { FiltersPanel } from './components/FiltersPanel';
 import { RecentOccurrencesFeed } from './components/RecentOccurrencesFeed';
 import { ReportsView } from './components/ReportsView';
-import { ReportModal } from './components/ReportModal';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { ReportDetailPage } from './components/ReportDetailPage';
 import { PertoView } from './components/PertoView';
-import { LoginModal } from './components/LoginModal';
-import { UserProfileModal } from './components/UserProfileModal';
 import { NotificationModal } from './components/NotificationModal';
 import { NotificationToast } from './components/NotificationToast';
 import { PublicSourcesModal } from './components/PublicSourcesModal';
@@ -58,27 +55,17 @@ import {
   dispatchOccurrenceNotification,
   sincronizarPush 
 } from './services/notifications';
-import { 
-  auth,
-  testConnection, 
-  subscribeReports, 
-  subscribeComplaints,
-  createReport, 
-  upvoteReport, 
-  updateReport,
-  ensureUserProfile,
-  subscribeUserProfile,
-  getVoterId,
-  voteOccurrence,
-  fetchReportById
-} from './services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { carregarFirebase, observarSessao } from './services/nuvem';
+import { eAdmin } from './utils/admin';
 import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
 import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
 
 // Ecrãs pesados ou pouco usados carregam só quando se abrem (a app abre mais depressa)
+const UserProfileModal = React.lazy(() => import('./components/UserProfileModal').then((m) => ({ default: m.UserProfileModal })));
+const LoginModal = React.lazy(() => import('./components/LoginModal').then((m) => ({ default: m.LoginModal })));
+const ReportModal = React.lazy(() => import('./components/ReportModal').then((m) => ({ default: m.ReportModal })));
 const HorariosView = React.lazy(() => import('./components/HorariosView').then((m) => ({ default: m.HorariosView })));
 const AlertasView = React.lazy(() => import('./components/AlertasView').then((m) => ({ default: m.AlertasView })));
 const PortugalMap = React.lazy(() => import('./components/PortugalMap').then((m) => ({ default: m.PortugalMap })));
@@ -227,14 +214,25 @@ export default function App() {
 
   // Real-time Firestore synchronization on mount
   useEffect(() => {
-    // 1. Validate connection to Firestore as per Firebase skill
-    testConnection();
+    // O Firebase (ocorrências da comunidade e contas) carrega depois do primeiro ecrã, para a app
+    // abrir mais depressa. Até lá mostra-se o que ficou guardado no telemóvel.
+    let cancelado = false;
+    let unsubscribeReports: () => void = () => {};
+    let unsubscribeComplaints: () => void = () => {};
+    const arrancar = setTimeout(() => {
+      carregarFirebase().then((fb) => {
+        if (cancelado) return;
+        ligarFirebase(fb);
+      }).catch((err) => {
+        console.warn('Firebase indisponível (a usar a cópia local):', err);
+        setIsSyncing(false);
+        loadCachedReports().then((cached) => { if (cached && cached.length > 0) applyOccurrencesData(cached); });
+      });
+    }, 1200);
 
-    // (A antiga limpeza de dados fictícios lia a coleção inteira a cada visita — já não é
-    // precisa e custava leituras pagas na Firebase.)
-
+    const ligarFirebase = (fb: typeof import('./services/firebase')) => {
     // 3. Subscribe to real-time reports
-    const unsubscribeReports = subscribeReports(
+    unsubscribeReports = fb.subscribeReports(
       (liveReports) => {
         if (liveReports && liveReports.length > 0) {
           // Monitor for incoming occurrences to trigger notifications
@@ -281,26 +279,30 @@ export default function App() {
       }
     );
 
-    // 3.1 Subscribe to complaints for moderation monitoring
-    const unsubscribeComplaints = subscribeComplaints(
-      (liveComplaints) => {
-        setComplaintsList(liveComplaints);
-      },
-      (err) => {
-        console.warn('Real-time complaints sync notice:', err);
-      }
-    );
+    // 3.1 Reclamações para a moderação (só no modo de administração: poupa leituras)
+    if (eAdmin()) {
+      unsubscribeComplaints = fb.subscribeComplaints(
+        (liveComplaints) => {
+          setComplaintsList(liveComplaints);
+        },
+        (err) => {
+          console.warn('Real-time complaints sync notice:', err);
+        }
+      );
+    }
+    };
 
     // 4. Listen to Firebase Auth state & subscribe to real-time reputation profile
     let profileUnsub: (() => void) | null = null;
-    const authUnsub = onAuthStateChanged(auth, async (fbUser) => {
+    const authUnsub = observarSessao(async (fbUser) => {
       if (fbUser) {
         try {
-          const profile = await ensureUserProfile(fbUser);
+          const fb = await carregarFirebase();
+          const profile = await fb.ensureUserProfile(fbUser);
           setCurrentUserProfile(profile);
 
           if (profileUnsub) profileUnsub();
-          profileUnsub = subscribeUserProfile(fbUser.uid, (updatedProfile) => {
+          profileUnsub = fb.subscribeUserProfile(fbUser.uid, (updatedProfile) => {
             if (updatedProfile) setCurrentUserProfile(updatedProfile);
           });
         } catch (err) {
@@ -313,6 +315,8 @@ export default function App() {
     });
 
     return () => {
+      cancelado = true;
+      clearTimeout(arrancar);
       unsubscribeReports();
       unsubscribeComplaints();
       authUnsub();
@@ -440,7 +444,15 @@ export default function App() {
   }, [allReportsList, currentUserProfile]);
 
   // Unique voter identifier for the current session/account to prevent duplicate voting
-  const voterId = useMemo(() => getVoterId(currentUserProfile?.userId), [currentUserProfile]);
+  // O mesmo identificador de voto que o Firebase usa (conta, ou um id deste telemóvel)
+  const voterId = useMemo(() => {
+    if (currentUserProfile?.userId) return currentUserProfile.userId;
+    try {
+      let id = localStorage.getItem('parou_voter_device_id');
+      if (!id) { id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; localStorage.setItem('parou_voter_device_id', id); }
+      return id;
+    } catch { return 'anon-user'; }
+  }, [currentUserProfile]);
 
   // Related occurrences for the selected report detail page
   const relatedOccurrences = useMemo(() => {
@@ -459,7 +471,7 @@ export default function App() {
       if (found) {
         setSelectedOccurrence(found);
       } else {
-        fetchReportById(reportIdParam).then((rep) => {
+        carregarFirebase().then((fb) => fb.fetchReportById(reportIdParam)).then((rep) => {
           if (rep) setSelectedOccurrence(rep);
         });
       }
@@ -509,7 +521,7 @@ export default function App() {
   const handleAddNewReport = async (newReport: Occurrence) => {
     setIsSyncing(true);
     try {
-      const newId = await createReport(newReport);
+      const newId = await (await carregarFirebase()).createReport(newReport);
       const savedReport: Occurrence = {
         ...newReport,
         id: newId || newReport.id,
@@ -529,7 +541,7 @@ export default function App() {
   const handleVoteOccurrence = async (id: string, action: 'confirm' | 'unconfirm') => {
     setIsSyncing(true);
     try {
-      await voteOccurrence(id, action, voterId, currentUserProfile?.userId);
+      await (await carregarFirebase()).voteOccurrence(id, action, voterId, currentUserProfile?.userId);
       setLastUpdated(new Date());
       setIsSyncing(false);
     } catch (err) {
@@ -547,7 +559,7 @@ export default function App() {
   const handleUpdateReportStatus = async (id: string, newStatus: 'Ativa' | 'Em resolução' | 'Resolvida') => {
     setIsSyncing(true);
     try {
-      await updateReport(id, { status: newStatus });
+      await (await carregarFirebase()).updateReport(id, { status: newStatus });
       setLastUpdated(new Date());
       setIsSyncing(false);
     } catch (err) {
@@ -1187,28 +1199,28 @@ export default function App() {
       </footer>
 
       {/* Modals & Dialogs */}
-      <ReportModal
+      {isReportModalOpen && <React.Suspense fallback={null}><ReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         onSubmitReport={handleAddNewReport}
         currentUser={currentUserProfile}
         existingReports={allReportsList}
         onConfirmExisting={(id) => handleVoteOccurrence(id, 'confirm')}
-      />
+      /></React.Suspense>}
 
-      <LoginModal
+      {isLoginModalOpen && <React.Suspense fallback={null}><LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-      />
+      /></React.Suspense>}
 
-      <UserProfileModal
+      {isUserProfileModalOpen && <React.Suspense fallback={null}><UserProfileModal
         isOpen={isUserProfileModalOpen}
         onClose={() => setIsUserProfileModalOpen(false)}
         user={currentUserProfile}
         userReports={userPersonalReports}
         onSelectOccurrence={handleSelectOccurrence}
         onOpenReportModal={() => setIsReportModalOpen(true)}
-      />
+      /></React.Suspense>}
 
       {isAdminModalOpen && <React.Suspense fallback={null}><AdminModerationModal
         isOpen={isAdminModalOpen}

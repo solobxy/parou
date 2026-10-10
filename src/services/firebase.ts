@@ -47,6 +47,11 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
+/** Avisa quando se entra ou sai da conta (usado pelo portão em ./nuvem.ts) */
+export function observarSessao(cb: (u: FirebaseUser | null) => void): () => void {
+  return onAuthStateChanged(auth, cb);
+}
+
 // Provider for Google Login
 const googleProvider = new GoogleAuthProvider();
 
