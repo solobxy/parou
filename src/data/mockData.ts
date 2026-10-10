@@ -3,7 +3,7 @@ import { Occurrence, DistrictData } from '../types';
 // =========================================================================
 // REAL DATA CONSTITUTION:
 // Zero mock / fake occurrences. All data must come from real user reports
-// in Firestore or verified real-time public feeds.
+// in the community database or verified real-time public feeds.
 // =========================================================================
 export const INITIAL_FEATURED_OCCURRENCES: Occurrence[] = [];
 export const INITIAL_IMPORTANT_OCCURRENCES: Occurrence[] = [];
