@@ -128,50 +128,58 @@ export const Header: React.FC<HeaderProps> = ({
           <nav className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => onTabChange('mapa')}
-              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              aria-label={t('Alertas')}
+              title={t('Alertas')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'mapa'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
               <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>{t('Alertas')}</span>
+              <span className="hidden lg:inline">{t('Alertas')}</span>
             </button>
 
             <button
               onClick={() => onTabChange('alertas')}
-              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              aria-label={t('Notícias')}
+              title={t('Notícias')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'alertas'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
               <Newspaper className="w-4 h-4 stroke-[2]" />
-              <span>{t('Notícias')}</span>
+              <span className="hidden lg:inline">{t('Notícias')}</span>
             </button>
 
             <button
               onClick={() => onTabChange('perto')}
-              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              aria-label={t('Perto')}
+              title={t('Perto')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'perto'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
               <Compass className="w-4 h-4 stroke-[2]" />
-              <span>{t('Perto')}</span>
+              <span className="hidden lg:inline">{t('Perto')}</span>
             </button>
 
             <button
               onClick={() => onTabChange('horarios')}
-              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              aria-label={t('Horários')}
+              title={t('Horários')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'horarios'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
               <Clock className="w-4 h-4 stroke-[2]" />
-              <span>{t('Horários')}</span>
+              <span className="hidden lg:inline">{t('Horários')}</span>
             </button>
 
             <button

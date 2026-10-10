@@ -102,16 +102,19 @@ html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}),html[data-tema="escuro"]
 // Claro e quente, em vidro: fundos translúcidos sobre um degradé laranja, texto castanho-escuro, laranja em força.
 const AMBAR: Tema = {
   id: 'ambar',
+  // Fundos opacos e quentes: o vidro (translúcido, desfocado) fica só no cabeçalho, na barra de baixo, nas janelas e nos cartões
+  // redondos (ver temas.css). Um ecrã inteiro por cima de outro (ex.: detalhe de uma paragem) tem de tapar o que está por baixo.
   fundo: {
-    FFFFFF: 'rgba(255,255,255,.66)', FAFAF8: 'rgba(255,255,255,.5)', F9F9F7: 'rgba(255,255,255,.5)', F4F4F2: 'rgba(255,247,238,.64)',
-    F1F1EE: 'rgba(255,240,226,.7)', ECECE8: 'rgba(255,238,222,.74)', EFEFEC: 'rgba(150,80,30,.08)', E6E6E3: 'rgba(150,80,30,.12)',
-    D9D9D6: 'rgba(150,80,30,.2)', D6D6D2: 'rgba(150,80,30,.2)', D4D4D0: 'rgba(150,80,30,.2)', C9C9C4: 'rgba(150,80,30,.3)', B5B5B0: 'rgba(150,80,30,.3)',
+    FFFFFF: '#FFFAF4', FAFAF8: '#FFF6EC', F9F9F7: '#FFF6EC', F4F4F2: '#FFF0E1',
+    F1F1EE: '#FFEAD7', ECECE8: '#FFE4CC', EFEFEC: '#F8E6D4', E6E6E3: '#F3DCC7',
+    D9D9D6: '#ECD0B6', D6D6D2: '#ECD0B6', D4D4D0: '#ECD0B6', C9C9C4: '#DFB995', B5B5B0: '#DFB995',
     '6B6B6B': '#8A6B55', '111111': '#2B170A', '1F1F1F': '#33200F', '2B2B2B': '#4A2C16',
-    FDECEA: 'rgba(255,226,222,.82)', FDE8E6: 'rgba(255,226,222,.82)', FDF2F1: 'rgba(255,232,229,.82)', E6F6EC: 'rgba(220,246,230,.82)', E7F3E3: 'rgba(226,244,220,.85)',
-    E8F0FE: 'rgba(225,236,255,.82)', FFF1E8: 'rgba(255,230,208,.88)', FFF4EC: 'rgba(255,234,214,.88)', FFF7ED: 'rgba(255,238,220,.88)', FFF4E0: 'rgba(255,236,200,.88)', FFF1DC: 'rgba(255,236,200,.88)',
+    FDECEA: '#FFE2DC', FDE8E6: '#FFE2DC', FDF2F1: '#FFEAE5', E6F6EC: '#DDF5E5', E7F3E3: '#E3F3DB',
+    E8F0FE: '#E2ECFF', FFF1E8: '#FFE5CE', FFF4EC: '#FFE9D4', FFF7ED: '#FFEDDA', FFF4E0: '#FFEBC6', FFF1DC: '#FFEBC6',
   },
   texto: {
     '111111': '#2A170B', '1F1F1F': '#33200F', '2B2B2B': '#3B2616', '4A4A4A': '#5C4332', '6B6B6B': '#7A5C47',
+    FF6B1A: '#C24A0A', // laranja em texto pequeno sobre creme precisa de mais corpo (4,7:1); em fundos e botões continua #FF6B1A
   },
   borda: {
     E6E6E3: 'rgba(160,90,40,.16)', EFEFEC: 'rgba(160,90,40,.1)', D5D5D0: 'rgba(160,90,40,.28)', C9C9C4: 'rgba(160,90,40,.36)', D3E7CD: 'rgba(60,140,70,.3)',
@@ -250,11 +253,30 @@ function trocarCor(tema: Tema, papel: Papel, hex: string): string | null {
   return nova;
 }
 
+// O Tailwind escreve as cores com transparência (text-[#111111]/75) em oklab(L a b / alfa); lê-se, troca-se e volta em hex com alfa.
+const REGEX_OKLAB = /oklab\(\s*([\d.]+)(%?)\s+(-?[\d.]+(?:e-?\d+)?)\s+(-?[\d.]+(?:e-?\d+)?)\s*(?:\/\s*([\d.]+)(%?))?\s*\)/;
+const REGEX_COR = new RegExp(`${REGEX_HEX.source}|${REGEX_OKLAB.source}`, 'g');
+
 function trocarNoValor(tema: Tema, papel: Papel, valor: string): string | null {
   let mudou = false;
-  const novo = valor.replace(REGEX_HEX, (h) => {
-    const c = trocarCor(tema, papel, h.slice(1));
-    if (c === null) return h;
+  const novo = valor.replace(REGEX_COR, (todo: string, ...g: Array<string | undefined>) => {
+    if (todo.startsWith('oklab')) {
+      const L = parseFloat(g[1] as string) / (g[2] === '%' ? 100 : 1);
+      const a = parseFloat(g[3] as string), b = parseFloat(g[4] as string);
+      const alfaTxt = g[5];
+      const alfa = alfaTxt === undefined ? 1 : parseFloat(alfaTxt) / (g[6] === '%' ? 100 : 1);
+      const hex = deOklch(L, Math.hypot(a, b), (Math.atan2(b, a) * 180) / Math.PI).slice(1);
+      const c = trocarCor(tema, papel, hex);
+      if (c === null) return todo;
+      mudou = true;
+      if (alfa >= 0.999) return c;
+      if (/^#[0-9A-F]{6}$/i.test(c)) return c + Math.round(limitar(alfa, 0, 1) * 255).toString(16).padStart(2, '0').toUpperCase();
+      const rgba = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(c);
+      if (rgba) return `rgba(${rgba[1]},${rgba[2]},${rgba[3]},${+(parseFloat(rgba[4] ?? '1') * alfa).toFixed(3)})`;
+      return c;
+    }
+    const c = trocarCor(tema, papel, todo.slice(1));
+    if (c === null) return todo;
     mudou = true;
     return c;
   });
