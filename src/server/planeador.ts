@@ -421,8 +421,12 @@ export async function planearViagem(
   opcoes.sort((a, b) => a._pontos - b._pontos);
   const escolhidas: typeof opcoes = [];
   const vistas = new Set<string>();
+  // Não vale a pena mostrar opções muito piores do que a melhor (chegam bem mais tarde)
+  const melhorChegada = Math.min(...opcoes.filter((o) => o.id !== 'a-pe').map((o) => o._chegada));
+  const tolerancia = Number.isFinite(melhorChegada) ? Math.max(20 * 60, 0.5 * (melhorChegada - agoraSegs)) : 0;
   for (const o of opcoes) {
     if (vistas.has(o._assinatura)) continue;
+    if (o.id !== 'a-pe' && Number.isFinite(melhorChegada) && o._chegada - melhorChegada > tolerancia) continue;
     // Transbordos que não ganham nada à melhor direta não interessam
     const melhorDireta = escolhidas.find((e) => e.transfersCount === 0 && e.id !== 'a-pe');
     if (o.transfersCount > 0 && melhorDireta && o._chegada >= melhorDireta._chegada - 3 * 60) continue;
