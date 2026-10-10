@@ -254,7 +254,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         <BotaoWhatsApp variante="cartao" className="mt-3" />
 
-        {onOpenWhatsApp && eAdmin() && (
+        {onOpenWhatsApp && (eAdmin() || user?.admin) && (
           <button
             type="button"
             onClick={onOpenWhatsApp}

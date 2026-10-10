@@ -76,6 +76,7 @@ export interface UserProfile {
   avatar?: import('../utils/avatarCatalogo').ConfigAvatar;
   operador?: string; // conta oficial de um operador (respostas marcadas como oficiais)
   proximaPeca?: { nome: string; falta: number } | null;
+  admin?: boolean; // conta de administração (o servidor decide pelo e-mail)
 }
 
 export interface DistrictData {

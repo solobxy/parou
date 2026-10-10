@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, ExternalLink, MessageCircle, RefreshCw, Undo2 } from 'lucide-react';
 import { Folha } from './Folha';
 import { eAdmin } from '../utils/admin';
+import { utilizadorAutenticado } from '../services/conta';
 import { CANAL_WHATSAPP } from '../config/ligacoes';
 import { fetchCentralAlerts } from '../services/centralAlertsApi';
 import type { CentralAlert } from '../types/alerts';
@@ -37,7 +38,7 @@ const botao = 'h-11 px-4 rounded-[10px] text-[14.5px] font-bold inline-flex item
 interface Props { aberta: boolean; onFechar: () => void }
 
 export const PainelWhatsApp: React.FC<Props> = ({ aberta, onFechar }) => {
-  if (!aberta || !eAdmin()) return null;
+  if (!aberta || !(eAdmin() || utilizadorAutenticado()?.admin)) return null;
   return <Conteudo onFechar={onFechar} />;
 };
 
