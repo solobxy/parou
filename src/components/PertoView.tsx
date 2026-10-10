@@ -482,9 +482,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const melhor = unicas.find((r) => r.id !== 'a-pe');
       return unicas.slice(0, 5).map((r) => ({
         ...r,
-        badgeLabel: r.id === 'a-pe' ? 'A pé'
-          : r.id === melhor?.id ? (r.transfersCount ? 'Mais rápido · 1 transbordo' : 'Mais rápido')
-          : r.transfersCount ? '1 transbordo' : 'Direto',
+        badgeLabel: r.id === 'a-pe' ? t('A pé')
+          : r.id === melhor?.id ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
+          : r.transfersCount ? tn(r.transfersCount, '{n} transbordo', '{n} transbordos') : t('Direto'),
       }));
     };
 
