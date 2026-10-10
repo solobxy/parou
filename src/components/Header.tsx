@@ -4,7 +4,7 @@ import { BotaoInstalar } from './InstalarApp';
 import { Avatar } from './Avatar';
 import { 
   Search, 
-  MapPin, 
+  Map as IconeMapa, 
   AlertTriangle, 
   Compass, 
   Clock, 
@@ -131,8 +131,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
-              <MapPin className="w-4 h-4 stroke-[2]" />
-              <span>{t('Mapa')}</span>
+              <IconeMapa className="w-4 h-4 stroke-[2]" />
+              <span>{t('Em direto')}</span>
             </button>
 
             <button

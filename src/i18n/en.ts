@@ -3,6 +3,7 @@
 export const EN: Record<string, string> = {
   // Navegação e topo
   'Mapa': 'Map',
+  'Em direto': 'Live',
   'Alertas': 'Alerts',
   'Perto': 'Nearby',
   'Horários': 'Timetables',
