@@ -52,7 +52,7 @@ export const ConfidenceMeter: React.FC<ConfidenceMeterProps> = ({
           <span>{statusConfig.label}</span>
         </div>
 
-        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] font-['Barlow_Condensed'] font-bold tabular-nums text-[#111111]">
+        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] font-condensada font-bold tabular-nums text-[#111111]">
           <span>{evaluation.score}%</span>
         </div>
 
@@ -74,11 +74,11 @@ export const ConfidenceMeter: React.FC<ConfidenceMeterProps> = ({
               {renderStatusIcon()}
               <span>{statusConfig.label}</span>
               {evaluation.confirmations > 0 && evaluation.status === 'Confirmado' && (
-                <span className="font-['Barlow_Condensed'] font-bold tabular-nums">({evaluation.confirmations})</span>
+                <span className="font-condensada font-bold tabular-nums">({evaluation.confirmations})</span>
               )}
             </div>
 
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] bg-[#F4F4F2] border border-[#E6E6E3] font-['Barlow_Condensed'] font-bold tabular-nums text-[#111111]">
+            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] bg-[#F4F4F2] border border-[#E6E6E3] font-condensada font-bold tabular-nums text-[#111111]">
               <span>{evaluation.score}%</span>
             </div>
           </div>
@@ -113,7 +113,7 @@ export const ConfidenceMeter: React.FC<ConfidenceMeterProps> = ({
 
         <div className="flex items-center gap-1 text-xs">
           <span className="text-[#6B6B6B]">Confiança:</span>
-          <span className="font-['Barlow_Condensed'] font-bold text-sm tabular-nums text-[#111111]">
+          <span className="font-condensada font-bold text-sm tabular-nums text-[#111111]">
             {evaluation.score}%
           </span>
         </div>

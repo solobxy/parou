@@ -422,7 +422,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 Perto de ti
               </h2>
               {sortedNearLines.length > 0 && (
-                <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">
+                <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                   {upcomingNearLines.length} {upcomingNearLines.length === 1 ? 'próxima' : 'próximas'}
                 </span>
               )}
@@ -467,7 +467,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             {laterNearLines.length > 0 && (
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between px-0.5">
-                  <h3 className="text-sm font-semibold text-[#6B6B6B] uppercase tracking-wide font-['Barlow_Condensed']">
+                  <h3 className="text-sm font-semibold text-[#6B6B6B] uppercase tracking-wide font-condensada">
                     Mais tarde
                   </h3>
                   <span className="text-xs text-[#6B6B6B]">
@@ -502,7 +502,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               <h2 className="text-[18px] font-semibold text-[#111111]">
                 Favoritas
               </h2>
-              <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">
+              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                 {favoriteLines.length}
               </span>
             </div>
@@ -531,7 +531,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               Linhas
             </h2>
             {allLinesTotal > 0 && (
-              <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">
+              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                 {allLinesTotal}
               </span>
             )}
@@ -574,7 +574,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                     Anterior
                   </button>
 
-                  <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
+                  <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
                     Página {currentPage} de {totalPages}
                   </span>
 

@@ -53,7 +53,7 @@ export const TopLoadingBanner: React.FC = () => {
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] text-[#111111] border border-[#E6E6E3] shadow-sm text-xs font-medium">
         <RefreshCw className="w-3.5 h-3.5 animate-spin stroke-[2] shrink-0 text-[#111111]" />
         <span>
-          A atualizar dados · <strong className="font-['Barlow_Condensed'] font-bold tabular-nums">{status.loadedOperators}/{status.totalOperators}</strong>
+          A atualizar dados · <strong className="font-condensada font-bold tabular-nums">{status.loadedOperators}/{status.totalOperators}</strong>
         </span>
       </div>
     </div>

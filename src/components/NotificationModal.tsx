@@ -175,7 +175,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
           >
             <span>Histórico</span>
             {history.length > 0 && (
-              <span className="font-['Barlow_Condensed'] font-bold text-xs tabular-nums text-[#6B6B6B]">
+              <span className="font-condensada font-bold text-xs tabular-nums text-[#6B6B6B]">
                 ({history.length})
               </span>
             )}
@@ -286,7 +286,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                     >
                       <div className="flex items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-[#111111] truncate">{item.title}</span>
-                        <span className="font-['Barlow_Condensed'] text-[#6B6B6B] tabular-nums shrink-0">
+                        <span className="font-condensada text-[#6B6B6B] tabular-nums shrink-0">
                           {new Date(item.timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>

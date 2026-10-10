@@ -264,14 +264,14 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                             />
                           )}
                           <span 
-                            className={`font-['Barlow_Condensed'] text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                            className={`font-condensada text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
                             style={{ color: parsed.textColor }}
                           >
                             {parsed.bigText}
                           </span>
                         </div>
                         {parsed.exactTime && (
-                          <span className="font-['Barlow_Condensed'] text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
+                          <span className="font-condensada text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
                             {parsed.exactTime}
                           </span>
                         )}

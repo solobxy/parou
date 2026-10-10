@@ -94,7 +94,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums text-sm">
+          <span className="font-condensada font-bold text-[#111111] tabular-nums text-sm">
             {stats.totalOperators} operadores
           </span>
           <span className="text-[#6B6B6B]">·</span>

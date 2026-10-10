@@ -65,7 +65,7 @@ export const RecentOccurrencesFeed: React.FC<RecentOccurrencesFeedProps> = ({
                 </div>
 
                 <div className="shrink-0 flex items-center gap-2 text-right">
-                  <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
+                  <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
                     {quandoAconteceu(item)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2]" />

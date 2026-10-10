@@ -103,14 +103,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div className="grid grid-cols-2 gap-2 my-4">
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Pontos de reputação</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {user.reputationPoints}
             </div>
           </div>
 
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Ocorrências reportadas</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {userReports.length}
             </div>
           </div>
@@ -157,13 +157,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       <MapPin className="w-3 h-3 stroke-[2]" />
                       <span>{occ.district}</span>
                       <span>·</span>
-                      <span className="font-['Barlow_Condensed'] tabular-nums">{quandoAconteceu(occ)}</span>
+                      <span className="font-condensada tabular-nums">{quandoAconteceu(occ)}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B] shrink-0">
                     <ThumbsUp className="w-3 h-3 stroke-[2]" />
-                    <span className="font-['Barlow_Condensed'] font-bold tabular-nums">
+                    <span className="font-condensada font-bold tabular-nums">
                       {occ.confirmationsCount || occ.upvotes || 0}
                     </span>
                     <ChevronRight className="w-4 h-4 stroke-[2]" />

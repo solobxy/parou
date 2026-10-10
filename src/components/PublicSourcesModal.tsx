@@ -108,14 +108,14 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
         <div className="grid grid-cols-2 gap-2 p-3 bg-[#F4F4F2] border-b border-[#E6E6E3] text-xs">
           <div className="p-2.5 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B] block">Fontes registadas</span>
-            <strong className="font-['Barlow_Condensed'] text-lg font-bold text-[#111111] tabular-nums">
+            <strong className="font-condensada text-lg font-bold text-[#111111] tabular-nums">
               {sources.length} canais
             </strong>
           </div>
 
           <div className="p-2.5 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B] block">Alertas ativos no sistema</span>
-            <strong className="font-['Barlow_Condensed'] text-lg font-bold text-[#111111] tabular-nums">
+            <strong className="font-condensada text-lg font-bold text-[#111111] tabular-nums">
               {publicOccurrences.length} ocorrências
             </strong>
           </div>
@@ -143,7 +143,7 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
             }`}
           >
             <span>Ocorrências</span>
-            <span className="font-['Barlow_Condensed'] font-bold text-xs tabular-nums text-[#6B6B6B]">
+            <span className="font-condensada font-bold text-xs tabular-nums text-[#6B6B6B]">
               ({publicOccurrences.length})
             </span>
           </button>
@@ -192,7 +192,7 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
                   >
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-semibold text-[#111111] truncate">{occ.title}</span>
-                      <span className="font-['Barlow_Condensed'] text-[#6B6B6B] tabular-nums shrink-0">
+                      <span className="font-condensada text-[#6B6B6B] tabular-nums shrink-0">
                         {quandoAconteceu(occ)}
                       </span>
                     </div>
