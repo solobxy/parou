@@ -781,6 +781,92 @@ function fundo(id: string, p: Pal, cx: number, cy: number): string {
       }
       return big('#FF8A3D') + raios;
     }
+    case 'pordosol':
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8FA3"/><stop offset="0.55" stop-color="#FFB877"/><stop offset="1" stop-color="#FFE3A6"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        C(cx + 46, cy + 26, 34, '#FFF0C4', op(0.97)) + C(cx + 46, cy + 26, 50, '#FFF0C4', op(0.26)) +
+        P(`M -160,${cy + 58} C ${cx - 90},${cy + 30} ${cx - 40},${cy + 40} ${cx + 10},${cy + 56} C ${cx + 60},${cy + 70} ${cx + 100},${cy + 38} 360,${cy + 52} L 360,400 L -160,400 Z`, '#B5507A') +
+        P(`M -160,${cy + 74} C ${cx - 70},${cy + 56} ${cx - 10},${cy + 80} ${cx + 50},${cy + 68} C ${cx + 100},${cy + 60} ${cx + 140},${cy + 70} 360,${cy + 66} L 360,400 L -160,400 Z`, '#8E3F6B');
+    case 'linha': {
+      const ponto = (x: number, y: number) => C(x, y, 8, '#FFFFFF') + `<circle cx="${f(x)}" cy="${f(y)}" r="8" fill="none" stroke="#111111" stroke-width="3.6"/>`;
+      return big('#E9EEF6') +
+        L(`M ${cx - 150},${cy + 82} L ${cx - 56},${cy + 82} L ${cx + 8},${cy + 18} L ${cx + 150},${cy + 18}`, 11, '#FF6B1A') +
+        L(`M ${cx - 150},${cy - 36} L ${cx - 30},${cy - 36} L ${cx + 40},${cy - 106} L ${cx + 150},${cy - 106}`, 11, '#3F7BE8') +
+        L(`M ${cx + 70},${cy + 120} L ${cx + 70},${cy - 10} L ${cx + 150},${cy - 90}`, 11, '#2FB67C') +
+        ponto(cx - 56, cy + 82) + ponto(cx + 8, cy + 18) + ponto(cx + 70, cy + 18) + ponto(cx - 30, cy - 36) + ponto(cx + 40, cy - 106) + ponto(cx - 100, cy - 36);
+    }
+    case 'chuva': {
+      let gotas = '';
+      for (let y = -90; y < 330; y += 30) for (let x = -90 + ((y / 30) % 2 ? 17 : 0); x < 300; x += 34) gotas += L(`M ${x},${y} l -6,14`, 3, '#FFFFFF', so(0.65));
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7C8FA6"/><stop offset="1" stop-color="#BFCEDD"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        E(cx - 50, cy - 74, 46, 16, '#5F7189', op(0.55)) + E(cx + 28, cy - 84, 52, 18, '#5F7189', op(0.55)) + E(cx + 84, cy - 70, 34, 13, '#5F7189', op(0.55)) + gotas;
+    }
+    case 'cidade': {
+      const base = cy + 120;
+      const predios = (xs: Array<[number, number, number]>, cor: string) => xs.map(([x, w, h]) => R(cx + x, base - h, w, h, 3, cor)).join('');
+      let janelas = '';
+      for (const [x, w, h] of [[-62, 26, 112], [-8, 30, 128], [58, 26, 100]] as Array<[number, number, number]>) {
+        for (let j = 0; j < 6; j++) for (let i = 0; i < 2; i++) if ((i + j) % 3 !== 1) janelas += R(cx + x + 5 + i * 11, base - h + 8 + j * 15, 6, 8, 1.5, '#FFE9A8', op(0.9));
+      }
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9FD0FF"/><stop offset="1" stop-color="#EAF6FF"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        E(cx - 56, cy - 62, 28, 9, '#FFFFFF', op(0.85)) + E(cx + 60, cy - 78, 24, 8, '#FFFFFF', op(0.85)) +
+        predios([[-130, 34, 80], [-92, 30, 96], [-30, 34, 84], [24, 32, 92], [92, 36, 86], [128, 40, 74]], '#A9BEDC') +
+        predios([[-62, 26, 112], [-8, 30, 128], [58, 26, 100], [-110, 40, 70], [96, 32, 70]], '#5F7DAA') + janelas;
+    }
+    case 'praia':
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6EC1FF"/><stop offset="1" stop-color="#DDF3FF"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        C(cx + 56, cy - 46, 16, '#FFE27A') + C(cx + 56, cy - 46, 26, '#FFE27A', op(0.28)) +
+        E(cx - 54, cy - 34, 26, 8, '#FFFFFF', op(0.9)) +
+        R(-160, cy + 22, 520, 34, 0, '#2FB0D6') +
+        L(`M ${cx - 90},${cy + 32} q 10,-6 20,0 t 20,0 t 20,0 t 20,0 t 20,0 t 20,0 t 20,0 t 20,0`, 3, '#FFFFFF', so(0.6)) +
+        L(`M ${cx - 70},${cy + 46} q 10,-6 20,0 t 20,0 t 20,0 t 20,0 t 20,0 t 20,0 t 20,0`, 3, '#FFFFFF', so(0.45)) +
+        P(`M -160,${cy + 58} C ${cx - 60},${cy + 52} ${cx + 40},${cy + 66} 360,${cy + 54} L 360,400 L -160,400 Z`, '#F6E2AE') +
+        P(`M -160,${cy + 84} C ${cx - 40},${cy + 70} ${cx + 60},${cy + 92} 360,${cy + 76} L 360,400 L -160,400 Z`, '#EAC983', op(0.7));
+    case 'mapa':
+      return big('#E9E2D0') +
+        R(cx - 130, cy + 16, 96, 64, 14, '#B9DDA9') + R(cx + 38, cy - 96, 82, 54, 12, '#B9DDA9') +
+        L(`M ${cx - 150},${cy - 34} C ${cx - 70},${cy - 6} ${cx},${cy - 70} ${cx + 150},${cy - 28}`, 24, '#93C9EC') +
+        L(`M ${cx - 62},${cy - 140} V ${cy + 140}`, 9, '#FFFFFF') + L(`M ${cx + 20},${cy - 140} V ${cy + 140}`, 9, '#FFFFFF') + L(`M ${cx + 82},${cy - 140} V ${cy + 140}`, 9, '#FFFFFF') +
+        L(`M ${cx - 150},${cy + 50} H ${cx + 150}`, 9, '#FFFFFF') + L(`M ${cx - 150},${cy - 74} H ${cx + 150}`, 9, '#FFFFFF') +
+        L(`M ${cx - 140},${cy + 100} L ${cx + 140},${cy - 80}`, 13, '#F2BE6B') + L(`M ${cx - 140},${cy + 100} L ${cx + 140},${cy - 80}`, 8, '#FFDDA2');
+    case 'tunel': {
+      let luzes = '';
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * 2 * Math.PI;
+        luzes += C(cx + 80 * Math.cos(a), cy - 6 + 80 * Math.sin(a), 5, '#FFD86B') + C(cx + 80 * Math.cos(a), cy - 6 + 80 * Math.sin(a), 9, '#FFD86B', op(0.22));
+      }
+      return big('#0E1424') + C(cx, cy - 6, 150, '#2A3860') + C(cx, cy - 6, 122, '#1A2442') + C(cx, cy - 6, 96, '#2D3C66') + C(cx, cy - 6, 66, '#141C33') +
+        C(cx, cy - 6, 40, '#0B1020') + C(cx, cy - 6, 24, '#9FD0FF', op(0.55)) + C(cx, cy - 6, 14, '#E6F4FF') + luzes;
+    }
+    case 'aurora': {
+      let estrelas = '';
+      for (const [dx, dy, r] of [[-80, -70, 1.6], [-30, -96, 1.2], [44, -88, 1.6], [90, -50, 1.2], [-96, 6, 1.2], [96, 20, 1.6], [-50, 80, 1.2], [60, 84, 1.2], [4, -60, 1]] as Array<[number, number, number]>) estrelas += C(cx + dx, cy + dy, r, '#FFFFFF');
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A0F2E"/><stop offset="1" stop-color="#16295A"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') + estrelas +
+        P(`M -160,${cy - 10} C ${cx - 80},${cy - 70} ${cx - 10},${cy + 20} ${cx + 70},${cy - 40} S ${cx + 150},${cy - 50} 360,${cy - 30} L 360,${cy + 34} C ${cx + 140},${cy + 20} ${cx + 100},${cy + 20} ${cx + 40},${cy + 40} S ${cx - 80},${cy - 20} -160,${cy + 30} Z`, '#3DF2B0', op(0.62)) +
+        P(`M -160,${cy + 20} C ${cx - 70},${cy - 40} ${cx},${cy + 50} ${cx + 80},${cy} S ${cx + 160},${cy - 10} 360,${cy + 10} L 360,${cy + 70} C ${cx + 150},${cy + 56} ${cx + 100},${cy + 56} ${cx + 40},${cy + 76} S ${cx - 80},${cy + 20} -160,${cy + 66} Z`, '#8B6CFF', op(0.55));
+    }
+    case 'arcoiris': {
+      const cores = ['#FF6B6B', '#FFA94D', '#FFE066', '#6FD68A', '#4DABF7', '#9775FA'];
+      let arcos = '';
+      cores.forEach((c, i) => { const r = 124 - i * 9; arcos += L(`M ${cx - r},${cy + 70} A ${r},${r} 0 0 1 ${cx + r},${cy + 70}`, 9.4, c); });
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CDEBFF"/><stop offset="1" stop-color="#F6FBFF"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') + arcos +
+        E(cx - 112, cy + 74, 34, 14, '#FFFFFF') + E(cx - 90, cy + 66, 24, 14, '#FFFFFF') + E(cx + 112, cy + 74, 34, 14, '#FFFFFF') + E(cx + 90, cy + 66, 24, 14, '#FFFFFF') +
+        R(-160, cy + 78, 520, 300, 0, '#C8EEC0');
+    }
+    case 'espaco': {
+      let estrelas = '';
+      for (const [dx, dy, r] of [[-84, -62, 1.8], [-40, -92, 1.3], [30, -80, 1.8], [78, -78, 1.3], [-100, 4, 1.3], [100, 8, 1.8], [-64, 66, 1.3], [24, 90, 1.8], [84, 70, 1.3], [-16, -48, 1.1], [60, 30, 1.1], [-90, 40, 1.1]] as Array<[number, number, number]>) estrelas += C(cx + dx, cy + dy, r, '#FFFFFF');
+      return `<defs><radialGradient id="fg" cx=".5" cy=".4" r=".8"><stop offset="0" stop-color="#3A2380"/><stop offset="1" stop-color="#120B33"/></radialGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        C(cx - 50, cy - 14, 62, '#7B4DFF', op(0.2)) + C(cx + 58, cy + 40, 40, '#FF5FA2', op(0.16)) + estrelas +
+        C(cx + 60, cy - 42, 17, '#FF9E6B') + E(cx + 60, cy - 42, 30, 7, 'none', ` stroke="#FFD2A8" stroke-width="3" transform="rotate(-18 ${f(cx + 60)} ${f(cy - 42)})"`) + C(cx + 54, cy - 48, 5, '#FFC59A', op(0.8)) +
+        C(cx - 66, cy + 52, 9, '#BFC8E8') + C(cx - 69, cy + 49, 3, '#9AA5CC');
+    }
+    case 'ouro': {
+      const brilhos = [[-62, -52, 1.3], [66, -34, 1], [-80, 36, 0.9], [54, 62, 1.2], [8, -84, 0.8], [96, 14, 0.7]]
+        .map(([dx, dy, e]) => `<path transform="${mover(cx + dx, cy + dy, e * 6)}" d="M 0,-2 L 0.5,-0.5 L 2,0 L 0.5,0.5 L 0,2 L -0.5,0.5 L -2,0 L -0.5,-0.5 Z" fill="#FFFFFF"/>`).join('');
+      return `<defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF1A8"/><stop offset="0.3" stop-color="#F3BE2E"/><stop offset="0.62" stop-color="#B97C00"/><stop offset="1" stop-color="#F2CB55"/></linearGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)') +
+        P(`M ${cx - 150},${cy + 110} L ${cx - 60},${cy - 140} L ${cx - 10},${cy - 140} L ${cx - 100},${cy + 110} Z`, '#FFFFFF', op(0.34)) +
+        P(`M ${cx + 10},${cy + 110} L ${cx + 80},${cy - 140} L ${cx + 102},${cy - 140} L ${cx + 32},${cy + 110} Z`, '#FFFFFF', op(0.22)) + brilhos;
+    }
     default: // auto: tom claro da cor da personagem
       return `<defs><radialGradient id="fg" cx=".5" cy=".42" r=".75"><stop offset="0" stop-color="${clarear(p.c, 0.9)}"/><stop offset="1" stop-color="${clarear(p.c, 0.72)}"/></radialGradient></defs>` + R(-160, -160, 520, 560, 0, 'url(#fg)');
   }
