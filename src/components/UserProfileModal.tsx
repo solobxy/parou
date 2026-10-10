@@ -7,10 +7,12 @@ import {
   Plus,
   ChevronRight,
   Pencil,
-  UserX
+  UserX,
+  MessageCircle
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
+import { eAdmin } from '../utils/admin';
 import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
 import { MedalhaPioneiro } from './MedalhaPioneiro';
@@ -26,6 +28,7 @@ interface UserProfileModalProps {
   userReports: Occurrence[];
   onSelectOccurrence: (occ: Occurrence) => void;
   onOpenReportModal: () => void;
+  onOpenWhatsApp?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -35,6 +38,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   userReports,
   onSelectOccurrence,
   onOpenReportModal,
+  onOpenWhatsApp,
 }) => {
   const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
   const [erroApagar, setErroApagar] = React.useState<string>('');
@@ -249,6 +253,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         <BotaoWhatsApp variante="cartao" className="mt-3" />
+
+        {onOpenWhatsApp && eAdmin() && (
+          <button
+            type="button"
+            onClick={onOpenWhatsApp}
+            className="mt-3 w-full h-11 flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer"
+            data-teste="abrir-painel-whatsapp"
+          >
+            <MessageCircle className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
+            <span>Para o WhatsApp (admin)</span>
+          </button>
+        )}
 
         {/* Sair da conta */}
         <button
