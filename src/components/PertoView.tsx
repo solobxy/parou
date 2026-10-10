@@ -418,14 +418,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
       return;
     }
 
+    // Só conta a resposta da última pesquisa (as antigas podem chegar depois e baralhar a lista)
+    let atual = true;
     const timer = setTimeout(async () => {
       const lat = userCoords?.latitude ?? 38.7253;
       const lon = userCoords?.longitude ?? -9.1500;
-      const results = await searchDestinations(destinationQuery, lat, lon);
-      setSuggestions(results);
-    }, 250);
+      try {
+        const results = await searchDestinations(destinationQuery, lat, lon);
+        if (atual) setSuggestions(results);
+      } catch {}
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => { atual = false; clearTimeout(timer); };
   }, [destinationQuery, userCoords]);
 
   const calculateRoutesToDestination = async (destLat: number, destLon: number, destName = 'Destino') => {

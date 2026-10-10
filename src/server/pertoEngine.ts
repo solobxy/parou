@@ -238,6 +238,9 @@ export async function searchDestinationSuggestions(
     }
   }
 
+  // Moradas, ruas e locais (OpenStreetMap, via Photon) em paralelo com as paragens da base
+  const pedidoMoradas = procurarMoradas(query, userLat, userLon);
+
   // Search real stops in SQLite database
   const dbStops = searchStopsInDb(cleanQ, 20);
   const results: DestinationSuggestion[] = dbStops.map((s) => {
@@ -260,7 +263,80 @@ export async function searchDestinationSuggestions(
     results.sort((a, b) => (a.distanceFromUserMeters || 999999) - (b.distanceFromUserMeters || 999999));
   }
 
-  return results.slice(0, 10);
+  const moradas = await pedidoMoradas;
+  if (!moradas.length) return results.slice(0, 10);
+  // Se a pesquisa tem cara de morada (número, "rua", "av."…), as moradas vêm primeiro; senão alternam
+  const pareceMorada = /\d|\b(rua|r\.|av\.?|avenida|praceta|pra[cç]a|largo|travessa|tv\.?|estrada|alameda|beco|calçada|cal[cç]\.|urbaniza[cç][aã]o|bairro|lugar)\b/i.test(query);
+  const paragens = results.slice(0, pareceMorada ? 4 : 6);
+  const misturado: DestinationSuggestion[] = pareceMorada
+    ? [...moradas.slice(0, 6), ...paragens]
+    : [...moradas.slice(0, 3), ...paragens, ...moradas.slice(3, 5)];
+  return misturado.slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Moradas: Photon (OpenStreetMap, feito para pesquisa enquanto se escreve). Resultados só de
+// Portugal, perto de quem pesquisa primeiro, com cache de 30 min e limite de tempo de 4 s.
+// ---------------------------------------------------------------------------
+const cacheMoradas = new Map<string, { quando: number; dados: DestinationSuggestion[] }>();
+async function procurarMoradas(query: string, userLat?: number, userLon?: number): Promise<DestinationSuggestion[]> {
+  const q = query.trim().replace(/\s+/g, ' ');
+  if (q.length < 3) return [];
+  const zona = userLat && userLon ? `${userLat.toFixed(1)},${userLon.toFixed(1)}` : '';
+  const chave = `${q.toLowerCase()}|${zona}`;
+  const guardado = cacheMoradas.get(chave);
+  if (guardado && Date.now() - guardado.quando < 30 * 60_000) return guardado.dados;
+  try {
+    const params = new URLSearchParams({ q, limit: '12' });
+    if (userLat && userLon) { params.set('lat', String(userLat)); params.set('lon', String(userLon)); params.set('location_bias_scale', '0.3'); }
+    // Portugal continental e ilhas
+    params.set('bbox', '-31.6,32.3,-6.1,42.2');
+    const res = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, {
+      headers: { 'User-Agent': 'PAROU.PT/1.0 (https://parou.pt)', Accept: 'application/json' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return [];
+    const json: any = await res.json();
+    const vistos = new Set<string>();
+    const dados: DestinationSuggestion[] = [];
+    for (const f of json?.features || []) {
+      const p = f?.properties || {};
+      const [lon, lat] = f?.geometry?.coordinates || [];
+      if (p.countrycode && p.countrycode !== 'PT') continue;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const rua = p.street || (p.type === 'street' ? p.name : '');
+      let titulo = '';
+      if (p.housenumber && rua) titulo = `${rua} ${p.housenumber}`;
+      else if (p.name) titulo = p.name;
+      else if (rua) titulo = rua;
+      if (!titulo) continue;
+      // Pesquisou um número de porta e só há a rua: mostra o número pedido (fica perto o suficiente)
+      const numeroPedido = q.match(/\b(\d{1,4}[a-z]?)\s*$/i)?.[1];
+      if (numeroPedido && p.type === 'street' && !p.housenumber) titulo = `${titulo} ${numeroPedido}`;
+      const sitio = [p.locality || p.district, p.city || p.county].filter(Boolean)
+        .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i && v !== titulo);
+      const subtitulo = [...sitio, p.postcode].filter(Boolean).join(' · ') || 'Portugal';
+      const unico = `${titulo.toLowerCase()}|${(p.city || p.county || '').toLowerCase()}`;
+      if (vistos.has(unico)) continue;
+      vistos.add(unico);
+      const eLocalidade = p.osm_key === 'place' && ['city', 'town', 'village', 'hamlet', 'suburb', 'neighbourhood', 'quarter'].includes(p.osm_value);
+      dados.push({
+        id: `osm-${p.osm_type || ''}${p.osm_id || dados.length}`,
+        title: titulo,
+        subtitle: subtitulo,
+        latitude: lat,
+        longitude: lon,
+        type: eLocalidade ? 'CITY' : 'PLACE',
+        distanceFromUserMeters: userLat && userLon ? Math.round(calculateDistanceMeters(userLat, userLon, lat, lon)) : undefined,
+      });
+      if (dados.length >= 8) break;
+    }
+    if (cacheMoradas.size > 2000) cacheMoradas.clear();
+    cacheMoradas.set(chave, { quando: Date.now(), dados });
+    return dados;
+  } catch {
+    return [];
+  }
 }
 
 // (O planeador de viagens está em ./planeador.ts: percursos reais com os horários da base.)
