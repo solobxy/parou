@@ -262,7 +262,8 @@ export async function planearViagem(
               departureTime: hm(primeira.parte - dia.desvio - andarO * 60), arrivalTime: hm(chegada),
               walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
               legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Horário programado', relevantAlerts: [],
-              _chegada: chegada, _pontos: chegada + trocas * 6 * 60, _assinatura: pernas.map((x) => x.route).join('>'),
+              _chegada: chegada, _pontos: chegada + trocas * 6 * 60, // com transbordos, o que distingue um percurso são as viagens a seguir à primeira (o mesmo comboio apanhado a partir de várias linhas é uma só opção)
+              _assinatura: pernas.length > 1 ? `M:${pernas.slice(1).map((x) => x.route).join('>')}` : pernas[0].route,
             });
           }
         }
