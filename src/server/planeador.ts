@@ -1,9 +1,11 @@
 // =====================================================================================
 // PAROU.PT — Planeador de viagens ("Para onde vais?")
 //
-// Calcula percursos reais com os horários da base (GTFS): viagens diretas e com um
-// transbordo (na mesma paragem ou noutra a poucos metros), a partir das paragens a que se
-// chega a pé da origem e do destino. Só usa serviços que funcionam hoje.
+// Calcula percursos reais com os horários da base (GTFS): viagens diretas e com até três
+// transbordos (na mesma paragem ou noutra a poucos metros), a partir das paragens a que se
+// chega a pé da origem e do destino. Só usa serviços que funcionam hoje. O motor principal é o
+// RAPTOR em memória (planeadorIndice.ts); enquanto o índice não está pronto, usa-se a pesquisa
+// SQL de diretas + um transbordo (mais abaixo).
 //
 // A UNIR não tem horários na base (a AMP só responde a ligações de Portugal): o servidor
 // devolve as ligações diretas possíveis (linha, sentido, paragens) e a app completa-as com o
@@ -12,6 +14,7 @@
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import type { TransitRouteOption, RouteLeg } from '../types/perto';
+import { indicePronto, procurar } from './planeadorIndice';
 
 const ZONA = 'Europe/Lisbon';
 const RAIO_A_PE = 900; // metros até às paragens de partida e chegada
@@ -206,7 +209,71 @@ export async function planearViagem(
   if (O.length && D.length) {
     const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : [p.id]));
     const idsO = comCmh(O), idsD = comCmh(D);
-    for (const dia of dias) {
+    // -------------------------------------------------------------- motor em memória (vários transbordos)
+    let feito = false;
+    const ix = indicePronto();
+    if (ix) {
+      try {
+        const destinos = new Map<number, number>();
+        for (const p of D) { const i = ix.stopIdx.get(p.id); if (i !== undefined) destinos.set(i, p.minutos * 60); }
+        for (const dia of dias) {
+          const base = agoraSegs + dia.desvio;
+          const origens: Array<{ stop: number; t: number }> = [];
+          for (const p of O) { const i = ix.stopIdx.get(p.id); if (i !== undefined) origens.push({ stop: i, t: base + p.minutos * 60 }); }
+          if (!origens.length || !destinos.size) continue;
+          const jornadas = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 2500 });
+          for (const j of jornadas) {
+            const pernas: Perna[] = j.rides.map((r) => {
+              const pd = ix.padroes[r.pat], nS = pd.stops.length, o = r.t * nS;
+              return {
+                trip: pd.tripId[r.t], route: pd.route, feed: pd.feedSaida, destinoViagem: String(pd.headsign[r.t] || '').trim(),
+                de: ix.stopId[pd.stops[r.b]], para: ix.stopId[pd.stops[r.a]], parte: pd.dep[o + r.b], chega: pd.arr[o + r.a] || pd.dep[o + r.b],
+                paragens: r.a - r.b, sa: pd.seq[o + r.b], sb: pd.seq[o + r.a],
+              };
+            });
+            const primeira = pernas[0], ultima = pernas[pernas.length - 1];
+            const andarO = minO.get(primeira.de) || 1, andarD = minD.get(ultima.para) || 1;
+            const legs: RouteLeg[] = [
+              { mode: 'WALK', instruction: `Ir a pé até ${nomeDe(primeira.de)}`, durationMinutes: andarO, distanceMeters: Math.round((porId.get(`o:${primeira.de}`)?.dist || 0) * DESVIO_RUAS) },
+            ];
+            let metrosAPe = (porId.get(`o:${primeira.de}`)?.dist || 0) + (porId.get(`d:${ultima.para}`)?.dist || 0);
+            let andarTotal = andarO + andarD;
+            pernas.forEach((pn, i) => {
+              if (i > 0) {
+                const ant = pernas[i - 1];
+                if (ant.para !== pn.de) {
+                  const a = ix.stopIdx.get(ant.para), b = ix.stopIdx.get(pn.de);
+                  const m = a !== undefined && b !== undefined ? distM(ix.lat[a], ix.lon[a], ix.lat[b], ix.lon[b]) : 0;
+                  const min = Math.max(1, minutosAPe(m));
+                  legs.push({ mode: 'WALK', instruction: `Ir a pé até ${nomeDe(pn.de)} (transbordo)`, durationMinutes: min, distanceMeters: Math.round(m * DESVIO_RUAS) });
+                  metrosAPe += m; andarTotal += min;
+                }
+              }
+              legs.push(pernaTransito(pn, dia.desvio));
+            });
+            legs.push({ mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: andarD, distanceMeters: Math.round((porId.get(`d:${ultima.para}`)?.dist || 0) * DESVIO_RUAS) });
+            const chegada = ultima.chega + andarD * 60 - dia.desvio;
+            const trocas = pernas.length - 1;
+            opcoes.push({
+              id: `${trocas ? 't' : 'd'}-${pernas.map((x) => x.trip).join('-')}-${primeira.de}-${ultima.para}`,
+              type: trocas ? 'fewest_transfers' : 'fastest', title: trocas ? 'Com transbordo' : 'Direto',
+              badgeLabel: trocas ? `${trocas} ${trocas === 1 ? 'transbordo' : 'transbordos'}` : 'Direto',
+              totalDurationMinutes: Math.round((chegada - agoraSegs) / 60),
+              departureTime: hm(primeira.parte - dia.desvio - andarO * 60), arrivalTime: hm(chegada),
+              walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
+              legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Horário programado', relevantAlerts: [],
+              _chegada: chegada, _pontos: chegada + trocas * 6 * 60, _assinatura: pernas.map((x) => x.route).join('>'),
+            });
+          }
+        }
+        feito = true;
+      } catch (err: any) {
+        console.warn('[Planeador] motor em memória falhou, a usar SQL:', err?.message || err);
+        for (let i = opcoes.length - 1; i >= 0; i--) if (opcoes[i].id !== 'a-pe') opcoes.splice(i, 1);
+      }
+    }
+
+    if (!feito) for (const dia of dias) {
       const base = agoraSegs + dia.desvio;
       // -------------------------------------------------------------- diretas
       const diretas = db.prepare(`
@@ -383,7 +450,7 @@ export async function planearViagem(
 
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
   const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, ...o }) => {
-    if (melhor && o.id === melhor.id) return { ...o, badgeLabel: o.transfersCount ? 'Mais rápido · 1 transbordo' : 'Mais rápido' };
+    if (melhor && o.id === melhor.id) return { ...o, badgeLabel: o.transfersCount ? `Mais rápido · ${o.transfersCount} ${o.transfersCount === 1 ? 'transbordo' : 'transbordos'}` : 'Mais rápido' };
     return o;
   });
 

@@ -1812,6 +1812,15 @@ async function startServer() {
     const httpServer = app.listen(port, '0.0.0.0', () => {
       console.log(`[PAROU.PT Server] A escutar imediatamente em http://0.0.0.0:${port}`);
 
+      // Índice dos horários para o planeador (vários transbordos): constrói-se em segundo plano
+      // e volta a verificar-se de vez em quando (a base muda quando entram dados novos).
+      setTimeout(() => {
+        import('./src/server/planeadorIndice').then((m) => {
+          m.indicePronto();
+          setInterval(() => { try { m.indicePronto(); } catch { /* tenta na próxima */ } }, 10 * 60 * 1000).unref();
+        }).catch((e) => console.warn('[Planeador] índice:', e?.message || e));
+      }, 45 * 1000).unref();
+
       // 3. Em modo dev (se dist não existir), anexa middleware do Vite de forma não-bloqueante
       if (!isProduction) {
         import('vite')
