@@ -1097,7 +1097,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
               <span>Timestamp: {lastRefreshed}</span>
               <button
                 onClick={() => setShowDiagnosticModal(false)}
-                className="px-4 py-2 rounded-[8px] bg-[#111111] hover:bg-black text-[#FFFFFF] font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-[8px] bg-[#111111] hover:bg-[#2B2B2B] text-[#FFFFFF] font-bold transition-colors cursor-pointer"
               >
                 Fechar Auditoria
               </button>

@@ -913,4 +913,12 @@ export const EN: Record<string, string> = {
   'Novidades': 'Updates',
   'Novidades da PAROU': 'PAROU updates',
   'Abrir imagem {n}': 'Open image {n}',
+  'Escolher tema': 'Choose theme',
+  'Tema': 'Theme',
+  'Claro': 'Light',
+  'Escuro': 'Dark',
+  'Âmbar': 'Amber',
+  'O de sempre': 'The classic one',
+  'Descansa a vista à noite': 'Easy on the eyes at night',
+  'Mais laranja, em vidro': 'More orange, in glass',
 };

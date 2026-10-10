@@ -42,6 +42,20 @@
     <!-- PWA & Mobile Web App Meta -->
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="color-scheme" content="light" />
+    <script>
+      // Tema guardado neste aparelho (claro é o de todos): aplica já, antes de pintar, para não piscar
+      (function () {
+        try {
+          var t = localStorage.getItem('parou_tema');
+          if (t === 'escuro' || t === 'ambar') {
+            document.documentElement.setAttribute('data-tema', t);
+            var cores = { escuro: '#161618', ambar: '#FFE9D2' };
+            var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', cores[t]);
+            var c = document.querySelector('meta[name="color-scheme"]'); if (c) c.setAttribute('content', t === 'escuro' ? 'dark' : 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

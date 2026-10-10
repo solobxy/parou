@@ -140,7 +140,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
       <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)] md:gap-6">
         {/* Palco com a mascote */}
         <div className="md:sticky md:top-0 md:self-start">
-          <div className="relative rounded-[16px] bg-[#111111] overflow-hidden h-[210px] md:h-[330px] flex items-end justify-center">
+          <div data-teste="palco-avatar-fundo" className="relative rounded-[16px] bg-[#111111] overflow-hidden h-[210px] md:h-[330px] flex items-end justify-center">
             <div aria-hidden="true" className="absolute left-1/2 bottom-[-30px] -translate-x-1/2 w-[260px] h-[90px] rounded-[50%] bg-[#FF6B1A] opacity-35 blur-2xl" />
             <img
               src={urlDoAvatar(cfg, 'palco')}

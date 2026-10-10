@@ -2,6 +2,9 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ProtecaoErros, apanharErrosGlobais } from './components/ProtecaoErros';
 import './index.css';
+import { iniciarTema } from './utils/tema';
+
+iniciarTema();
 
 // Pinch-to-zoom da página (iOS Safari): bloqueado no Perto (ecrã fixo, com o mapa e barras fixas, onde
 // ampliar sem querer estraga o ecrã) e dentro dos mapas, que tratam do próprio zoom. Nos ecrãs de
