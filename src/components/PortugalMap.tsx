@@ -226,12 +226,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       attribution: '© OpenStreetMap',
     }).addTo(map);
 
-    // Filtro CSS aplicado estritamente ao painel de mosaicos (não aos marcadores)
-    const tilePane = map.getPane('tilePane');
-    if (tilePane) {
-      tilePane.style.filter = 'grayscale(1) brightness(1.06) contrast(0.92)';
-      tilePane.style.webkitFilter = 'grayscale(1) brightness(1.06) contrast(0.92)';
-    }
+    // O filtro dos mosaicos (cinzento neutro; mais escuro ou quente nos outros temas) vem do CSS: .leaflet-tile-pane em index.css e temas.css
 
     // Atribuição oficial
     L.control.attribution({

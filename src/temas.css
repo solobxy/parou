@@ -50,6 +50,9 @@ html[data-tema="escuro"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [
 html[data-tema="escuro"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [class~="bg-[#16A34A]"], [class~="bg-[#1F9D55]"], [class~="bg-[#14693A]"]) :is([class~="text-[#FFFFFF]"]) { color: #FFFFFF !important; }
 html[data-tema="escuro"] [class~="bg-[#FF6B1A]"],
 html[data-tema="escuro"] [class~="bg-[#FF6B1A]"] :is([class~="text-[#111111]"], [class~="text-[#FFFFFF]"]) { color: #111111 !important; }
+/* legenda do mapa (branco com transparência) e o ponto preto de "Info" */
+html[data-tema="escuro"] [class~="bg-white/90"] { background-color: rgba(30,30,33,.9) !important; }
+html[data-tema="escuro"] [class~="bg-[#111111]"][class~="rounded-full"][class~="w-2.5"] { background-color: #F2F2F0 !important; }
 /* o palco escuro do editor de avatar continua escuro */
 html[data-tema="escuro"] [data-teste="palco-avatar-fundo"] { background-color: #0A0A0B !important; }
 
@@ -117,6 +120,7 @@ html[data-tema="ambar"] [class~="bg-[#111111]"] { color: #FFF4E8; }
 html[data-tema="ambar"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [class~="bg-[#16A34A]"], [class~="bg-[#1F9D55]"], [class~="bg-[#14693A]"]) { color: #FFFFFF !important; }
 
 /* mapa: papel quente, laranja a destacar */
+html[data-tema="ambar"] [class~="bg-white/90"] { background-color: rgba(255,249,242,.82) !important; }
 html[data-tema="ambar"] .leaflet-container { background-color: #FFE3C8 !important; }
 html[data-tema="ambar"] .leaflet-tile-pane {
   filter: grayscale(0.6) sepia(0.5) saturate(1.6) hue-rotate(-10deg) brightness(1.04) contrast(0.94);

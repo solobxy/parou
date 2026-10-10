@@ -706,12 +706,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       keepBuffer: 3,
     }).addTo(map);
 
-    // Filtro CSS aplicado estritamente ao painel de mosaicos (não aos marcadores)
-    const tilePane = map.getPane('tilePane');
-    if (tilePane) {
-      tilePane.style.filter = 'grayscale(1) brightness(1.06) contrast(0.92)';
-      tilePane.style.webkitFilter = 'grayscale(1) brightness(1.06) contrast(0.92)';
-    }
+    // O filtro dos mosaicos (cinzento neutro; mais escuro ou quente nos outros temas) vem do CSS: .leaflet-tile-pane em index.css e temas.css
 
     // Atribuição oficial
     L.control.attribution({
@@ -1719,12 +1714,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 {parsed.isRealtime && (
                                   <Radio 
                                     className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                                    style={{ color: parsed.textColor }}
                                   />
                                 )}
                                 <span 
                                   className={`font-condensada text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
-                                  style={{ color: parsed.textColor }}
                                 >
                                   {parsed.bigText}
                                 </span>
@@ -2031,12 +2024,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 {parsed.isRealtime && (
                                   <Radio
                                     className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`}
-                                    style={{ color: parsed.textColor }}
                                   />
                                 )}
                                 <span
                                   className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                                  style={{ color: parsed.textColor }}
                                 >
                                   {parsed.bigText}
                                 </span>

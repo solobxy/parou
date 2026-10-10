@@ -267,12 +267,10 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                 {parsed.isRealtime && (
                                                   <Radio 
                                                     className={`w-3 h-3 stroke-[2] ${parsed.textColorClass}`} 
-                                                    style={{ color: parsed.textColor }} 
                                                   />
                                                 )}
                                                 <span 
                                                   className={`font-condensada text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                                                  style={{ color: parsed.textColor }}
                                                 >
                                                   {parsed.bigText}
                                                 </span>

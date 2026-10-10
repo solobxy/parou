@@ -261,12 +261,10 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                           {parsed.isRealtime && (
                             <Radio 
                               className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                              style={{ color: parsed.textColor }} 
                             />
                           )}
                           <span 
                             className={`font-condensada text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
-                            style={{ color: parsed.textColor }}
                           >
                             {parsed.bigText}
                           </span>
