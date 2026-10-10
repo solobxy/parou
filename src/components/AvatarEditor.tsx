@@ -4,14 +4,15 @@ import { t } from '../i18n';
 import { Folha } from './Folha';
 import { CATEGORIAS_AVATAR, CategoriaId, ConfigAvatar, avatarOuPadrao } from '../utils/avatarCatalogo';
 import { urlDoAvatar, VistaAvatar } from '../utils/avatarSvg';
+import { Avatar } from './Avatar';
 import { guardarAvatar } from '../services/comunidade';
 
 // Cada separador mostra a peça no sítio onde ela fica (cabeça, cara, pés, mão...)
 const VISTA_DA_CATEGORIA: Record<CategoriaId, VistaAvatar> = {
-  personagem: 'completa', cor: 'cabeca', chapeu: 'chapeu', expressao: 'cara', cara: 'cara', roupa: 'corpo', calcado: 'pes', mao: 'mao', fundo: 'redonda',
+  personagem: 'completa', cor: 'cabeca', chapeu: 'chapeu', expressao: 'cara', cara: 'cara', roupa: 'corpo', calcado: 'pes', mao: 'mao', fundo: 'redonda', medalha: 'medalha',
 };
 const FORMA_DA_MINIATURA: Partial<Record<CategoriaId, string>> = {
-  personagem: 'aspect-[4/5] object-contain', fundo: 'aspect-square rounded-full object-cover',
+  personagem: 'aspect-[4/5] object-contain', fundo: 'aspect-square rounded-full object-cover', medalha: 'aspect-square object-contain p-2',
 };
 const corSugerida = (personagem: string) => CATEGORIAS_AVATAR[0].itens.find((i) => i.id === personagem)?.cor;
 
@@ -165,6 +166,11 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
           </div>
           <div role="status" aria-live="polite" className="min-h-[22px] mt-2 text-[13px] text-[#111111] font-semibold">
             {aviso}
+          </div>
+          {/* Como fica o ícone nos comentários (a medalha vê-se aí, junto ao círculo) */}
+          <div className="flex items-center gap-2.5 mb-2" data-teste="previa-comentario">
+            <Avatar config={cfg} tamanho={40} />
+            <span className="text-[12.5px] text-[#6B6B6B] leading-tight">{t('Assim aparece nos comentários')}</span>
           </div>
 
           {/* Reputação e próxima peça */}

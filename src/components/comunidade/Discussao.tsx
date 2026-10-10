@@ -83,7 +83,7 @@ const CaixaResposta: React.FC<{
 
   return (
     <form onSubmit={enviar} className="flex gap-2.5 items-start">
-      <Avatar config={utilizador.avatar} tamanho={36} className="mt-1 hidden min-[380px]:block" />
+      <span className="mt-1 hidden min-[380px]:block"><Avatar config={utilizador.avatar} tamanho={36} /></span>
       <div className="flex-1 min-w-0">
         <label className="sr-only" htmlFor={`resp-${rotulo}`}>{placeholder}</label>
         <textarea
