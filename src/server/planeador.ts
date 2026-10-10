@@ -71,6 +71,14 @@ function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PAR
 }
 
 /** Serviços ativos por operador num dia (cache da chamada) */
+/** Viagens da Carris Metropolitana do feed "cmh": passam a usar as paragens e o operador da API */
+function normalizarCmh(r: { de: string; para: string; feed: string }) {
+  if (r.feed !== 'cmh') return;
+  if (r.de.startsWith('cmh:')) r.de = `cm:${r.de.slice(4)}`;
+  if (r.para.startsWith('cmh:')) r.para = `cm:${r.para.slice(4)}`;
+  r.feed = 'carris_metropolitana';
+}
+
 function servicosDoDia(dataStr: string, diaSemana: string) {
   const cache = new Map<string, Set<string>>();
   return (feed: string) => {
@@ -136,7 +144,9 @@ export async function planearViagem(
     });
   }
 
-  const semViagens = new Set<string>(['unir', 'carris_metropolitana']);
+  // A UNIR não tem horários na base (vêm da AMP pelo telemóvel). A Carris Metropolitana tem: as
+  // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
+  const semViagens = new Set<string>(['unir']);
   const O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
   const D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
   const porId = new Map<string, Paragem>();
@@ -157,7 +167,7 @@ export async function planearViagem(
   const linhasCache = new Map<string, Linha>();
   const linha = (route: string): Linha | undefined => {
     if (linhasCache.has(route)) return linhasCache.get(route);
-    const r = db.prepare('SELECT route_short_name, route_long_name, route_type, route_color, feed_id FROM routes WHERE route_id = ?').get(route) as any;
+    const r = db.prepare('SELECT route_short_name, route_long_name, route_type, route_color, feed_id FROM routes WHERE route_id = ?').get(route.startsWith('cmh:') ? `cm:${route.slice(4)}` : route) as any;
     const l = r ? { short: String(r.route_short_name || r.route_long_name || ''), long: String(r.route_long_name || ''), tipo: Number(r.route_type ?? 3), cor: r.route_color ? `#${String(r.route_color).replace(/^#/, '')}` : '#111111', feed: r.feed_id } : undefined;
     linhasCache.set(route, l as Linha);
     return l;
@@ -194,7 +204,8 @@ export async function planearViagem(
   };
 
   if (O.length && D.length) {
-    const idsO = O.map((p) => p.id), idsD = D.map((p) => p.id);
+    const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : [p.id]));
+    const idsO = comCmh(O), idsD = comCmh(D);
     for (const dia of dias) {
       const base = agoraSegs + dia.desvio;
       // -------------------------------------------------------------- diretas
@@ -209,6 +220,7 @@ export async function planearViagem(
       `).all(...idsO, base, base + JANELA_DIRETA, ...idsD) as any[];
       for (const r of diretas) {
         if (!dia.ativo(r.feed).has(r.sv)) continue;
+        normalizarCmh(r);
         const andarO = minO.get(r.de) || 1, andarD = minD.get(r.para) || 1;
         if (r.parte < base + andarO * 60 - 30) continue; // não dá para chegar à paragem a tempo
         const chegada = (r.chega || r.parte) + andarD * 60 - dia.desvio;
@@ -243,6 +255,7 @@ export async function planearViagem(
       const chegaA = new Map<string, Perna>();
       for (const r of perna1) {
         if (!dia.ativo(r.feed).has(r.sv)) continue;
+        normalizarCmh(r);
         const andarO = minO.get(r.de) || 1;
         if (r.parte < base + andarO * 60 - 30) continue;
         const ch = (r.chega || r.parte);
@@ -263,6 +276,7 @@ export async function planearViagem(
       const partemDe = new Map<string, Perna[]>();
       for (const r of perna2) {
         if (!dia.ativo(r.feed).has(r.sv)) continue;
+        normalizarCmh(r);
         const l = partemDe.get(r.de) || [];
         l.push({ trip: r.trip, route: r.route, feed: r.feed, destinoViagem: String(r.hs || '').trim(), de: r.de, para: r.para, parte: r.parte, chega: r.chega || r.parte, paragens: r.n, sa: r.sa, sb: r.sb });
         partemDe.set(r.de, l);
