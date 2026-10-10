@@ -15,11 +15,11 @@ function hora(d: Date): string {
 
 /** "há 12 min · 10:32", "hoje às 10:32", "ontem às 22:10", "7 out, 14:05" */
 export function formatarQuando(ms: number | string | null | undefined): string {
-  const t = typeof ms === 'string' ? Date.parse(ms) : Number(ms);
-  if (!Number.isFinite(t) || t <= 0) return '';
-  const d = new Date(t);
+  const instante = typeof ms === 'string' ? Date.parse(ms) : Number(ms);
+  if (!Number.isFinite(instante) || instante <= 0) return '';
+  const d = new Date(instante);
   const agora = new Date();
-  const min = Math.round((agora.getTime() - t) / 60000);
+  const min = Math.round((agora.getTime() - instante) / 60000);
   if (min >= 0 && min < 1) return t('agora · {h}', { h: hora(d) });
   if (min >= 1 && min < 60) return t('há {n} min · {h}', { n: min, h: hora(d) });
   if (diaLisboa(d) === diaLisboa(agora)) return t('hoje às {h}', { h: hora(d) });
