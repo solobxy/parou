@@ -727,8 +727,16 @@ function distKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }
   return Math.sqrt(x * x + y * y) * 6371;
 }
 
+// "na Maia", "no Porto", "em Lisboa"
+const COM_NA = new Set(['Maia', 'Guarda', 'Covilhã', 'Póvoa de Varzim', 'Figueira da Foz', 'Amadora']);
+const COM_NO = new Set(['Porto', 'Funchal', 'Seixal', 'Barreiro', 'Montijo']);
+function emCidade(nome: string): string {
+  return COM_NA.has(nome) ? `na ${nome}` : COM_NO.has(nome) ? `no ${nome}` : `em ${nome}`;
+}
+
 function paginaCidade(c: (typeof CIDADES)[number]): string {
   const ix = obterIndice()!;
+  const emC = emCidade(c.nome);
   const porOperador: Array<{ op: Operador; n: number; perto: Array<{ g: GrupoParagem; d: number }> }> = [];
   for (const op of ix.operadores) {
     const perto: Array<{ g: GrupoParagem; d: number }> = [];
@@ -744,24 +752,24 @@ function paginaCidade(c: (typeof CIDADES)[number]): string {
   const nomesOps = porOperador.map((x) => x.op.nome);
   const listaOps = nomesOps.length > 1 ? `${nomesOps.slice(0, -1).join(', ')} e ${nomesOps[nomesOps.length - 1]}` : nomesOps[0] || '';
   const perguntas = [
-    { p: `Como sei quando passa o próximo autocarro em ${c.nome}?`, r: `Abre a PAROU (parou.pt) e ativa a localização: vês as paragens à tua volta em ${c.nome} e as próximas partidas de cada linha${porOperador.length ? ` (${listaOps})` : ''}, com tempo real quando o operador o disponibiliza.` },
-    { p: `Que transportes públicos há em ${c.nome}?`, r: porOperador.length ? `Em ${c.nome} a PAROU tem ${totalParagens.toLocaleString('pt-PT')} paragens de ${porOperador.length} ${porOperador.length === 1 ? 'operador' : 'operadores'}: ${listaOps}.` : `A PAROU ainda não tem horários publicados para ${c.nome}.` },
+    { p: `Como sei quando passa o próximo autocarro ${emC}?`, r: `Abre a PAROU (parou.pt) e ativa a localização: vês as paragens à tua volta ${emC} e as próximas partidas de cada linha${porOperador.length ? ` (${listaOps})` : ''}, com tempo real quando o operador o disponibiliza.` },
+    { p: `Que transportes públicos há ${emC}?`, r: porOperador.length ? `${emC.charAt(0).toUpperCase()}${emC.slice(1)} a PAROU tem ${totalParagens.toLocaleString('pt-PT')} paragens de ${porOperador.length} ${porOperador.length === 1 ? 'operador' : 'operadores'}: ${listaOps}.` : `A PAROU ainda não tem horários publicados para ${c.nome}.` },
     { p: `Os horários dos transportes de ${c.nome} são oficiais?`, r: 'Sim. Os horários vêm dos dados publicados pelos operadores (GTFS) e pelo IMT, e são atualizados todos os dias. Podem mudar sem aviso; em caso de dúvida confirma junto do operador.' },
-    { p: `Há greves ou perturbações nos transportes em ${c.nome} hoje?`, r: 'Na página de greves e nos Alertas da PAROU vês as greves anunciadas e as perturbações dos operadores, além dos avisos de mau tempo do IPMA.' },
+    { p: `Há greves ou perturbações nos transportes ${emC} hoje?`, r: 'Na página de greves e nos Alertas da PAROU vês as greves anunciadas e as perturbações dos operadores, além dos avisos de mau tempo do IPMA.' },
   ];
-  let corpo = `<h1>Transportes públicos em ${html(c.nome)}: horários e próximos autocarros</h1>
-<p class="sub">${porOperador.length ? `Horários de ${listaOps} em ${html(c.nome)} — ${totalParagens.toLocaleString('pt-PT')} paragens, com as próximas partidas e tempo real quando disponível.` : `Transportes perto de ti em ${html(c.nome)}.`} Gratuito e sem anúncios.</p>
+  let corpo = `<h1>Transportes públicos ${html(emC)}: horários e próximos autocarros</h1>
+<p class="sub">${porOperador.length ? `Horários de ${listaOps} ${html(emC)} — ${totalParagens.toLocaleString('pt-PT')} paragens, com as próximas partidas e tempo real quando disponível.` : `Transportes perto de ti ${html(emC)}.`} Gratuito e sem anúncios.</p>
 <p><a class="btn laranja" href="/">Ver o que passa perto de mim</a> <a class="btn claro" href="/greves">Greves hoje</a></p>`;
   for (const x of porOperador.slice(0, 8)) {
-    corpo += `<h2>${html(x.op.nome)} em ${html(c.nome)}</h2>
-<p>${x.n.toLocaleString('pt-PT')} paragens de ${html(x.op.modo.toLowerCase())} em ${html(c.nome)}. <a href="/linhas/${x.op.slug}">Todas as linhas e horários ${html(x.op.nome)}</a>.</p>
+    corpo += `<h2>${html(x.op.nome)} ${html(emC)}</h2>
+<p>${x.n.toLocaleString('pt-PT')} paragens de ${html(x.op.modo.toLowerCase())} ${html(emC)}. <a href="/linhas/${x.op.slug}">Todas as linhas e horários ${html(x.op.nome)}</a>.</p>
 <ul class="lista">${x.perto.slice(0, 12).map(({ g }) => `<li><a href="/paragens/${x.op.slug}/${g.slug}"><span class="t">${html(nomeBonito(g.nome))}</span></a></li>`).join('')}</ul>`;
   }
   corpo += `<h2>Perguntas frequentes</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}
 <h2>Outras cidades</h2><p>${CIDADES.filter((o) => o.slug !== c.slug).map((o) => `<a href="/cidade/${o.slug}">${html(o.nome)}</a>`).join(' · ')}</p>`;
   return pagina({
-    titulo: `Autocarros e transportes em ${c.nome}: horários e tempo real | PAROU`,
-    descricao: `Horários dos transportes públicos em ${c.nome}${porOperador.length ? ` (${nomesOps.slice(0, 3).join(', ')})` : ''}: próximos autocarros, paragens perto de ti, greves e alertas. Grátis e sem anúncios.`,
+    titulo: `Autocarros e transportes ${emC}: horários e tempo real | PAROU`,
+    descricao: `Horários dos transportes públicos ${emC}${porOperador.length ? ` (${nomesOps.slice(0, 3).join(', ')})` : ''}: próximos autocarros, paragens perto de ti, greves e alertas. Grátis e sem anúncios.`,
     caminho: `/cidade/${c.slug}`,
     corpo,
     migalhas: [{ nome: 'Início', url: '/' }, { nome: 'Cidades', url: '/cidades' }, { nome: c.nome, url: `/cidade/${c.slug}` }],
