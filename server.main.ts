@@ -1237,13 +1237,25 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       });
     });
 
+    // Códigos de linha repetem-se entre operadores (ex.: a linha 3506 da Carris Metropolitana, no
+    // Seixal, e linhas da UNIR na Maia): um aviso só vale perto se o operador dele também serve aqui
+    const normOperador = (t: unknown) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const operadoresPerto = new Set<string>();
+    enrichedStops.forEach((s: any) => (s.operators || []).forEach((o: string) => { const n = normOperador(o); if (n) operadoresPerto.add(n); }));
+    const operadorServeAqui = (operador: unknown) => {
+      const n = normOperador(operador);
+      if (!n) return true; // aviso sem operador: não há como excluir
+      for (const o of operadoresPerto) if (o.includes(n) || n.includes(o)) return true;
+      return false;
+    };
+
     const nearbyAlerts = allAlerts.filter((alert: any) => {
-      if (Array.isArray(alert.paragens) && alert.paragens.length > 0) {
+      if (Array.isArray(alert.paragens) && alert.paragens.length > 0 && operadorServeAqui(alert.operador)) {
         if (alert.paragens.some((p: string) => nearbyStopIdSet.has(p) || nearbyStopIdSet.has(`stop-${p}`))) {
           return true;
         }
       }
-      if (Array.isArray(alert.linhas) && alert.linhas.length > 0) {
+      if (Array.isArray(alert.linhas) && alert.linhas.length > 0 && operadorServeAqui(alert.operador)) {
         if (
           alert.linhas.some((l: string) => {
             const clean = String(l).toLowerCase();

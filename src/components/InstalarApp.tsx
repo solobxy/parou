@@ -188,7 +188,7 @@ export const InstalarApp: React.FC = () => {
       <div className="flex items-start gap-3">
         <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-[10px] shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold text-[#111111] leading-snug">Tem a PAROU no ecrã principal</div>
+          <div className="text-[14px] font-semibold text-[#111111] leading-snug">Põe a PAROU no ecrã principal</div>
           <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
             Abre como uma app, num toque, e os teus favoritos ficam sempre guardados.
           </div>
@@ -203,7 +203,7 @@ export const InstalarApp: React.FC = () => {
             <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}</div>
           )}
         </div>
-        <button onClick={fechar} className="shrink-0 w-8 h-8 -mr-1 -mt-1 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
+        <button onClick={fechar} className="shrink-0 w-10 h-10 -mr-2 -mt-2 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
           <X className="w-4 h-4" />
         </button>
       </div>
