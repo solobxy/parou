@@ -8,6 +8,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Occurrence, FilterState } from '../types';
+import { t } from '../i18n';
 import { DISTRITOS_OPTIONS } from '../data/mockData';
 import { getAvailableConcelhos, countActiveFilters } from '../utils/filterUtils';
 import { quandoAconteceu } from '../utils/quando';
@@ -128,10 +129,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-            Ocorrências
+            {t('Ocorrências')}
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            Reportadas pela comunidade nas últimas 24 horas.
+            {t('Reportadas pela comunidade nas últimas 24 horas.')}
           </p>
         </div>
 
@@ -141,7 +142,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           className="flex items-center gap-1.5 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Reportar ocorrência</span>
+          <span>{t('Reportar ocorrência')}</span>
         </button>
       </div>
 
@@ -153,7 +154,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             type="text"
             value={activeFilters.searchQuery}
             onChange={(e) => handleFilterUpdate('searchQuery', e.target.value)}
-            placeholder="Pesquisar por título, estrada, concelho..."
+            placeholder={t('Pesquisar por título, estrada, concelho...')}
             className="w-full pl-9 pr-9 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
           />
           {activeFilters.searchQuery && (
@@ -176,9 +177,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             }}
             className="px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] min-h-[36px]"
           >
-            <option value="Todos">Todos os distritos</option>
+            <option value="Todos">{t('Todos os distritos')}</option>
             {DISTRITOS_OPTIONS.filter((d) => d !== 'Todos').map((d) => (
-              <option key={d} value={d}>{d}</option>
+              <option key={d} value={d}>{t(d)}</option>
             ))}
           </select>
 
@@ -188,9 +189,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             disabled={activeFilters.distrito === 'Todos'}
             className="px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] disabled:opacity-50 min-h-[36px]"
           >
-            <option value="Todos">Todos os concelhos</option>
+            <option value="Todos">{t('Todos os concelhos')}</option>
             {concelhosOptions.filter((c) => c !== 'Todos').map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{t(c)}</option>
             ))}
           </select>
 
@@ -199,24 +200,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             onChange={(e) => setSelectedGravidade(e.target.value)}
             className="col-span-2 sm:col-span-1 px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] min-h-[36px]"
           >
-            <option value="Todas">Todas as gravidades</option>
-            <option value="Grave">Grave</option>
-            <option value="Moderada">Moderada</option>
-            <option value="Informação">Informação</option>
+            <option value="Todas">{t('Todas as gravidades')}</option>
+            <option value="Grave">{t('Grave')}</option>
+            <option value="Moderada">{t('Moderada')}</option>
+            <option value="Informação">{t('Informação')}</option>
           </select>
         </div>
 
         {/* Sort and Reset */}
         <div className="flex items-center justify-between pt-1 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="text-[#6B6B6B]">Ordenar:</span>
+            <span className="text-[#6B6B6B]">{t('Ordenar:')}</span>
             <button
               onClick={() => setSortBy('recentes')}
               className={`px-2 py-1 rounded-[6px] font-semibold cursor-pointer min-h-[32px] ${
                 sortBy === 'recentes' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
               }`}
             >
-              Mais recentes
+              {t('Mais recentes')}
             </button>
             <button
               onClick={() => setSortBy('gravidade')}
@@ -224,7 +225,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 sortBy === 'gravidade' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
               }`}
             >
-              Gravidade
+              {t('Gravidade')}
             </button>
           </div>
 
@@ -233,7 +234,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               onClick={handleReset}
               className="text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer"
             >
-              Limpar filtros
+              {t('Limpar filtros')}
             </button>
           )}
         </div>
@@ -244,11 +245,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         {filteredAndSortedOccurrences.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#6B6B6B] space-y-1">
             {activeCount > 0 ? (
-              <p>Sem ocorrências para os filtros indicados.</p>
+              <p>{t('Sem ocorrências para os filtros indicados.')}</p>
             ) : (
               <>
-                <p className="font-semibold text-[#111111]">Sem ocorrências nas últimas 24 horas.</p>
-                <p>Viste um acidente, um atraso ou uma avaria? Reporta para avisar quem vai a caminho.</p>
+                <p className="font-semibold text-[#111111]">{t('Sem ocorrências nas últimas 24 horas.')}</p>
+                <p>{t('Viste um acidente, um atraso ou uma avaria? Reporta para avisar quem vai a caminho.')}</p>
               </>
             )}
           </div>
@@ -281,7 +282,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <div className="flex items-center gap-2 text-xs text-[#6B6B6B] mt-1">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-[#111111] stroke-[2] shrink-0" />
-                      <span>{occ.district}{occ.concelho ? ` · ${occ.concelho}` : ''}</span>
+                      <span>{t(occ.district)}{occ.concelho ? ` · ${t(occ.concelho)}` : ''}</span>
                     </span>
                     {occ.transporte && <span>· {occ.transporte}</span>}
                   </div>

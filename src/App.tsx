@@ -61,6 +61,7 @@ import {
 } from './services/conta';
 import { eAdmin } from './utils/admin';
 import { iniciarCopiaDados } from './services/copiaDados';
+import { iniciarContagem } from './services/estatisticas';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
 import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
@@ -95,6 +96,8 @@ export default function App() {
   }, []);
   // Favoritos: cópia no servidor para nunca se perderem (repõe se o browser os apagar)
   useEffect(() => { iniciarCopiaDados(); }, []);
+  // Contagem anónima de utilizadores (explicada na página de Privacidade, com opção de desligar)
+  useEffect(() => { iniciarContagem(); }, []);
 
   const [pertoInitialDestination, setPertoInitialDestination] = useState<{ title: string; lat: number; lon: number } | null>(null);
   const [isNotFound, setIsNotFound] = useState<boolean>(false);

@@ -58,26 +58,26 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
   const activeChips: { key: keyof FilterState; label: string; value: string }[] = [];
   if (filters.distrito && filters.distrito !== 'Todos') {
-    activeChips.push({ key: 'distrito', label: 'Distrito', value: filters.distrito });
+    activeChips.push({ key: 'distrito', label: t('Distrito'), value: t(filters.distrito) });
   }
   if (filters.concelho && filters.concelho !== 'Todos') {
-    activeChips.push({ key: 'concelho', label: 'Concelho', value: filters.concelho });
+    activeChips.push({ key: 'concelho', label: t('Concelho'), value: t(filters.concelho) });
   }
   if (filters.cidade && filters.cidade !== 'Todas') {
-    activeChips.push({ key: 'cidade', label: 'Cidade', value: filters.cidade });
+    activeChips.push({ key: 'cidade', label: t('Cidade'), value: t(filters.cidade) });
   }
   if (filters.operador && filters.operador !== 'Todos') {
-    activeChips.push({ key: 'operador', label: 'Operador', value: filters.operador });
+    activeChips.push({ key: 'operador', label: t('Operador'), value: t(filters.operador) });
   }
   if (filters.servico && filters.servico !== 'Todos') {
-    activeChips.push({ key: 'servico', label: 'Serviço', value: filters.servico });
+    activeChips.push({ key: 'servico', label: t('Serviço'), value: t(filters.servico) });
   }
   if (filters.tipoTransporte && filters.tipoTransporte !== 'Todos') {
-    activeChips.push({ key: 'tipoTransporte', label: 'Transporte', value: filters.tipoTransporte });
+    activeChips.push({ key: 'tipoTransporte', label: t('Transporte'), value: t(filters.tipoTransporte) });
   }
   const catVal = filters.categoria !== 'Todas' ? filters.categoria : filters.tipo;
   if (catVal && catVal !== 'Todas' && catVal !== 'Todos') {
-    activeChips.push({ key: 'categoria', label: 'Categoria', value: catVal });
+    activeChips.push({ key: 'categoria', label: t('Categoria'), value: t(catVal) });
   }
 
   const handleRemoveChip = (key: keyof FilterState) => {
@@ -158,7 +158,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
           <button
             onClick={() => setIsMobileModalOpen(true)}
             className="md:hidden relative flex items-center justify-center gap-1.5 w-11 sm:w-auto sm:px-3 h-11 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] text-xs font-semibold cursor-pointer"
-            aria-label={activeCount > 0 ? `Filtros (${activeCount} ativos)` : 'Filtros'}
+            aria-label={activeCount > 0 ? t('Filtros ({n} ativos)', { n: activeCount }) : t('Filtros')}
           >
             <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
             <span className="hidden sm:inline">{t('Filtros')}</span>
@@ -206,7 +206,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               >
                 {DISTRITOS_OPTIONS.map((d) => (
                   <option key={d} value={d} className="bg-[#FFFFFF] text-[#111111]">
-                    {d === 'Todos' ? 'Todos' : d}
+                    {t(d)}
                   </option>
                 ))}
               </select>
@@ -239,7 +239,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               >
                 {CIDADES_OPTIONS.map((c) => (
                   <option key={c} value={c} className="bg-[#FFFFFF] text-[#111111]">
-                    {c === 'Todas' ? 'Todas' : c}
+                    {t(c)}
                   </option>
                 ))}
               </select>
@@ -255,7 +255,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               >
                 {OPERADORES_OPTIONS.map((op) => (
                   <option key={op} value={op} className="bg-[#FFFFFF] text-[#111111]">
-                    {op === 'Todos' ? 'Todos' : op}
+                    {t(op)}
                   </option>
                 ))}
               </select>
@@ -271,7 +271,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               >
                 {SERVICOS_OPTIONS.map((s) => (
                   <option key={s} value={s} className="bg-[#FFFFFF] text-[#111111]">
-                    {s === 'Todos' ? 'Todos' : s}
+                    {t(s)}
                   </option>
                 ))}
               </select>
@@ -285,9 +285,9 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
                 onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
                 className="bg-transparent text-xs text-[#111111] font-semibold focus:outline-none cursor-pointer truncate"
               >
-                {TIPOS_TRANSPORTE_OPTIONS.map((t) => (
-                  <option key={t} value={t} className="bg-[#FFFFFF] text-[#111111]">
-                    {t === 'Todos' ? 'Todos' : t}
+                {TIPOS_TRANSPORTE_OPTIONS.map((tp) => (
+                  <option key={tp} value={tp} className="bg-[#FFFFFF] text-[#111111]">
+                    {t(tp)}
                   </option>
                 ))}
               </select>
@@ -306,7 +306,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               >
                 {CATEGORIAS_OPTIONS.map((cat) => (
                   <option key={cat} value={cat} className="bg-[#FFFFFF] text-[#111111]">
-                    {cat === 'Todas' ? 'Todas' : cat}
+                    {t(cat)}
                   </option>
                 ))}
               </select>

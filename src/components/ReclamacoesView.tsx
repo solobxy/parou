@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -22,6 +22,8 @@ import {
   recordReportSubmission
 } from '../services/conta';
 import { CIDADES_OPTIONS } from '../data/mockData';
+import { t, LOCALE } from '../i18n';
+import { resumoDoVotante } from '../utils/resumo';
 
 interface ReclamacoesViewProps {
   currentUser?: UserProfile | null;
@@ -70,7 +72,11 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
     return () => unsubscribe();
   }, []);
 
-  const voterId = useMemo(() => getVoterId(), []);
+  const voterId = useMemo(() => getVoterId(currentUser?.userId), [currentUser?.userId]);
+  const meuResumo = useMemo(() => resumoDoVotante(voterId), [voterId]);
+  // Comentários abertos: cada um acompanha-se até ser fechado (ou a página sair)
+  const parar = useRef<Record<string, () => void>>({});
+  useEffect(() => () => { Object.values(parar.current).forEach((f) => f()); parar.current = {}; }, []);
 
   const handleVote = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -80,9 +86,15 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
   const handleToggleComments = (id: string) => {
     if (expandedCommentsId === id) {
       setExpandedCommentsId(null);
+      parar.current[id]?.();
+      delete parar.current[id];
     } else {
+      if (expandedCommentsId) {
+        parar.current[expandedCommentsId]?.();
+        delete parar.current[expandedCommentsId];
+      }
       setExpandedCommentsId(id);
-      subscribeComplaintComments(id, (comments) => {
+      parar.current[id] = subscribeComplaintComments(id, (comments) => {
         setActiveComments((prev) => ({ ...prev, [id]: comments }));
       });
     }
@@ -98,7 +110,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
       await addComplaintComment(
         complaintId,
         text,
-        currentUser?.displayName || 'Anónimo',
+        currentUser?.displayName || t('Anónimo'),
         currentUser?.uid || 'anonimo'
       );
       setCommentInputs((prev) => ({ ...prev, [complaintId]: '' }));
@@ -114,8 +126,9 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
       return;
     }
 
-    if (!checkReportRateLimit()) {
-      setFormError('Aguarde alguns minutos antes de submeter novamente.');
+    const limite = checkReportRateLimit();
+    if (!limite.allowed) {
+      setFormError(t('Aguarda {s} s antes de submeter outra vez.', { s: limite.remainingSeconds }));
       return;
     }
 
@@ -131,7 +144,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
         serviceType: 'Transportes',
         district: formDistrict,
         concelho: formDistrict,
-        authorName: currentUser?.displayName || 'Anónimo',
+        authorName: currentUser?.displayName || t('Anónimo'),
         authorId: currentUser?.uid || 'anonimo',
         timestamp: Date.now(),
       });
@@ -169,10 +182,10 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-            Reclamações
+            {t('Reclamações')}
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            Partilha e consulta experiências com os operadores.
+            {t('Partilha e consulta experiências com os operadores.')}
           </p>
         </div>
 
@@ -181,7 +194,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
           className="flex items-center gap-1.5 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Nova Reclamação</span>
+          <span>{t('Nova reclamação')}</span>
         </button>
       </div>
 
@@ -193,7 +206,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Pesquisar por assunto ou operador..."
+            placeholder={t('Pesquisar por assunto ou operador...')}
             className="w-full pl-9 pr-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
           />
         </div>
@@ -209,7 +222,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                   : 'bg-[#FFFFFF] text-[#6B6B6B] hover:text-[#111111] border border-[#E6E6E3]'
               }`}
             >
-              {op}
+              {t(op)}
             </button>
           ))}
         </div>
@@ -219,29 +232,29 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
       <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-xs text-[#6B6B6B]">
-            A carregar reclamações...
+            {t('A carregar reclamações...')}
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#6B6B6B]">
-            Sem reclamações registadas.
+            {t('Sem reclamações registadas.')}
           </div>
         ) : (
           filtered.map((item) => {
             const isExpanded = expandedCommentsId === item.id;
             const comments = activeComments[item.id] || [];
-            const hasVoted = item.upvoters?.includes(voterId);
+            const hasVoted = item.upvotedBy?.includes(meuResumo);
 
             return (
               <div key={item.id} className="p-4 hover:bg-[#F4F4F2]/50 transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 text-xs text-[#6B6B6B]">
-                      <strong className="text-[#111111]">{item.company}</strong>
+                      <strong className="text-[#111111]">{t(item.company || item.companyOrService || "")}</strong>
                       <span>·</span>
                       <span>{item.district}</span>
                       <span>·</span>
                       <span className="font-condensada tabular-nums">
-                        {new Date(item.timestamp).toLocaleDateString('pt-PT')}
+                        {new Date(item.timestamp).toLocaleDateString(LOCALE)}
                       </span>
                     </div>
 
@@ -286,9 +299,9 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                         {comments.map((com) => (
                           <div key={com.id} className="pt-1.5 text-xs">
                             <div className="flex items-center gap-2 text-[#6B6B6B]">
-                              <strong className="text-[#111111]">{com.authorName}</strong>
+                              <strong className="text-[#111111]">{t(com.authorName)}</strong>
                               <span className="font-condensada tabular-nums">
-                                {new Date(com.timestamp).toLocaleTimeString('pt-PT')}
+                                {new Date(com.timestamp).toLocaleTimeString(LOCALE)}
                               </span>
                             </div>
                             <p className="text-[#111111] mt-0.5">{com.text}</p>
@@ -303,7 +316,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                         type="text"
                         value={commentInputs[item.id] || ''}
                         onChange={(e) => setCommentInputs({ ...commentInputs, [item.id]: e.target.value })}
-                        placeholder="Escrever comentário..."
+                        placeholder={t('Escrever comentário...')}
                         className="flex-1 px-3 py-1.5 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[6px] text-xs text-[#111111] min-h-[36px]"
                       />
                       <button
@@ -327,7 +340,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs">
           <div className="bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] max-w-lg w-full p-4 space-y-3 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E6E6E3] pb-2">
-              <h2 className="text-base font-bold text-[#111111]">Nova Reclamação</h2>
+              <h2 className="text-base font-bold text-[#111111]">{t('Nova reclamação')}</h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 text-[#6B6B6B] hover:text-[#111111]"
@@ -336,48 +349,48 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
               </button>
             </div>
 
-            {formError && <p className="text-xs text-[#D92D20]">{formError}</p>}
+            {formError && <p role="alert" className="text-xs text-[#D92D20]">{t(formError)}</p>}
 
             <form onSubmit={handleSubmitComplaint} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#6B6B6B] font-semibold mb-1">Operador</label>
+                <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Operador')}</label>
                 <select
                   value={formCompany}
                   onChange={(e) => setFormCompany(e.target.value)}
                   className="w-full p-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-[#111111] min-h-[44px]"
                 >
                   {COMMON_OPERATORS.map((op) => (
-                    <option key={op} value={op}>{op}</option>
+                    <option key={op} value={op}>{t(op)}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[#6B6B6B] font-semibold mb-1">Título</label>
+                <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Título')}</label>
                 <input
                   type="text"
                   required
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Ex: Supressão de comboio sem aviso"
+                  placeholder={t('Ex: Supressão de comboio sem aviso')}
                   className="w-full p-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] min-h-[44px]"
                 />
               </div>
 
               <div>
-                <label className="block text-[#6B6B6B] font-semibold mb-1">Descrição</label>
+                <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Descrição')}</label>
                 <textarea
                   rows={4}
                   required
                   value={formText}
                   onChange={(e) => setFormText(e.target.value)}
-                  placeholder="Explique o que aconteceu..."
+                  placeholder={t('Explique o que aconteceu...')}
                   className="w-full p-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] min-h-[80px]"
                 />
               </div>
 
               <div>
-                <label className="block text-[#6B6B6B] font-semibold mb-1">Distrito</label>
+                <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Distrito')}</label>
                 <select
                   value={formDistrict}
                   onChange={(e) => setFormDistrict(e.target.value)}
@@ -395,7 +408,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                   disabled={formSubmitting}
                   className="w-full py-2.5 bg-[#FF6B1A] text-[#111111] font-bold text-sm rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
                 >
-                  {formSubmitting ? 'A submeter...' : 'Submeter Reclamação'}
+                  {formSubmitting ? t('A submeter...') : t('Submeter reclamação')}
                 </button>
               </div>
             </form>
