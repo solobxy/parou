@@ -6,9 +6,10 @@ import { utilizadorAutenticado } from '../services/conta';
 import { CANAL_WHATSAPP } from '../config/ligacoes';
 import { NOVIDADES, type NovidadeCanal } from '../config/novidades';
 import { fetchCentralAlerts } from '../services/centralAlertsApi';
+import { fetchAvisosCanal } from '../services/avisosCanal';
 import type { CentralAlert } from '../types/alerts';
-import { avisosImportantes, chaveDoAviso, ordenarAvisos, quandoDoAviso, RASCUNHOS, semRepetidos, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
-import { CATEGORIAS_AVISO, categoriaDoAviso, imagemDaCategoria, nomeDaCategoria, type CategoriaAviso } from '../utils/imagemAviso';
+import { avisoDoCanal, avisosImportantes, categoriaDoPainel, chaveDoAviso, eDoCanal, ordenarAvisos, quandoDoAviso, RASCUNHOS, semRepetidos, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
+import { CATEGORIAS_AVISO, imagemDaCategoria, nomeDaCategoria, type CategoriaAviso } from '../utils/imagemAviso';
 import { partilharComImagens, podePartilharFicheiros } from '../utils/partilhaImagem';
 
 // Painel só para o administrador. O WhatsApp não deixa programas publicarem em canais, por isso aqui
@@ -48,6 +49,8 @@ export const PainelWhatsApp: React.FC<Props> = ({ aberta, onFechar }) => {
 const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   const [aba, setAba] = useState<'avisos' | 'novidades' | 'publicados'>('avisos');
   const [avisos, setAvisos] = useState<CentralAlert[] | null>(null);
+  const [doCanal, setDoCanal] = useState<CentralAlert[]>([]);
+  const [semCanal, setSemCanal] = useState(false);
   const [erro, setErro] = useState('');
   const [soImportantes, setSoImportantes] = useState(true);
   const [publicados, setPublicados] = useState<Publicados>(() => lerPublicados());
@@ -65,14 +68,20 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
 
   const carregar = useCallback(async () => {
     setErro('');
+    setSemCanal(false);
     setAvisos(null);
-    try {
-      const [ativos, futuros] = await Promise.all([fetchCentralAlerts({ status: 'Ativo' }), fetchCentralAlerts({ status: 'Futuro' })]);
+    const [oficiais, canal] = await Promise.allSettled([
+      Promise.all([fetchCentralAlerts({ status: 'Ativo' }), fetchCentralAlerts({ status: 'Futuro' })]),
+      fetchAvisosCanal(),
+    ]);
+    if (canal.status === 'fulfilled') setDoCanal(canal.value.map((c) => avisoDoCanal(c)));
+    else { setDoCanal([]); setSemCanal(true); }
+    if (oficiais.status === 'fulfilled') {
+      const [ativos, futuros] = oficiais.value;
       const vistos = new Set<string>();
-      const todos = [...(ativos.alerts || []), ...(futuros.alerts || [])].filter((a) => (vistos.has(a.id) ? false : (vistos.add(a.id), true)));
-      setAvisos(todos);
-    } catch {
-      setErro('Não consegui carregar os avisos. Tenta outra vez.');
+      setAvisos([...(ativos.alerts || []), ...(futuros.alerts || [])].filter((a) => (vistos.has(a.id) ? false : (vistos.add(a.id), true))));
+    } else {
+      if (canal.status === 'rejected') setErro('Não consegui carregar os avisos. Tenta outra vez.');
       setAvisos([]);
     }
   }, []);
@@ -81,9 +90,15 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
 
   const lista = useMemo(() => {
     const chaves = new Set(Object.values(publicados).map((p) => p.chave).filter(Boolean));
-    const base = (avisos || []).filter((a) => !publicados[a.id] && !chaves.has(chaveDoAviso(a)));
-    return soImportantes ? avisosImportantes(base) : ordenarAvisos(semRepetidos(base));
-  }, [avisos, publicados, soImportantes]);
+    const porPublicar = (a: CentralAlert) => !publicados[a.id] && !chaves.has(chaveDoAviso(a));
+    // Primeiro o que o servidor escolheu (greves, mau tempo grave, incêndios…), depois os avisos dos operadores
+    const base = (avisos || []).filter(porPublicar);
+    const escolhidos = semRepetidos(doCanal.filter(porPublicar));
+    const resto = soImportantes ? avisosImportantes(base) : ordenarAvisos(semRepetidos(base));
+    const vistos = new Set<string>();
+    const juntos = [...escolhidos, ...resto].filter((a) => { const k = chaveDoAviso(a); if (vistos.has(k)) return false; vistos.add(k); return true; });
+    return soImportantes ? juntos.slice(0, 5) : juntos;
+  }, [avisos, doCanal, publicados, soImportantes]);
 
   const dizer = (s: string) => {
     setAviso(s);
@@ -169,6 +184,9 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
                 <p className="text-[15px] font-bold text-[#111111]">Nada importante neste momento</p>
                 <p className="text-[13.5px] text-[#6B6B6B] mt-1">{soImportantes ? 'Quando houver uma greve, um incêndio, um acidente ou uma interrupção grave, aparece aqui.' : 'Não há avisos por publicar neste momento.'}</p>
               </div>
+            )}
+            {avisos !== null && semCanal && !erro && (
+              <p role="alert" className="text-[13px] font-semibold text-[#8A4B00] mb-2">Não consegui verificar as greves, o mau tempo e os incêndios. Carrega em atualizar.</p>
             )}
             <ul className="space-y-3">
               {lista.map((a) => <CartaoAviso key={a.id} a={a} valor={editados[a.id] ?? textoDoAviso(a)} onMudar={(v) => setEditados((e) => ({ ...e, [a.id]: v }))} copiado={copiado === a.id} onCopiar={(el) => void copiarTexto(a.id, editados[a.id] ?? textoDoAviso(a), el)} onPublicado={() => marcarPublicado(a)} />)}
@@ -357,16 +375,16 @@ const CartaoAviso: React.FC<{
   a: CentralAlert; valor: string; onMudar: (v: string) => void; copiado: boolean; onCopiar: (el: HTMLTextAreaElement | null) => void; onPublicado: () => void;
 }> = ({ a, valor, onMudar, copiado, onCopiar, onPublicado }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null);
-  const [imagem, setImagem] = useState<EscolhaImagem>(() => categoriaDoAviso(a));
+  const [imagem, setImagem] = useState<EscolhaImagem>(() => categoriaDoPainel(a));
   const { aPartilhar, falhouPartilha, partilhar } = usePartilha();
   const podePartilhar = imagem !== 'nenhuma' && podePartilharFicheiros();
   const cor = a.severity === 'Grave' ? 'bg-[#FDE8E6] text-[#9F1D14]' : a.severity === 'Moderada' ? 'bg-[#FFF1DC] text-[#8A4B00]' : 'bg-[#F4F4F2] text-[#4A4A4A]';
   return (
     <li className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-3" data-teste="cartao-aviso">
       <div className="flex flex-wrap items-center gap-1.5 mb-2">
-        <span className={`px-2 h-6 inline-flex items-center rounded-full text-[12px] font-bold ${cor}`}>{a.severity || 'Informativo'}</span>
-        <span className="px-2 h-6 inline-flex items-center rounded-full bg-[#F4F4F2] text-[12px] font-semibold text-[#4A4A4A]">{a.tipo}</span>
-        <span className="text-[12.5px] text-[#6B6B6B]">{a.status === 'Futuro' ? 'Vai começar' : 'Ativo'}{quandoDoAviso(a) ? ` · ${quandoDoAviso(a)}` : ''}</span>
+        <span className={`px-2 h-6 inline-flex items-center rounded-full text-[12px] font-bold ${cor}`}>{eDoCanal(a) ? 'Importante' : (a.severity || 'Informativo')}</span>
+        <span className="px-2 h-6 inline-flex items-center rounded-full bg-[#F4F4F2] text-[12px] font-semibold text-[#4A4A4A]">{eDoCanal(a) ? nomeDaCategoria(categoriaDoPainel(a)) : a.tipo}</span>
+        {!eDoCanal(a) && <span className="text-[12.5px] text-[#6B6B6B]">{a.status === 'Futuro' ? 'Vai começar' : 'Ativo'}{quandoDoAviso(a) ? ` · ${quandoDoAviso(a)}` : ''}</span>}
       </div>
       <SeletorImagemAviso id={`wa-img-${a.id}`} valor={imagem} onMudar={setImagem} />
       <label className="sr-only" htmlFor={`wa-${a.id}`}>Texto para o WhatsApp: {a['título']}</label>

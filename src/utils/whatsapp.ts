@@ -2,7 +2,8 @@
 // isso o painel de administração prepara o texto e a pessoa só copia e cola. Formato do WhatsApp:
 // *negrito* e _itálico_ (os asteriscos têm de ficar colados ao texto).
 import type { CentralAlert, CentralAlertType } from '../types/alerts';
-import { categoriaDoAviso } from './imagemAviso';
+import { categoriaDoAviso, type CategoriaAviso } from './imagemAviso';
+import type { AvisoCanal } from '../services/avisosCanal';
 
 const EMOJI: Record<CentralAlertType, string> = {
   greve: '🚨',
@@ -53,6 +54,48 @@ export function semRepetidos(lista: CentralAlert[]): CentralAlert[] {
   });
 }
 
+// ---- Avisos que o servidor já escolheu como importantes (greves, mau tempo grave, incêndios…) ----
+export const PREFIXO_CANAL = 'canal:';
+export const eDoCanal = (a: CentralAlert): boolean => a.id.startsWith(PREFIXO_CANAL);
+
+const CATEGORIAS_CANAL: CategoriaAviso[] = ['incendio', 'acidente', 'sismo', 'tempo', 'greve', 'desvio', 'obras', 'interrupcao', 'suspensa', 'paragem', 'atraso', 'horario', 'reforco', 'evento', 'info'];
+
+/** Põe um aviso do canal no mesmo formato dos outros, para usar os mesmos cartões. */
+export function avisoDoCanal(c: AvisoCanal, agora = new Date().toISOString()): CentralAlert {
+  const categoria = CATEGORIAS_CANAL.includes(c.categoria as CategoriaAviso) ? (c.categoria as CategoriaAviso) : 'info';
+  return {
+    id: `${PREFIXO_CANAL}${c.id}`,
+    external_id: c.id,
+    tipo: categoria === 'greve' ? 'greve' : 'outros alertas oficiais',
+    'título': c.titulo,
+    'descrição': c.corpo,
+    operador: '',
+    linhas: [],
+    paragens: [],
+    'região': '',
+    'municípios': [],
+    start_datetime: agora,
+    end_datetime: null,
+    published_datetime: agora,
+    source: `${PREFIXO_CANAL}${categoria}`,
+    source_url: '',
+    last_update: agora,
+    status: 'Ativo',
+    severity: 'Grave',
+  };
+}
+
+/** Imagem de partida de um aviso: a que o servidor indicou (avisos do canal) ou a que o texto sugere. */
+export function categoriaDoPainel(a: CentralAlert): CategoriaAviso {
+  if (eDoCanal(a)) {
+    const c = a.source.slice(PREFIXO_CANAL.length) as CategoriaAviso;
+    if (CATEGORIAS_CANAL.includes(c)) return c;
+  }
+  return categoriaDoAviso(a);
+}
+
+const EMOJI_CANAL: Partial<Record<CategoriaAviso, string>> = { tempo: '⚠️', incendio: '🔥', sismo: '🌍', acidente: '🚧' };
+
 /** Os poucos avisos que valem mesmo a pena publicar, do mais grave para o menos grave. */
 export function avisosImportantes(lista: CentralAlert[]): CentralAlert[] {
   return ordenarAvisos(semRepetidos(lista).filter(eImportante)).slice(0, MAXIMO_IMPORTANTES);
@@ -94,6 +137,11 @@ export function resumir(texto: string, max = 300): string {
 
 /** O texto do aviso pronto a colar no WhatsApp (a pessoa ainda o pode alterar). */
 export function textoDoAviso(a: CentralAlert): string {
+  if (eDoCanal(a)) {
+    const emoji = EMOJI_CANAL[categoriaDoPainel(a)] || '🚨';
+    const corpo = (a['descrição'] || '').replace(/\s+/g, ' ').trim();
+    return [`${emoji} *${(a['título'] || '').replace(/\*/g, '').trim()}*`, corpo, '', 'Mais avisos em parou.pt/alertas'].filter((l, i) => i !== 1 || l).join('\n');
+  }
   const linhas: string[] = [];
   linhas.push(`${EMOJI[a.tipo] || 'ℹ️'} *${(a['título'] || '').replace(/\*/g, '').trim()}*`);
   const onde = [a.operador, a.linhas && a.linhas.length ? `linha${a.linhas.length > 1 ? 's' : ''} ${a.linhas.slice(0, 6).join(', ')}` : ''].filter(Boolean).join(' · ');

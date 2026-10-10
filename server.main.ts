@@ -59,7 +59,7 @@ import {
   incrementNotificationCounter 
 } from './src/server/centralAlertsEngine';
 import { RealtimeEngine } from './src/server/realtimeEngine';
-import { obterAlertas, aquecerAlertas, obterCamadasMapa } from './src/server/alertasEngine';
+import { obterAlertas, aquecerAlertas, obterCamadasMapa, candidatosPush } from './src/server/alertasEngine';
 import {
   getNearbyTransitData,
   searchDestinationSuggestions,
@@ -133,7 +133,17 @@ registarIndexNow(app);
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
 // Contas, favoritos na conta, ocorrências da comunidade e reclamações (antes estavam no Firebase)
-registarRotasComunidade(app, { eAdmin: pedidoDeAdmin });
+registarRotasComunidade(app, {
+  eAdmin: pedidoDeAdmin,
+  // Para o painel do WhatsApp: poucos avisos, os que valem mesmo um post (sem repetidos, os mais urgentes primeiro)
+  avisosCanal: async () => {
+    const vistos = new Set<string>();
+    return (await candidatosPush({ canal: true }))
+      .filter((c) => { const k = c.grupo || c.id; if (vistos.has(k)) return false; vistos.add(k); return true; })
+      .sort((a, b) => Number(b.urgente) - Number(a.urgente) || Number(b.categoria === 'greve') - Number(a.categoria === 'greve'))
+      .slice(0, 5);
+  },
+});
 // Contagem anónima de utilizadores (só a administração vê os números)
 registarRotasEstatisticas(app, { eAdmin: pedidoDeAdmin });
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
