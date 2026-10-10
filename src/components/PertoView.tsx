@@ -51,6 +51,7 @@ import { InputPesquisa } from './InputPesquisa';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { t, tn } from '../i18n';
+import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
@@ -288,6 +289,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const pintarRumoRef = useRef<((graus: number | null) => void) | null>(null);
   const rotaLayerRef = useRef<L.LayerGroup | null>(null);
   const linhaLayerRef = useRef<L.LayerGroup | null>(null);
   const pedidoLinhaRef = useRef(0);
@@ -628,6 +630,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   const handleRecenterClick = () => {
     setFollowMode(true);
+    void ligarBussola(); // no iPhone pede licença à primeira vez (tem de vir de um toque)
     // Sem GPS ativo: pede a localização ao browser (o mapa centra-se quando ela chegar)
     if (gpsStatus !== 'active' || !userCoords || userCoords.isManual) {
       activateLocation(true);
@@ -727,7 +730,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const userIcon = L.divIcon({
         className: 'custom-user-marker-icon',
         html: `
-          <div class="relative flex items-center justify-center">
+          <div class="relative flex items-center justify-center" style="width:24px;height:24px">
+            <svg data-cone viewBox="-50 -50 100 100" width="100" height="100" aria-hidden="true"
+              style="position:absolute;left:50%;top:50%;margin:-50px 0 0 -50px;pointer-events:none;opacity:0;transition:opacity .25s;will-change:transform">
+              <defs><radialGradient id="cone-parou" cx="0" cy="0" r="46" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#FF6B1A" stop-opacity=".6"/><stop offset="1" stop-color="#FF6B1A" stop-opacity="0"/>
+              </radialGradient></defs>
+              <path d="M0 0 L-26.4 -37.7 A46 46 0 0 1 26.4 -37.7 Z" fill="url(#cone-parou)"/>
+            </svg>
             <div class="w-6 h-6 rounded-full bg-[#FF6B1A]/20 animate-ping absolute"></div>
             <div style="background-color: #FF6B1A; border: 2.5px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" class="w-5 h-5 rounded-full flex items-center justify-center z-10">
               <div style="background-color: #111111;" class="w-1.5 h-1.5 rounded-full"></div>
@@ -740,8 +750,23 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
       userMarkerRef.current = L.marker([latitude, longitude], { icon: userIcon, interactive: false })
         .addTo(mapRef.current);
+      pintarRumoRef.current?.(rumoAtual());
     }
   }, [userCoords]);
+
+  // Cone de direção (para onde o telemóvel aponta), pela bússola do aparelho
+  useEffect(() => {
+    const pintar = (graus: number | null) => {
+      const cone = userMarkerRef.current?.getElement()?.querySelector<SVGElement>('[data-cone]');
+      if (!cone) return;
+      if (graus === null) { cone.style.opacity = '0'; return; }
+      cone.style.opacity = '1';
+      cone.style.transform = `rotate(${graus.toFixed(1)}deg)`;
+    };
+    pintarRumoRef.current = pintar;
+    const parar = observarRumo(pintar);
+    return () => { parar(); pintarRumoRef.current = null; };
+  }, []);
 
   // Tocar numa partida: mostra no mapa o percurso da linha e as suas paragens
   const abrirLinha = (dep: any) => {
