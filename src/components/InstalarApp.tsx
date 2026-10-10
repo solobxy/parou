@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Download, Share, X } from 'lucide-react';
+import { t } from '../i18n';
 
 // Convite discreto para instalar a PAROU no ecrã principal (abre como uma app, mais rápida,
 // e no iPhone os dados guardados deixam de ser apagados pelo Safari ao fim de 7 dias).
@@ -99,17 +100,17 @@ export function useInstalarApp() {
 
 export const PassosIphone: React.FC = () => (
   <ol className="text-[12.5px] text-[#111111] space-y-1 list-decimal pl-4">
-    <li>Toca em <strong>Partilhar</strong> <Share className="w-3.5 h-3.5 inline -mt-0.5" /> na barra do Safari.</li>
+    <li>Toca em <strong>{t('Partilhar')}</strong> <Share className="w-3.5 h-3.5 inline -mt-0.5" /> na barra do Safari.</li>
     <li>Escolhe <strong>Adicionar ao ecrã principal</strong>.</li>
-    <li>Toca em <strong>Adicionar</strong>.</li>
+    <li>Toca em <strong>{t('Adicionar')}</strong>.</li>
   </ol>
 );
 
 export const PassosAndroid: React.FC = () => (
   <ol className="text-[12.5px] text-[#111111] space-y-1 list-decimal pl-4">
     <li>Toca no menu <strong>⋮</strong> do browser (canto superior direito).</li>
-    <li>Escolhe <strong>Instalar app</strong> ou <strong>Adicionar ao ecrã principal</strong>.</li>
-    <li>Confirma em <strong>Instalar</strong>.</li>
+    <li>Escolhe <strong>Instalar app</strong> {t('ou')} <strong>Adicionar ao ecrã principal</strong>.</li>
+    <li>Confirma em <strong>{t('Instalar')}</strong>.</li>
     <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">Se já a instalaste, abre-a pelo ícone <strong>PAROU</strong> no ecrã principal.</li>
   </ol>
 );
@@ -140,16 +141,16 @@ export const BotaoInstalar: React.FC = () => {
       <button
         onClick={tocar}
         className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
-        aria-label="Instalar a app PAROU"
-        title="Instalar a app"
+        aria-label={t('Instalar a app PAROU')}
+        title={t('Instalar a app')}
         data-teste="instalar-topo"
       >
         <Download className={`w-5 h-5 stroke-[2.25] ${aEsperar ? 'animate-pulse' : ''}`} />
       </button>
       {verPassos && (
         <>
-          <button className="fixed inset-0 z-40 cursor-default" aria-label="Fechar" onClick={() => setVerPassos(false)} />
-          <div className="fixed right-3 top-[64px] z-50 w-[min(300px,calc(100vw-24px))] rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 shadow-lg" role="dialog" aria-label="Como instalar">
+          <button className="fixed inset-0 z-40 cursor-default" aria-label={t('Fechar')} onClick={() => setVerPassos(false)} />
+          <div className="fixed right-3 top-[64px] z-50 w-[min(300px,calc(100vw-24px))] rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5 shadow-lg" role="dialog" aria-label={t('Como instalar')}>
             <div className="flex items-center gap-2.5 mb-2">
               <img src="/icon-192.png" alt="" className="w-8 h-8 rounded-[8px]" />
               <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{plataforma === 'iphone' ? ' no iPhone' : ''}</div>
@@ -188,9 +189,9 @@ export const InstalarApp: React.FC = () => {
       <div className="flex items-start gap-3">
         <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-[10px] shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold text-[#111111] leading-snug">Põe a PAROU no ecrã principal</div>
+          <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('Põe a PAROU no ecrã principal')}</div>
           <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
-            Abre como uma app, num toque, e os teus favoritos ficam sempre guardados.
+            {t('Abre como uma app, num toque, e os teus favoritos ficam sempre guardados.')}
           </div>
           <button
             onClick={instalar}
@@ -203,7 +204,7 @@ export const InstalarApp: React.FC = () => {
             <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}</div>
           )}
         </div>
-        <button onClick={fechar} className="shrink-0 w-10 h-10 -mr-2 -mt-2 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
+        <button onClick={fechar} className="shrink-0 w-10 h-10 -mr-2 -mt-2 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label={t('Fechar')}>
           <X className="w-4 h-4" />
         </button>
       </div>

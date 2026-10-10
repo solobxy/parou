@@ -26,6 +26,7 @@ import {
 } from '../data/mockData';
 import { getAvailableConcelhos, countActiveFilters } from '../utils/filterUtils';
 import { MobileFilterModal } from './MobileFilterModal';
+import { t } from '../i18n';
 
 interface ExpandedFiltersBarProps {
   filters: FilterState;
@@ -106,7 +107,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
             type="text"
             value={filters.searchQuery}
             onChange={(e) => onFilterChange('searchQuery', e.target.value)}
-            placeholder="Pesquisar..."
+            placeholder={t('Pesquisar...')}
             className="w-full pl-9 pr-9 py-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] focus:border-[#111111] text-xs sm:text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
           />
           {filters.searchQuery && (
@@ -130,7 +131,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
                   : 'bg-[#F4F4F2] text-[#111111] border-[#E6E6E3] hover:bg-[#E6E6E3]'
               }`}
             >
-              <span>Ocorrências:</span>
+              <span>{t('Ocorrências:')}</span>
               <span className="font-condensada font-bold tabular-nums text-sm">
                 {reportsCount}
               </span>
@@ -146,7 +147,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
                   : 'bg-[#F4F4F2] text-[#111111] border-[#E6E6E3] hover:bg-[#E6E6E3]'
               }`}
             >
-              <span>Transportes:</span>
+              <span>{t('Transportes:')}</span>
               <span className="font-condensada font-bold tabular-nums text-sm">
                 {transitCount}
               </span>
@@ -160,7 +161,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
             aria-label={activeCount > 0 ? `Filtros (${activeCount} ativos)` : 'Filtros'}
           >
             <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
-            <span className="hidden sm:inline">Filtros</span>
+            <span className="hidden sm:inline">{t('Filtros')}</span>
             {activeCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 sm:static min-w-[18px] h-[18px] px-1 rounded-full bg-[#111111] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center">
                 {activeCount}
@@ -190,7 +191,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
           <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2">
             {/* 1. Distrito */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Distrito</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Distrito')}</span>
               <select
                 value={filters.distrito}
                 onChange={(e) => {
@@ -213,7 +214,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 2. Concelho */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Concelho</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Concelho')}</span>
               <select
                 value={filters.concelho}
                 onChange={(e) => onFilterChange('concelho', e.target.value)}
@@ -230,7 +231,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 3. Cidade */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Cidade</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Cidade')}</span>
               <select
                 value={filters.cidade}
                 onChange={(e) => onFilterChange('cidade', e.target.value)}
@@ -246,7 +247,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 4. Operador */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Operador</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Operador')}</span>
               <select
                 value={filters.operador}
                 onChange={(e) => onFilterChange('operador', e.target.value)}
@@ -262,7 +263,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 5. Serviço */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Serviço</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Serviço')}</span>
               <select
                 value={filters.servico}
                 onChange={(e) => onFilterChange('servico', e.target.value)}
@@ -278,7 +279,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 6. Tipo de transporte */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Tipo</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Tipo')}</span>
               <select
                 value={filters.tipoTransporte}
                 onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
@@ -294,7 +295,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
 
             {/* 7. Categoria */}
             <div className="flex flex-col gap-1 p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-[10px] font-semibold text-[#6B6B6B]">Categoria</span>
+              <span className="text-[10px] font-semibold text-[#6B6B6B]">{t('Categoria')}</span>
               <select
                 value={catVal}
                 onChange={(e) => {
@@ -317,7 +318,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
       {/* Active Filter Chips Row */}
       {activeChips.length > 0 && (
         <div className="mt-2.5 pt-2 border-t border-[#E6E6E3] flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-[#6B6B6B]">Filtros ativos:</span>
+          <span className="text-xs text-[#6B6B6B]">{t('Filtros ativos:')}</span>
           {activeChips.map((chip) => (
             <span
               key={chip.key}
@@ -337,7 +338,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
             onClick={onResetFilters}
             className="text-xs text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer ml-1"
           >
-            Limpar todos
+            {t('Limpar todos')}
           </button>
         </div>
       )}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertCircle, Loader2 } from 'lucide-react';
 import { signInWithGoogle, loginWithEmail, registerWithEmail } from '../services/firebase';
+import { t } from '../i18n';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         <button
           onClick={onClose}
           className="absolute right-3.5 top-3.5 p-1 text-[#6B6B6B] hover:text-[#111111] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-          aria-label="Fechar"
+          aria-label={t('Fechar')}
         >
           <X className="w-5 h-5 stroke-[2]" />
         </button>
@@ -110,7 +111,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               mode === 'login' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            Iniciar sessão
+            {t('Iniciar sessão')}
           </button>
           <button
             type="button"
@@ -119,7 +120,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               mode === 'register' ? 'bg-[#111111] text-[#FFFFFF]' : 'text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            Criar conta
+            {t('Criar conta')}
           </button>
         </div>
 
@@ -148,12 +149,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          <span>Continuar com o Google</span>
+          <span>{t('Continuar com o Google')}</span>
         </button>
 
         <div className="flex items-center gap-3 my-3">
           <div className="flex-1 h-px bg-[#E6E6E3]" />
-          <span className="text-[11px] text-[#6B6B6B]">ou</span>
+          <span className="text-[11px] text-[#6B6B6B]">{t('ou')}</span>
           <div className="flex-1 h-px bg-[#E6E6E3]" />
         </div>
 
@@ -168,13 +169,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                Nome
+                {t('Nome')}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="O teu nome"
+                placeholder={t('O teu nome')}
                 className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
               />
             </div>
@@ -182,7 +183,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
 
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Email
+              {t('Email')}
             </label>
             <input
               type="email"
@@ -195,13 +196,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
 
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Palavra-passe
+              {t('Palavra-passe')}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder={t('Mínimo 6 caracteres')}
               className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[44px]"
             />
           </div>
@@ -215,12 +216,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin stroke-[2]" />
-                <span>A processar...</span>
+                <span>{t('A processar...')}</span>
               </>
             ) : mode === 'login' ? (
-              <span>Entrar</span>
+              <span>{t('Entrar')}</span>
             ) : (
-              <span>Criar conta</span>
+              <span>{t('Criar conta')}</span>
             )}
           </button>
         </form>

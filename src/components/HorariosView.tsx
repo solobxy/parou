@@ -24,6 +24,7 @@ import { LineDetailModal } from './LineDetailModal';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
+import { t } from '../i18n';
 
 interface HorariosViewProps {
   filters?: FilterState;
@@ -374,7 +375,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Pesquisar número de linha ou destino..."
+              placeholder={t('Pesquisar número de linha ou destino...')}
               className="w-full pl-9 pr-9 py-2.5 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
             />
             {searchQuery && (
@@ -419,7 +420,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
-                Perto de ti
+                {t('Perto de ti')}
               </h2>
               {sortedNearLines.length > 0 && (
                 <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
@@ -459,7 +460,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               </div>
             ) : (
               <div className="p-4 border border-[#E6E6E3] rounded-[8px] text-xs text-[#6B6B6B] text-center bg-[#FFFFFF]">
-                Sem partidas previstas nos próximos 90 minutos.
+                {t('Sem partidas previstas nos próximos 90 minutos.')}
               </div>
             )}
 
@@ -468,10 +469,10 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between px-0.5">
                   <h3 className="text-sm font-semibold text-[#6B6B6B] uppercase tracking-wide font-condensada">
-                    Mais tarde
+                    {t('Mais tarde')}
                   </h3>
                   <span className="text-xs text-[#6B6B6B]">
-                    Horário previsto
+                    {t('Horário previsto')}
                   </span>
                 </div>
 
@@ -500,7 +501,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
-                Favoritas
+                {t('Favoritas')}
               </h2>
               <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                 {favoriteLines.length}
@@ -528,7 +529,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[18px] font-semibold text-[#111111]">
-              Linhas
+              {t('Linhas')}
             </h2>
             {allLinesTotal > 0 && (
               <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
@@ -544,7 +545,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             </div>
           ) : allLines.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]">
-              Sem linhas para os filtros indicados.
+              {t('Sem linhas para os filtros indicados.')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -571,7 +572,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     className="px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] disabled:opacity-40 font-semibold cursor-pointer min-h-[36px]"
                   >
-                    Anterior
+                    {t('Anterior')}
                   </button>
 
                   <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
@@ -583,7 +584,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     className="px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] disabled:opacity-40 font-semibold cursor-pointer min-h-[36px]"
                   >
-                    Seguinte
+                    {t('Seguinte')}
                   </button>
                 </div>
               )}

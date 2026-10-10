@@ -1,5 +1,7 @@
 import React from 'react';
 import { MapPin, TriangleAlert, Compass, Clock, Star } from 'lucide-react';
+import { t } from '../i18n';
+import { t } from '../i18n';
 
 export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes';
 
@@ -27,7 +29,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
   return (
     <nav
-      aria-label="Navegação inferior"
+      aria-label={t('Navegação inferior')}
       className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFFFFF] border-t border-[#E6E6E3] pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.04)] w-full overflow-hidden"
     >
       <div className="grid grid-cols-5 items-center h-16 max-w-lg mx-auto px-1.5 gap-1">
@@ -45,7 +47,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   ? 'bg-[#FF6B1A] text-[#111111] font-bold rounded-[8px] brand-chamfer py-1'
                   : 'text-[#6B6B6B] hover:text-[#111111] py-1'
               }`}
-              aria-label={tab.label}
+              aria-label={t(tab.label)}
               aria-current={isActive ? 'page' : undefined}
             >
               <div className="relative flex items-center justify-center">
@@ -61,7 +63,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                 )}
               </div>
               <span className={`text-[11px] mt-0.5 tracking-tight ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
-                {tab.label}
+                {t(tab.label)}
               </span>
             </button>
           );

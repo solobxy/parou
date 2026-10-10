@@ -61,6 +61,7 @@ import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
 import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
+import { t } from './i18n';
 
 // Ecrãs pesados ou pouco usados carregam só quando se abrem (a app abre mais depressa)
 const UserProfileModal = React.lazy(() => import('./components/UserProfileModal').then((m) => ({ default: m.UserProfileModal })));
@@ -923,7 +924,7 @@ export default function App() {
                   className="w-full h-12 rounded-[8px] brand-chamfer bg-[#FF6B1A] hover:brightness-105 active:scale-[0.99] text-[#111111] font-bold text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <AlertTriangle className="w-4 h-4 stroke-[2]" />
-                  <span>Reportar ocorrência</span>
+                  <span>{t('Reportar ocorrência')}</span>
                 </button>
 
                 {/* Quick Filters Panel */}
@@ -975,7 +976,7 @@ export default function App() {
                       onClick={() => handleDistrictSelectFromMap(null)}
                       className="text-xs text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer"
                     >
-                      Ver todas
+                      {t('Ver todas')}
                     </button>
                   </div>
 
@@ -1151,7 +1152,7 @@ export default function App() {
           <div className="flex items-center gap-2 text-center sm:text-left">
             <Logo size={20} className="text-[#111111]" />
             <span>·</span>
-            <span>Informação em direto de transportes em Portugal</span>
+            <span>{t('Informação em direto de transportes em Portugal')}</span>
           </div>
 
           <nav aria-label="PAROU" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 font-medium text-xs">
@@ -1177,13 +1178,13 @@ export default function App() {
                 {nome}
               </a>
             ))}
-            <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">Linhas e horários</a>
-            <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">Greves</a>
+            <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{t('Linhas e horários')}</a>
+            <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{t('Greves')}</a>
           </nav>
         </div>
         <div className="max-w-[1600px] mx-auto mt-4">
-          <nav aria-label="Horários por operador" className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-[11.5px]">
-            <span className="text-[#6B6B6B]">Horários:</span>
+          <nav aria-label={t('Horários por operador')} className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-[11.5px]">
+            <span className="text-[#6B6B6B]">{t('Horários:')}</span>
             {[
               ['carris-metropolitana', 'Carris Metropolitana'], ['metro-de-lisboa', 'Metro de Lisboa'], ['carris', 'Carris'], ['cp', 'CP'],
               ['stcp', 'STCP'], ['metro-do-porto', 'Metro do Porto'], ['fertagus', 'Fertagus'], ['transtejo-soflusa', 'Transtejo e Soflusa'],
@@ -1194,7 +1195,7 @@ export default function App() {
           </nav>
         </div>
         <div className="max-w-[1600px] mx-auto mt-3 text-center sm:text-left text-[11px] text-[#6B6B6B]">
-          Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap
+          {t('Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap')}
         </div>
       </footer>
 
