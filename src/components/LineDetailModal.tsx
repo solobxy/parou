@@ -15,6 +15,7 @@ import {
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { t } from '../i18n';
 
 interface LineDetailModalProps {
   lineId: string;
@@ -119,10 +120,10 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
             )}
             <div className="min-w-0">
               <h2 className="text-base font-bold text-[#111111] truncate">
-                {formatTransitName(line?.name || line?.code || 'Detalhe da linha')}
+                {formatTransitName(line?.name || line?.code || t('Detalhe da linha'))}
               </h2>
               <p className="text-xs text-[#6B6B6B] truncate">
-                {line?.operator} · {line?.mode}
+                {line?.operator} · {line?.mode ? t(line.mode) : ''}
               </p>
             </div>
           </div>
@@ -131,13 +132,15 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
             <button
               onClick={() => onToggleFavorite(lineId)}
               className="p-2 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-              title={isFavorite ? 'Remover dos favoritos' : 'Guardar nos favoritos'}
+              title={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
+              aria-label={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
             >
               <Star className={`w-5 h-5 stroke-[2] ${isFavorite ? 'fill-[#111111] text-[#111111]' : ''}`} />
             </button>
 
             <button
               onClick={onClose}
+              aria-label={t('Fechar')}
               className="p-2 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
             >
               <X className="w-5 h-5 stroke-[2]" />
@@ -150,12 +153,12 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
           {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center text-[#6B6B6B] space-y-2">
               <RefreshCw className="w-6 h-6 animate-spin text-[#111111]" />
-              <p className="text-xs">A carregar paragens...</p>
+              <p className="text-xs">{t('A carregar paragens…')}</p>
             </div>
           ) : error || !line ? (
             <div className="p-6 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] text-center space-y-2">
               <AlertTriangle className="w-6 h-6 text-[#D92D20] mx-auto stroke-[2]" />
-              <p className="text-sm font-semibold text-[#111111]">Erro ao carregar linha.</p>
+              <p className="text-sm font-semibold text-[#111111]">{t('Erro ao carregar linha.')}</p>
             </div>
           ) : (
             <>
@@ -176,7 +179,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                             : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                         }`}
                       >
-                        {dir.headsign ? `Destino: ${dir.headsign}` : `Sentido ${idx + 1}`}
+                        {dir.headsign ? t('Destino: {d}', { d: dir.headsign }) : t('Sentido {n}', { n: idx + 1 })}
                       </button>
                     ))}
                   </div>
@@ -209,13 +212,13 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                             </span>
                             {isNearest && (
                               <span className="text-[10px] font-bold text-[#C2410C]">
-                                Perto de ti
+                                {t('Perto de ti')}
                               </span>
                             )}
                           </div>
 
                           <span className="text-xs text-[#6B6B6B]">
-                            {isSelected ? 'Fechar' : 'Partidas'}
+                            {isSelected ? t('Fechar') : t('Partidas')}
                           </span>
                         </div>
 
@@ -225,20 +228,20 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                             {isLoadingDepartures ? (
                               <div className="py-2 text-xs text-[#6B6B6B] flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111]" />
-                                <span>A carregar partidas...</span>
+                                <span>{t('A carregar partidas…')}</span>
                               </div>
                             ) : selectedStopDepartures && selectedStopDepartures.length > 0 ? (
                               <div className="space-y-2">
                                 {(() => {
                                   const deps = sortDepartures(selectedStopDepartures).slice(0, 6);
                                   const outdatedDeps = deps.filter((d: any) => parseDepartureTime(d).isOutdated);
-                                  const opName = line?.operator || (line as any)?.operator_name || 'deste operador';
+                                  const opName = line?.operator || (line as any)?.operator_name || t('deste operador');
                                   return (
                                     <>
                                       {outdatedDeps.length > 0 && (
                                         <div className="py-1 px-1.5 bg-[#F4F4F2] text-[11px] text-[#6B6B6B] flex items-center gap-1.5 rounded-[4px] mb-1">
                                           <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
-                                          <span>Horários {opName} podem estar desatualizados</span>
+                                          <span>{t('Horários {op} podem estar desatualizados', { op: opName })}</span>
                                         </div>
                                       )}
                                       {deps.map((dep, dIdx) => {
@@ -252,7 +255,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                               <LineChip number={dep.line_code} color={dep.color} />
                                               <div className="min-w-0">
                                                 <div className="text-[#111111] font-medium truncate">
-                                                  {formatTransitName(dep.destination || 'Destino')}
+                                                  {formatTransitName(dep.destination || t('Destino'))}
                                                 </div>
                                                 <div className="text-[11px] text-[#6B6B6B] truncate">
                                                   {formatTransitName(stop.name)}
@@ -289,7 +292,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                               </div>
                             ) : (
                               <div className="text-xs text-[#6B6B6B] py-1">
-                                Sem partidas previstas.
+                                {t('Sem partidas previstas.')}
                               </div>
                             )}
                           </div>
@@ -299,7 +302,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                   })
                 ) : (
                   <div className="p-4 text-center text-xs text-[#6B6B6B]">
-                    Sem paragens nesta direção.
+                    {t('Sem paragens nesta direção.')}
                   </div>
                 )}
               </div>
@@ -308,7 +311,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                 href={`/linha/${encodeURIComponent(lineId)}`}
                 className="mt-3 flex items-center justify-center h-11 rounded-[10px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111]"
               >
-                Horário completo (dias úteis, sábados e domingos)
+                {t('Horário completo (dias úteis, sábados e domingos)')}
               </a>
             </>
           )}
