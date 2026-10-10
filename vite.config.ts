@@ -168,7 +168,7 @@ export default defineConfig(async ({ command }) => {
           shortcuts: [
             { name: 'Perto', url: '/?origem=atalho', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
             { name: 'Horários', url: '/transportes', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
-            { name: 'Alertas', url: '/alertas', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+            { name: 'Notícias', url: '/alertas', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
           ],
         },
         devOptions: {

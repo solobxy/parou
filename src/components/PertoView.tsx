@@ -50,7 +50,7 @@ import { AvisoPartida } from './AvisoPartida';
 import { InputPesquisa } from './InputPesquisa';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
-import { t, tn } from '../i18n';
+import { t, tn, LOCALE } from '../i18n';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 
 interface PertoViewProps {
@@ -94,6 +94,41 @@ function isValidCoordinate(lat: unknown, lon: unknown): lat is number {
     nLon >= -180 &&
     nLon <= 180
   );
+}
+
+// Ícones das paragens partilhados (um por tipo e estado): criar um novo por marcador a cada
+// atualização era a maior fatia do trabalho do mapa
+const iconesParagem = new Map<string, L.DivIcon>();
+function iconeParagem(modo: 'Autocarro' | 'Metro' | 'Comboio' | 'Barco', selecionada: boolean): L.DivIcon {
+  const chave = `${modo}|${selecionada ? 1 : 0}`;
+  let icone = iconesParagem.get(chave);
+  if (!icone) {
+    const estilo = ESTILO_MODO[modo] || ESTILO_MODO.Autocarro;
+    const tamanho = selecionada ? 34 : 26;
+    icone = L.divIcon({
+      className: 'custom-stop-marker-icon',
+      html: `
+        <div title="${estilo.plural}" style="width:${tamanho}px;height:${tamanho}px;background:${estilo.cor};border:2px solid #FFFFFF;border-radius:9999px;display:flex;align-items:center;justify-content:center;box-shadow:${selecionada ? '0 0 0 3px #FF6B1A, 0 4px 10px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.28)'};cursor:pointer;transition:transform .15s">
+          ${estilo.simbolo}
+        </div>
+      `,
+      iconSize: [tamanho, tamanho],
+      iconAnchor: [tamanho / 2, tamanho / 2],
+    });
+    iconesParagem.set(chave, icone);
+  }
+  return icone;
+}
+
+/** Distância viva ao utilizador, no mesmo formato do servidor ("120 m", "1,4 km") */
+function distanciaViva(de: { latitude: number; longitude: number } | null | undefined, stop: NearbyStopItem): { texto: string; minutos: number } | null {
+  if (!de) return null;
+  const m = Math.round(metrosEntre(de, stop));
+  if (!Number.isFinite(m)) return null;
+  return {
+    texto: m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', LOCALE.startsWith('pt') ? ',' : '.')} km` : `${m} m`,
+    minutos: Math.max(1, Math.round(m / 80)),
+  };
 }
 
 /** Texto preto ou branco, conforme a cor de fundo (para o número da linha no mapa) */
@@ -298,7 +333,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
     percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number };
   } | null>(null);
   const linhaNoMapa = Boolean(linhaAberta?.percurso);
-  const stopsMarkersRef = useRef<L.Marker[]>([]);
+  const stopsMarkersRef = useRef<Map<string, { marker: L.Marker; modo: string; sel: boolean; lat: number; lon: number }>>(new Map());
+  const paragensPorIdRef = useRef<Map<string, NearbyStopItem>>(new Map());
+  const circuloPrecisaoRef = useRef<L.Circle | null>(null);
   // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
     () => ultimoSeguir || !ultimaVistaMapa || Date.now() - ultimaVistaMapa.t > 30_000,
@@ -655,12 +692,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
       maxZoom: 19,
       zoomControl: false,
       attributionControl: false,
+      // Menos trabalho por gesto: sem animar a escala de cada marcador no zoom
+      markerZoomAnimation: false,
     });
 
     // Mosaicos raster do OpenStreetMap
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
+      // Os mosaicos vão chegando enquanto arrastas (em vez de só no fim), com margem extra à volta
+      updateWhenIdle: false,
+      updateWhenZooming: false,
+      keepBuffer: 3,
     }).addTo(map);
 
     // Filtro CSS aplicado estritamente ao painel de mosaicos (não aos marcadores)
@@ -700,8 +743,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (ultimaVistaMapa) ultimaVistaMapa = { ...ultimaVistaMapa, t: Date.now() };
       userMarkerRef.current?.remove();
       userMarkerRef.current = null;
-      stopsMarkersRef.current.forEach((m) => m.remove());
-      stopsMarkersRef.current = [];
+      stopsMarkersRef.current.forEach((m) => m.marker.remove());
+      stopsMarkersRef.current.clear();
+      circuloPrecisaoRef.current?.remove();
+      circuloPrecisaoRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -723,6 +768,24 @@ export const PertoView: React.FC<PertoViewProps> = ({
     if (!mapRef.current || !userCoords) return;
     const { latitude, longitude } = userCoords;
     if (!isValidCoordinate(latitude, longitude)) return;
+
+    // Círculo de precisão: só quando o sinal é fraco, para se ver que o ponto pode estar fora do sítio
+    const precisao = Number(userCoords.accuracy);
+    const mostrarCirculo = Number.isFinite(precisao) && precisao > 15 && precisao < 3000 && !userCoords.isManual;
+    if (mostrarCirculo) {
+      if (circuloPrecisaoRef.current) {
+        circuloPrecisaoRef.current.setLatLng([latitude, longitude]);
+        circuloPrecisaoRef.current.setRadius(precisao);
+      } else {
+        circuloPrecisaoRef.current = L.circle([latitude, longitude], {
+          radius: precisao, interactive: false, weight: 1, color: '#FF6B1A', opacity: 0.45,
+          fillColor: '#FF6B1A', fillOpacity: 0.1,
+        }).addTo(mapRef.current);
+      }
+    } else if (circuloPrecisaoRef.current) {
+      circuloPrecisaoRef.current.remove();
+      circuloPrecisaoRef.current = null;
+    }
 
     if (userMarkerRef.current) {
       userMarkerRef.current.setLatLng([latitude, longitude]);
@@ -1030,45 +1093,58 @@ export const PertoView: React.FC<PertoViewProps> = ({
     return partidasParaMostrar(e.passagens, cores, todas ? Infinity : 40);
   };
 
-  // Render Stops on Map
+  // Render Stops on Map — só se mexe no que mudou (novo, saiu, mudou de estado), não em todos
   useEffect(() => {
-    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const marcadores = stopsMarkersRef.current;
 
-    stopsMarkersRef.current.forEach((m) => m.remove());
-    stopsMarkersRef.current = [];
     // Com o percurso de uma linha aberto, o mapa mostra só esse percurso (sem as outras paragens)
-    if (linhaNoMapa) return;
+    if (linhaNoMapa) {
+      marcadores.forEach((m) => m.marker.remove());
+      marcadores.clear();
+      return;
+    }
 
+    const selecionadaId = selectedStop?.id;
+    const porId = new Map<string, NearbyStopItem>();
     filteredStops.forEach((stop) => {
+      if (isValidCoordinate(Number(stop.latitude), Number(stop.longitude))) porId.set(stop.id, stop);
+    });
+    paragensPorIdRef.current = porId;
+
+    // Saíram da lista
+    marcadores.forEach((m, id) => {
+      if (!porId.has(id)) { m.marker.remove(); marcadores.delete(id); }
+    });
+
+    porId.forEach((stop, id) => {
       const lat = Number(stop.latitude);
       const lon = Number(stop.longitude);
-      if (!isValidCoordinate(lat, lon)) return;
-
-      const isSelected = selectedStop?.id === stop.id;
-
-      const estilo = ESTILO_MODO[normalizeTransportMode(stop.transportMode)] || ESTILO_MODO.Autocarro;
-      const tamanho = isSelected ? 34 : 26;
-      const stopIcon = L.divIcon({
-        className: 'custom-stop-marker-icon',
-        html: `
-          <div title="${estilo.plural}" style="width:${tamanho}px;height:${tamanho}px;background:${estilo.cor};border:2px solid #FFFFFF;border-radius:9999px;display:flex;align-items:center;justify-content:center;box-shadow:${isSelected ? '0 0 0 3px #FF6B1A, 0 4px 10px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.28)'};cursor:pointer;transition:transform .15s">
-            ${estilo.simbolo}
-          </div>
-        `,
-        iconSize: [tamanho, tamanho],
-        iconAnchor: [tamanho / 2, tamanho / 2],
-      });
-
-      const marker = L.marker([lat, lon], { icon: stopIcon, zIndexOffset: isSelected ? 1000 : 0, title: `${estilo.plural} – ${formatTransitName(stop.name)}` }).addTo(mapRef.current!);
+      const modo = normalizeTransportMode(stop.transportMode);
+      const sel = selecionadaId === id;
+      const atual = marcadores.get(id);
+      if (atual) {
+        if (atual.lat !== lat || atual.lon !== lon) { atual.marker.setLatLng([lat, lon]); atual.lat = lat; atual.lon = lon; }
+        if (atual.modo !== modo || atual.sel !== sel) {
+          atual.marker.setIcon(iconeParagem(modo, sel));
+          atual.marker.setZIndexOffset(sel ? 1000 : 0);
+          atual.modo = modo; atual.sel = sel;
+        }
+        return;
+      }
+      const estilo = ESTILO_MODO[modo] || ESTILO_MODO.Autocarro;
+      const marker = L.marker([lat, lon], { icon: iconeParagem(modo, sel), zIndexOffset: sel ? 1000 : 0, title: `${estilo.plural} – ${formatTransitName(stop.name)}` }).addTo(map);
+      // Lê a paragem mais recente (os dados vão sendo atualizados de 30 em 30 s)
       marker.on('click', () => {
-        setSelectedStop(stop);
+        const maisRecente = paragensPorIdRef.current.get(id) || stop;
+        setSelectedStop(maisRecente);
         setFollowMode(false);
-        safeFlyTo(mapRef.current, lat, lon, 16.5);
+        safeFlyTo(mapRef.current, Number(maisRecente.latitude), Number(maisRecente.longitude), 16.5);
       });
-
-      stopsMarkersRef.current.push(marker);
+      marcadores.set(id, { marker, modo, sel, lat, lon });
     });
-  }, [filteredStops, selectedStop, linhaNoMapa]);
+  }, [filteredStops, selectedStop?.id, linhaNoMapa]);
 
   // Ajusta o mapa quando muda de altura
   useEffect(() => {
@@ -1610,7 +1686,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                     <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-condensada text-[13px] font-bold text-[#111111] tabular-nums">
                       <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
-                      {stop.formattedDistance}
+                      {distanciaViva(userCoords, stop)?.texto ?? stop.formattedDistance}
                     </span>
                   </div>
 
@@ -1742,8 +1818,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                   )}
                   <div className="text-xs text-[#6B6B6B] mt-0.5">
-                    {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
-                    {selectedStop.walkingMinutes ? ` · ${t('{n} min a pé', { n: selectedStop.walkingMinutes })}` : ''}
+                    {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {distanciaViva(userCoords, selectedStop)?.texto ?? selectedStop.formattedDistance}
+                    {(distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes) ? ` · ${t('{n} min a pé', { n: distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes })}` : ''}
                   </div>
                 </div>
               </div>
