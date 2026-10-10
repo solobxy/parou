@@ -20,6 +20,8 @@ interface Tema {
   borda: Tabela;
   /** Cor calculada quando não está na tabela: devolve a cor nova, ou null para deixar como está */
   alternativa: (papel: Papel, r: number, g: number, b: number) => string | null;
+  /** Regras à mão que têm de ganhar às geradas (superfícies escuras decorativas, texto sobre botões…) */
+  especiais?: string;
 }
 
 // ---------------------------------------------------------------- cores (sRGB ⇄ OKLCH) ----------------------------------------------------------------
@@ -65,7 +67,7 @@ const ESCURO: Tema = {
     FFF1E8: '#3A2314', FFF4EC: '#3A2314', FFF7ED: '#34210F', FFF4E0: '#382A10', FFF1DC: '#382A10',
   },
   texto: {
-    '111111': '#F2F2F0', '1F1F1F': '#EAEAE7', '2B2B2B': '#E2E2DF', '4A4A4A': '#C6C6C2', '6B6B6B': '#A0A0A6', FFFFFF: '#111111', '000000': '#FFFFFF',
+    '111111': '#F2F2F0', '1F1F1F': '#EAEAE7', '2B2B2B': '#E2E2DF', '4A4A4A': '#C6C6C2', '6B6B6B': '#A0A0A6', '000000': '#FFFFFF',
     D9D9D6: '#55555C',
     C2410C: '#FF8A4D', '9A3412': '#FFA166', '8A4B00': '#FFC27A', A16207: '#F2C15C',
     D92D20: '#FF7468', B42318: '#FF8A80', '9F1D14': '#FFB4AC',
@@ -77,11 +79,23 @@ const ESCURO: Tema = {
   },
   alternativa(papel, r, g, b) {
     const [L, C, h] = paraOklch(r, g, b);
-    if (papel === 'fundo') return deOklch(0.15 + (1 - L) * 0.3, C * 0.55, h);
-    if (papel === 'borda') return deOklch(0.2 + (1 - L) * 0.28, C * 0.55, h);
-    if (L > 0.9) return null; // texto muito claro: quase de certeza está sobre um fundo escuro
-    return deOklch(limitar(0.97 - 0.55 * L, 0.6, 0.96), C * 1.05, h);
+    // Cores fortes (laranja, vermelho, verde, azul vivos) e fundos já escuros ficam como estão
+    if (papel === 'fundo') return (C >= 0.06 && L < 0.88) || L < 0.2 ? null : deOklch(0.15 + (1 - L) * 0.3, C * 0.55, h);
+    if (papel === 'borda') return C >= 0.1 && L < 0.82 ? null : deOklch(0.2 + (1 - L) * 0.28, C * 0.55, h);
+    if (L >= 0.68) return null; // texto já claro: lê-se bem em fundo escuro
+    return deOklch(limitar(0.97 - 0.55 * L, 0.72, 0.94), C * 1.05, h);
   },
+  // Botões e etiquetas pretos passam a claros; cartões e faixas pretas (como o do tempo) ficam escuros mas elevados.
+  especiais: (() => {
+    const PRETOS = ['111111', '1F1F1F', '2B2B2B', '000000'].map((c) => `.bg-\\[\\#${c}\\]`).join(',');
+    const PEQUENOS = 'button,a,span,label,summary,[role="tab"],[role="radio"],[role="switch"],[role="button"]';
+    const GRANDES = 'div,section,article,li,p,header,aside,nav,footer,main,ul,ol,figure,table,tr,td';
+    return `
+html[data-tema="escuro"] :is(${GRANDES}):is(${PRETOS}){background-color:#26262B;border-color:#34343A}
+html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}){background-color:#F2F2F0}
+html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}),html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}) :is(.text-\\[\\#FFFFFF\\],.text-white){color:#111111!important}
+`;
+  })(),
 };
 
 // ---------------------------------------------------------------- Âmbar ----------------------------------------------------------------
@@ -299,27 +313,33 @@ function gerarNodos(nodos: Nodo[], tema: Tema, contexto: string[]): string {
 export function gerarCssDosTemas(css: string): string {
   const nodos = analisar(css);
   let saida = '';
-  for (const tema of TEMAS_GERADOS) saida += `/* tema ${tema.id} */\n` + gerarNodos(nodos, tema, []);
+  for (const tema of TEMAS_GERADOS) saida += `/* tema ${tema.id} */\n` + gerarNodos(nodos, tema, []) + (tema.especiais || '');
   return saida;
 }
 
 // ---------------------------------------------------------------- plugin do Vite ----------------------------------------------------------------
-/** Junta ao CSS da app as regras dos temas. Corre depois do Tailwind, antes de o Vite guardar e dar nome ao ficheiro. */
+/**
+ * Junta ao CSS final da app as regras dos temas. Corre no fim (generateBundle), quando o Tailwind já gerou
+ * todas as classes e o Vite já juntou e minimizou o CSS: é aí que se sabe quais as cores realmente usadas.
+ */
 export function temasPlugin() {
   return {
     name: 'parou-temas',
     enforce: 'post' as const,
     apply: 'build' as const,
-    transform(codigo: string, id: string) {
-      if (!/\.css(\?|$)/.test(id) || id.includes('node_modules')) return null;
-      if (!E_CLASSE_DE_COR.test(codigo)) return null;
-      try {
-        const extra = gerarCssDosTemas(codigo);
-        if (!extra) return null;
-        return { code: `${codigo}\n${extra}`, map: null };
-      } catch (err) {
-        console.warn('[temas] Não foi possível gerar o CSS dos temas:', (err as Error)?.message || err);
-        return null;
+    generateBundle(_opcoes: unknown, bundle: Record<string, any>) {
+      for (const [nome, ficheiro] of Object.entries(bundle)) {
+        if (!nome.endsWith('.css') || ficheiro?.type !== 'asset') continue;
+        const original = typeof ficheiro.source === 'string' ? ficheiro.source : Buffer.from(ficheiro.source).toString('utf8');
+        if (!E_CLASSE_DE_COR.test(original) || original.includes('/* tema claro-gerado */')) continue;
+        try {
+          const extra = gerarCssDosTemas(original);
+          if (!extra) continue;
+          ficheiro.source = `${original}\n${extra}`;
+          console.log(`[temas] ${nome}: +${Math.round(extra.length / 1024)} kB de regras dos temas`);
+        } catch (err) {
+          console.warn('[temas] Não foi possível gerar o CSS dos temas:', (err as Error)?.message || err);
+        }
       }
     },
   };

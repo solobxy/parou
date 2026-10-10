@@ -76,6 +76,63 @@ footer nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}footer a{text-
 @media(max-width:520px){h1{font-size:26px}.btn.esconde{display:none}}
 `;
 
+// Temas (Escuro e Âmbar) para as páginas feitas no servidor. O tema vem do localStorage (mesma chave da app) e é aplicado
+// antes de desenhar a página, para não piscar. O Claro é o de sempre e não leva nada.
+const CSS_TEMAS = `
+html[data-tema=escuro]{color-scheme:dark;background:#0F0F10}
+html[data-tema=escuro] body{background:#0F0F10;color:#F2F2F0}
+html[data-tema=escuro] header.topo{background:#161618;border-color:#2A2A2E}
+html[data-tema=escuro] .btn{background:#F2F2F0;color:#111}
+html[data-tema=escuro] .btn.laranja{background:#FF6B1A;color:#111}
+html[data-tema=escuro] .btn.claro{background:#26262B;color:#F2F2F0}
+html[data-tema=escuro] nav.migalhas,html[data-tema=escuro] nav.migalhas a,html[data-tema=escuro] .nota,html[data-tema=escuro] .resumo span,html[data-tema=escuro] .lista .t small,html[data-tema=escuro] .lista .dir,html[data-tema=escuro] ol.percurso small,html[data-tema=escuro] .partidas .hora small,html[data-tema=escuro] .grelha small,html[data-tema=escuro] details>summary:after,html[data-tema=escuro] h1 span[style]{color:#A9A9AF!important}
+html[data-tema=escuro] .sub{color:#C9C9CD}
+html[data-tema=escuro] .chip{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+html[data-tema=escuro] .cartao,html[data-tema=escuro] details{background:#1E1E21;border-color:#34343A}
+html[data-tema=escuro] .resumo div{background:#26262B}
+html[data-tema=escuro] ul.lista,html[data-tema=escuro] .grelha a{border-color:#34343A}
+html[data-tema=escuro] ul.lista li{border-color:#2A2A2E}
+html[data-tema=escuro] ul.lista a:hover{background:#26262B}
+html[data-tema=escuro] .grelha a:hover{border-color:#F2F2F0}
+html[data-tema=escuro] ol.percurso li{border-color:#44444A}
+html[data-tema=escuro] ol.percurso li:before{background:#0F0F10;border-color:#F2F2F0}
+html[data-tema=escuro] table.horas td{border-color:#2A2A2E}
+html[data-tema=escuro] table.horas td:first-child{color:#F2F2F0}
+html[data-tema=escuro] table.horas td:last-child{color:#D2D2D6}
+html[data-tema=escuro] form.pesquisa input{background:#26262B;border-color:#34343A;color:#F2F2F0}
+html[data-tema=escuro] form.pesquisa input::placeholder{color:#A9A9AF}
+html[data-tema=escuro] .paginas a{background:#26262B}
+html[data-tema=escuro] .paginas span{background:#F2F2F0;color:#111}
+html[data-tema=escuro] .aviso{background:#2B1C12;border-color:#5A3A22}
+html[data-tema=escuro] footer.rodape{background:#161618;border-color:#2A2A2E;color:#B5B5BB}
+html[data-tema=escuro] svg path[stroke="#111"]{stroke:#F2F2F0}
+
+html[data-tema=ambar]{color-scheme:light;background:#FFE3C8}
+html[data-tema=ambar] body{color:#2A170B;background-color:#FFE3C8;background-image:radial-gradient(900px 620px at 100% -8%,rgba(255,150,70,.55),transparent 62%),radial-gradient(760px 560px at -12% 18%,rgba(255,196,140,.75),transparent 60%),linear-gradient(180deg,#FFF3E6 0%,#FFE6CF 55%,#FFD9B8 100%);background-attachment:fixed}
+html[data-tema=ambar] header.topo{background:rgba(255,248,240,.72);border-color:rgba(255,255,255,.7);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}
+html[data-tema=ambar] .btn{background:linear-gradient(180deg,#FF8A3D,#FF6B1A);color:#1F0F05;box-shadow:0 6px 16px rgba(255,107,26,.32)}
+html[data-tema=ambar] .btn.claro{background:rgba(255,250,245,.7);color:#2A170B;box-shadow:none;border:1px solid rgba(255,255,255,.8)}
+html[data-tema=ambar] nav.migalhas,html[data-tema=ambar] nav.migalhas a,html[data-tema=ambar] .nota,html[data-tema=ambar] .resumo span,html[data-tema=ambar] .lista .t small,html[data-tema=ambar] .lista .dir,html[data-tema=ambar] ol.percurso small,html[data-tema=ambar] .partidas .hora small,html[data-tema=ambar] .grelha small,html[data-tema=ambar] details>summary:after,html[data-tema=ambar] h1 span[style]{color:#70513C!important}
+html[data-tema=ambar] .sub{color:#5A3B27}
+html[data-tema=ambar] .cartao,html[data-tema=ambar] details,html[data-tema=ambar] ul.lista,html[data-tema=ambar] .grelha a{background:rgba(255,250,245,.62);border-color:rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(160,80,20,.1);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+html[data-tema=ambar] .resumo div{background:rgba(255,250,245,.66);border:1px solid rgba(255,255,255,.8)}
+html[data-tema=ambar] ul.lista li{border-color:rgba(190,110,50,.18)}
+html[data-tema=ambar] ul.lista a:hover{background:rgba(255,255,255,.55)}
+html[data-tema=ambar] .grelha a:hover{border-color:#FF6B1A}
+html[data-tema=ambar] ol.percurso li{border-color:rgba(190,110,50,.35)}
+html[data-tema=ambar] ol.percurso li:before{background:#FFF4E8;border-color:#FF6B1A}
+html[data-tema=ambar] table.horas td{border-color:rgba(190,110,50,.2)}
+html[data-tema=ambar] table.horas td:first-child{color:#2A170B}
+html[data-tema=ambar] table.horas td:last-child{color:#3A2415}
+html[data-tema=ambar] form.pesquisa input{background:rgba(255,250,245,.8);border-color:rgba(255,255,255,.9);color:#2A170B}
+html[data-tema=ambar] .paginas a{background:rgba(255,250,245,.7)}
+html[data-tema=ambar] .paginas span{background:#FF6B1A;color:#1F0F05}
+html[data-tema=ambar] .aviso{background:rgba(255,236,218,.85);border-color:#FFC49A}
+html[data-tema=ambar] footer.rodape{background:rgba(255,244,232,.7);border-color:rgba(255,255,255,.8);color:#4A2F1C}
+`;
+
+const SCRIPT_TEMA = `try{var t=localStorage.getItem('parou_tema');if(t==='escuro'||t==='ambar'){document.documentElement.setAttribute('data-tema',t);var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',t==='escuro'?'#161618':'#FFE9D2')}}catch(e){}`;
+
 function migalhasHtml(m: Migalha[]): string {
   if (!m.length) return '';
   return `<nav class="migalhas" aria-label="Estás em">${m
@@ -121,10 +178,10 @@ function pagina(o: OpcoesPagina): string {
 <meta property="og:image" content="${SITE}${o.imagem || '/og-image.png'}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${html(titulo)}"><meta name="twitter:description" content="${html(desc)}"><meta name="twitter:image" content="${SITE}${o.imagem || '/og-image.png'}">
 ${verifG ? `<meta name="google-site-verification" content="${html(verifG)}">` : ''}${verifB ? `<meta name="msvalidate.01" content="${html(verifB)}">` : ''}
-<meta name="theme-color" content="#FFFFFF"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#FFFFFF"><script>${SCRIPT_TEMA}</script><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
-<style>${CSS}</style>
+<style>${CSS}${CSS_TEMAS}</style>
 ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(/</g, '\\u003c')}</script>`).join('\n')}
 </head><body>
 <header class="topo"><div class="topo-in"><a class="marca" href="/" aria-label="PAROU — início">${LOGO_SVG}PAROU</a>

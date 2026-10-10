@@ -72,12 +72,10 @@ export const LineCard: React.FC<LineCardProps> = ({
                 {parsed.isRealtime && (
                   <Radio 
                     className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                    style={{ color: parsed.textColor }} 
                   />
                 )}
                 <span 
                   className={`font-condensada text-xl font-bold tabular-nums leading-none ${showExactTimeAsBig ? 'text-[#111111]' : parsed.textColorClass}`}
-                  style={{ color: showExactTimeAsBig ? '#111111' : parsed.textColor }}
                 >
                   {bigDisplay}
                 </span>
