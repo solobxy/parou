@@ -237,6 +237,8 @@ export function subscribeToUserFavorites(
 
 type LinhaApi = import('./transitApi').ApiLineItem;
 
+let linhasPertoCache: { chave: string; em: number; promessa: Promise<LinhaApi[]> } | null = null;
+
 /** Id da linha na base (os favoritos guardam-no como "line-<id>"). */
 function idDaLinha(item: FavoriteItem): string {
   return item.id.replace(/^line-/, '');
@@ -261,10 +263,17 @@ async function partidasDasLinhasGuardadas(items: FavoriteItem[]): Promise<LinhaA
   try {
     const { fetchLinesNear } = await import('./transitApi');
     const { completarLinhasUnir } = await import('./unirPerto');
-    const { lines } = await fetchLinesNear(pos.latitude, pos.longitude, 1500, AbortSignal.timeout(8000));
+    // A mesma resposta serve vários pedidos seguidos (a lista de favoritos atualiza-se mais do que uma vez)
+    const chave = `${pos.latitude.toFixed(3)},${pos.longitude.toFixed(3)}`;
+    const agora = Date.now();
+    if (!linhasPertoCache || linhasPertoCache.chave !== chave || agora - linhasPertoCache.em > 30000) {
+      linhasPertoCache = { chave, em: agora, promessa: fetchLinesNear(pos.latitude, pos.longitude, 1500, AbortSignal.timeout(8000)).then((r) => r.lines) };
+    }
+    const lines = await linhasPertoCache.promessa;
     const nossas = lines.filter((l) => guardadas.some((g) => linhaPerto(g, [l])));
     return await completarLinhasUnir(nossas);
   } catch {
+    linhasPertoCache = null;
     return [];
   }
 }
