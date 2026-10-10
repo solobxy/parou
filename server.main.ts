@@ -3,6 +3,7 @@ import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { DateTime } from 'luxon';
 import dotenv from 'dotenv';
 import {
   classifyOccurrenceText,
@@ -1356,7 +1357,14 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
     }
 
     const t0 = Date.now();
-    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName);
+    // Partir a outra hora (opcional): ?quando=2026-10-12T08:30 (hora de Lisboa) ou ISO completo
+    const quandoTxt = typeof req.query.quando === 'string' ? req.query.quando : '';
+    let quando = new Date();
+    if (quandoTxt) {
+      const d = DateTime.fromISO(quandoTxt, { zone: 'Europe/Lisbon' });
+      if (d.isValid) quando = d.toJSDate();
+    }
+    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando);
     console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR em ${Date.now() - t0} ms`);
     return res.json(routeData);
   } catch (err: any) {
