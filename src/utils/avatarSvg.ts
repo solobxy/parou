@@ -114,6 +114,8 @@ interface Rig {
   pele?: string; // cor atrás dos olhos (para as pálpebras)
   semBochechas?: boolean;
   braco?: number; // espessura dos braços
+  /** onde ficam os auscultadores quando a cabeça não é um bloco simples (por defeito saem da âncora do chapéu) */
+  fones?: { x: number; y: number; dx: number; pico: number; esc: number };
 }
 
 const BRACOS_PARO: Rig['bracos'] = [[68, 160, 44, 168, 44, 194], [132, 160, 156, 168, 156, 194]];
@@ -237,6 +239,8 @@ const RIGS: Record<string, Rig> = {
       olhos: { x: 100, y: 70, sep: 38, r: 19 },
       boca: { x: 100, y: 124, w: 20 },
       chapeu: { x: 100, y: 50, esc: 0.72 },
+      // os olhos estão nas torres: os auscultadores abraçam a cabeça por fora e os copos ficam nas orelhas, nos lados
+      fones: { x: 100, y: 108, dx: 66, pico: 28, esc: 0.9 },
       bracos: [[66, 162, 44, 170, 44, 194], [134, 162, 156, 170, 156, 194]], maos: MAOS_PARO, pernas: PERNAS, pes: PES,
       sombra: { x: 100, y: 244, rx: 56 },
       redonda: { cx: 100, cy: 100, r: 72, topo: 44 },
@@ -558,6 +562,16 @@ const CHAPEUS: Record<string, Chapeu> = {
   },
 };
 const ALT_CHAPEU = (id: string) => CHAPEUS[id]?.alt ?? 46;
+
+/** Auscultadores com a posição dos copos e do arco dada pela personagem (em coordenadas absolutas). */
+function fonesAbsolutos(o: NonNullable<Rig['fones']>): string {
+  const cy = (o.pico - 0.25 * o.y) / 0.75; // altura do ponto de controlo para o arco chegar ao pico
+  const copo = (lado: number) =>
+    G(mover(o.x + lado * o.dx, o.y, o.esc), R(-13, -21, 26, 42, 11, '#2F3545') + R(lado < 0 ? -9 : -1, -13, 10, 26, 5, '#FF6B1A') + brilho('M -9,-15 Q -9,-18 -5,-18', 3));
+  return L(`M ${o.x - o.dx},${o.y - 8} C ${o.x - o.dx - 4},${f(cy)} ${o.x + o.dx + 4},${f(cy)} ${o.x + o.dx},${o.y - 8}`, 10, '#2A2F3A') +
+    L(`M ${o.x - o.dx + 3},${o.y - 14} C ${o.x - o.dx - 1},${f(cy + 4)} ${o.x + o.dx + 1},${f(cy + 4)} ${o.x + o.dx - 3},${o.y - 14}`, 3.5, '#4B5263', so(0.8)) +
+    copo(-1) + copo(1);
+}
 
 // ---------- roupa ----------
 interface Roupa {
@@ -890,7 +904,7 @@ export function desenharAvatar(entrada: Partial<ConfigAvatar> | null | undefined
   s += peca.depois;
 
   // chapéu
-  if (chapeu) s += G(mover(rig.chapeu.x, rig.chapeu.y, rig.chapeu.esc), chapeu.d(k));
+  if (chapeu) s += cfg.chapeu === 'auscultadores' && rig.fones ? fonesAbsolutos(rig.fones) : G(mover(rig.chapeu.x, rig.chapeu.y, rig.chapeu.esc), chapeu.d(k));
 
   const [x, y, w, h] = caixa;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(x)} ${f(y)} ${f(w)} ${f(h)}"><defs>${GRAD_PUPILA}${k.defs}</defs>${s}</svg>`;
