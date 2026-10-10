@@ -13,7 +13,7 @@ import {
   adminUpdateComplaintStatus, 
   deleteReportDoc, 
   deleteComplaintDoc 
-} from '../services/firebase';
+} from '../services/conta';
 
 interface AdminModerationModalProps {
   isOpen: boolean;

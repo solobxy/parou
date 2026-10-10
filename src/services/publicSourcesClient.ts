@@ -1,5 +1,4 @@
 import { PublicSourceConfig, IngestionSyncResult, Occurrence } from '../types';
-import { carregarFirebase } from './nuvem';
 import { cabecalhosAdmin } from '../utils/admin';
 
 export async function fetchPublicSourcesList(): Promise<PublicSourceConfig[]> {
@@ -40,8 +39,9 @@ export async function syncPublicSourcesNow(): Promise<{
     const occurrences: Occurrence[] = Array.isArray(data?.occurrences) ? data.occurrences : [];
     const result: IngestionSyncResult = data?.result;
 
-    // Save normalized occurrences to Firestore
-    const { added, updated } = await (await carregarFirebase()).batchImportPublicReports(occurrences);
+    // O servidor já guardou as ocorrências na base da comunidade e diz quantas eram novas
+    const added = Number(data?.added) || 0;
+    const updated = Number(data?.updated) || 0;
 
     const durationMs = Date.now() - startTime;
     return {

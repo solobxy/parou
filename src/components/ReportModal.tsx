@@ -18,7 +18,7 @@ import {
   recordReportSubmission,
   detectDuplicateReport,
   detectSpamKeywords
-} from '../services/firebase';
+} from '../services/conta';
 
 // "Outro" fica como SERVICO_PUBLICO (é um dos tipos aceites pelas regras do Firestore)
 const CATEGORIAS: Array<[OccurrenceType, string]> = [

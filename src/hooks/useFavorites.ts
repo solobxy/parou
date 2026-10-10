@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { observarSessao, utilizadorFirebase } from '../services/nuvem';
+import { observarSessao, utilizadorAutenticado, type Utilizador } from '../services/conta';
 import { 
   FavoriteItem, 
   FavoriteCategory, 
@@ -18,7 +17,7 @@ import {
 
 export function useFavorites() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getLocalFavorites());
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(utilizadorFirebase());
+  const [currentUser, setCurrentUser] = useState<Utilizador | null>(utilizadorAutenticado());
   const [activeCategory, setActiveCategory] = useState<FavoriteCategory | 'todos'>('todos');
   const [liveStatuses, setLiveStatuses] = useState<Map<string, FavoriteLiveStatus>>(new Map());
   const [isLoadingLive, setIsLoadingLive] = useState(false);
@@ -29,7 +28,7 @@ export function useFavorites() {
     setFavorites(getLocalFavorites());
   }, []);
 
-  // 2. Auth listener & automatic Firestore synchronization with deduplication
+  // 2. Login listener & automatic account synchronization with deduplication
   useEffect(() => {
     let unsubscribeFirestore: (() => void) | null = null;
 
@@ -39,11 +38,12 @@ export function useFavorites() {
       if (user) {
         // User logged in: automatically merge local and cloud favorites without duplicates
         try {
-          const merged = await syncAndMergeFavorites(user.uid);
+          const merged = await syncAndMergeFavorites(user.userId);
           setFavorites(merged);
 
-          // Subscribe to cloud updates for real-time synchronization across devices
-          unsubscribeFirestore = subscribeToUserFavorites(user.uid, (updatedList) => {
+          // Subscribe to account updates to keep other devices in sync
+          if (unsubscribeFirestore) unsubscribeFirestore();
+          unsubscribeFirestore = subscribeToUserFavorites(user.userId, (updatedList) => {
             setFavorites(updatedList);
           });
         } catch (err) {
