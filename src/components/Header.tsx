@@ -344,7 +344,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Mobile search toggle — apenas no Mapa */}
           {activeTab === 'mapa' && (
             <button
@@ -374,23 +374,33 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* User Profile / Login */}
+          {/* Conta: só o símbolo (sem texto) para o topo não ficar cheio; com sessão iniciada mostra
+              a foto ou as iniciais, para se perceber logo que já entraste */}
           {currentUser ? (
             <button
               onClick={onOpenUserProfileModal}
-              className="flex items-center gap-2 px-3 py-1.5 bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[8px] text-xs font-semibold text-[#111111] min-h-[44px] transition-colors cursor-pointer"
-              title="Perfil"
+              className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
+              title={`A tua conta (${currentUser.displayName})`}
+              aria-label={`A tua conta: ${currentUser.displayName}`}
+              data-teste="botao-conta"
             >
-              <User className="w-4 h-4 stroke-[2]" />
-              <span className="max-w-[80px] truncate">{currentUser.displayName.split(' ')[0]}</span>
+              {currentUser.photoURL ? (
+                <img src={currentUser.photoURL} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <span className="w-7 h-7 rounded-full bg-[#111111] text-[#FFFFFF] text-[11px] font-bold flex items-center justify-center" aria-hidden="true">
+                  {currentUser.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?'}
+                </span>
+              )}
             </button>
           ) : (
             <button
               onClick={onOpenLoginModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[8px] text-xs font-semibold text-[#111111] min-h-[44px] transition-colors cursor-pointer"
+              className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
+              title="Entrar ou criar conta"
+              aria-label="Entrar ou criar conta"
+              data-teste="botao-entrar"
             >
-              <User className="w-4 h-4 stroke-[2]" />
-              <span>Entrar</span>
+              <User className="w-5 h-5 stroke-[2]" />
             </button>
           )}
         </div>
