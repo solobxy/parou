@@ -6,8 +6,6 @@ import {
   RotateCcw, 
   LocateFixed,
   Loader2,
-  Maximize2, 
-  Minimize2, 
   X,
   Plus
 } from 'lucide-react';
@@ -114,7 +112,6 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       return n;
     });
   const [activeArchipelago, setActiveArchipelago] = useState<'continental' | 'madeira' | 'acores'>('continental');
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentZoom, setCurrentZoom] = useState<number>(6);
 
   const [activeModalDistrict, setActiveModalDistrict] = useState<{
@@ -501,12 +498,20 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         const grave = g.pontos.some((q) => q.gravidade === 'Grave');
         const lat = g.pontos.reduce((s, q) => s + q.lat, 0) / n;
         const lon = g.pontos.reduce((s, q) => s + q.lon, 0) / n;
-        const tam = n >= 100 ? 46 : n >= 10 ? 42 : 38;
+        // Triângulo de aviso (são ocorrências, não paragens) com o número lá dentro
+        const larg = n >= 100 ? 54 : n >= 10 ? 48 : 44;
+        const alt = Math.round(larg * 0.92);
+        const cor = grave ? '#D92D20' : '#111111';
         const icone = L.divIcon({
           className: 'parou-ponto-mapa',
-          html: `<div style="width:${tam}px;height:${tam}px;border-radius:9999px;background:${grave ? '#D92D20' : '#111111'};border:3px solid #FFFFFF;box-shadow:0 3px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 15 : 18}px;line-height:1;cursor:pointer">${n}</div>`,
-          iconSize: [tam, tam],
-          iconAnchor: [tam / 2, tam / 2],
+          html: `<div style="position:relative;width:${larg}px;height:${alt}px;cursor:pointer;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))">
+            <svg xmlns="http://www.w3.org/2000/svg" width="${larg}" height="${alt}" viewBox="0 0 48 44" aria-hidden="true">
+              <path d="M24 4.2 L44.2 39.2 Q45.4 41.4 42.9 41.4 H5.1 Q2.6 41.4 3.8 39.2 Z" fill="${cor}" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
+            </svg>
+            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.4)}px;text-align:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 15 : 18}px;line-height:1">${n}</span>
+          </div>`,
+          iconSize: [larg, alt],
+          iconAnchor: [larg / 2, alt * 0.62],
         });
         const bolha = L.marker([lat, lon], {
           icon: icone,
@@ -575,11 +580,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
   return (
     <>
       <div 
-        className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] flex flex-col relative isolate overflow-hidden transition-all duration-300 ${
-          isFullscreen 
-            ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' 
-            : 'h-[460px] sm:h-[520px] md:h-[580px] w-full'
-        } ${className}`}
+        className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] flex flex-col relative isolate overflow-hidden h-[460px] sm:h-[520px] md:h-[580px] w-full ${className}`}
       >
         {/* Top Header & Toolbar */}
         <div className="flex flex-row flex-wrap items-center justify-between p-2 sm:p-3 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-x-2 gap-y-1.5 z-10 shrink-0">
@@ -623,19 +624,6 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                 </button>
               ))}
             </div>
-
-            {/* Fullscreen Toggle */}
-            <button
-              onClick={() => {
-                setIsFullscreen(!isFullscreen);
-                setTimeout(() => mapRef.current?.invalidateSize(), 150);
-              }}
-              className="p-1.5 rounded-[6px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] transition-colors cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
-              title={isFullscreen ? t('Sair de ecrã inteiro') : t('Ecrã inteiro')}
-              aria-label={t('Ecrã inteiro')}
-            >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 stroke-[2]" /> : <Maximize2 className="w-3.5 h-3.5 stroke-[2]" />}
-            </button>
           </div>
         </div>
 
