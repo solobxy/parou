@@ -193,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
                 aria-expanded={isMoreMenuOpen}
               >
-                <span>{isMoreTabActive ? getMoreTabLabel() : 'Mais'}</span>
+                <span>{isMoreTabActive ? getMoreTabLabel() : t('Mais')}</span>
                 <ChevronDown className={`w-3.5 h-3.5 stroke-[2] transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
