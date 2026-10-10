@@ -2,6 +2,7 @@
 // isso o painel de administração prepara o texto e a pessoa só copia e cola. Formato do WhatsApp:
 // *negrito* e _itálico_ (os asteriscos têm de ficar colados ao texto).
 import type { CentralAlert, CentralAlertType } from '../types/alerts';
+import { categoriaDoAviso } from './imagemAviso';
 
 const EMOJI: Record<CentralAlertType, string> = {
   greve: '🚨',
@@ -19,11 +20,42 @@ const EMOJI: Record<CentralAlertType, string> = {
   'outros alertas oficiais': 'ℹ️',
 };
 
-const TIPOS_IMPORTANTES: CentralAlertType[] = ['greve', 'interrupção', 'linha suspensa', 'paragem encerrada', 'cancelamento', 'desvio'];
+// Operadores com muita gente: um problema aqui afeta milhares de pessoas, ao contrário de uma linha de bairro.
+const OPERADOR_GRANDE = /metro|\bcp\b|comboios|fertagus|transtejo|soflusa|stcp|carris(?! metropolitana)|ipma|prote[cç][aã]o civil|fogos/i;
+const MAXIMO_IMPORTANTES = 5;
 
-/** Avisos que valem a pena no canal: graves, ou dos tipos que mudam mesmo a viagem de alguém. */
+/**
+ * Só o que merece ir para o canal: greves, incêndios, acidentes, sismos, e interrupções ou avisos graves
+ * que afetam muita gente. Desvios, obras, horários e reforços de uma linha ficam de fora (isso é para a app).
+ */
 export function eImportante(a: CentralAlert): boolean {
-  return a.severity === 'Grave' || TIPOS_IMPORTANTES.includes(a.tipo);
+  if (a.status === 'Terminado' || a.status === 'Cancelado') return false;
+  const cat = categoriaDoAviso(a);
+  if (cat === 'greve') return true;
+  if (cat === 'incendio' || cat === 'acidente' || cat === 'sismo') return a.status === 'Ativo';
+  if (a.severity !== 'Grave') return false;
+  return OPERADOR_GRANDE.test(a.operador || '') || (a.linhas?.length || 0) >= 3 || cat === 'tempo';
+}
+
+const semAcentos = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+
+/** Identifica o mesmo aviso mesmo que chegue duas vezes da fonte (ids diferentes, texto igual). */
+export const chaveDoAviso = (a: CentralAlert): string => `${a.tipo}|${semAcentos(a['título'])}|${semAcentos(a.operador)}`;
+
+/** Tira os avisos repetidos (a mesma notícia chega por vezes duas vezes da fonte). */
+export function semRepetidos(lista: CentralAlert[]): CentralAlert[] {
+  const vistos = new Set<string>();
+  return lista.filter((a) => {
+    const chave = chaveDoAviso(a);
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+}
+
+/** Os poucos avisos que valem mesmo a pena publicar, do mais grave para o menos grave. */
+export function avisosImportantes(lista: CentralAlert[]): CentralAlert[] {
+  return ordenarAvisos(semRepetidos(lista).filter(eImportante)).slice(0, MAXIMO_IMPORTANTES);
 }
 
 /** Ordem: os mais graves primeiro; a igual gravidade, os ativos antes dos que ainda vão começar e os mais recentes antes. */
