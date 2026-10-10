@@ -134,7 +134,7 @@ export async function registar(emailBruto: unknown, palavra: unknown, nome: unkn
   const id = crypto.randomUUID();
   const agora = Date.now();
   try {
-    base().prepare('INSERT INTO utilizadores (id, email, palavra_passe, nome, pontos, ocorrencias, criado) VALUES (?, ?, ?, ?, 50, 0, ?)')
+    base().prepare('INSERT INTO utilizadores (id, email, palavra_passe, nome, pontos, ocorrencias, criado) VALUES (?, ?, ?, ?, 0, 0, ?)')
       .run(id, email, resumoPalavra, limparNome(nome, email), agora);
   } catch (err: any) {
     if (/UNIQUE/i.test(String(err?.message))) {

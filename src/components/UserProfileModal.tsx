@@ -95,7 +95,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-bold text-[#111111] truncate flex items-center gap-1.5">
               <span className="truncate">{user.displayName}</span>
-              {user.pioneiro && <MedalhaPioneiro compacta />}
+              {user.pioneiro && <MedalhaPioneiro />}
             </h3>
             <p className="text-xs text-[#6B6B6B] truncate">
               {user.email}
@@ -103,11 +103,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
-        {user.pioneiro && (
-          <div className="mt-4">
-            <MedalhaPioneiro />
-          </div>
-        )}
 
         {/* Reputation strip */}
         <div className="grid grid-cols-2 gap-2 my-4">
