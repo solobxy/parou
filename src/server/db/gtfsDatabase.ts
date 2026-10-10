@@ -217,12 +217,62 @@ export function getDatabase(): DatabaseSync {
     initSchema(nextDb);
     dbInstance = nextDb;
     seedFeedsIfEmpty();
+    try {
+      const preenchidas = completarNomesDeLinhas(nextDb);
+      if (preenchidas > 0) console.log(`[SQLite DB] ${preenchidas} linhas sem nome ficaram com o trajeto como nome.`);
+    } catch (err: any) {
+      console.warn('[SQLite DB] Aviso ao completar nomes de linhas:', err?.message || err);
+    }
     return dbInstance;
   } catch (err: any) {
     console.warn('[SQLite DB] Erro ao abrir gtfs.db:', err?.message || err);
     if (dbInstance) return dbInstance;
     throw err;
   }
+}
+
+/**
+ * Alguns feeds (ex.: Metro do Porto) trazem o nome longo da linha vazio ou apenas "-", o que
+ * aparecia como "C  -" sem texto. Aqui o nome passa a ser o trajeto real da linha, tirado dos
+ * destinos (trip_headsign) mais frequentes de cada sentido, por exemplo "Campanhã – ISMAI".
+ * A CP fica de fora porque tem os nomes tratados à parte. Devolve quantas linhas foram preenchidas.
+ */
+export function completarNomesDeLinhas(db: DatabaseSync, feedId?: string): number {
+  const vazias = db.prepare(`
+    SELECT route_id FROM routes
+    WHERE feed_id <> 'cp'
+      ${feedId ? 'AND feed_id = ?' : ''}
+      AND TRIM(COALESCE(route_long_name, '')) IN ('', '-', '–', '—')
+  `).all(...(feedId ? [feedId] : [])) as Array<{ route_id: string }>;
+  if (vazias.length === 0) return 0;
+
+  const destinos = db.prepare(`
+    SELECT direction_id AS sentido, trip_headsign AS destino, COUNT(*) AS n
+    FROM trips
+    WHERE route_id = ? AND TRIM(COALESCE(trip_headsign, '')) <> ''
+    GROUP BY direction_id, trip_headsign
+    ORDER BY n DESC
+  `);
+  const atualizar = db.prepare('UPDATE routes SET route_long_name = ? WHERE route_id = ?');
+
+  let preenchidas = 0;
+  for (const { route_id } of vazias) {
+    const linhas = destinos.all(route_id) as Array<{ sentido: number; destino: string; n: number }>;
+    // O destino mais frequente de cada sentido; o sentido 1 (normalmente a ponta "de cá") primeiro
+    const porSentido = new Map<number, string>();
+    for (const l of linhas) {
+      if (!porSentido.has(l.sentido)) porSentido.set(l.sentido, String(l.destino).trim());
+    }
+    const partes: string[] = [];
+    for (const sentido of [...porSentido.keys()].sort((a, b) => b - a)) {
+      const d = porSentido.get(sentido)!;
+      if (d && !partes.includes(d)) partes.push(d);
+    }
+    if (partes.length === 0) continue;
+    atualizar.run(partes.join(' – '), route_id);
+    preenchidas++;
+  }
+  return preenchidas;
 }
 
 /**
