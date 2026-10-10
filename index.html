@@ -103,10 +103,27 @@
     <!-- Web Typography: Barlow & Barlow Condensed -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Não bloqueia o primeiro desenho da página: a letra chega logo a seguir (display=swap) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@500;600;700;800&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@500;600;700;800&amp;display=swap" /></noscript>
   </head>
   <body class="bg-[#FFFFFF] text-[#111111] antialiased selection:bg-[#FF6B1A] selection:text-[#111111]">
     <div id="root">
+      <!-- Esqueleto da app: aparece logo (antes do JavaScript) e o React substitui-o ao arrancar -->
+      <div id="parou-arranque" aria-hidden="true" style="min-height:100vh;display:flex;flex-direction:column;background:#FFFFFF">
+        <div style="height:64px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid #E6E6E3">
+          <img src="/icon.svg" width="28" height="28" alt="" style="display:block" />
+          <span style="font:800 26px/1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif;letter-spacing:.02em;color:#111111">PAROU</span>
+        </div>
+        <div style="height:42vh;background:#F4F4F2"></div>
+        <div id="parou-arranque-texto" style="flex:1;margin-top:-16px;background:#FFFFFF;border-radius:20px 20px 0 0;padding:20px 16px">
+          <div style="font:700 22px/1 'Barlow Condensed','Arial Narrow',system-ui,sans-serif;color:#111111">Transportes perto</div>
+          <div style="margin-top:8px;font:400 13px/1.3 system-ui,sans-serif;color:#6B6B6B">A preparar o que passa perto de ti…</div>
+          <div style="margin-top:18px;height:72px;border-radius:14px;background:#F4F4F2"></div>
+          <div style="margin-top:10px;height:72px;border-radius:14px;background:#F4F4F2"></div>
+        </div>
+      </div>
+      <script>if (location.pathname !== '/') { var e = document.getElementById('parou-arranque-texto'); if (e) e.style.visibility = 'hidden'; }</script>
       <noscript>
         <div style="padding:24px;font-family:system-ui,sans-serif;max-width:860px;margin:0 auto;color:#111">
           <h1>PAROU — autocarros, metro e comboios perto de ti em tempo real</h1>
