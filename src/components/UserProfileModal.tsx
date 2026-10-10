@@ -125,7 +125,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <h3 className="text-base font-bold text-[#111111] truncate flex items-center gap-1.5">
               <span className="truncate">{user.displayName}</span>
               {user.admin && <SeloCriador />}
-              {user.pioneiro && <MedalhaPioneiro />}
+              {user.pioneiro && !user.admin && <MedalhaPioneiro />}
             </h3>
             <p className="text-xs text-[#6B6B6B] truncate">
               {user.email}

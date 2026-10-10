@@ -16,7 +16,7 @@ export const SeloCriador: React.FC<{ soIcone?: boolean }> = ({ soIcone }) => {
     >
       <svg width={soIcone ? 12 : 13} height={soIcone ? 12 : 13} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
         <path d="M12 2.2 20.2 7v10L12 21.8 3.8 17V7z" fill="#111111" />
-        <path d="M9.6 7.6h3.4c2 0 3.2 1.1 3.2 2.8s-1.2 2.8-3.2 2.8h-1.3v3.2H9.6zm2.1 1.8v2.1h1.2c.7 0 1.1-.4 1.1-1.05s-.4-1.05-1.1-1.05z" fill="#FF6B1A" fillRule="evenodd" />
+        <path d="M8.1 6.6H12.45A3.45 3.45 0 0 1 12.45 13.5H10.95V17.4H8.1ZM10.95 8.7H12.45A1.35 1.35 0 0 1 12.45 11.4H10.95Z" fill="#FF6B1A" fillRule="evenodd" />
       </svg>
       {!soIcone && <span aria-hidden="true">{t('Criador')}</span>}
     </span>

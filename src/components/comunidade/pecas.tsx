@@ -46,7 +46,7 @@ export const AutorLinha: React.FC<{
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[14.5px] font-bold text-[#111111] truncate max-w-[180px] sm:max-w-[260px]">{nome}</span>
           {autor.criador && <SeloCriador />}
-          {autor.pioneiro && <MedalhaPioneiro />}
+          {autor.pioneiro && !autor.criador && <MedalhaPioneiro />}
           {(oficial || autor.operador) && (
             <span className="inline-flex items-center gap-1 h-[20px] pl-1 pr-2 rounded-full bg-[#FF6B1A] text-[#111111] text-[11px] font-bold">
               <BadgeCheck className="w-3.5 h-3.5 stroke-[2.5]" aria-hidden="true" />

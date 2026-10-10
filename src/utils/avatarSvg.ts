@@ -965,14 +965,14 @@ function medalha(k: Ctx, id: string): string {
         P(estrelaD(50, 63, 15, 6.4, 2, 1.2), degrade(k, '#D98E00', '#A56A00')) + brilhoM('M29 52 C32 44 38 40 44 39', 4.5);
     }
     case 'criador': {
-      // Hexágono laranja com o P da marca, aro dourado e estrela: só a conta do Criador
+      // Hexágono laranja com o P da marca e aro dourado: só a conta do Criador
       const hex = (r: number) => Array.from({ length: 6 }, (_, i) => { const a = ((-90 + i * 60) * Math.PI) / 180; return `${f(50 + r * Math.cos(a))},${f(50 + r * Math.sin(a))}`; }).join(' ');
       const dHex = (r: number) => `M ${hex(r).split(' ').join(' L ')} Z`;
-      const letraP = 'M39 29 H55 C66 29 73 35 73 44.5 C73 54 66 60 55 60 H49 V73 H39 Z M49 38 V51 H54 C58 51 61 48.8 61 44.5 C61 40.2 58 38 54 38 Z';
+      // P geométrico, caixa de 26×36 centrada em (50, 50): haste à esquerda, bojo em meia-lua e contraforma redonda
+      const letraP = 'M37 32 H51.5 A11.5 11.5 0 0 1 51.5 55 H46.5 V68 H37 Z M46.5 39 H51.5 A4.5 4.5 0 0 1 51.5 48 H46.5 Z';
       return aroMedalha(`<path d="${dHex(43)}"/>`) + P(dHex(43), degrade(k, '#FFE070', '#E39A00')) +
         P(dHex(37), degrade(k, '#FF8A3D', '#E5530A')) + P(dHex(30), '#111111') +
-        `<path d="${letraP}" fill="#FF6B1A" fill-rule="evenodd"/>` +
-        P(estrelaD(50, 17, 6.5, 2.8, 1, 0.6), '#FFFFFF') + brilhoM('M27 28 L37 17', 3.6);
+        `<path d="${letraP}" fill="#FF6B1A" fill-rule="evenodd"/>` + brilhoM('M27 28 L37 17', 3.6);
     }
     default:
       return `<circle cx="50" cy="50" r="30" fill="none" stroke="#B8B8B2" stroke-width="5" stroke-dasharray="7 9" stroke-linecap="round"/>`;

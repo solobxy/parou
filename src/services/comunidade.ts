@@ -27,6 +27,8 @@ export interface Publicacao {
   titulo: string;
   texto: string;
   tipo: TipoConversa;
+  /** Imagens da publicação (só nas novidades da PAROU) */
+  imagens?: string[];
   operador?: string;
   linha?: string;
   concelho?: string;

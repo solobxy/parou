@@ -55,6 +55,7 @@ export interface PublicacaoSaida {
   titulo: string;
   texto: string;
   tipo: string;
+  imagens?: string[];
   operador?: string;
   linha?: string;
   concelho?: string;
@@ -141,6 +142,15 @@ function distanciaKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return 12742 * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+/** Imagens de uma publicação: só caminhos da pasta /novidades/ (são ficheiros da própria PAROU) */
+function imagensDe(bruto: unknown): string[] {
+  if (!bruto) return [];
+  try {
+    const lista = JSON.parse(String(bruto));
+    return Array.isArray(lista) ? lista.filter((c) => typeof c === 'string' && /^\/novidades\/[a-z0-9._-]+\.(jpg|png|webp)$/i.test(c)).slice(0, 4) : [];
+  } catch { return []; }
+}
+
 function paraPublicacao(l: any, viewer: Conta | null, votos: Map<string, number>, denuncias: Set<string>, origem?: { lat: number; lon: number }): PublicacaoSaida {
   const tem = l.lat !== null && l.lat !== undefined && l.lon !== null && l.lon !== undefined;
   return {
@@ -148,6 +158,7 @@ function paraPublicacao(l: any, viewer: Conta | null, votos: Map<string, number>
     titulo: l.estado === 'apagada' ? '' : String(l.titulo),
     texto: l.estado === 'apagada' ? '' : String(l.texto || ''),
     tipo: String(l.tipo),
+    ...(l.estado !== 'apagada' && imagensDe(l.imagens).length ? { imagens: imagensDe(l.imagens) } : {}),
     ...(l.operador ? { operador: String(l.operador) } : {}),
     ...(l.linha ? { linha: String(l.linha) } : {}),
     ...(l.concelho ? { concelho: String(l.concelho) } : {}),
@@ -425,7 +436,7 @@ export function apagarConteudo(viewer: Conta | null, admin: boolean, alvoId: unk
     if (!alvo) return;
     const eAutor = !!viewer && alvo.linha.autor_id === viewer.id;
     if (!eAutor && !admin) throw new ErroConta('proibido', 'Sem permissão.', 403);
-    if (alvo.tabela === 'publicacoes') base().prepare(`UPDATE publicacoes SET estado = 'apagada', titulo = '', texto = '' WHERE id = ?`).run(alvoId);
+    if (alvo.tabela === 'publicacoes') base().prepare(`UPDATE publicacoes SET estado = 'apagada', titulo = '', texto = '', imagens = NULL WHERE id = ?`).run(alvoId);
     else base().prepare(`UPDATE respostas SET estado = 'apagada', texto = '' WHERE id = ?`).run(alvoId);
   });
 }

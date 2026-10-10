@@ -179,6 +179,12 @@ function migrar(b: DatabaseSync) {
     if (!colunas.includes('suspenso_ate')) b.exec('ALTER TABLE utilizadores ADD COLUMN suspenso_ate INTEGER');
     b.exec('PRAGMA user_version = 2');
   }
+  if (versao < 3) {
+    // Imagens nas publicações (só as da própria PAROU nas novidades: lista de caminhos em JSON)
+    const colunas = (b.prepare('PRAGMA table_info(publicacoes)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!colunas.includes('imagens')) b.exec('ALTER TABLE publicacoes ADD COLUMN imagens TEXT');
+    b.exec('PRAGMA user_version = 3');
+  }
 }
 
 /** Executa várias gravações como uma só: ou ficam todas, ou nenhuma. */

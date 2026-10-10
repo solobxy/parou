@@ -1,7 +1,12 @@
-// Novidades da app já escritas para o canal do WhatsApp (painel "Para o WhatsApp" › Novidades).
-// Sempre que se publica algo que as pessoas vejam, acrescenta-se aqui uma entrada no topo, com o texto
-// pronto a colar. O que já foi publicado fica marcado no telemóvel do administrador e deixa de aparecer.
-// Formato do WhatsApp: *negrito* (os asteriscos colados ao texto) e _itálico_. Textos curtos e diretos.
+// Novidades da app já escritas, com imagem, para o canal do WhatsApp (painel "Para o WhatsApp" › Novidades)
+// e para a Comunidade.
+//
+// Como se acrescenta uma novidade (sempre que sai algo que as pessoas vejam):
+//   1. Entrada nova aqui, com texto curto e pronto a colar. Formato do WhatsApp: *negrito* e _itálico_.
+//   2. Imagem (ou imagens) a condizer, em public/novidades/<id>-1.jpg, 1080×1080, mesmo estilo dos outros cartazes.
+//   3. Se for das mais úteis ou das mais giras, escreve-se também o texto `comunidade` (curto): o servidor
+//      publica-o sozinho na Comunidade, pela conta do Criador, uma única vez e com intervalo entre posts.
+// O que já foi publicado no WhatsApp fica marcado no telemóvel do administrador e deixa de aparecer.
 
 export interface NovidadeCanal {
   /** Fixo: é com ele que o painel lembra o que já foi publicado (nunca mudar nem reutilizar) */
@@ -11,11 +16,13 @@ export interface NovidadeCanal {
   /** Etiqueta no painel */
   etiqueta: string;
   titulo: string;
-  /** Texto final, como vai para o canal */
+  /** Texto final, como vai para o canal do WhatsApp */
   texto: string;
+  /** Imagens a condizer (caminhos em /novidades/…), quadradas 1080×1080 */
+  imagens?: string[];
   /**
-   * Texto simples para a Comunidade. Se existir, o servidor publica a novidade sozinho, pela conta do
-   * Criador, uma única vez (várias do mesmo dia saem juntas numa só publicação).
+   * Texto curto (uma ou duas frases) para a Comunidade. Se existir, o servidor publica a novidade sozinho,
+   * num post só dela, pela conta do Criador, uma única vez. Só as mais úteis ou mais giras levam este texto.
    */
   comunidade?: string;
 }
@@ -38,6 +45,22 @@ Aqui vais receber:
 Experimenta: vê os próximos autocarros, metro e comboios perto de ti, em tempo real.
 
 parou.pt`,
+    imagens: ['/novidades/boas-vindas-1.jpg'],
+  },
+  {
+    id: 'planeador',
+    data: '2026-10-10',
+    etiqueta: 'Novidade',
+    titulo: 'Planeia a viagem e sai a horas',
+    texto: `🧭 *Planeia a viagem e sai a horas*
+
+Escreve para onde vais e a PAROU encontra o caminho, com até 3 transbordos e a parte a pé incluída.
+
+Carrega em *Avisar-me antes de sair de casa* e recebes uma notificação na hora certa, mesmo com a app fechada.
+
+parou.pt`,
+    imagens: ['/novidades/planeador-1.jpg'],
+    comunidade: 'Escreve para onde vais e a PAROU encontra o caminho. E avisa-te quando deves sair de casa, mesmo com a app fechada.',
   },
   {
     id: 'comunidade',
@@ -53,7 +76,7 @@ Participar dá reputação, e a reputação desbloqueia personagens, fundos e me
 🏅 Quem criar conta até 31/12/2026 fica com a medalha *Pioneiro*.
 
 parou.pt/comunidade`,
-    comunidade: "Já podes perguntar, avisar do que está mal e agradecer a quem ajudou, sem anúncios. Participar dá reputação, e quem criar conta até 31/12/2026 fica com a medalha Pioneiro.",
+    imagens: ['/novidades/comunidade-1.jpg'],
   },
   {
     id: 'avatar',
@@ -67,7 +90,8 @@ Escolhe entre 7 personagens (Paro, Estrela, Gato, Cato, Camaleão, Autocarro e P
 Umas peças são livres; as outras abrem com reputação.
 
 parou.pt/comunidade`,
-    comunidade: "7 personagens (Paro, Estrela, Gato, Cato, Camaleão, Autocarro e Paragem), com chapéus, óculos, roupas, objetos e 18 fundos. Umas peças são livres e as outras abrem com reputação.",
+    imagens: ['/novidades/avatar-1.jpg', '/novidades/avatar-2.jpg'],
+    comunidade: '7 personagens, chapéus, roupas, objetos e 18 fundos para fazeres o teu avatar. Aparece nos teus comentários.',
   },
   {
     id: 'medalhas',
@@ -81,33 +105,8 @@ São só para quem ganha reputação: coração e laço aos 50 pontos, estrela e
 Aparecem junto ao teu avatar nos comentários.
 
 parou.pt/comunidade`,
-    comunidade: "Coração e laço aos 50 pontos, estrela e trevo aos 75, roseta e escudo aos 100, diamante e medalha de ouro aos 200. Aparecem junto ao teu avatar nos comentários.",
-  },
-  {
-    id: 'perto-fluido',
-    data: '2026-10-10',
-    etiqueta: 'Novidade',
-    titulo: 'Perto de ti, mais fluido e preciso',
-    texto: `📍 *Perto de ti, mais fluido e mais preciso*
-
-O mapa ficou mais leve e a tua posição deixou de "tremer". Quando o sinal de GPS está fraco, vês um círculo com a margem de erro, e as distâncias às paragens atualizam enquanto andas.
-
-parou.pt`,
-    comunidade: "O mapa do Perto ficou mais leve e a tua posição deixou de tremer. Com sinal de GPS fraco vês um círculo com a margem de erro, e as distâncias às paragens atualizam enquanto andas.",
-  },
-  {
-    id: 'planeador',
-    data: '2026-10-10',
-    etiqueta: 'Novidade',
-    titulo: 'Planeia a viagem e sai a horas',
-    texto: `🧭 *Planeia a viagem e sai a horas*
-
-Escreve para onde vais e a PAROU encontra o caminho, com até 3 transbordos e a parte a pé incluída.
-
-Carrega em *Avisar-me antes de sair de casa* e recebes uma notificação na hora certa, mesmo com a app fechada.
-
-parou.pt`,
-    comunidade: "Escreve para onde vais e a PAROU encontra o caminho, com até 3 transbordos e a parte a pé. Em Avisar-me antes de sair de casa recebes uma notificação na hora certa, mesmo com a app fechada.",
+    imagens: ['/novidades/medalhas-1.jpg', '/novidades/medalhas-2.jpg'],
+    comunidade: 'Coração, laço, estrela, trevo, roseta, escudo, diamante e ouro. Ganham-se com reputação e aparecem junto ao teu avatar.',
   },
   {
     id: 'alertas-noticias',
@@ -121,7 +120,20 @@ parou.pt`,
 Em *Notícias* tens greves, tempo, trânsito e feriados.
 
 parou.pt/alertas`,
-    comunidade: "Alertas mostra no mapa o que está a afetar os transportes agora (avisos da Carris Metropolitana, Metro de Lisboa, incêndios e sismos). Em Notícias tens greves, tempo, trânsito e feriados.",
+    imagens: ['/novidades/alertas-noticias-1.jpg'],
+    comunidade: 'Vê no mapa o que está a afetar os transportes agora e, em Notícias, greves, tempo e trânsito.',
+  },
+  {
+    id: 'perto-fluido',
+    data: '2026-10-10',
+    etiqueta: 'Novidade',
+    titulo: 'Perto de ti, mais fluido e preciso',
+    texto: `📍 *Perto de ti, mais fluido e mais preciso*
+
+O mapa ficou mais leve e a tua posição deixou de "tremer". Quando o sinal de GPS está fraco, vês um círculo com a margem de erro, e as distâncias às paragens atualizam enquanto andas.
+
+parou.pt`,
+    imagens: ['/novidades/perto-fluido-1.jpg'],
   },
   {
     id: 'ingles',
@@ -133,6 +145,6 @@ parou.pt/alertas`,
 Toca em *EN* no topo e a app muda para inglês. Útil para quem visita Portugal.
 
 parou.pt`,
-    comunidade: "Toca em EN no topo e a app muda para inglês.",
+    imagens: ['/novidades/ingles-1.jpg'],
   },
 ];

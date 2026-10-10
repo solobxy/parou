@@ -8,6 +8,7 @@ import {
 } from '../../services/comunidade';
 import { AutorLinha, EtiquetaTipo, Etiqueta, VotoPilula, textoDeErro } from './pecas';
 import { AcoesConteudo, AlvoAcoes } from './AcoesConteudo';
+import { ImagensPost } from './ImagensPost';
 
 interface DiscussaoProps {
   id: string;
@@ -419,6 +420,7 @@ export const Discussao: React.FC<DiscussaoProps> = ({ id, utilizador, onEntrar, 
         {!apagada && p.texto && (
           <p className="mt-2.5 text-[16px] leading-[1.55] text-[#1F1F1F] whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-w-[68ch]">{p.texto}</p>
         )}
+        {!apagada && <ImagensPost imagens={p.imagens} alt={p.titulo} grande />}
 
         {!apagada && (
           <div className="mt-3 flex items-center gap-3">
