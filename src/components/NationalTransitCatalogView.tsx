@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { TransitCatalogEntry, CatalogFilterState } from '../types/catalog';
 import { fetchTransitCatalog, probeCatalogSource, calculateCatalogStats, filterCatalog } from '../services/catalogApi';
+import { eAdmin } from '../utils/admin';
 
 interface NationalTransitCatalogViewProps {
   onBackToMap?: () => void;
@@ -194,14 +195,14 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                           Ver ocorrências deste operador
                         </button>
                       )}
-                      <button
+                      {eAdmin() && <button
                         onClick={(e) => handleProbeSingle(e, op.id)}
                         disabled={isProbing}
                         className="px-3 h-9 bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] rounded-[8px] text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-60"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 stroke-[2] ${isProbing ? 'animate-spin' : ''}`} />
                         {isProbing ? 'A verificar…' : 'Verificar fonte'}
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 )}

@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import {
   classifyOccurrenceText,
@@ -67,7 +68,7 @@ process.env.DISABLE_HMR = 'true';
 
 const app = express();
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 // Proteção contra abusos (robôs a pedir sem parar ou uma app com um erro em ciclo): limite
 // generoso por endereço IP. Nas redes móveis muitas pessoas partilham o mesmo IP, por isso
@@ -90,6 +91,27 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     return res.status(429).json({ erro: 'Demasiados pedidos. Tenta daqui a pouco.' });
   }
   next();
+});
+
+// Rotas de administração e diagnóstico: só com a chave PAROU_ADMIN_TOKEN (no /etc/parou.env).
+// Sem chave configurada ficam todas fechadas. A chave vem no cabeçalho x-parou-admin ou em ?chave=.
+const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
+const ROTAS_ADMIN: Array<[string, RegExp]> = [
+  ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+|diagnostico-unir\/paragens)\/?$/],
+  ['GET', /^\/api\/(transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
+  ['GET', /^\/(debug\/.*|diagnostico-unir)\/?$/],
+];
+function pedidoDeAdmin(req: Request): boolean {
+  if (CHAVE_ADMIN.length < 16) return false;
+  const dada = String(req.headers['x-parou-admin'] || req.query.chave || '');
+  if (dada.length !== CHAVE_ADMIN.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(dada), Buffer.from(CHAVE_ADMIN));
+}
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const protegida = ROTAS_ADMIN.some(([m, re]) => m === req.method && re.test(req.path));
+  if (!protegida || pedidoDeAdmin(req)) return next();
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(403).json({ erro: 'Só para administração.' });
 });
 // IndexNow (Bing e outros): avisa das páginas novas quando o parou.pt já aponta para aqui
 registarIndexNow(app);
@@ -1438,7 +1460,7 @@ function guardarDiagnostico(prefixo: string, txt: string) {
 }
 app.post('/api/diagnostico-unir', (req: Request, res: Response) => {
   try {
-    const txt = JSON.stringify(req.body || {}).slice(0, 2_000_000);
+    const txt = JSON.stringify(req.body || {}).slice(0, 50_000);
     guardarDiagnostico('diag-unir', txt);
     console.log(`[Diag UNIR] relatório recebido (${txt.length} bytes)`);
     res.json({ ok: true });

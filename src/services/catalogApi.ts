@@ -1,5 +1,6 @@
 import { TransitCatalogEntry, CatalogStats, CatalogFilterState } from '../types/catalog';
 import { INITIAL_TRANSIT_CATALOG } from '../data/nationalTransitCatalog';
+import { cabecalhosAdmin } from '../utils/admin';
 
 export interface CatalogApiResponse {
   catalog: TransitCatalogEntry[];
@@ -38,6 +39,7 @@ export async function probeCatalogSource(operatorId?: string): Promise<{
     const res = await fetch('/api/transit-catalog/probe', {
       method: 'POST',
       headers: {
+        ...cabecalhosAdmin(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ operatorId }),

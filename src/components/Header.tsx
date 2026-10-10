@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
+import { eAdmin } from '../utils/admin';
 
 interface HeaderProps {
   activeTab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage';
@@ -58,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   publicReportsCount,
   favoritesCount = 0,
 }) => {
+  const admin = eAdmin();
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -167,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            <button
+            {admin && <button
               onClick={() => onTabChange('coverage')}
               className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'coverage'
@@ -177,7 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Database className="w-4 h-4 stroke-[2]" />
               <span>Cobertura</span>
-            </button>
+            </button>}
 
             {/* Mais Dropdown */}
             <div className="relative shrink-0" ref={moreMenuRef}>
@@ -256,7 +258,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Reclamações</span>
                     </button>
 
-                    <button
+                    {admin && <button
                       onClick={() => {
                         onTabChange('coverage');
                         setIsMoreMenuOpen(false);
@@ -267,7 +269,7 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <Database className="w-4 h-4 stroke-[2]" />
                       <span>Cobertura</span>
-                    </button>
+                    </button>}
                   </div>
 
                   {(onOpenPublicSourcesModal || onOpenAdminModal) && (
@@ -292,7 +294,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </button>
                       )}
 
-                      {onOpenAdminModal && (
+                      {onOpenAdminModal && admin && (
                         <button
                           onClick={() => {
                             onOpenAdminModal();

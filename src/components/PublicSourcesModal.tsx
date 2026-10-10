@@ -9,6 +9,7 @@ import {
 import { Occurrence, PublicSourceConfig } from '../types';
 import { fetchPublicSourcesList, syncPublicSourcesNow } from '../services/publicSourcesClient';
 import { quandoAconteceu } from '../utils/quando';
+import { eAdmin } from '../utils/admin';
 
 interface PublicSourcesModalProps {
   isOpen: boolean;
@@ -78,14 +79,14 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
 
           <div className="flex items-center gap-2">
             {/* Primary Action Button: Brand chamfer */}
-            <button
+            {eAdmin() && <button
               onClick={handleSyncNow}
               disabled={isSyncing}
               className="px-4 py-2 rounded-[8px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-xs flex items-center gap-2 min-h-[44px] cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 stroke-[2] ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'A sincronizar...' : 'Atualizar fontes'}</span>
-            </button>
+            </button>}
 
             <button
               onClick={onClose}

@@ -333,19 +333,25 @@ export async function getTmlEtas(): Promise<TmlEtaRaw[]> {
 // -------------------------------------------------------------
 // 5. SERVICE ALERTS
 // -------------------------------------------------------------
+let falhasAlertasSeguidas = 0;
 export async function getTmlAlerts(): Promise<TmlAlertRaw[]> {
   const cached = getCache<TmlAlertRaw[]>('tml_alerts');
   if (cached) return cached;
 
   try {
-    const res = await fetch(`${API_BASE}/alerts`, { headers: HEADERS });
+    const res = await fetch(`${API_BASE}/alerts`, { headers: HEADERS, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     const json = await res.json();
     const alerts: TmlAlertRaw[] = json.data || [];
     setCache('tml_alerts', alerts, 60 * 1000); // 60s cache
+    falhasAlertasSeguidas = 0;
     return alerts;
   } catch (err) {
-    recordError('/alerts', err);
+    // O serviço da TML falha muitas vezes: espera mais entre tentativas (1, 2, 4… até 15 min)
+    // e só regista no log a primeira falha de cada série, para não encher o registo.
+    falhasAlertasSeguidas++;
+    if (falhasAlertasSeguidas === 1 || falhasAlertasSeguidas % 20 === 0) recordError('/alerts', err);
+    setCache('tml_alerts', [], Math.min(15, 2 ** Math.min(falhasAlertasSeguidas - 1, 4)) * 60 * 1000);
     return [];
   }
 }
