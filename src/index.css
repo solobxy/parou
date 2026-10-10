@@ -57,6 +57,13 @@
   }
 }
 
+/* Ecrãs de leitura: dá para ampliar com dois dedos (WCAG 1.4.4). No Perto (pagina-fixa) e dentro
+   dos mapas continua bloqueado, porque ali ampliar a página estraga o ecrã. */
+html:not(.pagina-fixa),
+html:not(.pagina-fixa) body {
+  touch-action: pan-y pinch-zoom;
+}
+
 /* Perto no telemóvel: a página não desliza (só a lista lá dentro), para o cabeçalho
    ficar sempre à vista e o mapa não "fugir" para cima */
 html.pagina-fixa,

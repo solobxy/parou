@@ -407,6 +407,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
   });
   const [verMaisDestaques, setVerMaisDestaques] = useState(false);
   const [verMaisNoticias, setVerMaisNoticias] = useState(false);
+  const [tempoAberto, setTempoAberto] = useState(false);
 
   // Usa o GPS só se já estiver autorizado (sem pedir nada neste separador)
   useEffect(() => {
@@ -648,6 +649,47 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Tempo */}
       {!dados && aCarregar ? (
         <div className="rounded-[16px] bg-[#F4F4F2] h-[188px] animate-pulse" />
+      ) : dados && (agora || hoje) && avisosLocais.length === 0 ? (
+        /* Sem avisos: o tempo passa a uma linha discreta (toca para ver os próximos dias) */
+        <section className="rounded-[14px] bg-[#111111] text-[#FFFFFF] overflow-hidden" data-teste="tempo-compacto">
+          <button
+            type="button"
+            onClick={() => setTempoAberto((v) => !v)}
+            aria-expanded={tempoAberto}
+            className="w-full min-h-[56px] px-3.5 py-2.5 flex items-center gap-3 text-left cursor-pointer"
+          >
+            <IconeTempo icone={agora?.icone || hoje?.icone || 'nuvens'} className="w-8 h-8 text-[#FF6B1A] shrink-0" />
+            <span className="font-['Barlow_Condensed'] text-[34px] leading-none font-bold tabular-nums shrink-0">
+              {agora ? `${agora.temperatura}°` : `${hoje?.tMax}°`}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-semibold leading-tight truncate">
+                {agora?.descricao || hoje?.descricao} · {dados.local.distrito}
+              </span>
+              <span className="block text-[12px] text-white/70 leading-tight mt-0.5 truncate">
+                {hoje ? `${hoje.tMin}° / ${hoje.tMax}° · ` : ''}Sem avisos meteorológicos
+              </span>
+            </span>
+            {dias.length > 1 && (
+              <ChevronDown className={`w-4 h-4 shrink-0 text-white/70 transition-transform ${tempoAberto ? 'rotate-180' : ''}`} aria-hidden="true" />
+            )}
+          </button>
+          {tempoAberto && dias.length > 1 && (
+            <div className="grid grid-cols-3 border-t border-white/10">
+              {dias.slice(0, 3).map((d) => (
+                <div key={d.data} className="px-3 py-2.5 flex items-center gap-2 border-r border-white/10 last:border-r-0 min-w-0">
+                  <IconeTempo icone={d.icone} className="w-5 h-5 text-white/80 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-white/70 capitalize truncate">{d.rotulo}</div>
+                    <div className="font-['Barlow_Condensed'] text-[15px] font-bold tabular-nums leading-tight">
+                      {d.tMin}°<span className="text-white/40"> / </span>{d.tMax}°
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       ) : dados && (agora || hoje) ? (
         <section className="rounded-[16px] bg-[#111111] text-[#FFFFFF] overflow-hidden shadow-[0_8px_24px_rgba(17,17,17,0.18)]">
           <div className="p-4 pb-3 flex items-start justify-between gap-3">
@@ -789,7 +831,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {dados && (filtro === 'incendios' || (filtro === 'tudo' && incendiosPerto.length > 0)) && (
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111] flex items-center gap-1.5">
+            <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-[#FF6B1A]" />
               {filtro === 'incendios' ? 'Incêndios ativos' : 'Incêndios perto'}
               <span className="font-['Barlow_Condensed'] text-[13px] text-[#6B6B6B] tabular-nums">
@@ -833,7 +875,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {filtro !== 'incendios' && (
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111]">Na rede e na estrada</h2>
+          <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111]">Na rede e na estrada</h2>
           {onVerMapa && (
             <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">Ver no mapa</button>
           )}
@@ -908,7 +950,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
 
       {/* Notícias */}
       <section className="space-y-2">
-        <h2 className="font-['Barlow_Condensed'] text-[15px] font-bold uppercase tracking-[0.08em] text-[#111111] flex items-center gap-1.5">
+        <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
           <Newspaper className="w-4 h-4" /> Notícias
         </h2>
         {!dados && aCarregar ? (

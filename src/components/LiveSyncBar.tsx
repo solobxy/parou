@@ -51,7 +51,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
   });
 
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-[8px] border border-[#E6E6E3] bg-[#F4F4F2] px-3.5 py-2 mb-3.5 flex flex-wrap items-center justify-between gap-2.5">
+    <div className="w-full max-w-full overflow-hidden rounded-[8px] border border-[#E6E6E3] bg-[#F4F4F2] px-3 sm:px-3.5 py-1.5 sm:py-2 mb-2.5 sm:mb-3.5 flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1">
       {/* Left side: Live indicator and timestamp */}
       <div className="flex items-center gap-3">
         {isOffline ? (
@@ -69,9 +69,10 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
         <div className="h-3 w-px bg-[#E6E6E3]" />
 
         <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B]">
-          <span>Atualizado:</span>
+          <span className="hidden sm:inline">Atualizado:</span>
           <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums text-xs">
-            {formattedTime}
+            <span className="sm:hidden">{formattedTime.slice(0, 5)}</span>
+            <span className="hidden sm:inline">{formattedTime}</span>
           </span>
           <span className="hidden sm:inline">({relativeTime})</span>
         </div>
@@ -113,9 +114,9 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
         {publicCount !== undefined && publicCount > 0 && onOpenPublicSourcesModal && (
           <button
             onClick={onOpenPublicSourcesModal}
-            className="text-xs text-[#111111] hover:underline font-semibold cursor-pointer"
+            className="text-xs text-[#111111] underline-offset-2 hover:underline font-semibold cursor-pointer min-h-[32px] px-1"
           >
-            {publicCount} fontes
+            Fontes públicas
           </button>
         )}
       </div>

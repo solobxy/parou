@@ -94,11 +94,11 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
   };
 
   return (
-    <div className="w-full rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] p-3 mb-3.5">
-      {/* Top Search Input & Action Row */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+    <div className="w-full rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] p-2.5 sm:p-3 mb-2.5 sm:mb-3.5">
+      {/* Top Search Input & Action Row (no telemóvel: tudo numa só linha) */}
+      <div className="flex flex-row items-center gap-2 sm:gap-2.5">
         {/* Search input with live clear */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#6B6B6B]">
             <Search className="w-4 h-4 stroke-[2]" />
           </div>
@@ -120,7 +120,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
         </div>
 
         {/* Counter Buttons & Filter Toggle */}
-        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+        <div className="flex shrink-0 sm:flex-wrap items-center justify-end gap-2">
           {reportsCount !== undefined && (
             <button
               onClick={() => onViewChange && onViewChange('reports')}
@@ -140,7 +140,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
           {transitCount !== undefined && (
             <button
               onClick={() => onViewChange && onViewChange('horarios')}
-              className={`px-3 py-2 rounded-[8px] border text-xs font-semibold cursor-pointer flex items-center gap-1.5 min-h-[44px] ${
+              className={`hidden sm:flex px-3 py-2 rounded-[8px] border text-xs font-semibold cursor-pointer items-center gap-1.5 min-h-[44px] ${
                 activeView === 'horarios'
                   ? 'bg-[#111111] text-[#FFFFFF] border-[#111111]'
                   : 'bg-[#F4F4F2] text-[#111111] border-[#E6E6E3] hover:bg-[#E6E6E3]'
@@ -156,12 +156,13 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
           {/* Mobile Filter Button */}
           <button
             onClick={() => setIsMobileModalOpen(true)}
-            className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[44px] cursor-pointer"
+            className="md:hidden relative flex items-center justify-center gap-1.5 w-11 sm:w-auto sm:px-3 h-11 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] text-xs font-semibold cursor-pointer"
+            aria-label={activeCount > 0 ? `Filtros (${activeCount} ativos)` : 'Filtros'}
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 stroke-[2]" />
-            <span>Filtros</span>
+            <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
+            <span className="hidden sm:inline">Filtros</span>
             {activeCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#111111] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 sm:static min-w-[18px] h-[18px] px-1 rounded-full bg-[#111111] text-[#FFFFFF] text-[10px] font-bold flex items-center justify-center">
                 {activeCount}
               </span>
             )}

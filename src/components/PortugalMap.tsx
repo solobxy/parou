@@ -431,11 +431,62 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     pontosMarkersRef.current.forEach((m) => m.remove());
     pontosMarkersRef.current = [];
     const visiveis = pontos
-      .filter((p) => !camadasOcultas.has(grupoDoPonto(p.tipo)))
+      .filter((p) => !camadasOcultas.has(grupoDoPonto(p.tipo)) && Number.isFinite(p.lat) && Number.isFinite(p.lon))
       // Os mais graves por cima
       .sort((a, b) => (a.gravidade === 'Grave' ? 1 : 0) - (b.gravidade === 'Grave' ? 1 : 0));
+
+    // Pontos que ficariam em cima uns dos outros juntam-se numa bolha com o número (só com o mapa
+    // afastado; ao aproximar separam-se sozinhos). Toca na bolha para aproximar.
+    const RAIO_PX = 36;
+    const ZOOM_SEM_AGRUPAR = 13;
+    type Grupo = { pontos: PontoMapa[]; x: number; y: number };
+    const grupos: Grupo[] = [];
     for (const p of visiveis) {
-      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      if (currentZoom < ZOOM_SEM_AGRUPAR) {
+        const pt = map.project([p.lat, p.lon], currentZoom);
+        const perto = grupos.find((g) => Math.hypot(g.x - pt.x, g.y - pt.y) < RAIO_PX);
+        if (perto) {
+          perto.pontos.push(p);
+          continue;
+        }
+        grupos.push({ pontos: [p], x: pt.x, y: pt.y });
+      } else {
+        grupos.push({ pontos: [p], x: 0, y: 0 });
+      }
+    }
+
+    for (const g of grupos) {
+      if (g.pontos.length > 1) {
+        const n = g.pontos.length;
+        const grave = g.pontos.some((q) => q.gravidade === 'Grave');
+        const lat = g.pontos.reduce((s, q) => s + q.lat, 0) / n;
+        const lon = g.pontos.reduce((s, q) => s + q.lon, 0) / n;
+        const tam = n >= 100 ? 46 : n >= 10 ? 42 : 38;
+        const icone = L.divIcon({
+          className: 'parou-ponto-mapa',
+          html: `<div style="width:${tam}px;height:${tam}px;border-radius:9999px;background:${grave ? '#D92D20' : '#111111'};border:3px solid #FFFFFF;box-shadow:0 3px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 15 : 18}px;line-height:1;cursor:pointer">${n}</div>`,
+          iconSize: [tam, tam],
+          iconAnchor: [tam / 2, tam / 2],
+        });
+        const bolha = L.marker([lat, lon], {
+          icon: icone,
+          zIndexOffset: grave ? 1500 : 800,
+          title: `${n} ocorrências juntas. Toca para aproximar.`,
+        }).addTo(map);
+        bolha.on('click', () => {
+          const limites = L.latLngBounds(g.pontos.map((q) => [q.lat, q.lon] as [number, number]));
+          const zoomAtual = map.getZoom();
+          // Aproxima sempre pelo menos um nível, para as ocorrências se separarem
+          if (map.getBoundsZoom(limites, false, L.point(96, 96)) > zoomAtual) {
+            map.fitBounds(limites, { padding: [48, 48], maxZoom: 14 });
+          } else {
+            map.setView(limites.getCenter(), Math.min(zoomAtual + 2, 14));
+          }
+        });
+        pontosMarkersRef.current.push(bolha);
+        continue;
+      }
+      const p = g.pontos[0];
       const claro = p.cor === '#EAB308' || p.cor === '#F59E0B';
       const traco = claro ? '#111111' : '#FFFFFF';
       const pulsar = p.tipo === 'incendio' && p.gravidade === 'Grave';
@@ -468,7 +519,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       );
       pontosMarkersRef.current.push(marker);
     }
-  }, [pontos, camadasOcultas]);
+  }, [pontos, camadasOcultas, currentZoom]);
 
   // Atribuição do Fogos.pt junto ao mapa quando há incêndios
   useEffect(() => {
@@ -491,9 +542,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         } ${className}`}
       >
         {/* Top Header & Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-2.5 z-10 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-['Barlow_Condensed'] text-sm font-bold text-[#111111] uppercase tracking-wide">
+        <div className="flex flex-row flex-wrap items-center justify-between p-2 sm:p-3 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-x-2 gap-y-1.5 z-10 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* No telemóvel o título fica só para leitores de ecrã: poupa uma linha */}
+            <span className="sr-only sm:not-sr-only font-['Barlow_Condensed'] text-base leading-tight font-bold text-[#111111]">
               Mapa de Ocorrências
             </span>
             <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#111111] font-['Barlow_Condensed'] text-xs font-bold tabular-nums">
@@ -514,14 +566,14 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           </div>
 
           {/* Mode & Region Controls */}
-          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-1.5 justify-end">
             {/* Archipelago Switcher */}
             <div className="flex items-center bg-[#F4F4F2] rounded-[6px] p-0.5 border border-[#E6E6E3]">
               {(['continental', 'madeira', 'acores'] as const).map((arch) => (
                 <button
                   key={arch}
                   onClick={() => handleArchipelagoChange(arch)}
-                  className={`px-2 py-1 rounded-[4px] text-xs font-medium capitalize transition-colors cursor-pointer min-h-[32px] ${
+                  className={`px-1.5 sm:px-2 py-1 rounded-[4px] text-xs font-medium capitalize transition-colors cursor-pointer min-h-[32px] ${
                     activeArchipelago === arch
                       ? 'bg-[#FFFFFF] text-[#111111] font-bold shadow-xs'
                       : 'text-[#6B6B6B] hover:text-[#111111]'

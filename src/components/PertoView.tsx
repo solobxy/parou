@@ -1185,7 +1185,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           />
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="font-['Barlow_Condensed'] text-[22px] leading-none font-bold uppercase tracking-[0.03em] text-[#111111]">
+              <h2 className="font-['Barlow_Condensed'] text-[22px] leading-none font-bold text-[#111111]">
                 Transportes perto
               </h2>
               <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{subtitulo}</p>
