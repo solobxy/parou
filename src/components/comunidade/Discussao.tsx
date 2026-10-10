@@ -229,7 +229,10 @@ export const Discussao: React.FC<DiscussaoProps> = ({ id, utilizador, onEntrar, 
   const [acoes, setAcoes] = useState<AlvoAcoes | null>(null);
   const [aviso, setAviso] = useState('');
   const votosEmCurso = useRef(0);
-  const avisoTimer = useRef<ReturnType<typeof setTimeout>>();
+  // Os avisos ao ecrã de fora ficam numa referência para a leitura da conversa não recomeçar a cada desenho
+  const aoAlterarRef = useRef(onAlterada);
+  aoAlterarRef.current = onAlterada;
+  const avisoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const mostrarAviso = useCallback((texto: string) => {
     setAviso(texto);
@@ -244,12 +247,12 @@ export const Discussao: React.FC<DiscussaoProps> = ({ id, utilizador, onEntrar, 
       if (silencioso && votosEmCurso.current > 0) return;
       setDados(d);
       setEstado('ok');
-      onAlterada?.(d.publicacao);
+      aoAlterarRef.current?.(d.publicacao);
     } catch (err: any) {
       if (err?.estado === 404) { setEstado('nao-existe'); setDados(null); return; }
       if (!silencioso) setEstado('rede');
     }
-  }, [id, onAlterada]);
+  }, [id]);
 
   useEffect(() => {
     setDados(null);
