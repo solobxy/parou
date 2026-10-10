@@ -72,6 +72,7 @@ export interface UserProfile {
   reportsCount: number;
   badge: string;
   createdAt: number;
+  pioneiro?: boolean; // conta criada até ao fim de 2026
 }
 
 export interface DistrictData {

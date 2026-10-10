@@ -227,6 +227,13 @@ function Termos() {
           e, em caso de abuso repetido, suspender a conta. A comunidade pode assinalar conteúdo inadequado.
         </p>
       </Secao>
+      <Secao titulo="Medalha Pioneiro">
+        <p>
+          Quem criar uma conta até às 23:59 de 31 de dezembro de 2026 (hora de Lisboa) recebe, automaticamente, a medalha «Pioneiro»,
+          que aparece no perfil. É gratuita, não se compra nem se pode pedir depois dessa data, e não dá qualquer direito a pagamentos
+          ou a serviços. Se apagares a conta, perdes a medalha e não a podes recuperar criando outra conta depois do prazo.
+        </p>
+      </Secao>
       <Secao titulo="Utilização correta">
         <p>
           Não é permitido tentar perturbar o serviço, aceder a áreas reservadas, nem recolher dados em massa de forma automática sem

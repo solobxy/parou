@@ -27,6 +27,13 @@ export interface PerfilApp {
   reportsCount: number;
   badge: string;
   createdAt: number;
+  pioneiro: boolean;
+}
+
+/** Medalha "Pioneiro": todas as contas criadas até ao fim de 2026 (31/12 às 23:59, hora de Lisboa; em dezembro Lisboa = UTC). */
+export const FIM_PIONEIROS = Date.UTC(2026, 11, 31, 23, 59, 59, 999);
+export function contaPioneira(criado: number): boolean {
+  return Number.isFinite(criado) && criado <= FIM_PIONEIROS;
 }
 
 export function distintivo(pontos: number): string {
@@ -47,6 +54,7 @@ export function perfilDaConta(c: Conta): PerfilApp {
     reportsCount: c.ocorrencias,
     badge: distintivo(c.pontos),
     createdAt: c.criado,
+    pioneiro: contaPioneira(c.criado),
   };
 }
 
