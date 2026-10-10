@@ -88,7 +88,7 @@ function rodape(): string {
   const principais = (ix?.operadores || []).slice(0, 14).map((o) => `<a href="/linhas/${o.slug}">${html(o.nome)}</a>`).join('');
   return `<footer class="rodape"><div class="in">
 <div class="marca" style="font-size:20px">${LOGO_SVG}PAROU</div>
-<nav aria-label="PAROU"><a href="/">Perto de mim</a><a href="/linhas">Linhas e horários</a><a href="/cidades">Cidades</a><a href="/greves">Greves</a><a href="/alertas">Alertas</a><a href="/mapa">Mapa</a><a href="/sobre">Sobre</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a></nav>
+<nav aria-label="PAROU"><a href="/">Perto de mim</a><a href="/linhas">Linhas e horários</a><a href="/cidades">Cidades</a><a href="/greves">Greves</a><a href="/alertas">Alertas</a><a href="/mapa">Mapa</a><a href="/sobre">Sobre</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a><a href="/contactar">Contactar</a></nav>
 <nav aria-label="Operadores">${principais}</nav>
 <p class="nota">Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.</p>
 </div></footer>`;
@@ -806,6 +806,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
   { loc: '/sobre', freq: 'monthly', pri: '0.4' },
   { loc: '/privacidade', freq: 'yearly', pri: '0.2' },
   { loc: '/termos', freq: 'yearly', pri: '0.2' },
+  { loc: '/contactar', freq: 'yearly', pri: '0.3' },
 ];
 
 export function todosOsEnderecos(): string[] {
