@@ -79,6 +79,7 @@ const NationalTransitCatalogView = React.lazy(() => import('./components/Nationa
 const ReclamacoesView = React.lazy(() => import('./components/ReclamacoesView').then((m) => ({ default: m.ReclamacoesView })));
 const ComunidadeView = React.lazy(() => import('./components/ComunidadeView').then((m) => ({ default: m.ComunidadeView })));
 const AdminModerationModal = React.lazy(() => import('./components/AdminModerationModal').then((m) => ({ default: m.AdminModerationModal })));
+const PainelWhatsApp = React.lazy(() => import('./components/PainelWhatsApp').then((m) => ({ default: m.PainelWhatsApp })));
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -204,6 +205,7 @@ export default function App() {
     }
   }, []);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [isPublicSourcesModalOpen, setIsPublicSourcesModalOpen] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
 
@@ -733,6 +735,7 @@ export default function App() {
         currentUser={currentUserProfile}
         onOpenUserProfileModal={() => setIsUserProfileModalOpen(true)}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
         pendingModerationCount={pendingModerationCount}
         onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
         publicReportsCount={publicReportsCount}
@@ -1238,7 +1241,10 @@ export default function App() {
         userReports={userPersonalReports}
         onSelectOccurrence={handleSelectOccurrence}
         onOpenReportModal={() => setIsReportModalOpen(true)}
+        onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
       /></React.Suspense>}
+
+      {isWhatsAppOpen && <React.Suspense fallback={null}><PainelWhatsApp aberta={isWhatsAppOpen} onFechar={() => setIsWhatsAppOpen(false)} /></React.Suspense>}
 
       {isAdminModalOpen && <React.Suspense fallback={null}><AdminModerationModal
         isOpen={isAdminModalOpen}

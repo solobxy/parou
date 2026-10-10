@@ -17,6 +17,7 @@ import {
   Database,
   ChevronDown,
   Users,
+  MessageCircle,
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -33,6 +34,7 @@ interface HeaderProps {
   currentUser?: UserProfile | null;
   onOpenUserProfileModal?: () => void;
   onOpenAdminModal?: () => void;
+  onOpenWhatsApp?: () => void;
   pendingModerationCount?: number;
   onOpenNotificationModal?: () => void;
   isNotificationActive?: boolean;
@@ -54,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenUserProfileModal,
   onOpenAdminModal,
+  onOpenWhatsApp,
   pendingModerationCount,
   onOpenNotificationModal,
   isNotificationActive,
@@ -316,7 +319,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>}
                   </div>
 
-                  {(onOpenPublicSourcesModal || onOpenAdminModal) && (
+                  {(onOpenPublicSourcesModal || onOpenAdminModal || (onOpenWhatsApp && admin)) && (
                     <div className="py-1">
                       {onOpenPublicSourcesModal && (
                         <button
@@ -335,6 +338,20 @@ export const Header: React.FC<HeaderProps> = ({
                               {publicReportsCount}
                             </span>
                           )}
+                        </button>
+                      )}
+
+                      {onOpenWhatsApp && admin && (
+                        <button
+                          onClick={() => {
+                            onOpenWhatsApp();
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#111111] hover:bg-[#F4F4F2] transition-colors cursor-pointer min-h-[44px]"
+                          data-teste="menu-whatsapp"
+                        >
+                          <MessageCircle className="w-4 h-4 stroke-[2]" />
+                          <span>Para o WhatsApp</span>
                         </button>
                       )}
 
