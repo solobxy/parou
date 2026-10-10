@@ -176,6 +176,24 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
   const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
+  // Deslizar o painel com o dedo: para baixo encolhe o painel (mais mapa), para cima volta a crescer
+  const inicioToquePainel = useRef<{ x: number; y: number } | null>(null);
+  const gestoPainel = {
+    onTouchStart: (e: React.TouchEvent) => {
+      const t = e.touches[0];
+      inicioToquePainel.current = t ? { x: t.clientX, y: t.clientY } : null;
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      const inicio = inicioToquePainel.current;
+      inicioToquePainel.current = null;
+      const t = e.changedTouches[0];
+      if (!inicio || !t) return;
+      const dy = t.clientY - inicio.y;
+      const dx = t.clientX - inicio.x;
+      if (Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx) * 1.5) return;
+      setMapaExpandido(dy > 0);
+    },
+  };
   const [pesquisarLocal, setPesquisarLocal] = useState<boolean>(false);
   const [pedidoLento, setPedidoLento] = useState<boolean>(false);
   // Coordenadas arredondadas (~100 m): evita pedir paragens a cada atualização do GPS
@@ -970,7 +988,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       mapRef.current?.invalidateSize();
     }, 320);
     return () => clearTimeout(timer);
-  }, [mapaExpandido]);
+  }, [mapaExpandido, Boolean(linhaAberta)]);
 
   // Primary short alert
   const topAlert = contextualAlerts[0] || null;
@@ -1550,13 +1568,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Detalhe da paragem escolhida */}
         {selectedStop && (
           <div className="painel-paragem absolute inset-0 z-20 flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none">
-            <div className="shrink-0 px-3 pt-2 pb-3 border-b border-[#E6E6E3]">
+            <div className={`shrink-0 px-3 pt-2 border-b border-[#E6E6E3] ${linhaAberta && mapaExpandido ? 'pb-1 max-lg:border-b-0' : 'pb-3'}`} {...gestoPainel}>
+              {/* Pega do painel: toca ou desliza para encolher/aumentar (área de toque maior que a barrinha) */}
               <button
                 onClick={() => setMapaExpandido((v) => !v)}
-                className="lg:hidden block mx-auto w-10 h-1.5 rounded-full bg-[#E6E6E3] mb-2 cursor-pointer"
-                aria-label={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
-              />
-              <div className="flex items-start gap-2.5">
+                className="lg:hidden flex items-center justify-center w-full h-6 -mt-1 mb-1 cursor-pointer"
+                aria-label={mapaExpandido ? 'Aumentar o painel' : 'Encolher o painel'}
+              >
+                <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
+              </button>
+              <div className={`flex items-start gap-2.5 ${linhaAberta && mapaExpandido ? 'max-lg:hidden' : ''}`}>
                 <button
                   onClick={fecharParagem}
                   className="shrink-0 w-10 h-10 -ml-0.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
@@ -1595,7 +1616,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 const grupo = filteredStops
                   .filter((s) => s.id === selectedStop.id || metrosEntre(s, selectedStop) <= 30)
                   .sort((x, y) => String(x.operatorName || '').localeCompare(String(y.operatorName || '')) || String(x.id).localeCompare(String(y.id)));
-                if (grupo.length < 2) return null;
+                if (grupo.length < 2 || (linhaAberta && mapaExpandido)) return null;
                 return (
                   <div className="mt-2.5 -mx-3 px-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-teste="paragens-mesmo-sitio">
                     {grupo.map((s) => {
@@ -1622,7 +1643,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             {/* Percurso da linha escolhida (também desenhado no mapa) */}
             {linhaAberta && (
               <div className="flex-1 min-h-0 flex flex-col" data-teste="percurso-linha">
-                <div className="shrink-0 px-4 py-2.5 flex items-center gap-2.5 border-b border-[#E6E6E3]">
+                <div className="shrink-0 px-4 py-2.5 flex items-center gap-2.5 border-b border-[#E6E6E3]" {...gestoPainel}>
                   <button
                     onClick={fecharLinha}
                     className="shrink-0 h-9 pl-2 pr-3 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[13px] font-semibold text-[#111111] flex items-center gap-1 cursor-pointer"
@@ -1644,6 +1665,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
                       );
                     })()}
                   </div>
+                  <button
+                    onClick={() => setMapaExpandido((v) => !v)}
+                    className="lg:hidden shrink-0 w-10 h-10 -mr-1.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
+                    aria-label={mapaExpandido ? 'Aumentar a lista de paragens' : 'Encolher a lista e ver o mapa'}
+                    aria-expanded={!mapaExpandido}
+                    data-teste="encolher-percurso"
+                  >
+                    {mapaExpandido ? <ChevronUp className="w-5 h-5 stroke-[2.25]" /> : <ChevronDown className="w-5 h-5 stroke-[2.25]" />}
+                  </button>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
                   {linhaAberta.estado === 'a-carregar' && (
@@ -1825,7 +1855,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             ? (gpsStatus === 'denied' || gpsStatus === 'unavailable' || pedidoLento
                 ? (ajudaLocalizacao ? 'h-[84%]' : 'h-[62%] min-h-[340px]')
                 : 'h-[52%] min-h-[320px] max-h-[460px]')
-            : mapaExpandido ? 'h-[68%]' : 'h-[42%] min-h-[230px] max-h-[400px]'
+            : mapaExpandido ? (linhaAberta ? 'h-[78%]' : 'h-[68%]') : 'h-[42%] min-h-[230px] max-h-[400px]'
         }`}
       >
         {/* Pesquisa por cima do mapa (telemóvel) */}
