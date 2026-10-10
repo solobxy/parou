@@ -10,6 +10,7 @@ import {
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/firebase';
 import { quandoAconteceu } from '../utils/quando';
+import { t } from '../i18n';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -65,11 +66,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       >
         {/* Cabeçalho: título e fechar (o "Sair" fica em baixo, longe do X) */}
         <div className="flex items-center justify-between gap-3 -mt-1 mb-3">
-          <h2 className="text-lg font-bold text-[#111111]">A tua conta</h2>
+          <h2 className="text-lg font-bold text-[#111111]">{t('A tua conta')}</h2>
           <button
             onClick={onClose}
             className="-mr-2 w-11 h-11 rounded-full text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2] cursor-pointer flex items-center justify-center"
-            aria-label="Fechar"
+            aria-label={t('Fechar')}
           >
             <X className="w-5 h-5 stroke-[2]" />
           </button>
@@ -102,14 +103,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Reputation strip */}
         <div className="grid grid-cols-2 gap-2 my-4">
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
-            <span className="text-[11px] text-[#6B6B6B]">Pontos de reputação</span>
+            <span className="text-[11px] text-[#6B6B6B]">{t('Pontos de reputação')}</span>
             <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {user.reputationPoints}
             </div>
           </div>
 
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
-            <span className="text-[11px] text-[#6B6B6B]">Ocorrências reportadas</span>
+            <span className="text-[11px] text-[#6B6B6B]">{t('Ocorrências reportadas')}</span>
             <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {userReports.length}
             </div>
@@ -139,7 +140,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] max-h-56 overflow-y-auto">
             {userReports.length === 0 ? (
               <div className="p-6 text-center text-xs text-[#6B6B6B]">
-                Ainda não reportou nenhuma ocorrência.
+                {t('Ainda não reportou nenhuma ocorrência.')}
               </div>
             ) : (
               userReports.map((occ) => (
@@ -181,7 +182,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           data-teste="sair-conta"
         >
           <LogOut className="w-4 h-4 stroke-[2]" />
-          <span>Sair da conta</span>
+          <span>{t('Sair da conta')}</span>
         </button>
 
         {/* Apagar conta (RGPD / Google Play) */}
@@ -191,7 +192,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               onClick={() => setAApagar('confirmar')}
               className="text-[12.5px] font-semibold text-[#D92D20] cursor-pointer min-h-[36px]"
             >
-              Apagar conta
+              {t('Apagar conta')}
             </button>
           ) : (
             <div className="rounded-[10px] border border-[#F3C5C1] bg-[#FDF2F1] p-3 space-y-2">
@@ -212,7 +213,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   onClick={() => { setAApagar('nao'); setErroApagar(''); }}
                   className="h-9 px-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[12.5px] font-semibold text-[#111111] cursor-pointer"
                 >
-                  Cancelar
+                  {t('Cancelar')}
                 </button>
               </div>
             </div>

@@ -16,6 +16,7 @@ import {
   CATEGORIAS_OPTIONS 
 } from '../data/mockData';
 import { getAvailableConcelhos, countActiveFilters } from '../utils/filterUtils';
+import { t } from '../i18n';
 
 interface MobileFilterModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#E6E6E3] bg-[#FFFFFF] shrink-0">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-[#111111]">
-              Filtros
+              {t('Filtros')}
             </h3>
             {activeCount > 0 && (
               <span className="px-1.5 py-0.2 rounded-full bg-[#111111] text-[#FFFFFF] text-[10px] font-bold">
@@ -86,7 +87,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 1. Distrito */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Distrito
+              {t('Distrito')}
             </label>
             <select
               value={filters.distrito}
@@ -111,7 +112,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 2. Concelho */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Concelho
+              {t('Concelho')}
             </label>
             <select
               value={filters.concelho}
@@ -130,7 +131,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 3. Cidade */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Cidade
+              {t('Cidade')}
             </label>
             <select
               value={filters.cidade}
@@ -148,7 +149,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 4. Operador */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Operador
+              {t('Operador')}
             </label>
             <select
               value={filters.operador}
@@ -166,7 +167,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 5. Serviço */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Serviço
+              {t('Serviço')}
             </label>
             <select
               value={filters.servico}
@@ -202,7 +203,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 7. Categoria */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Categoria
+              {t('Categoria')}
             </label>
             <select
               value={filters.categoria !== 'Todas' ? filters.categoria : filters.tipo}

@@ -42,6 +42,7 @@ import {
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------------
 // Tipos da resposta de /api/alertas
@@ -180,7 +181,7 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
       <div className="min-w-0 flex-1">
         {estado === 'ligado' ? (
           <>
-            <div className="text-[14px] font-semibold text-[#111111] leading-snug">Avisos ligados</div>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('Avisos ligados')}</div>
             <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
               Vais receber greves, mau tempo e perturbações graves. Para mudar os distritos, toca no sino lá em cima.
             </div>
@@ -194,7 +195,7 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
           </>
         ) : (
           <>
-            <div className="text-[14px] font-semibold text-[#111111] leading-snug">Recebe estes avisos no telemóvel</div>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('Recebe estes avisos no telemóvel')}</div>
             <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
               Greves, mau tempo e perturbações graves em {distrito}, mesmo com a app fechada.
             </div>
@@ -209,7 +210,7 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
           </>
         )}
       </div>
-      <button onClick={fechar} className="shrink-0 w-8 h-8 -mr-1 -mt-1 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label="Fechar">
+      <button onClick={fechar} className="shrink-0 w-8 h-8 -mr-1 -mt-1 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label={t('Fechar')}>
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -373,7 +374,7 @@ function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
             {f.importante && <span className="text-[#D92D20]"> · importante</span>}
           </span>
           <span className="flex items-center gap-1.5 shrink-0">
-            {novo && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
+            {novo && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">{t('Novo')}</span>}
             <span className="font-condensada text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString('pt-PT')} km</span>
           </span>
         </div>
@@ -623,13 +624,13 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Cabeçalho */}
       <header className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[28px] leading-none font-bold tracking-tight text-[#111111]">Alertas</h1>
-          <p className="text-[13px] text-[#6B6B6B] mt-1.5 leading-snug">Greves, tempo, trânsito e feriados que mexem com as tuas viagens.</p>
+          <h1 className="text-[28px] leading-none font-bold tracking-tight text-[#111111]">{t('Alertas')}</h1>
+          <p className="text-[13px] text-[#6B6B6B] mt-1.5 leading-snug">{t('Greves, tempo, trânsito e feriados que mexem com as tuas viagens.')}</p>
         </div>
         <button
           onClick={() => { setACarregar(true); carregar(); }}
           className="shrink-0 w-10 h-10 rounded-full bg-[#F4F4F2] text-[#111111] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
-          aria-label="Atualizar alertas"
+          aria-label={t('Atualizar alertas')}
         >
           <RefreshCw className={`w-4 h-4 stroke-[2] ${aCarregar ? 'animate-spin' : ''}`} />
         </button>
@@ -639,22 +640,22 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       <div className="flex items-center justify-between gap-2 text-xs text-[#6B6B6B]">
         <label className="relative inline-flex items-center gap-1.5 pl-2.5 pr-2 h-9 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[13px] font-semibold text-[#111111] cursor-pointer">
           <MapPin className="w-3.5 h-3.5 stroke-[2] text-[#FF6B1A]" />
-          <span>{dados?.local.distrito || 'A localizar…'}</span>
-          {dados?.local.porGps && !area && <span className="font-normal text-[#6B6B6B]">· perto de ti</span>}
+          <span>{dados?.local.distrito || t('A localizar…')}</span>
+          {dados?.local.porGps && !area && <span className="font-normal text-[#6B6B6B]">{t('· perto de ti')}</span>}
           <ChevronDown className="w-3.5 h-3.5 stroke-[2] text-[#6B6B6B]" />
           <select
             value={area}
             onChange={(e) => escolherArea(e.target.value)}
             className="absolute inset-0 opacity-0 cursor-pointer"
-            aria-label="Escolher distrito"
+            aria-label={t('Escolher distrito')}
           >
-            <option value="">{coords ? 'Perto de mim (GPS)' : 'Automático'}</option>
+            <option value="">{coords ? t('Perto de mim (GPS)') : t('Automático')}</option>
             {(dados?.distritos || []).map((d) => (
               <option key={d.area} value={d.area}>{d.nome}</option>
             ))}
           </select>
         </label>
-        {dados && <span className="tabular-nums">Atualizado às {horaLisboa(dados.atualizado)}</span>}
+        {dados && <span className="tabular-nums">{t('Atualizado às {h}', { h: horaLisboa(dados.atualizado) })}</span>}
       </div>
 
       {dados && <ConviteAvisos distrito={dados.local.distrito} onLigados={onAvisosLigados} />}
@@ -662,7 +663,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {erro && !dados && (
         <div className="rounded-[14px] border border-[#E6E6E3] p-5 text-center text-sm text-[#6B6B6B]">
           Não foi possível carregar os alertas.{' '}
-          <button onClick={() => carregar()} className="font-semibold text-[#111111] underline cursor-pointer">Tentar outra vez</button>
+          <button onClick={() => carregar()} className="font-semibold text-[#111111] underline cursor-pointer">{t('Tentar outra vez')}</button>
         </div>
       )}
 
@@ -676,7 +677,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             type="button"
             onClick={alternarTempo}
             aria-expanded={false}
-            aria-label="Mostrar o tempo completo"
+            aria-label={t('Mostrar o tempo completo')}
             className="w-full min-h-[56px] px-3.5 py-2.5 flex items-center gap-3 text-left cursor-pointer"
           >
             <IconeTempo icone={agora?.icone || hoje?.icone || 'nuvens'} className="w-8 h-8 text-[#FF6B1A] shrink-0" />
@@ -699,7 +700,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           <div className="p-4 pb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.12em] text-white/60 font-semibold">
-                {agora ? 'Tempo agora' : 'Hoje'} · {dados.local.distrito}
+                {agora ? t('Tempo agora') : t('Hoje')} · {dados.local.distrito}
               </div>
               <div className="flex items-end gap-2 mt-1">
                 {agora ? (
@@ -719,11 +720,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               </div>
               <div className="text-[15px] font-semibold mt-2 truncate">{agora?.descricao || hoje?.descricao}</div>
               <div className="text-xs text-white/60 mt-0.5 flex items-center gap-2">
-                {agora?.sensacao !== undefined && <span>Sensação {agora.sensacao}°</span>}
+                {agora?.sensacao !== undefined && <span>{t('Sensação {t}°', { t: agora.sensacao })}</span>}
                 {agora?.vento !== undefined && (
                   <span className="inline-flex items-center gap-1"><Wind className="w-3 h-3" /> {agora.vento} km/h</span>
                 )}
-                {hoje && hoje.probChuva > 0 && <span>Chuva {hoje.probChuva}%</span>}
+                {hoje && hoje.probChuva > 0 && <span>{t('Chuva {p}%', { p: hoje.probChuva })}</span>}
               </div>
             </div>
             <IconeTempo icone={agora?.icone || hoje?.icone || 'nuvens'} className="w-16 h-16 text-[#FF6B1A] shrink-0" />
@@ -761,7 +762,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             <div className="pl-4 pr-1.5 text-[11px] text-white/60 border-t border-white/10 flex items-center justify-between gap-2">
               <span className="py-2 flex items-center gap-1.5 min-w-0">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Sem avisos meteorológicos no distrito · IPMA, Open-Meteo</span>
+                <span className="truncate">{t('Sem avisos meteorológicos no distrito · IPMA, Open-Meteo')}</span>
               </span>
               <button
                 type="button"
@@ -769,7 +770,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 aria-expanded={true}
                 className="shrink-0 h-9 px-2.5 inline-flex items-center gap-1 text-[12px] font-semibold text-white/80 cursor-pointer"
               >
-                Encurtar <ChevronUp className="w-4 h-4" aria-hidden="true" />
+                {t('Encurtar')} <ChevronUp className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -788,7 +789,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             </div>
             <div className="min-w-0 flex-1">
               <div className={`text-[11px] uppercase tracking-[0.12em] font-semibold ${feriado.emDias === 0 ? 'text-[#111111]/85' : 'text-[#6B6B6B]'}`}>
-                {feriado.emDias === 0 ? 'Hoje é feriado' : feriado.ambito === 'tolerancia' ? 'Próxima tolerância' : 'Próximo feriado'}
+                {feriado.emDias === 0 ? t('Hoje é feriado') : feriado.ambito === 'tolerancia' ? t('Próxima tolerância') : t('Próximo feriado')}
                 {feriado.ambito === 'municipal' && feriado.local ? ` · ${feriado.local}` : ''}
                 {feriado.ambito === 'regional' && feriado.local ? ` · ${feriado.local}` : ''}
               </div>
@@ -796,10 +797,10 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               <div className={`text-[13px] mt-0.5 ${feriado.emDias === 0 ? 'text-[#111111]/80' : 'text-[#6B6B6B]'}`}>
                 {feriado.emDias === 0
                   ? 'Os transportes fazem, em regra, o horário de domingos e feriados.'
-                  : `${feriado.diaSemana}, ${dataFeriado(feriado.data)} · ${feriado.emDias === 1 ? 'amanhã' : `daqui a ${feriado.emDias} dias`}`}
+                  : `${feriado.diaSemana}, ${dataFeriado(feriado.data)} · ${feriado.emDias === 1 ? t('amanhã') : t('daqui a {n} dias', { n: feriado.emDias })}`}
               </div>
               {feriado.ambito === 'tolerancia' && (
-                <div className="text-[12px] text-[#6B6B6B] mt-1">Não é feriado obrigatório, mas costuma haver tolerância de ponto.</div>
+                <div className="text-[12px] text-[#6B6B6B] mt-1">{t('Não é feriado obrigatório, mas costuma haver tolerância de ponto.')}</div>
               )}
             </div>
           </div>
@@ -821,7 +822,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       )}
 
       {/* Filtros */}
-      <nav className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Filtrar alertas">
+      <nav className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t('Filtrar alertas')}>
         {FILTROS.map((f) => {
           const ativo = filtro === f.id;
           const n = contagem(f.id);
@@ -833,7 +834,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 ativo ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111]'
               }`}
             >
-              {f.rotulo}
+              {t(f.rotulo)}
               {n > 0 && (
                 <span className={`font-condensada text-[12px] tabular-nums ${ativo ? 'text-white/70' : 'text-[#6B6B6B]'}`}>{n}</span>
               )}
@@ -854,7 +855,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               </span>
             </h2>
             {onVerMapa && listaIncendios.length > 0 && (
-              <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">Ver no mapa</button>
+              <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">{t('Ver no mapa')}</button>
             )}
           </div>
           {listaIncendios.length === 0 ? (
@@ -890,9 +891,9 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {filtro !== 'incendios' && (
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111]">Na rede e na estrada</h2>
+          <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111]">{t('Na rede e na estrada')}</h2>
           {onVerMapa && (
-            <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">Ver no mapa</button>
+            <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">{t('Ver no mapa')}</button>
           )}
         </div>
         {!dados && aCarregar ? (
@@ -903,7 +904,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           <div className="rounded-[14px] border border-dashed border-[#E6E6E3] px-4 py-5 text-[13px] text-[#6B6B6B] flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
             <span>
-              {filtro === 'greves' ? 'Sem greves anunciadas.' : filtro === 'tempo' ? 'Sem avisos meteorológicos relevantes.' : 'Nada a assinalar por agora.'}
+              {filtro === 'greves' ? t('Sem greves anunciadas.') : filtro === 'tempo' ? t('Sem avisos meteorológicos relevantes.') : t('Nada a assinalar por agora.')}
             </span>
           </div>
         ) : (
@@ -929,7 +930,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                           {d.etiqueta}
                         </span>
                         <span className="flex items-center gap-1.5 shrink-0">
-                          {eNovo(d.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
+                          {eNovo(d.id) && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">{t('Novo')}</span>}
                           {d.url && <ExternalLink className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
                           {d.onClick && <Users className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />}
                         </span>
@@ -954,7 +955,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 onClick={() => setVerMaisDestaques((v) => !v)}
                 className="w-full h-11 rounded-[12px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111] cursor-pointer"
               >
-                {verMaisDestaques ? 'Mostrar menos' : `Mostrar mais ${destaquesFiltrados.length - 6}`}
+                {verMaisDestaques ? t('Mostrar menos') : t('Mostrar mais {n}', { n: destaquesFiltrados.length - 6 })}
               </button>
             )}
           </div>
@@ -966,13 +967,13 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Notícias */}
       <section className="space-y-2">
         <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
-          <Newspaper className="w-4 h-4" /> Notícias
+          <Newspaper className="w-4 h-4" /> {t('Notícias')}
         </h2>
         {!dados && aCarregar ? (
           <div className="h-[160px] rounded-[14px] bg-[#F4F4F2] animate-pulse" />
         ) : noticiasFiltradas.length === 0 ? (
           <div className="rounded-[14px] border border-dashed border-[#E6E6E3] px-4 py-5 text-[13px] text-[#6B6B6B]">
-            Sem notícias recentes sobre este tema.
+            {t('Sem notícias recentes sobre este tema.')}
           </div>
         ) : (
           <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
@@ -986,10 +987,10 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               >
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B6B6B]">
                   <span className={n.categoria === 'greve' || n.categoria === 'incendio' ? 'text-[#D92D20]' : n.categoria === 'tempo' ? 'text-[#A16207]' : 'text-[#C2410C]'}>
-                    {CATEGORIAS_NOTICIA[n.categoria]?.rotulo}
+                    {t(CATEGORIAS_NOTICIA[n.categoria]?.rotulo || '')}
                   </span>
                   {n.local && <span className="text-[#111111]">· {dados?.local.distrito}</span>}
-                  {eNovo(n.id) && <span className="ml-auto text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
+                  {eNovo(n.id) && <span className="ml-auto text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">{t('Novo')}</span>}
                 </div>
                 <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-0.5 line-clamp-2">{n.titulo}</div>
                 <div className="text-[12px] text-[#6B6B6B] mt-1 flex items-center gap-1">
@@ -1005,14 +1006,13 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             onClick={() => setVerMaisNoticias((v) => !v)}
             className="w-full h-11 rounded-[12px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111] cursor-pointer"
           >
-            {verMaisNoticias ? 'Mostrar menos' : `Mostrar mais ${noticiasFiltradas.length - 8}`}
+            {verMaisNoticias ? t('Mostrar menos') : t('Mostrar mais {n}', { n: noticiasFiltradas.length - 8 })}
           </button>
         )}
       </section>
 
       <p className="text-[11px] text-[#6B6B6B] leading-relaxed pt-2">
-        Fontes: IPMA e Open-Meteo (tempo), Fogos.pt com dados da ANEPC (incêndios e Proteção Civil), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.
-        As notícias abrem no site de origem.
+        {t('Fontes: IPMA e Open-Meteo (tempo), Fogos.pt com dados da ANEPC (incêndios e Proteção Civil), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.\n        As notícias abrem no site de origem.')}
       </p>
     </div>
   );

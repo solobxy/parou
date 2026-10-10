@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../i18n';
 
 // Se alguma parte da app rebentar, mostra uma mensagem com "Recarregar" em vez de um ecrã
 // branco, e avisa o servidor (sem dados pessoais) para o erro ser corrigido.
@@ -54,7 +55,7 @@ export class ProtecaoErros extends React.Component<{ children: React.ReactNode }
       <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#FFFFFF', fontFamily: 'Barlow, system-ui, sans-serif' }}>
         <div style={{ maxWidth: 340, textAlign: 'center' }}>
           <img src="/icon-192.png" alt="" width={56} height={56} style={{ borderRadius: 14, margin: '0 auto 16px' }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111111', margin: 0 }}>Algo correu mal</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111111', margin: 0 }}>{t('Algo correu mal')}</h1>
           <p style={{ fontSize: 14, color: '#6B6B6B', marginTop: 8, lineHeight: 1.45 }}>
             Já fomos avisados. Recarrega a página para continuar — os teus favoritos estão guardados.
           </p>
@@ -62,7 +63,7 @@ export class ProtecaoErros extends React.Component<{ children: React.ReactNode }
             onClick={() => { try { location.reload(); } catch {} }}
             style={{ marginTop: 18, height: 48, width: '100%', borderRadius: 12, border: 0, background: '#FF6B1A', color: '#111111', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}
           >
-            Recarregar
+            {t('Recarregar')}
           </button>
         </div>
       </div>

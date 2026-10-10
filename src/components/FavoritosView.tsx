@@ -15,6 +15,7 @@ import { CIDADES_OPTIONS } from '../data/mockData';
 import { LineChip } from './LineChip';
 import { InstalarApp } from './InstalarApp';
 import { formatTransitName, parseDepartureTime } from '../utils/transitFormatter';
+import { t } from '../i18n';
 
 interface FavoritosViewProps {
   onOpenLoginModal: () => void;
@@ -122,10 +123,10 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
       <div className="flex flex-row items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-            Favoritos
+            {t('Favoritos')}
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            As tuas paragens e linhas guardadas.
+            {t('As tuas paragens e linhas guardadas.')}
           </p>
         </div>
 
@@ -134,7 +135,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
           className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Adicionar</span>
+          <span>{t('Adicionar')}</span>
         </button>
       </div>
 
@@ -148,7 +149,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
             type="text"
             value={quickAddSearch}
             onChange={(e) => setQuickAddSearch(e.target.value)}
-            placeholder="Pesquisar operador ou cidade..."
+            placeholder={t('Pesquisar operador ou cidade...')}
             className="w-full px-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
             autoFocus
           />
@@ -172,7 +173,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-[#111111] text-[#FFFFFF] rounded-[6px] text-xs font-semibold cursor-pointer min-h-[32px]"
                   >
-                    Guardar
+                    {t('Guardar')}
                   </button>
                 </div>
               ))}
@@ -210,13 +211,13 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
             <Star className="w-8 h-8 mx-auto text-[#6B6B6B] stroke-[1.75]" aria-hidden="true" />
             {(countsByCategory['todos'] || 0) === 0 ? (
               <>
-                <div className="mt-3 text-[15px] font-semibold text-[#111111]">Ainda não guardaste nada</div>
+                <div className="mt-3 text-[15px] font-semibold text-[#111111]">{t('Ainda não guardaste nada')}</div>
                 <p className="mt-1 text-sm text-[#6B6B6B] max-w-[30ch] mx-auto">
-                  Toca na estrela de uma paragem ou linha e ela fica aqui, sempre à mão.
+                  {t('Toca na estrela de uma paragem ou linha e ela fica aqui, sempre à mão.')}
                 </p>
               </>
             ) : (
-              <p className="mt-3 text-sm text-[#6B6B6B]">Nada guardado neste separador.</p>
+              <p className="mt-3 text-sm text-[#6B6B6B]">{t('Nada guardado neste separador.')}</p>
             )}
           </div>
         ) : (
@@ -285,7 +286,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                       removeFavorite(item.id);
                     }}
                     className="p-2 text-[#6B6B6B] hover:text-[#D92D20] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-                    title="Remover"
+                    title={t('Remover')}
                   >
                     <Trash2 className="w-4 h-4 stroke-[2]" />
                   </button>

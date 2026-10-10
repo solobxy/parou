@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Radio, WifiOff, AlertTriangle } from 'lucide-react';
+import { t } from '../i18n';
 
 interface LiveSyncBarProps {
   lastUpdated: Date;
@@ -57,19 +58,19 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
         {isOffline ? (
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#6B6B6B]">
             <WifiOff className="w-4 h-4 stroke-[2]" />
-            <span>Offline</span>
+            <span>{t('Offline')}</span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#C2410C]">
             <Radio className="w-4 h-4 stroke-[2]" />
-            <span>Tempo real</span>
+            <span>{t('Tempo real')}</span>
           </div>
         )}
 
         <div className="h-3 w-px bg-[#E6E6E3]" />
 
         <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B]">
-          <span className="hidden sm:inline">Atualizado:</span>
+          <span className="hidden sm:inline">{t('Atualizado:')}</span>
           <span className="font-condensada font-bold text-[#111111] tabular-nums text-xs">
             <span className="sm:hidden">{formattedTime.slice(0, 5)}</span>
             <span className="hidden sm:inline">{formattedTime}</span>
@@ -79,7 +80,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
 
         {isSyncing && !isOffline && (
           <span className="text-xs text-[#6B6B6B]">
-            • A sincronizar...
+            {t('• A sincronizar...')}
           </span>
         )}
       </div>
@@ -87,7 +88,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
       {/* Right side: Alert stats */}
       <div className="flex items-center gap-3 text-xs">
         <div className="flex items-center gap-1.5">
-          <span className="text-[#6B6B6B]">Ocorrências:</span>
+          <span className="text-[#6B6B6B]">{t('Ocorrências:')}</span>
           <span className="font-condensada font-bold text-[#111111] tabular-nums text-sm">
             {totalAlertsCount}
           </span>
@@ -104,7 +105,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
 
         {districtsWithAlertsCount > 0 && (
           <div className="hidden md:flex items-center gap-1.5 text-[#6B6B6B]">
-            <span>Distritos:</span>
+            <span>{t('Distritos:')}</span>
             <span className="font-condensada font-bold text-[#111111] tabular-nums text-sm">
               {districtsWithAlertsCount}
             </span>
@@ -116,7 +117,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
             onClick={onOpenPublicSourcesModal}
             className="text-xs text-[#111111] underline-offset-2 hover:underline font-semibold cursor-pointer min-h-[32px] px-1"
           >
-            Fontes públicas
+            {t('Fontes públicas')}
           </button>
         )}
       </div>

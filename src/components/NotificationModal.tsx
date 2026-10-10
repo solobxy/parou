@@ -19,6 +19,7 @@ import {
   testarPush
 } from '../services/notifications';
 import { CIDADES_OPTIONS } from '../data/mockData';
+import { t } from '../i18n';
 
 interface NotificationModalProps {
   isOpen: boolean;
@@ -137,7 +138,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
         <div className="p-4 border-b border-[#E6E6E3] flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-[#111111]">
-              Notificações
+              {t('Notificações')}
             </h2>
             <p className="text-xs text-[#6B6B6B]">
               Greves, mau tempo e perturbações graves, mesmo com a app fechada.
@@ -162,7 +163,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 : 'border-transparent text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            Definições
+            {t('Definições')}
           </button>
 
           <button
@@ -173,7 +174,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 : 'border-transparent text-[#6B6B6B] hover:text-[#111111]'
             }`}
           >
-            <span>Histórico</span>
+            <span>{t('Histórico')}</span>
             {history.length > 0 && (
               <span className="font-condensada font-bold text-xs tabular-nums text-[#6B6B6B]">
                 ({history.length})
@@ -189,7 +190,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               {/* Master toggle */}
               <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3] flex items-center justify-between">
                 <div className="min-w-0 pr-3">
-                  <div className="text-sm font-semibold text-[#111111]">Receber avisos</div>
+                  <div className="text-sm font-semibold text-[#111111]">{t('Receber avisos')}</div>
                   <div className="text-xs text-[#6B6B6B] leading-snug">Greves, perturbações e ocorrências graves nos distritos que escolheres.</div>
                 </div>
 
@@ -219,7 +220,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 
               {/* Districts selector */}
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold text-[#111111]">Distritos que te interessam</div>
+                <div className="text-xs font-semibold text-[#111111]">{t('Distritos que te interessam')}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {CIDADES_OPTIONS.filter((c) => c !== 'Todas').map((city) => {
                     const isSelected = (prefs.districts || []).includes(city);
@@ -262,14 +263,14 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                     className="flex items-center gap-1 text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5 stroke-[2]" />
-                    <span>Limpar histórico</span>
+                    <span>{t('Limpar histórico')}</span>
                   </button>
                 )}
               </div>
 
               {history.length === 0 ? (
                 <div className="p-8 text-center text-xs text-[#6B6B6B]">
-                  Sem histórico de notificações.
+                  {t('Sem histórico de notificações.')}
                 </div>
               ) : (
                 <div className="border border-[#E6E6E3] rounded-[8px] divide-y divide-[#E6E6E3]">

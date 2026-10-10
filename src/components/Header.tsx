@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { eAdmin } from '../utils/admin';
+import { t, idioma, mudarIdioma } from '../i18n';
 
 interface HeaderProps {
   activeTab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage';
@@ -76,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const isMoreTabActive = ['favoritos', 'reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab);
 
-  const getMoreTabLabel = () => {
+  const getMoreTabLabel = () => t((() => {
     switch (activeTab) {
       case 'favoritos': return 'Favoritos';
       case 'reports': return 'Ocorrências';
@@ -85,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'coverage': return 'Cobertura';
       default: return 'Mais';
     }
-  };
+  })());
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[#E6E6E3] bg-[#FFFFFF] transition-colors">
@@ -113,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <MapPin className="w-4 h-4 stroke-[2]" />
-              <span>Mapa</span>
+              <span>{t('Mapa')}</span>
             </button>
 
             <button
@@ -125,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>Alertas</span>
+              <span>{t('Alertas')}</span>
             </button>
 
             <button
@@ -137,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Compass className="w-4 h-4 stroke-[2]" />
-              <span>Perto</span>
+              <span>{t('Perto')}</span>
             </button>
 
             <button
@@ -149,7 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Clock className="w-4 h-4 stroke-[2]" />
-              <span>Horários</span>
+              <span>{t('Horários')}</span>
             </button>
 
             <button
@@ -161,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Star className="w-4 h-4 stroke-[2]" />
-              <span>Favoritos</span>
+              <span>{t('Favoritos')}</span>
               {favoritesCount > 0 && (
                 <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                   ({favoritesCount})
@@ -178,7 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Database className="w-4 h-4 stroke-[2]" />
-              <span>Cobertura</span>
+              <span>{t('Cobertura')}</span>
             </button>}
 
             {/* Mais Dropdown */}
@@ -210,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <div className="flex items-center gap-2">
                         <Star className="w-4 h-4 stroke-[2]" />
-                        <span>Favoritos</span>
+                        <span>{t('Favoritos')}</span>
                       </div>
                       {favoritesCount > 0 && (
                         <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
@@ -229,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <ShieldAlert className="w-4 h-4 stroke-[2]" />
-                      <span>Ocorrências</span>
+                      <span>{t('Ocorrências')}</span>
                     </button>
 
                     <button
@@ -242,7 +243,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <Database className="w-4 h-4 stroke-[2]" />
-                      <span>Catálogo</span>
+                      <span>{t('Catálogo')}</span>
                     </button>
 
                     <button
@@ -255,7 +256,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <MessageSquare className="w-4 h-4 stroke-[2]" />
-                      <span>Reclamações</span>
+                      <span>{t('Reclamações')}</span>
                     </button>
 
                     {admin && <button
@@ -268,7 +269,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <Database className="w-4 h-4 stroke-[2]" />
-                      <span>Cobertura</span>
+                      <span>{t('Cobertura')}</span>
                     </button>}
                   </div>
 
@@ -284,7 +285,7 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <div className="flex items-center gap-2">
                             <Radio className="w-4 h-4 stroke-[2]" />
-                            <span>Fontes</span>
+                            <span>{t('Fontes')}</span>
                           </div>
                           {publicReportsCount !== undefined && publicReportsCount > 0 && (
                             <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
@@ -304,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <div className="flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4 stroke-[2]" />
-                            <span>Moderação</span>
+                            <span>{t('Moderação')}</span>
                           </div>
                           {pendingModerationCount !== undefined && pendingModerationCount > 0 && (
                             <span className="font-condensada text-xs font-bold text-[#D92D20] tabular-nums">
@@ -328,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Pesquisar..."
+                placeholder={t('Pesquisar...')}
                 className="w-36 xl:w-48 pl-9 pr-7 py-1.5 bg-[#F4F4F2] border border-[#E6E6E3] focus:border-[#111111] rounded-[8px] text-xs text-[#111111] placeholder-[#6B6B6B] focus:outline-none transition-colors"
               />
               {searchQuery && (
@@ -350,11 +351,23 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
               className="lg:hidden p-2 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
-              aria-label="Abrir pesquisa"
+              aria-label={t('Abrir pesquisa')}
             >
               <Search className="w-5 h-5 stroke-[2]" />
             </button>
           )}
+
+          {/* Idioma: PT ⇄ EN (mostra a língua para onde muda) */}
+          <button
+            onClick={() => mudarIdioma(idioma === 'en' ? 'pt' : 'en')}
+            className="w-11 h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
+            title={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
+            aria-label={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
+            lang={idioma === 'en' ? 'pt-PT' : 'en'}
+            data-teste="mudar-idioma"
+          >
+            {idioma === 'en' ? 'PT' : 'EN'}
+          </button>
 
           {/* Instalar a app (só aparece quando o browser permite e ainda não está instalada) */}
           <BotaoInstalar />
@@ -364,8 +377,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenNotificationModal}
               className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
-              title="Notificações"
-              aria-label="Notificações"
+              title={t('Notificações')}
+              aria-label={t('Notificações')}
             >
               <Bell className="w-5 h-5 stroke-[2]" />
               {unreadNotificationsCount !== undefined && unreadNotificationsCount > 0 && (
@@ -380,8 +393,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenUserProfileModal}
               className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
-              title={`A tua conta (${currentUser.displayName})`}
-              aria-label={`A tua conta: ${currentUser.displayName}`}
+              title={`${t('A tua conta')} (${currentUser.displayName})`}
+              aria-label={t('A tua conta: {nome}', { nome: currentUser.displayName })}
               data-teste="botao-conta"
             >
               {currentUser.photoURL ? (
@@ -396,8 +409,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenLoginModal}
               className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
-              title="Entrar ou criar conta"
-              aria-label="Entrar ou criar conta"
+              title={t('Entrar ou criar conta')}
+              aria-label={t('Entrar ou criar conta')}
               data-teste="botao-entrar"
             >
               <User className="w-5 h-5 stroke-[2]" />
@@ -416,7 +429,7 @@ export const Header: React.FC<HeaderProps> = ({
               autoFocus
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Pesquisar..."
+              placeholder={t('Pesquisar...')}
               className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111]"
             />
             {searchQuery && (

@@ -1,3 +1,4 @@
+import { t, LOCALE } from '../i18n';
 /**
  * PAROU - Transit Text & Departures Formatter
  * Formata nomes em maiúsculas vindos de feeds GTFS (preservando siglas)
@@ -216,7 +217,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     ? (exactTime || '—') 
     : longe
       ? exactTime
-      : (effectiveMinutes < 1 ? 'a chegar' : `${effectiveMinutes} min`);
+      : (effectiveMinutes < 1 ? t('a chegar') : `${effectiveMinutes} min`);
 
   // Texto pequeno por baixo: a hora exata, ou "em 2 h 10" / "amanhã" quando a hora já está em grande
   let subText = exactTime;
@@ -227,11 +228,11 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     if (diaDep !== diaHoje) {
       // "amanhã" só no dia seguinte; mais longe (linhas que hoje não passam), o dia da semana
       const dias = Math.round((Date.parse(depDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })) - Date.parse(now.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' }))) / 86400000);
-      subText = dias >= 2 ? depDate.toLocaleDateString('pt-PT', { weekday: 'long', timeZone: 'Europe/Lisbon' }) : 'amanhã';
+      subText = dias >= 2 ? depDate.toLocaleDateString(LOCALE, { weekday: 'long', timeZone: 'Europe/Lisbon' }) : t('amanhã');
     } else {
       const h = Math.floor(effectiveMinutes / 60);
       const m = effectiveMinutes % 60;
-      subText = m > 0 ? `em ${h}h${String(m).padStart(2, '0')}` : `em ${h}h`;
+      subText = m > 0 ? t('em {h}h{m}', { h, m: String(m).padStart(2, '0') }) : t('em {h}h', { h });
     }
   }
 

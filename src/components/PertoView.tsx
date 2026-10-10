@@ -48,6 +48,7 @@ import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { t, tn } from '../i18n';
 
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
@@ -151,7 +152,7 @@ function metrosEntre(a: { latitude?: number | string; longitude?: number | strin
 function textoSentido(stop: NearbyStopItem): string {
   if (!stop.direction) return '';
   if (stop.arrivalsOnly) return stop.direction;
-  return `Sentido ${stop.direction.split(' · ').map((d) => formatTransitName(d)).join(' · ')}`;
+  return t('Sentido {d}', { d: stop.direction.split(' · ').map((d) => formatTransitName(d)).join(' · ') });
 }
 
 // Cache ao nível do módulo para manter os últimos dados ao trocar de aba
@@ -1051,13 +1052,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const raio = raioUsado || selectedRadius;
   const raioTexto = raio >= 1000 ? `${(raio / 1000).toLocaleString('pt-PT')} km` : `${raio} m`;
   const subtitulo = !localizacaoPronta
-    ? (gpsStatus === 'requesting' ? 'A obter a tua localização…' : 'À espera da tua localização')
+    ? (gpsStatus === 'requesting' ? t('A obter a tua localização…') : t('À espera da tua localização'))
     : isDbLoading && filteredStops.length === 0
-      ? (dbLoadingMessage || 'A carregar horários…')
+      ? t(dbLoadingMessage || 'A carregar horários…')
       : userCoords?.isManual
-        ? `Perto de ${userCoords.locationLabel || 'local escolhido'}`
-        : `${filteredStops.length} ${filteredStops.length === 1 ? 'paragem' : 'paragens'} até ${raioTexto}${
-            userCoords && userCoords.accuracy > 150 ? ' · a afinar a posição…' : ''
+        ? t('Perto de {local}', { local: userCoords.locationLabel || t('local escolhido') })
+        : `${tn(filteredStops.length, '{n} paragem até {d}', '{n} paragens até {d}', { d: raioTexto })}${
+            userCoords && userCoords.accuracy > 150 ? t(' · a afinar a posição…') : ''
           }`;
 
   const iconeModo = (modo: string) => {
@@ -1093,12 +1094,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
       return (
         <div className="w-full max-w-[360px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] p-3.5 text-left">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[13px] font-bold text-[#111111]">Procurar um local</span>
+            <span className="text-[13px] font-bold text-[#111111]">{t('Procurar um local')}</span>
             <button
               onClick={() => { setPesquisarLocal(false); setDestinationQuery(''); }}
               className="text-[12px] font-semibold text-[#6B6B6B] cursor-pointer px-1 py-1"
             >
-              Voltar
+              {t('Voltar')}
             </button>
           </div>
           <div className="relative">
@@ -1108,7 +1109,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               type="text"
               value={destinationQuery}
               onChange={(e) => setDestinationQuery(e.target.value)}
-              placeholder="Rua, localidade ou paragem"
+              placeholder={t('Rua, localidade ou paragem')}
               className="w-full pl-9 pr-3 h-11 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111]"
             />
           </div>
@@ -1162,7 +1163,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             className="mt-3.5 w-full h-11 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform cursor-pointer"
           >
             <Navigation className="w-[18px] h-[18px] stroke-[2.25]" />
-            Ativar localização
+            {t('Ativar localização')}
           </button>
           <button
             onClick={() => activateLocation(true)}
@@ -1170,7 +1171,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             className="mt-2 w-full h-10 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] font-semibold text-[14px] flex items-center justify-center gap-2 active:bg-[#F4F4F2] transition-colors cursor-pointer"
           >
             <RefreshCw className="w-4 h-4 stroke-[2.25]" />
-            Tentar outra vez
+            {t('Tentar outra vez')}
           </button>
 
           {ajudaLocalizacao && (
@@ -1185,14 +1186,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 onClick={() => setAjudaLocalizacao(true)}
                 className="h-10 px-3 text-[13px] font-medium text-[#6B6B6B] cursor-pointer"
               >
-                Como resolver?
+                {t('Como resolver?')}
               </button>
             )}
             <button
               onClick={() => { setPesquisarLocal(true); setDestinationQuery(''); }}
               className="h-10 px-3 text-[13px] font-semibold text-[#111111] cursor-pointer"
             >
-              Escolher um local
+              {t('Escolher um local')}
             </button>
           </div>
         </div>
@@ -1239,7 +1240,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           onClick={() => { setPesquisarLocal(true); setDestinationQuery(''); }}
           className="mt-2 w-full h-10 text-[13px] font-semibold text-[#111111] underline-offset-2 hover:underline cursor-pointer"
         >
-          Ou escolhe um local
+          {t('Ou escolhe um local')}
         </button>
       </div>
     );
@@ -1265,7 +1266,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">
-                Transportes perto
+                {t('Transportes perto')}
               </h2>
               <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{subtitulo}</p>
             </div>
@@ -1274,7 +1275,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 onClick={() => activateLocation(true)}
                 className="shrink-0 h-8 px-3 rounded-full bg-[#111111] text-[#FFFFFF] text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> Usar GPS
+                <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> {t('Usar GPS')}
               </button>
             ) : (
               <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#F4F4F2] text-[11px] font-bold uppercase tracking-wide text-[#111111]">
@@ -1282,7 +1283,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <span className="absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-60 animate-ping" />
                   <span className="relative inline-flex w-2 h-2 rounded-full bg-[#16A34A]" />
                 </span>
-                Ao vivo
+                {t('Ao vivo')}
               </span>
             ))}
           </div>
@@ -1314,7 +1315,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <button
                 onClick={handleClearDestination}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
-                aria-label="Limpar pesquisa"
+                aria-label={t('Limpar pesquisa')}
               >
                 <X className="w-3.5 h-3.5 stroke-[2]" />
               </button>
@@ -1351,7 +1352,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   : 'bg-[#F4F4F2] text-[#111111]'
               }`}
             >
-              {tab === 'todos' ? 'Todos' : tab === 'favoritos' ? 'Favoritas' : tab}
+              {tab === 'todos' ? t('Todos') : tab === 'favoritos' ? t('Favoritas') : t(tab)}
             </button>
           ))}
         </div>
@@ -1361,7 +1362,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide truncate">Como chegar a {selectedDestination.title}</span>
-              <button onClick={handleClearDestination} className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0">Cancelar</button>
+              <button onClick={handleClearDestination} className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0">{t('Cancelar')}</button>
             </div>
             <p className="text-sm text-[#6B6B6B] mt-2">
               {isCalculatingRoutes
@@ -1385,7 +1386,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 onClick={handleClearDestination}
                 className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0"
               >
-                Cancelar
+                {t('Cancelar')}
               </button>
             </div>
 
@@ -1494,7 +1495,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ) : isLoadingNearby && filteredStops.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin stroke-[2]" />
-              <span>A procurar paragens próximas…</span>
+              <span>{t('A procurar paragens próximas…')}</span>
             </div>
           ) : filteredStops.length > 0 ? (
             filteredStops.map((stop) => {
@@ -1609,13 +1610,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ) : (
             falhouCarregar && !isDbLoading ? (
               <div className="p-8 text-center space-y-3">
-                <p className="text-sm text-[#111111] font-semibold">Não foi possível carregar os transportes.</p>
-                <p className="text-[13px] text-[#6B6B6B]">Verifica a ligação à internet e tenta outra vez.</p>
+                <p className="text-sm text-[#111111] font-semibold">{t('Não foi possível carregar os transportes.')}</p>
+                <p className="text-[13px] text-[#6B6B6B]">{t('Verifica a ligação à internet e tenta outra vez.')}</p>
                 <button
                   onClick={() => { setFalhouCarregar(false); loadNearbyDataRef.current?.(); }}
                   className="h-10 px-4 rounded-[12px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer"
                 >
-                  Tentar outra vez
+                  {t('Tentar outra vez')}
                 </button>
               </div>
             ) : (
@@ -1642,7 +1643,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 <button
                   onClick={fecharParagem}
                   className="shrink-0 w-10 h-10 -ml-0.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
-                  aria-label="Voltar aos transportes perto"
+                  aria-label={t('Voltar aos transportes perto')}
                 >
                   <ArrowLeft className="w-5 h-5 stroke-[2.25]" />
                 </button>
@@ -1708,10 +1709,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <button
                     onClick={fecharLinha}
                     className="shrink-0 h-9 pl-2 pr-3 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[13px] font-semibold text-[#111111] flex items-center gap-1 cursor-pointer"
-                    aria-label="Voltar às partidas da paragem"
+                    aria-label={t('Voltar às partidas da paragem')}
                   >
                     <ArrowLeft className="w-4 h-4 stroke-[2.25]" />
-                    Partidas
+                    {t('Partidas')}
                   </button>
                   <LineChip number={linhaAberta.linha || '—'} color={linhaAberta.cor} />
                   <div className="min-w-0 flex-1">
@@ -1721,7 +1722,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                       const faltam = indice >= 0 ? paragens.length - 1 - indice : paragens.length;
                       return (
                         <div className="text-xs text-[#6B6B6B]">
-                          {faltam > 0 ? `${faltam} ${faltam === 1 ? 'paragem' : 'paragens'} até ao fim` : 'Fim de linha'}
+                          {faltam > 0 ? tn(faltam, '{n} paragem até ao fim', '{n} paragens até ao fim') : t('Fim de linha')}
                         </div>
                       );
                     })()}
@@ -1738,10 +1739,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
                   {linhaAberta.estado === 'a-carregar' && (
-                    <div className="py-4 text-sm text-[#6B6B6B]">A carregar percurso…</div>
+                    <div className="py-4 text-sm text-[#6B6B6B]">{t('A carregar percurso…')}</div>
                   )}
                   {linhaAberta.estado === 'erro' && (
-                    <div className="py-4 text-sm text-[#6B6B6B]">Percurso indisponível para esta linha.</div>
+                    <div className="py-4 text-sm text-[#6B6B6B]">{t('Percurso indisponível para esta linha.')}</div>
                   )}
                   {linhaAberta.estado === 'ok' && linhaAberta.percurso && (
                     <ol className="py-2">
@@ -1774,8 +1775,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   <span className={`block truncate text-[14px] ${aqui ? 'font-bold text-[#111111]' : passou ? 'font-medium text-[#6B6B6B]' : 'font-medium text-[#111111]'}`}>
                                     {formatTransitName(p.nome)}
                                   </span>
-                                  {aqui && <span className="block text-[11px] font-semibold text-[#C2410C]">Estás aqui</span>}
-                                  {!aqui && ultima && <span className="block text-[11px] font-semibold text-[#6B6B6B]">Fim de linha</span>}
+                                  {aqui && <span className="block text-[11px] font-semibold text-[#C2410C]">{t('Estás aqui')}</span>}
+                                  {!aqui && ultima && <span className="block text-[11px] font-semibold text-[#6B6B6B]">{t('Fim de linha')}</span>}
                                 </span>
                                 {p.hora && (
                                   <span className={`shrink-0 font-condensada text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
@@ -1790,7 +1791,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </ol>
                   )}
                   {linhaAberta.estado === 'ok' && linhaAberta.percurso && !linhaAberta.percurso.paragens.some((p) => p.hora) && (
-                    <p className="pb-2 text-[11px] text-[#6B6B6B]">Mostra as paragens por ordem; as horas de passagem não estão disponíveis para esta linha.</p>
+                    <p className="pb-2 text-[11px] text-[#6B6B6B]">{t('Mostra as paragens por ordem; as horas de passagem não estão disponíveis para esta linha.')}</p>
                   )}
                 </div>
               </div>
@@ -1811,7 +1812,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     // Esqueleto com a forma das partidas: a lista parece já a chegar, em vez de uma frase solta
                     return (
                       <div role="status" aria-live="polite" className="divide-y divide-[#E6E6E3]" data-teste="partidas-a-carregar">
-                        <span className="sr-only">A carregar partidas…</span>
+                        <span className="sr-only">{t('A carregar partidas…')}</span>
                         {[0, 1, 2, 3].map((i) => (
                           <div key={i} className="py-3 flex items-center justify-between gap-3" aria-hidden="true">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1930,14 +1931,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 value={destinationQuery}
                 onChange={(e) => setDestinationQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
-                placeholder="Para onde vais?"
+                placeholder={t('Para onde vais?')}
                 className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
               />
               {destinationQuery && (
                 <button
                   onClick={handleClearDestination}
                   className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
-                  aria-label="Limpar pesquisa"
+                  aria-label={t('Limpar pesquisa')}
                 >
                   <X className="w-3.5 h-3.5 stroke-[2]" />
                 </button>
@@ -1965,8 +1966,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
               className={`w-11 h-11 rounded-[12px] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer transition-colors ${
                 followMode ? 'bg-[#FF6B1A] text-[#111111]' : 'bg-[#FFFFFF] text-[#111111]'
               }`}
-              title="Centrar na minha posição"
-              aria-label="Centrar na minha posição"
+              title={t('Centrar na minha posição')}
+              aria-label={t('Centrar na minha posição')}
             >
               <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />
             </button>
@@ -1974,16 +1975,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <button
                 onClick={() => mapRef.current?.zoomIn()}
                 className="w-11 h-11 hover:bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer border-b border-[#E6E6E3]"
-                title="Aproximar mapa"
-                aria-label="Aproximar mapa"
+                title={t('Aproximar mapa')}
+                aria-label={t('Aproximar mapa')}
               >
                 <ZoomIn className="w-4 h-4 stroke-[2]" />
               </button>
               <button
                 onClick={() => mapRef.current?.zoomOut()}
                 className="w-11 h-11 hover:bg-[#F4F4F2] text-[#111111] flex items-center justify-center cursor-pointer"
-                title="Afastar mapa"
-                aria-label="Afastar mapa"
+                title={t('Afastar mapa')}
+                aria-label={t('Afastar mapa')}
               >
                 <ZoomOut className="w-4 h-4 stroke-[2]" />
               </button>

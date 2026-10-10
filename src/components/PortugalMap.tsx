@@ -17,6 +17,7 @@ import { normalizeGeoString } from '../utils/mapClustering';
 import { ClusterDetailModal } from './ClusterDetailModal';
 import { PontoMapa, TipoPontoMapa, GrupoCamada, grupoDoPonto } from '../types/mapa';
 import { formatarQuando } from '../utils/quando';
+import { t, tn } from '../i18n';
 
 // Símbolos (desenhos dos ícones Lucide) para os pontos do mapa
 const SVG_ICONES: Record<TipoPontoMapa, string> = {
@@ -584,10 +585,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           <div className="flex items-center gap-2 min-w-0">
             {/* No telemóvel o título fica só para leitores de ecrã: poupa uma linha */}
             <span className="sr-only sm:not-sr-only font-condensada text-base leading-tight font-bold text-[#111111]">
-              Mapa de Ocorrências
+              {t('Mapa de Ocorrências')}
             </span>
             <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#111111] font-condensada text-xs font-bold tabular-nums">
-              {totalOccurrencesCount} {totalOccurrencesCount === 1 ? 'ativa' : 'ativas'}
+              {tn(totalOccurrencesCount, '{n} ativa', '{n} ativas')}
             </span>
             {selectedDistrict && (
               <span className="flex items-center gap-1 px-2 py-0.5 bg-[#FF6B1A] text-[#111111] rounded-[4px] text-xs font-bold brand-chamfer">
@@ -595,7 +596,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                 <button 
                   onClick={() => onSelectDistrict(null)}
                   className="hover:opacity-75 cursor-pointer ml-0.5"
-                  aria-label="Limpar distrito selecionado"
+                  aria-label={t('Limpar distrito selecionado')}
                 >
                   <X className="w-3 h-3 stroke-[2]" />
                 </button>
@@ -629,8 +630,8 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                 setTimeout(() => mapRef.current?.invalidateSize(), 150);
               }}
               className="p-1.5 rounded-[6px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] transition-colors cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
-              title={isFullscreen ? 'Sair de ecrã inteiro' : 'Ecrã inteiro'}
-              aria-label="Ecrã inteiro"
+              title={isFullscreen ? t('Sair de ecrã inteiro') : t('Ecrã inteiro')}
+              aria-label={t('Ecrã inteiro')}
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 stroke-[2]" /> : <Maximize2 className="w-3.5 h-3.5 stroke-[2]" />}
             </button>
@@ -659,7 +660,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                   aria-pressed={!oculto}
                 >
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.cor }} />
-                  {g.rotulo}
+                  {t(g.rotulo)}
                   <span className="font-condensada text-[12px] tabular-nums text-[#6B6B6B]">{n}</span>
                 </button>
               );
@@ -671,8 +672,8 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
             <button
               onClick={centrarEmMim}
               className="w-10 h-10 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
-              title="Centrar na minha posição"
-              aria-label="Centrar na minha posição"
+              title={t('Centrar na minha posição')}
+              aria-label={t('Centrar na minha posição')}
               data-teste="mapa-centrar-em-mim"
             >
               {aLocalizar ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />}
@@ -680,24 +681,24 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
             <button
               onClick={handleZoomIn}
               className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
-              title="Aproximar"
-              aria-label="Aproximar"
+              title={t('Aproximar')}
+              aria-label={t('Aproximar')}
             >
               <ZoomIn className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={handleZoomOut}
               className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
-              title="Afastar"
-              aria-label="Afastar"
+              title={t('Afastar')}
+              aria-label={t('Afastar')}
             >
               <ZoomOut className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={handleResetZoom}
               className="w-8 h-8 rounded-[6px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center cursor-pointer transition-colors"
-              title="Centrar Portugal"
-              aria-label="Centrar Portugal"
+              title={t('Centrar Portugal')}
+              aria-label={t('Centrar Portugal')}
             >
               <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
             </button>
@@ -714,10 +715,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
             <button
               onClick={onReport}
               className="absolute bottom-7 right-3 z-20 h-11 pl-3 pr-4 rounded-full bg-[#FF6B1A] text-[#111111] font-bold text-[13px] flex items-center gap-1.5 shadow-[0_6px_16px_rgba(255,107,26,0.35)] active:scale-[0.97] transition-transform cursor-pointer"
-              aria-label="Reportar ocorrência"
+              aria-label={t('Reportar ocorrência')}
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Reportar</span>
+              <span>{t('Reportar')}</span>
             </button>
           )}
 
@@ -725,15 +726,15 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">
             <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#D92D20]"></div>
-              <span>Grave</span>
+              <span>{t('Grave')}</span>
             </div>
             <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B1A]"></div>
-              <span>Moderada</span>
+              <span>{t('Moderada')}</span>
             </div>
             <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#111111]"></div>
-              <span>Info</span>
+              <span>{t('Info')}</span>
             </div>
           </div>
         </div>
