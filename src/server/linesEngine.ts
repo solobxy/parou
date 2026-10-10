@@ -83,6 +83,75 @@ export function getLisbonTime() {
   };
 }
 
+/** UNIR: das paragens perto por onde a linha passa (da mais perto para a mais longe), a mais perto de cada sentido */
+function paragensUnirDaLinha(db: ReturnType<typeof getDatabase>, routeId: string, candidatas: string[]): string[] {
+  const ids = candidatas.slice(0, 12);
+  if (!ids.length) return [];
+  try {
+    const rows = db.prepare(`SELECT stop_id, direction_id FROM stop_routes WHERE route_id = ? AND stop_id IN (${ids.map(() => '?').join(',')})`)
+      .all(routeId, ...ids) as Array<{ stop_id: string; direction_id: number }>;
+    const porSentido = new Map<number, string>();
+    for (const id of ids) {
+      for (const r of rows) if (r.stop_id === id && !porSentido.has(r.direction_id ?? 0)) porSentido.set(r.direction_id ?? 0, id);
+    }
+    const lista = Array.from(new Set(porSentido.values()));
+    return lista.length ? lista.slice(0, 2) : ids.slice(0, 1);
+  } catch {
+    return ids.slice(0, 1);
+  }
+}
+
+/** Paragem "cm:<id>" da Carris Metropolitana -> a que as viagens usam ("cmh:<id>") */
+function paragemDasViagens(stopId: string): string {
+  return stopId.startsWith('cm:') ? `cmh:${stopId.slice(3)}` : stopId;
+}
+const paragemDaApp = (stopId: string): string => (stopId.startsWith('cmh:') ? `cm:${stopId.slice(5)}` : stopId);
+/** Junção das viagens à sua linha (as da Carris Metropolitana "cmh:<id>" usam a linha "cm:<id>") */
+const JUNTAR_LINHA = `JOIN routes r ON r.route_id = CASE WHEN t.route_id LIKE 'cmh:%' THEN 'cm:' || substr(t.route_id, 5) ELSE t.route_id END`;
+
+const normalizarTexto = (t: string): string => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * Alguns operadores (ex.: SMTUC, em Coimbra) têm vários percursos com o mesmo número de linha:
+ * "50T via Souselas", "50T via Marmeleira"… Para quem está na rua é a mesma linha para o mesmo
+ * destino, por isso fica um só cartão, com as partidas de todos os percursos.
+ * Sentidos diferentes (destinos diferentes) ficam em cartões separados.
+ */
+function juntarVariantes(lista: LineSummary[]): LineSummary[] {
+  const seguinte = (l: LineSummary) => (l.departures || []).slice().sort((a, b) => a.countdown_minutes - b.countdown_minutes)[0];
+  const chaveDe = (l: LineSummary): string | null => {
+    const prox = seguinte(l);
+    if (l.feed_id === 'cp' || l.horario_externo || !prox || prox.state === 'Sem dados') return null;
+    return `${l.feed_id}|${normalizarTexto(l.code)}|${normalizarTexto(prox.destination)}`;
+  };
+  const grupos = new Map<string, LineSummary[]>();
+  for (const l of lista) {
+    const k = chaveDe(l);
+    if (k) grupos.set(k, [...(grupos.get(k) || []), l]);
+  }
+  const resultado: LineSummary[] = [];
+  const emitidos = new Set<string>();
+  for (const l of lista) {
+    const k = chaveDe(l);
+    if (!k) { resultado.push(l); continue; }
+    const g = grupos.get(k)!;
+    if (g.length < 2) { resultado.push(l); continue; }
+    if (emitidos.has(k)) continue;
+    emitidos.add(k);
+    // Fica o cartão com a paragem mais perto; as partidas de todos juntam-se por ordem
+    const ordenado = g.slice().sort((a, b) => (a.nearest_stop?.distance_meters ?? 99999) - (b.nearest_stop?.distance_meters ?? 99999));
+    const base = { ...ordenado[0] };
+    const vistas = new Set<string>();
+    base.departures = ordenado.flatMap((x) => x.departures || [])
+      .sort((a, b) => a.countdown_minutes - b.countdown_minutes)
+      .filter((d) => { const kd = `${d.time}|${d.stop_name || ''}|${normalizarTexto(d.destination)}`; if (vistas.has(kd)) return false; vistas.add(kd); return true; })
+      .slice(0, 4);
+    base.destinations = Array.from(new Set(ordenado.flatMap((x) => x.destinations || [])));
+    resultado.push(base);
+  }
+  return resultado;
+}
+
 export interface LineSummary {
   id: string;
   code: string;
@@ -93,6 +162,10 @@ export interface LineSummary {
   operator_id: string;
   feed_id: string;
   aviso_horario?: string;
+  /** Os horários desta linha não estão na base (ex.: UNIR): o telemóvel vai buscá-los ao operador */
+  horario_externo?: boolean;
+  /** UNIR: paragens (ids "unir:...") mais perto, uma por sentido, onde o telemóvel vê as passagens */
+  paragens_unir?: string[];
   nearest_stop?: {
     id: string;
     name: string;
@@ -520,6 +593,42 @@ export class LinesEngine {
             routeStopMap.set(r.route_id, arr);
           }
         });
+
+        // Carris Metropolitana: as viagens estão no feed "cmh" com paragens e linhas "cmh:<id>",
+        // iguais às "cm:<id>" que o resto da app usa
+        const cm = slice.filter((id) => id.startsWith('cm:'));
+        if (cm.length) {
+          const rowsCm = db.prepare(`
+            SELECT DISTINCT st.stop_id, t.route_id
+            FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id
+            WHERE st.stop_id IN (${cm.map(() => '?').join(',')})
+          `).all(...cm.map((id) => paragemDasViagens(id))) as Array<{ stop_id: string; route_id: string }>;
+          rowsCm.forEach((r) => {
+            const stop = stopMap.get(paragemDaApp(r.stop_id));
+            if (!stop) return;
+            const rota = r.route_id.startsWith('cmh:') ? `cm:${r.route_id.slice(4)}` : r.route_id;
+            const arr = routeStopMap.get(rota) || [];
+            arr.push({ stop_id: stop.stop_id, dist: stop.dist });
+            routeStopMap.set(rota, arr);
+          });
+        }
+
+        // UNIR: sem viagens na base; as linhas de cada paragem vêm da tabela stop_routes
+        const unir = slice.filter((id) => id.startsWith('unir:'));
+        if (unir.length) {
+          try {
+            const rowsUnir = db.prepare(`
+              SELECT DISTINCT stop_id, route_id FROM stop_routes WHERE stop_id IN (${unir.map(() => '?').join(',')})
+            `).all(...unir) as Array<{ stop_id: string; route_id: string }>;
+            rowsUnir.forEach((r) => {
+              const stop = stopMap.get(r.stop_id);
+              if (!stop) return;
+              const arr = routeStopMap.get(r.route_id) || [];
+              arr.push({ stop_id: r.stop_id, dist: stop.dist });
+              routeStopMap.set(r.route_id, arr);
+            });
+          } catch (err: any) { console.warn('[Linhas perto] UNIR falhou:', err?.message || err); }
+        }
       }
 
       return routeStopMap;
@@ -573,6 +682,9 @@ export class LinesEngine {
       tripIds: Set<string>;
       /** Paragens perto por onde a linha passa (só nas linhas sem partidas na janela) */
       candidatas?: string[];
+      /** Horários fora da base (UNIR): o telemóvel pede-os ao operador */
+      externo?: boolean;
+      paragensUnir?: string[];
     }>();
 
     // Conjunto de serviços ativos em memória (Regras 1, 2 e 3)
@@ -585,13 +697,14 @@ export class LinesEngine {
 
     // Query non-terminating departures for each nearby stop com janela de tempo e EXISTS
     for (const stop of nearbyStops) {
+      const idViagens = paragemDasViagens(stop.stop_id);
       const departuresRaw = db.prepare(`
-        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id,
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id, t.feed_id AS trip_feed,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id
         FROM stop_times st
         JOIN trips t ON st.trip_id = t.trip_id
-        JOIN routes r ON t.route_id = r.route_id
+        ${JUNTAR_LINHA}
         JOIN feeds f ON r.feed_id = f.id
         WHERE st.stop_id = ?
           AND st.departure_secs BETWEEN ? AND ?
@@ -599,12 +712,13 @@ export class LinesEngine {
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
         LIMIT 60
-      `).all(stop.stop_id, minSecs, maxSecs, stop.stop_name) as Array<{
+      `).all(idViagens, minSecs, maxSecs, stop.stop_name) as Array<{
         departure_secs: number;
         trip_id: string;
         trip_headsign: string;
         direction_id: number;
         service_id: string;
+        trip_feed: string;
         route_id: string;
         route_short_name: string;
         route_long_name: string;
@@ -616,16 +730,16 @@ export class LinesEngine {
       }>;
 
       // Filtrar em JS com o conjunto de serviços ativos de hoje (Regra 1)
-      const todayDeps = departuresRaw.filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeToday));
+      const todayDeps = departuresRaw.filter(dep => isServiceActive(dep.trip_feed || dep.feed_id, dep.service_id, activeToday));
 
       // Viagens de madrugada do dia de serviço anterior (> 24:00:00)
       const yesterdayLateQuery = db.prepare(`
-        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id,
+        SELECT st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id, t.feed_id AS trip_feed,
                r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color,
                f.operator_name, f.mode as feed_mode, f.id as feed_id
         FROM stop_times st
         JOIN trips t ON st.trip_id = t.trip_id
-        JOIN routes r ON t.route_id = r.route_id
+        ${JUNTAR_LINHA}
         JOIN feeds f ON r.feed_id = f.id
         WHERE st.stop_id = ?
           AND st.departure_secs BETWEEN ? AND ?
@@ -633,10 +747,10 @@ export class LinesEngine {
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
         ORDER BY st.departure_secs ASC
         LIMIT 30
-      `).all(stop.stop_id, (currentSecs + 86400) - 120, 172800, stop.stop_name) as typeof departuresRaw;
+      `).all(idViagens, (currentSecs + 86400) - 120, 172800, stop.stop_name) as typeof departuresRaw;
 
       const yesterdayDeps = yesterdayLateQuery
-        .filter(dep => isServiceActive(dep.feed_id, dep.service_id, activeYesterday))
+        .filter(dep => isServiceActive(dep.trip_feed || dep.feed_id, dep.service_id, activeYesterday))
         .map(dep => ({ ...dep, departure_secs: dep.departure_secs - 86400 }));
 
       const departures = [...yesterdayDeps, ...todayDeps].sort((a, b) => a.departure_secs - b.departure_secs);
@@ -756,6 +870,7 @@ export class LinesEngine {
             trips: [],
             tripIds: new Set<string>(),
             candidatas: candStops.map((c) => c.stop_id),
+            ...(rMeta.feed_id === 'unir' ? { externo: true, paragensUnir: paragensUnirDaLinha(db, rId, candStops.map((c) => c.stop_id)) } : {}),
           });
         }
       }
@@ -764,23 +879,35 @@ export class LinesEngine {
     // Linhas sem partidas na consulta geral (à noite depois do último autocarro, ou linhas
     // noturnas que ficam fora das 60 primeiras partidas da paragem): procura a próxima partida
     // dessa linha nas paragens perto — ainda hoje ou, senão, amanhã — em vez de "Horário indisponível"
-    const semPartidas = Array.from(cardMap.values()).filter((c) => c.trips.length === 0 && (c.candidatas || []).length > 0);
+    // (A UNIR não tem viagens na base: os horários vêm da AMP pelo telemóvel)
+    const semPartidas = Array.from(cardMap.values())
+      .filter((c) => c.trips.length === 0 && !c.externo && (c.candidatas || []).length > 0)
+      .sort((a, b) => (a.nearest_stop?.distance_meters ?? 99999) - (b.nearest_stop?.distance_meters ?? 99999));
     if (semPartidas.length > 0) {
       const activeTomorrow = getActiveServices(new Date(Date.now() + 24 * 3600 * 1000), 'Europe/Lisbon');
       const consultaLinha = (paragens: string[], routeId: string, de: number) => db.prepare(`
-        SELECT st.stop_id, st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id, r.feed_id
+        SELECT st.stop_id, st.departure_secs, t.trip_id, t.trip_headsign, t.direction_id, t.service_id, t.feed_id
         FROM stop_times st INDEXED BY idx_stop_times_stop
         CROSS JOIN trips t ON st.trip_id = t.trip_id
-        CROSS JOIN routes r ON t.route_id = r.route_id
         WHERE st.stop_id IN (${paragens.map(() => '?').join(',')}) AND t.route_id = ? AND st.departure_secs BETWEEN ? AND 172800
           AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
         ORDER BY st.departure_secs ASC
         LIMIT 80
-      `).all(...paragens, routeId, de) as Array<{
+      `).all(...paragens.map(paragemDasViagens), routeId.startsWith('cm:') ? `cmh:${routeId.slice(3)}` : routeId, de).map((l: any) => ({ ...l, stop_id: paragemDaApp(String(l.stop_id)) })) as Array<{
         stop_id: string; departure_secs: number; trip_id: string; trip_headsign: string; direction_id: number; service_id: string; feed_id: string;
       }>;
-      for (const card of semPartidas.slice(0, 25)) {
+      // Serviços (dias de circulação) de cada linha: se nenhum corre hoje nem amanhã, nem se procura
+      const servicosDaLinha = db.prepare('SELECT DISTINCT feed_id, service_id FROM trips WHERE route_id = ?');
+      const circulaHojeOuAmanha = (routeId: string): boolean => {
+        const rows = servicosDaLinha.all(routeId.startsWith('cm:') ? `cmh:${routeId.slice(3)}` : routeId) as Array<{ feed_id: string; service_id: string }>;
+        return rows.some((r) => isServiceActive(r.feed_id, r.service_id, activeToday) || isServiceActive(r.feed_id, r.service_id, activeTomorrow));
+      };
+      const inicioProcura = Date.now();
+      for (const card of semPartidas.slice(0, 200)) {
+        // Orçamento de tempo: as linhas mais perto são tratadas primeiro
+        if (Date.now() - inicioProcura > 3500) { console.warn('[Linhas perto] orçamento de tempo esgotado na procura de partidas'); break; }
         try {
+          if (!circulaHojeOuAmanha(card.id)) continue;
           const paragens = (card.candidatas || []).slice(0, 6);
           const ordemParagem = new Map(paragens.map((id, i) => [id, i]));
           const escolher = (linhas: ReturnType<typeof consultaLinha>, ativos: any, amanha: boolean) => {
@@ -826,7 +953,7 @@ export class LinesEngine {
     }
 
     // Format departures for each card:
-    const lineSummaries: LineSummary[] = [];
+    let lineSummaries: LineSummary[] = [];
     // Paragem de cada partida (para cruzar com o tempo real da STCP)
     const paragemDaPartida = new Map<object, string>();
 
@@ -922,6 +1049,9 @@ export class LinesEngine {
           }
         }
       } else {
+        // Linha que não circula hoje nem amanhã: não aparece em "Perto de ti" (só a UNIR, cujos horários
+        // vêm do operador, e os operadores com horários possivelmente desatualizados ficam)
+        if (!card.externo && !feedsAviso.has(card.feed_id)) continue;
         // No schedule found for this line
         const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
         departures.push({
@@ -951,11 +1081,15 @@ export class LinesEngine {
         last_departure: lastDepStr,
         departures,
         ...(cardAviso ? { aviso_horario: cardAviso } : {}),
+        ...(card.externo ? { horario_externo: true, paragens_unir: card.paragensUnir } : {}),
       });
     }
 
     // STCP: troca a hora programada pela hora prevista pelo GPS dos autocarros
     await aplicarTempoRealStcpNasLinhas(lineSummaries, paragemDaPartida);
+
+    // Variantes da mesma linha para o mesmo destino ficam num só cartão
+    lineSummaries = juntarVariantes(lineSummaries);
 
     // Sort lines by nearest stop distance ascending
     lineSummaries.sort((a, b) => {

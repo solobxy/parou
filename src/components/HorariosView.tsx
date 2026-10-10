@@ -21,6 +21,7 @@ import {
   fetchLinesByIds,
   searchAllLines
 } from '../services/transitApi';
+import { completarLinhasUnir } from '../services/unirPerto';
 import { FilterState } from '../types';
 import { LineCard } from './LineCard';
 import { LineDetailModal } from './LineDetailModal';
@@ -219,9 +220,24 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         setIsDbLoading(false);
         retryAttemptRef.current = 0;
         if (res.lines) {
-          lastNearLines = res.lines;
-          setNearLines(res.lines);
-          guardarLinhasPerto(res.lines.map((l: ApiLineItem) => l.id));
+          // Linhas da UNIR (horários na AMP): mostra já as outras e completa estas logo a seguir
+          const comUnir = res.lines.some((l: ApiLineItem) => l.horario_externo);
+          if (comUnir) {
+            const jaCompletas = res.lines.filter((l: ApiLineItem) => !l.horario_externo);
+            // Só na primeira vez: nas atualizações a cada 30 s a UNIR mantém-se no ecrã até chegarem os dados novos
+            if (!lastNearLines.some((l) => l.horario_externo)) {
+              lastNearLines = jaCompletas;
+              setNearLines(jaCompletas);
+            }
+            const completas = await completarLinhasUnir(res.lines).catch(() => jaCompletas);
+            lastNearLines = completas;
+            setNearLines(completas);
+            guardarLinhasPerto(completas.map((l: ApiLineItem) => l.id));
+          } else {
+            lastNearLines = res.lines;
+            setNearLines(res.lines);
+            guardarLinhasPerto(res.lines.map((l: ApiLineItem) => l.id));
+          }
         }
       }
     } catch {
