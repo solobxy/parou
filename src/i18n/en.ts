@@ -3,7 +3,10 @@
 export const EN: Record<string, string> = {
   // Navegação e topo
   'Mapa': 'Map',
-  'Em direto': 'Live',
+  'Na imprensa': 'In the press',
+  'Atualizar notícias': 'Refresh news',
+  'Filtrar notícias': 'Filter news',
+  'Não foi possível carregar as notícias.': 'Could not load the news.',
   'Pôr do sol': 'Sunset',
   'Praia': 'Beach',
   'Mapa da cidade': 'City map',

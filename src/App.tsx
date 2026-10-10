@@ -607,7 +607,7 @@ export default function App() {
       catalogo: 'Catálogo Nacional de Operadores de Transporte | PAROU',
       reclamacoes: 'Portal de Reclamações de Transportes em Portugal | PAROU',
       comunidade: 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes',
-      alertas: 'Alertas — Greves, Tempo, Trânsito e Feriados | PAROU',
+      alertas: 'Alertas e notícias — Greves, Tempo, Trânsito e Feriados | PAROU',
       coverage: 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU',
     };
     if (titlesMap[tab]) {
@@ -688,7 +688,7 @@ export default function App() {
     } else if (pathname === '/alertas') {
       setActiveNavTab('alertas');
       setActiveMobileView('alertas');
-      document.title = 'Alertas — Greves, Tempo, Trânsito e Feriados | PAROU';
+      document.title = 'Alertas e notícias — Greves, Tempo, Trânsito e Feriados | PAROU';
     } else if (pathname === '/coverage' || pathname === '/cobertura') {
       setActiveNavTab('coverage');
       setActiveMobileView('catalogo');
@@ -1179,7 +1179,7 @@ export default function App() {
               ['/transportes', 'Horários', () => handleTabSelect('horarios')],
               ['/cidades', 'Cidades', () => { window.location.href = '/cidades'; }],
               ['/linhas', 'Linhas', () => { window.location.href = '/linhas'; }],
-              ['/alertas', 'Alertas', () => handleTabSelect('alertas')],
+              ['/alertas', 'Notícias', () => handleTabSelect('alertas')],
               ['/ocorrencias', 'Ocorrências', () => handleTabSelect('reports')],
               ['/comunidade', 'Comunidade', () => handleTabSelect('comunidade')],
               ['/catalogo', 'Catálogo', () => handleTabSelect('catalogo')],

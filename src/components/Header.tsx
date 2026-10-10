@@ -4,7 +4,7 @@ import { BotaoInstalar } from './InstalarApp';
 import { Avatar } from './Avatar';
 import { 
   Search, 
-  Map as IconeMapa, 
+  Newspaper, 
   AlertTriangle, 
   Compass, 
   Clock, 
@@ -131,8 +131,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
-              <IconeMapa className="w-4 h-4 stroke-[2]" />
-              <span>{t('Em direto')}</span>
+              <AlertTriangle className="w-4 h-4 stroke-[2]" />
+              <span>{t('Alertas')}</span>
             </button>
 
             <button
@@ -143,8 +143,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
               }`}
             >
-              <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>{t('Alertas')}</span>
+              <Newspaper className="w-4 h-4 stroke-[2]" />
+              <span>{t('Notícias')}</span>
             </button>
 
             <button
