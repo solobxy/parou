@@ -42,7 +42,7 @@ import {
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
-import { t } from '../i18n';
+import { t, LOCALE, idioma } from '../i18n';
 
 // ---------------------------------------------------------------------------------
 // Tipos da resposta de /api/alertas
@@ -183,21 +183,21 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
           <>
             <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('Avisos ligados')}</div>
             <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
-              Vais receber greves, mau tempo e perturbações graves. Para mudar os distritos, toca no sino lá em cima.
+              {t('Vais receber greves, mau tempo e perturbações graves. Para mudar os distritos, toca no sino lá em cima.')}
             </div>
           </>
         ) : estado === 'bloqueado' ? (
           <>
-            <div className="text-[14px] font-semibold text-[#111111] leading-snug">As notificações estão bloqueadas</div>
+            <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('As notificações estão bloqueadas')}</div>
             <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
-              Permite-as nas definições do browser (cadeado ao lado do endereço) ou do telemóvel e tenta outra vez.
+              {t('Permite-as nas definições do browser (cadeado ao lado do endereço) ou do telemóvel e tenta outra vez.')}
             </div>
           </>
         ) : (
           <>
             <div className="text-[14px] font-semibold text-[#111111] leading-snug">{t('Recebe estes avisos no telemóvel')}</div>
             <div className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
-              Greves, mau tempo e perturbações graves em {distrito}, mesmo com a app fechada.
+              {t('Greves, mau tempo e perturbações graves em {d}, mesmo com a app fechada.', { d: distrito })}
             </div>
             <button
               onClick={ligar}
@@ -205,7 +205,7 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
               className="mt-2.5 h-9 px-3.5 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               data-teste="ligar-avisos"
             >
-              <Bell className="w-4 h-4" /> {estado === 'a-ligar' ? 'A ligar…' : 'Ligar avisos'}
+              <Bell className="w-4 h-4" /> {estado === 'a-ligar' ? t('A ligar…') : t('Ligar avisos')}
             </button>
           </>
         )}
@@ -247,17 +247,17 @@ function IconeTempo({ icone, className }: { icone: Icone; className?: string }) 
 function horaLisboa(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString('pt-PT', { timeZone: 'Europe/Lisbon', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(LOCALE, { timeZone: 'Europe/Lisbon', hour: '2-digit', minute: '2-digit' });
 }
 
 function dataCurta(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon', day: 'numeric', month: 'short' }).replace('.', '');
+  return d.toLocaleDateString(LOCALE, { timeZone: 'Europe/Lisbon', day: 'numeric', month: 'short' }).replace('.', '');
 }
 
 function mesmoDia(a: Date, b: Date): boolean {
-  const f = (d: Date) => d.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
+  const f = (d: Date) => d.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' }); // só para comparar o dia
   return f(a) === f(b);
 }
 
@@ -266,9 +266,9 @@ function quandoTermina(iso: string): string {
   if (isNaN(d.getTime())) return '';
   const agora = new Date();
   const amanha = new Date(agora.getTime() + 86400000);
-  if (mesmoDia(d, agora)) return `até às ${horaLisboa(iso)}`;
-  if (mesmoDia(d, amanha)) return `até amanhã às ${horaLisboa(iso)}`;
-  return `até ${dataCurta(iso)}, ${horaLisboa(iso)}`;
+  if (mesmoDia(d, agora)) return t('até às {h}', { h: horaLisboa(iso) });
+  if (mesmoDia(d, amanha)) return t('até amanhã às {h}', { h: horaLisboa(iso) });
+  return t('até {d}, {h}', { d: dataCurta(iso), h: horaLisboa(iso) });
 }
 
 function haQuanto(ms: number): string {
@@ -283,9 +283,18 @@ function haQuanto(ms: number): string {
 
 function dataFeriado(iso: string): string {
   const [a, m, d] = iso.split('-').map(Number);
-  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-  return `${d} de ${meses[(m || 1) - 1]}${a !== new Date().getFullYear() ? ` de ${a}` : ''}`;
+  const dia = new Date(Date.UTC(a, (m || 1) - 1, d));
+  return dia.toLocaleDateString(LOCALE, { timeZone: 'UTC', day: 'numeric', month: 'long', ...(a !== new Date().getFullYear() ? { year: 'numeric' as const } : {}) });
 }
+
+function diaDaSemana(iso: string): string {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, (m || 1) - 1, d)).toLocaleDateString(LOCALE, { timeZone: 'UTC', weekday: 'long' });
+}
+
+const MESES_CURTOS = idioma === 'en'
+  ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  : ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 function filtroDaComunidade(o: Occurrence): Exclude<Filtro, 'tudo'> {
   switch (o.type) {
@@ -355,9 +364,9 @@ function gravarVistos(v: Record<string, number>) {
 
 function meiosTexto(m: IncidentePC['meios']): string {
   return [
-    m.humanos ? `${m.humanos} operacionais` : '',
-    m.terrestres ? `${m.terrestres} veículos` : '',
-    m.aereos ? `${m.aereos} ${m.aereos === 1 ? 'meio aéreo' : 'meios aéreos'}` : '',
+    m.humanos ? t('{n} operacionais', { n: m.humanos }) : '',
+    m.terrestres ? t('{n} veículos', { n: m.terrestres }) : '',
+    m.aereos ? `${m.aereos} ${m.aereos === 1 ? t('meio aéreo') : t('meios aéreos')}` : '',
   ].filter(Boolean).join(' · ');
 }
 
@@ -370,23 +379,23 @@ function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-bold uppercase tracking-[0.08em] flex items-center gap-1" style={{ color: cor }}>
             <Flame className="w-3.5 h-3.5 stroke-[2.25]" />
-            {f.estado}
-            {f.importante && <span className="text-[#D92D20]"> · importante</span>}
+            {t(f.estado)}
+            {f.importante && <span className="text-[#D92D20]"> · {t('importante')}</span>}
           </span>
           <span className="flex items-center gap-1.5 shrink-0">
             {novo && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">{t('Novo')}</span>}
-            <span className="font-condensada text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString('pt-PT')} km</span>
+            <span className="font-condensada text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString(LOCALE)} km</span>
           </span>
         </div>
         <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-1">
           {[f.local, f.concelho].filter((x, k, arr) => x && arr.indexOf(x) === k).join(', ') || f.natureza}
         </div>
-        <div className="text-[12.5px] text-[#6B6B6B] mt-0.5">{[f.distrito, f.natureza].filter(Boolean).join(' · ')}</div>
+        <div className="text-[12.5px] text-[#6B6B6B] mt-0.5">{[f.distrito, t(f.natureza)].filter(Boolean).join(' · ')}</div>
         <div className="flex items-center gap-3 mt-2 text-[12px] text-[#111111] font-medium flex-wrap">
           <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.humanos}</span>
           <span className="inline-flex items-center gap-1"><Truck className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.terrestres}</span>
           {f.meios.aereos > 0 && <span className="inline-flex items-center gap-1"><Plane className="w-3.5 h-3.5 text-[#6B6B6B]" /> {f.meios.aereos}</span>}
-          {f.inicio && <span className="text-[#6B6B6B] font-normal">começou {haQuanto(Date.parse(f.inicio))}</span>}
+          {f.inicio && <span className="text-[#6B6B6B] font-normal">{t('começou {x}', { x: haQuanto(Date.parse(f.inicio)) })}</span>}
         </div>
       </div>
     </div>
@@ -518,10 +527,10 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       const filtroItem: ItemDestaque['filtro'] = o.categoria === 'greve' ? 'greves' : o.categoria === 'obras' ? 'obras' : 'rede';
       const futuro = o.estado === 'Futuro';
       const etiqueta = o.categoria === 'greve'
-        ? (futuro ? `Greve · ${dataCurta(o.inicio)}` : 'Greve · a decorrer')
+        ? (futuro ? t('Greve · {d}', { d: dataCurta(o.inicio) }) : t('Greve · a decorrer'))
         : o.categoria === 'obras'
-          ? 'Obras'
-          : (ROTULOS_TIPO[o.tipo] || (o.tipo ? o.tipo.charAt(0).toUpperCase() + o.tipo.slice(1) : 'Perturbação'));
+          ? t('Obras')
+          : t(ROTULOS_TIPO[o.tipo] || (o.tipo ? o.tipo.charAt(0).toUpperCase() + o.tipo.slice(1) : 'Perturbação'));
       itens.push({
         id: `o:${o.id}`,
         filtro: filtroItem,
@@ -529,7 +538,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         cor: o.categoria === 'greve' ? '#D92D20' : o.gravidade === 'Grave' ? '#D92D20' : '#FF6B1A',
         titulo: o.titulo,
         resumo: o.resumo,
-        meta: [o.operador, o.fim ? quandoTermina(o.fim) : futuro ? `a partir de ${dataCurta(o.inicio)}` : ''].filter(Boolean).join(' · '),
+        meta: [o.operador, o.fim ? quandoTermina(o.fim) : futuro ? t('a partir de {d}', { d: dataCurta(o.inicio) }) : ''].filter(Boolean).join(' · '),
         quando: Date.parse(o.inicio) || 0,
         url: o.url || undefined,
         peso: (o.local ? 4 : 0) + (o.categoria === 'greve' ? 3 : 0) + (o.estado === 'Ativo' ? 1 : 0) + (o.gravidade === 'Grave' ? 1 : 0),
@@ -540,11 +549,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       itens.push({
         id: `pc:${i.id}`,
         filtro: i.tipo === 'acidente' ? 'transito' : i.tipo === 'inundacao' ? 'tempo' : 'rede',
-        etiqueta: `${i.natureza.split(/[-/]/)[0].trim() || 'Ocorrência'} · Proteção Civil`,
+        etiqueta: `${t(i.natureza.split(/[-/]/)[0].trim() || 'Ocorrência')} · ${t('Proteção Civil')}`,
         cor: i.importante ? '#D92D20' : '#FF6B1A',
         titulo: [i.local, i.concelho].filter((x, k, arr) => x && arr.indexOf(x) === k).join(', ') || i.natureza,
-        resumo: `${i.estado}${meiosTexto(i.meios) ? ` · ${meiosTexto(i.meios)}` : ''}`,
-        meta: [`a ${i.distanciaKm.toLocaleString('pt-PT')} km`, i.inicio ? haQuanto(Date.parse(i.inicio)) : '', 'Fogos.pt'].filter(Boolean).join(' · '),
+        resumo: `${t(i.estado)}${meiosTexto(i.meios) ? ` · ${meiosTexto(i.meios)}` : ''}`,
+        meta: [t('a {km} km', { km: i.distanciaKm.toLocaleString(LOCALE) }), i.inicio ? haQuanto(Date.parse(i.inicio)) : '', 'Fogos.pt'].filter(Boolean).join(' · '),
         quando: i.inicio ? Date.parse(i.inicio) : 0,
         url: 'https://fogos.pt',
         peso: 5 + (i.importante ? 2 : 0),
@@ -555,11 +564,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       itens.push({
         id: `m:${a.distrito}:${a.tipo}:${a.inicio}`,
         filtro: 'tempo',
-        etiqueta: `Aviso ${NOMES_NIVEL[a.nivel]}`,
+        etiqueta: t('Aviso {n}', { n: t(NOMES_NIVEL[a.nivel]) }),
         cor: CORES_NIVEL[a.nivel].fundo,
-        titulo: `${a.tipo} · ${a.distrito}`,
+        titulo: `${t(a.tipo)} · ${a.distrito}`,
         resumo: a.texto || undefined,
-        meta: `IPMA · ${a.ativo ? quandoTermina(a.fim) : `a partir de ${dataCurta(a.inicio)}, ${horaLisboa(a.inicio)}`}`,
+        meta: `IPMA · ${a.ativo ? quandoTermina(a.fim) : t('a partir de {d}, {h}', { d: dataCurta(a.inicio), h: horaLisboa(a.inicio) })}`,
         quando: Date.parse(a.inicio) || 0,
         url: 'https://www.ipma.pt/pt/otempo/prev-sam/',
         peso: a.nivel === 'red' ? 5 : 3,
@@ -572,7 +581,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       itens.push({
         id: `c:${o.id}`,
         filtro: filtroDaComunidade(o),
-        etiqueta: `${ROTULOS_COMUNIDADE[o.type] || 'Ocorrência'} · comunidade`,
+        etiqueta: `${t(ROTULOS_COMUNIDADE[o.type] || 'Ocorrência')} · ${t('comunidade')}`,
         cor: o.severity === 'Grave' ? '#D92D20' : '#111111',
         titulo: o.title,
         resumo: [o.locationDetails, o.concelho].filter(Boolean).join(', ') || undefined,
@@ -662,7 +671,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
 
       {erro && !dados && (
         <div className="rounded-[14px] border border-[#E6E6E3] p-5 text-center text-sm text-[#6B6B6B]">
-          Não foi possível carregar os alertas.{' '}
+          {t('Não foi possível carregar os alertas.')}{' '}
           <button onClick={() => carregar()} className="font-semibold text-[#111111] underline cursor-pointer">{t('Tentar outra vez')}</button>
         </div>
       )}
@@ -686,10 +695,10 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[14px] font-semibold leading-tight truncate">
-                {agora?.descricao || hoje?.descricao} · {dados.local.distrito}
+                {t(agora?.descricao || hoje?.descricao || '')} · {dados.local.distrito}
               </span>
               <span className="block text-[12px] text-white/70 leading-tight mt-0.5 truncate">
-                {hoje ? `${hoje.tMin}° / ${hoje.tMax}° · ` : ''}Sem avisos meteorológicos
+                {hoje ? `${hoje.tMin}° / ${hoje.tMax}° · ` : ''}{t('Sem avisos meteorológicos')}
               </span>
             </span>
             <ChevronDown className="w-5 h-5 shrink-0 text-white/70" aria-hidden="true" />
@@ -718,7 +727,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                   </span>
                 ) : null}
               </div>
-              <div className="text-[15px] font-semibold mt-2 truncate">{agora?.descricao || hoje?.descricao}</div>
+              <div className="text-[15px] font-semibold mt-2 truncate">{t(agora?.descricao || hoje?.descricao || '')}</div>
               <div className="text-xs text-white/60 mt-0.5 flex items-center gap-2">
                 {agora?.sensacao !== undefined && <span>{t('Sensação {t}°', { t: agora.sensacao })}</span>}
                 {agora?.vento !== undefined && (
@@ -736,7 +745,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 <div key={d.data} className="px-3 py-2.5 flex items-center gap-2 border-r border-white/10 last:border-r-0 min-w-0">
                   <IconeTempo icone={d.icone} className="w-5 h-5 text-white/80 shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-[11px] text-white/60 capitalize truncate">{d.rotulo}</div>
+                    <div className="text-[11px] text-white/60 capitalize truncate">{t(d.rotulo)}</div>
                     <div className="font-condensada text-[15px] font-bold tabular-nums leading-tight">
                       {d.tMin}°<span className="text-white/40"> / </span>{d.tMax}°
                     </div>
@@ -754,7 +763,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             >
               <TriangleAlert className="w-4 h-4 shrink-0 stroke-[2.25]" />
               <span className="truncate">
-                Aviso {NOMES_NIVEL[a.nivel]} · {a.tipo} · {a.ativo ? quandoTermina(a.fim) : `a partir de ${dataCurta(a.inicio)}, ${horaLisboa(a.inicio)}`}
+                {t('Aviso {n}', { n: t(NOMES_NIVEL[a.nivel]) })} · {t(a.tipo)} · {a.ativo ? quandoTermina(a.fim) : t('a partir de {d}, {h}', { d: dataCurta(a.inicio), h: horaLisboa(a.inicio) })}
               </span>
             </div>
           ))}
@@ -784,7 +793,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             <div className={`w-11 h-11 rounded-[12px] flex flex-col items-center justify-center shrink-0 ${feriado.emDias === 0 ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111]'}`}>
               <span className="font-condensada text-[18px] font-bold leading-none tabular-nums">{Number(feriado.data.slice(8, 10))}</span>
               <span className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
-                {['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(feriado.data.slice(5, 7)) - 1]}
+                {MESES_CURTOS[Number(feriado.data.slice(5, 7)) - 1]}
               </span>
             </div>
             <div className="min-w-0 flex-1">
@@ -793,11 +802,11 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 {feriado.ambito === 'municipal' && feriado.local ? ` · ${feriado.local}` : ''}
                 {feriado.ambito === 'regional' && feriado.local ? ` · ${feriado.local}` : ''}
               </div>
-              <div className="text-[17px] font-bold leading-tight mt-0.5">{feriado.nome}</div>
+              <div className="text-[17px] font-bold leading-tight mt-0.5">{t(feriado.nome)}</div>
               <div className={`text-[13px] mt-0.5 ${feriado.emDias === 0 ? 'text-[#111111]/80' : 'text-[#6B6B6B]'}`}>
                 {feriado.emDias === 0
-                  ? 'Os transportes fazem, em regra, o horário de domingos e feriados.'
-                  : `${feriado.diaSemana}, ${dataFeriado(feriado.data)} · ${feriado.emDias === 1 ? t('amanhã') : t('daqui a {n} dias', { n: feriado.emDias })}`}
+                  ? t('Os transportes fazem, em regra, o horário de domingos e feriados.')
+                  : `${diaDaSemana(feriado.data)}, ${dataFeriado(feriado.data)} · ${feriado.emDias === 1 ? t('amanhã') : t('daqui a {n} dias', { n: feriado.emDias })}`}
               </div>
               {feriado.ambito === 'tolerancia' && (
                 <div className="text-[12px] text-[#6B6B6B] mt-1">{t('Não é feriado obrigatório, mas costuma haver tolerância de ponto.')}</div>
@@ -810,7 +819,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 <div key={f.data + f.nome} className="flex items-center justify-between gap-3 text-[13px]">
                   <span className="text-[#111111] truncate">
                     <CalendarDays className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5 text-[#6B6B6B]" />
-                    {f.nome}
+                    {t(f.nome)}
                     {f.ambito === 'municipal' && f.local ? <span className="text-[#6B6B6B]"> · {f.local}</span> : null}
                   </span>
                   <span className="text-[#6B6B6B] shrink-0 tabular-nums">{dataFeriado(f.data)}</span>
@@ -849,7 +858,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           <div className="flex items-center justify-between">
             <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-[#FF6B1A]" />
-              {filtro === 'incendios' ? 'Incêndios ativos' : 'Incêndios perto'}
+              {filtro === 'incendios' ? t('Incêndios ativos') : t('Incêndios perto')}
               <span className="font-condensada text-[13px] text-[#6B6B6B] tabular-nums">
                 {filtro === 'incendios' ? incendios?.total || 0 : incendiosPerto.length}
               </span>
@@ -861,7 +870,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
           {listaIncendios.length === 0 ? (
             <div className="rounded-[14px] border border-dashed border-[#E6E6E3] px-4 py-5 text-[13px] text-[#6B6B6B] flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
-              <span>{incendios?.atualizado ? 'Sem incêndios ativos em Portugal neste momento.' : 'A obter os incêndios ativos…'}</span>
+              <span>{incendios?.atualizado ? t('Sem incêndios ativos em Portugal neste momento.') : t('A obter os incêndios ativos…')}</span>
             </div>
           ) : (
             <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
@@ -877,12 +886,12 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               onClick={() => setFiltro('incendios')}
               className="w-full h-11 rounded-[12px] bg-[#F4F4F2] text-[13px] font-semibold text-[#111111] cursor-pointer"
             >
-              Ver todos os incêndios ativos ({incendios?.total})
+              {t('Ver todos os incêndios ativos ({n})', { n: incendios?.total || 0 })}
             </button>
           )}
           <p className="text-[11px] text-[#6B6B6B]">
-            Fonte: <a href="https://fogos.pt" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#111111] underline">Fogos.pt</a> (dados da ANEPC)
-            {incendios?.atualizado ? ` · atualizado ${haQuanto(Date.parse(incendios.atualizado))}` : ''}
+            {t('Fonte')}: <a href="https://fogos.pt" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#111111] underline">Fogos.pt</a> {t('(dados da ANEPC)')}
+            {incendios?.atualizado ? ` · ${t('atualizado {x}', { x: haQuanto(Date.parse(incendios.atualizado)) })}` : ''}
           </p>
         </section>
       )}
