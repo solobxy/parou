@@ -223,7 +223,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
                     src={urlDoAvatar(miniatura, VISTA_DA_CATEGORIA[categoria.id])}
                     alt=""
                     aria-hidden="true"
-                    className={`w-full select-none ${FORMA_DA_MINIATURA[categoria.id] || 'aspect-[4/3] object-contain'} ${bloqueado ? 'opacity-40 grayscale' : ''}`}
+                    className={`w-full select-none ${FORMA_DA_MINIATURA[categoria.id] || 'aspect-[4/3] object-contain'} ${bloqueado ? (categoria.id === 'fundo' ? 'opacity-70 grayscale-[.65]' : 'opacity-40 grayscale') : ''}`}
                     draggable={false}
                     loading="lazy"
                   />
