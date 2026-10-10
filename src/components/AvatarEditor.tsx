@@ -6,9 +6,14 @@ import { CATEGORIAS_AVATAR, CategoriaId, ConfigAvatar, avatarOuPadrao } from '..
 import { urlDoAvatar, VistaAvatar } from '../utils/avatarSvg';
 import { guardarAvatar } from '../services/comunidade';
 
+// Cada separador mostra a peça no sítio onde ela fica (cabeça, cara, pés, mão...)
 const VISTA_DA_CATEGORIA: Record<CategoriaId, VistaAvatar> = {
-  cor: 'cabeca', chapeu: 'chapeu', cara: 'cara', roupa: 'corpo', calcado: 'pes', mao: 'mao',
+  personagem: 'completa', cor: 'cabeca', chapeu: 'chapeu', expressao: 'cara', cara: 'cara', roupa: 'corpo', calcado: 'pes', mao: 'mao', fundo: 'redonda',
 };
+const FORMA_DA_MINIATURA: Partial<Record<CategoriaId, string>> = {
+  personagem: 'aspect-[4/5] object-contain', fundo: 'aspect-square rounded-full object-cover',
+};
+const corSugerida = (personagem: string) => CATEGORIAS_AVATAR[0].itens.find((i) => i.id === personagem)?.cor;
 
 interface AvatarEditorProps {
   aberta: boolean;
@@ -28,7 +33,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
   const inicial = useMemo(() => avatarOuPadrao(avatar), [avatar]);
   const [cfg, setCfg] = useState<ConfigAvatar>(inicial);
   const [historico, setHistorico] = useState<ConfigAvatar[]>([]);
-  const [aba, setAba] = useState<CategoriaId>('chapeu');
+  const [aba, setAba] = useState<CategoriaId>('personagem');
   const [aviso, setAviso] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
   const temporizadorAviso = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -59,7 +64,14 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
     }
     if (cfg[cat] === id) return;
     setHistorico((h) => [...h.slice(-20), cfg]);
-    setCfg({ ...cfg, [cat]: id });
+    const novo: ConfigAvatar = { ...cfg, [cat]: id };
+    // Ao mudar de personagem, a cor acompanha (se a pessoa ainda não a tinha mudado à mão)
+    if (cat === 'personagem') {
+      const nova = corSugerida(id);
+      const itemCor = CATEGORIAS_AVATAR.find((c) => c.id === 'cor')!.itens.find((i) => i.id === nova);
+      if (nova && itemCor && (itemCor.rep || 0) <= pontos && cfg.cor === corSugerida(cfg.personagem)) novo.cor = nova;
+    }
+    setCfg(novo);
   };
 
   const desfazer = () => {
@@ -125,9 +137,9 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
           <div className="relative rounded-[16px] bg-[#111111] overflow-hidden h-[210px] md:h-[330px] flex items-end justify-center">
             <div aria-hidden="true" className="absolute left-1/2 bottom-[-30px] -translate-x-1/2 w-[260px] h-[90px] rounded-[50%] bg-[#FF6B1A] opacity-35 blur-2xl" />
             <img
-              src={urlDoAvatar(cfg, 'completa')}
+              src={urlDoAvatar(cfg, 'palco')}
               alt={t('A tua mascote com as peças escolhidas')}
-              className="relative h-[196px] md:h-[316px] w-auto select-none"
+              className="relative h-[200px] md:h-[322px] w-auto max-w-full select-none"
               draggable={false}
               data-teste="palco-avatar"
             />
@@ -211,7 +223,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
                     src={urlDoAvatar(miniatura, VISTA_DA_CATEGORIA[categoria.id])}
                     alt=""
                     aria-hidden="true"
-                    className={`w-full aspect-[4/3] object-contain select-none ${bloqueado ? 'opacity-40 grayscale' : ''}`}
+                    className={`w-full select-none ${FORMA_DA_MINIATURA[categoria.id] || 'aspect-[4/3] object-contain'} ${bloqueado ? 'opacity-40 grayscale' : ''}`}
                     draggable={false}
                     loading="lazy"
                   />
