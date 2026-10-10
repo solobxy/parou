@@ -135,7 +135,7 @@ export async function fetchTransitLineDetail(id: string): Promise<NormalizedTran
 export async function fetchAvailabilityAudit(date?: string): Promise<import('../types/transit').GlobalAvailabilityAuditReport> {
   const url = date ? `/api/transit/audit/availability?date=${encodeURIComponent(date)}` : '/api/transit/audit/availability';
   const res = await fetch(url, {
-    headers: { 'Accept': 'application/json' },
+    headers: { ...cabecalhosAdmin(), 'Accept': 'application/json' },
   });
   if (!res.ok) {
     throw new Error(`Falha ao obter relatório de auditoria (${res.status})`);
@@ -200,7 +200,7 @@ export interface TmlLiveVehicle {
 }
 
 export async function fetchTmlDiagnostic(): Promise<TmlDiagnosticData> {
-  const res = await fetch('/api/transit/tml/diagnostic');
+  const res = await fetch('/api/transit/tml/diagnostic', { headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Falha ao obter diagnóstico TML (${res.status})`);
   }
@@ -291,7 +291,7 @@ export interface UnirDiagnosticReport {
 }
 
 export async function fetchUnirDiagnostic(): Promise<UnirDiagnosticReport> {
-  const res = await fetch('/api/transit/tml/unir-diagnostic');
+  const res = await fetch('/api/transit/tml/unir-diagnostic', { headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Falha ao obter diagnóstico UNIR (${res.status})`);
   }
@@ -299,7 +299,7 @@ export async function fetchUnirDiagnostic(): Promise<UnirDiagnosticReport> {
 }
 
 export async function fetchNationalDiagnostic(): Promise<NationalAggregatorDiagnosticReport> {
-  const res = await fetch('/api/transit/diagnostic/national');
+  const res = await fetch('/api/transit/diagnostic/national', { headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Falha ao obter diagnóstico nacional (${res.status})`);
   }
@@ -323,7 +323,7 @@ export async function fetchDiscoveredSources(): Promise<{ sources: DiscoveredSou
 }
 
 export async function triggerDiscoverySync(): Promise<{ success: boolean; message: string }> {
-  const res = await fetch('/api/transit/discovery/sync', { method: 'POST' });
+  const res = await fetch('/api/transit/discovery/sync', { method: 'POST', headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Falha ao acionar sincronização nacional (${res.status})`);
   }
@@ -623,6 +623,7 @@ export {
   searchOperators,
   getGtfsAgenciesCatalog
 } from '../data/operatorsData';
+import { cabecalhosAdmin } from '../utils/admin';
 
 // Re-export External Sources Integration Manager
 export { externalSourcesManager } from './integration';

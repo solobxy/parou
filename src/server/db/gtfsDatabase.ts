@@ -477,17 +477,24 @@ function initSchema(db: DatabaseSync) {
   `);
 }
 
+// A base de dados vem pronta (parou-dados) e abre só para leitura: o estado da app guarda-se
+// então em memória (é só estado de trabalho, não precisa de sobreviver a um reinício).
+const estadoEmMemoria = new Map<string, string>();
 export function setAppState(key: string, value: any): void {
+  const texto = JSON.stringify(value);
+  estadoEmMemoria.set(key, texto);
   try {
     const db = getDatabase();
-    db.prepare('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn('[SQLite DB] Erro ao gravar app_state:', e);
+    db.prepare('INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)').run(key, texto);
+  } catch (e: any) {
+    if (!/readonly/i.test(String(e?.message || e))) console.warn('[SQLite DB] Erro ao gravar app_state:', e);
   }
 }
 
 export function getAppState<T = any>(key: string): T | null {
   try {
+    const naMemoria = estadoEmMemoria.get(key);
+    if (naMemoria !== undefined) return JSON.parse(naMemoria) as T;
     const db = getDatabase();
     const row = db.prepare('SELECT value FROM app_state WHERE key = ?').get(key) as { value: string } | undefined;
     if (!row) return null;

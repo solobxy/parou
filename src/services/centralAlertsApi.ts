@@ -8,6 +8,7 @@ import {
 } from '../types/alerts';
 import { db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { cabecalhosAdmin } from '../utils/admin';
 
 const PREFS_STORAGE_KEY = 'parou_central_alerts_prefs_v1';
 const NOTIFIED_CACHE_KEY = 'parou_notified_alerts_cache_v1';
@@ -106,7 +107,7 @@ export async function fetchCentralAlerts(params: FetchCentralAlertsParams = {}):
 
 // Fetch Diagnostic Dashboard data
 export async function fetchCentralAlertsDiagnostic(): Promise<AlertCenterDiagnostic> {
-  const res = await fetch('/api/central-alerts/diagnostic');
+  const res = await fetch('/api/central-alerts/diagnostic', { headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ${res.status}: ${res.statusText}`);
   }
@@ -120,7 +121,7 @@ export async function triggerCentralAlertsSync(): Promise<{
   newImported: number;
   duplicatesAvoided: number;
 }> {
-  const res = await fetch('/api/central-alerts/sync', { method: 'POST' });
+  const res = await fetch('/api/central-alerts/sync', { method: 'POST', headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ${res.status}: ${res.statusText}`);
   }

@@ -25,12 +25,14 @@ import {
   testFeedConnection,
   reingestAllFeeds
 } from '../services/coverageApi';
+import { eAdmin } from '../utils/admin';
 
 interface CoverageViewProps {
   onBackToMap?: () => void;
 }
 
 export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
+  const admin = eAdmin();
   const [report, setReport] = useState<CoverageReport | null>(null);
   const [logs, setLogs] = useState<FetchLogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -59,8 +61,10 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
     try {
       const data = await fetchCoverageReport();
       setReport(data);
-      const logsData = await fetchCoverageLogs(100);
-      setLogs(logsData.logs || []);
+      if (admin) {
+        const logsData = await fetchCoverageLogs(100);
+        setLogs(logsData.logs || []);
+      }
     } catch (err: any) {
       console.warn('[CoverageView] Erro ao carregar dados:', err);
     } finally {
@@ -307,7 +311,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {admin && <div className="flex items-center gap-2">
           {/* Primary Action Button: Brand chamfer */}
           <button
             onClick={handleRefreshAll}
@@ -325,7 +329,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
           >
             <span>Descoberta</span>
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Progress Banner */}
@@ -385,7 +389,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
           { id: 'checklist' as const, label: 'Checklist' },
           { id: 'adicionar' as const, label: 'Adicionar' },
           { id: 'logs' as const, label: 'Registos' },
-        ].map((tab) => {
+        ].filter((tab) => admin || (tab.id !== 'adicionar' && tab.id !== 'logs')).map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
@@ -448,7 +452,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
                       {feed.stops_count ?? 0}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      {feed.url && (
+                      {feed.url && admin && (
                         <button
                           onClick={() => handleRefreshSingle(feed.id)}
                           className="px-2.5 py-1 bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[6px] text-xs font-semibold text-[#111111] cursor-pointer min-h-[32px]"

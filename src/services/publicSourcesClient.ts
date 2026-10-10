@@ -1,5 +1,6 @@
 import { PublicSourceConfig, IngestionSyncResult, Occurrence } from '../types';
 import { batchImportPublicReports } from './firebase';
+import { cabecalhosAdmin } from '../utils/admin';
 
 export async function fetchPublicSourcesList(): Promise<PublicSourceConfig[]> {
   try {
@@ -26,6 +27,7 @@ export async function syncPublicSourcesNow(): Promise<{
     const res = await fetch('/api/public-sources/sync', {
       method: 'POST',
       headers: {
+        ...cabecalhosAdmin(),
         'Content-Type': 'application/json',
       },
     });

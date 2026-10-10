@@ -1,4 +1,5 @@
 import { CoverageReport, FetchLogItem, ManualFeedInput, FeedItem, TestResult } from '../types/coverage';
+import { cabecalhosAdmin } from '../utils/admin';
 
 export async function fetchCoverageReport(): Promise<CoverageReport> {
   const res = await fetch('/api/coverage');
@@ -11,7 +12,7 @@ export async function fetchCoverageReport(): Promise<CoverageReport> {
 export async function testFeedConnection(feedId: string, url?: string): Promise<TestResult> {
   const res = await fetch('/api/coverage/test-connection', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...cabecalhosAdmin(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ feedId, url }),
   });
   if (!res.ok) {
@@ -22,7 +23,7 @@ export async function testFeedConnection(feedId: string, url?: string): Promise<
 }
 
 export async function fetchCoverageLogs(limit = 100): Promise<{ logs: FetchLogItem[]; total: number }> {
-  const res = await fetch(`/api/coverage/logs?limit=${limit}`);
+  const res = await fetch(`/api/coverage/logs?limit=${limit}`, { headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ao obter logs de fetch (${res.status})`);
   }
@@ -32,7 +33,7 @@ export async function fetchCoverageLogs(limit = 100): Promise<{ logs: FetchLogIt
 export async function submitManualFeed(data: ManualFeedInput): Promise<{ success: boolean; feed: FeedItem }> {
   const res = await fetch('/api/feeds/manual', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...cabecalhosAdmin(), 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -43,7 +44,7 @@ export async function submitManualFeed(data: ManualFeedInput): Promise<{ success
 }
 
 export async function refreshFeed(feedId: string): Promise<{ success: boolean; feed: FeedItem }> {
-  const res = await fetch(`/api/feeds/${feedId}/refresh`, { method: 'POST' });
+  const res = await fetch(`/api/feeds/${feedId}/refresh`, { method: 'POST', headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ao atualizar feed (${res.status})`);
   }
@@ -51,7 +52,7 @@ export async function refreshFeed(feedId: string): Promise<{ success: boolean; f
 }
 
 export async function reingestAllFeeds(): Promise<{ success: boolean; message: string }> {
-  const res = await fetch('/api/coverage/reingest-all', { method: 'POST' });
+  const res = await fetch('/api/coverage/reingest-all', { method: 'POST', headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ao reiniciar importação de todos os feeds (${res.status})`);
   }
@@ -59,7 +60,7 @@ export async function reingestAllFeeds(): Promise<{ success: boolean; message: s
 }
 
 export async function runManualDiscovery(): Promise<{ success: boolean; result: any }> {
-  const res = await fetch('/api/coverage/run-discovery', { method: 'POST' });
+  const res = await fetch('/api/coverage/run-discovery', { method: 'POST', headers: cabecalhosAdmin() });
   if (!res.ok) {
     throw new Error(`Erro ao executar auto-descoberta (${res.status})`);
   }

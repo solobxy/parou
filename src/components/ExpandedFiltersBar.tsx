@@ -130,7 +130,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
                   : 'bg-[#F4F4F2] text-[#111111] border-[#E6E6E3] hover:bg-[#E6E6E3]'
               }`}
             >
-              <span>Reports:</span>
+              <span>Ocorrências:</span>
               <span className="font-['Barlow_Condensed'] font-bold tabular-nums text-sm">
                 {reportsCount}
               </span>

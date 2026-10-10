@@ -1148,7 +1148,6 @@ export default function App() {
               ['/alertas', 'Alertas', () => handleTabSelect('alertas')],
               ['/ocorrencias', 'Ocorrências', () => handleTabSelect('reports')],
               ['/catalogo', 'Catálogo', () => handleTabSelect('catalogo')],
-              ['/cobertura', 'Cobertura', () => handleTabSelect('coverage')],
               ['/sobre', 'Sobre', () => abrirPaginaInfo('sobre')],
               ['/privacidade', 'Privacidade', () => abrirPaginaInfo('privacidade')],
               ['/termos', 'Termos', () => abrirPaginaInfo('termos')],
