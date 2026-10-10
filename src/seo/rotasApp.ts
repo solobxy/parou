@@ -22,6 +22,7 @@ export const ROTAS: Record<string, Meta> = {
   '/privacidade': { titulo: 'Política de privacidade | PAROU', descricao: 'Que dados a PAROU usa, para quê e quais são os teus direitos (RGPD).', canonico: '/privacidade', indexar: true },
   '/termos': { titulo: 'Termos de utilização | PAROU', descricao: 'Termos de utilização da PAROU, serviço gratuito de informação sobre transportes públicos em Portugal.', canonico: '/termos', indexar: true },
   '/contactar': { titulo: 'Contactar a PAROU | Dinis Sousa', descricao: 'Fala com o autor da PAROU: email e telemóvel para dúvidas, sugestões, erros nos horários, parcerias e dados de operadores.', canonico: '/contactar', indexar: true },
+  '/comunidade': { titulo: 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes', descricao: 'Fala com quem anda nos mesmos transportes: faz perguntas, partilha queixas e elogios sobre CP, Metro, Carris, STCP e mais. Respostas dos operadores e sem anúncios.', canonico: '/comunidade', indexar: true },
   '/favoritos': { titulo: 'Os meus favoritos | PAROU', descricao: 'As tuas linhas e paragens favoritas na PAROU.', canonico: '/favoritos', indexar: false },
   '/atrasos': { titulo: 'Atrasos nos transportes agora | PAROU', descricao: 'Atrasos reportados pela comunidade nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
   '/acidentes': { titulo: 'Acidentes de trânsito agora | PAROU', descricao: 'Acidentes reportados nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
@@ -33,8 +34,13 @@ export const ROTAS: Record<string, Meta> = {
 export const NAO_ENCONTRADA: Meta = { titulo: 'Página não encontrada | PAROU', descricao: 'Esta página não existe ou mudou de sítio.', canonico: '/', indexar: false };
 
 
+// Uma conversa da comunidade (/comunidade/pub-…): existe sempre para a app abrir, mas não vai para os motores de busca
+const CONVERSA = /^\/comunidade\/pub-[a-z0-9]{1,12}-[a-f0-9]{10}$/;
+export const CONVERSA_DA_COMUNIDADE: Meta = { titulo: 'Conversa na comunidade | PAROU', descricao: 'Conversa na comunidade PAROU sobre transportes públicos em Portugal.', canonico: '/comunidade', indexar: false };
+
 export function metaDaRota(caminho: string): { meta: Meta; existe: boolean } {
   const limpo = (String(caminho || '/').toLowerCase().replace(/\/+$/, '') || '/');
+  if (CONVERSA.test(limpo)) return { meta: CONVERSA_DA_COMUNIDADE, existe: true };
   const meta = ROTAS[limpo];
   return { meta: meta || NAO_ENCONTRADA, existe: Boolean(meta) };
 }

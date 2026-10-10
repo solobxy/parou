@@ -73,6 +73,9 @@ export interface UserProfile {
   badge: string;
   createdAt: number;
   pioneiro?: boolean; // conta criada até ao fim de 2026
+  avatar?: import('../utils/avatarCatalogo').ConfigAvatar;
+  operador?: string; // conta oficial de um operador (respostas marcadas como oficiais)
+  proximaPeca?: { nome: string; falta: number } | null;
 }
 
 export interface DistrictData {

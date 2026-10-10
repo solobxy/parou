@@ -12,7 +12,7 @@ export class ErroServidor extends Error {
   constructor(mensagem: string, public codigo: string, public estado: number) { super(mensagem); }
 }
 
-async function pedido<T = any>(metodo: string, url: string, corpo?: unknown): Promise<T> {
+export async function pedido<T = any>(metodo: string, url: string, corpo?: unknown): Promise<T> {
   let r: Response;
   try {
     r = await fetch(url, {
@@ -80,6 +80,11 @@ export function observarSessao(cb: (u: Utilizador | null) => void): () => void {
 }
 
 export const recuperacaoPorEmailAtiva = () => emailAtivoNoServidor;
+
+/** Volta a ler a sessão no servidor (pontos, avatar…) depois de uma ação que os muda. */
+export function atualizarSessao(): Promise<void> {
+  return lerSessao().catch(() => {});
+}
 
 // Perfil (pontos e distintivo): atualiza quando muda a sessão, depois de agir e de minuto a minuto
 const perfilOuvintes = new Set<(p: Utilizador | null) => void>();
