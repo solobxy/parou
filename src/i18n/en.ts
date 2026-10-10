@@ -143,6 +143,21 @@ export const EN: Record<string, string> = {
   'Guardar nos favoritos': 'Save to favourites',
   'Favorito': 'Favourite',
 
+  '{m} m a pé': '{m} m walk',
+  'Sair às {h}': 'Leave at {h}',
+  '{n} min a pé': '{n} min walk',
+  '{n} transbordo': '{n} transfer',
+  '{n} transbordos': '{n} transfers',
+  'Daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.': 'No buses depart from here. To board, use the other stop with the same name.',
+  'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.': 'End of the line: no buses depart from here. To board, use the other stop with the same name.',
+  'Não foi possível obter agora os horários da UNIR (vêm da AMP). Tenta outra vez daqui a pouco.': 'Could not get UNIR times right now (they come from AMP). Try again shortly.',
+  'Sem partidas nas próximas horas.': 'No departures in the next few hours.',
+  'há {n} min': '{n} min ago',
+  'há {n} h': '{n} h ago',
+  'há {n} s': '{n} s ago',
+  'há {n} dias': '{n} days ago',
+  'ontem': 'yesterday',
+
   // Favoritos
   'As tuas paragens e linhas guardadas.': 'Your saved stops and lines.',
   'Adicionar': 'Add',

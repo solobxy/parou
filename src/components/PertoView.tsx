@@ -1416,8 +1416,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                     <div className="text-xs text-[#6B6B6B] mb-1.5">
                       {route.id === 'a-pe'
-                        ? `${route.walkingDistanceMeters} m a pé`
-                        : `Sair às ${route.departureTime} · ${route.walkingMinutes} min a pé${route.transfersCount ? ` · ${route.transfersCount} transbordo` : ''}`}
+                        ? t('{m} m a pé', { m: route.walkingDistanceMeters })
+                        : `${t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1601,7 +1601,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                   ) : (
                     <div className="text-[13px] text-[#6B6B6B] pt-2">
-                      {stop.arrivalsOnly ? 'Daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.' : 'Toca para ver as próximas partidas.'}
+                      {stop.arrivalsOnly ? t('Daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.') : t('Toca para ver as próximas partidas.')}
                     </div>
                   )}
                 </div>
@@ -1669,7 +1669,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   )}
                   <div className="text-xs text-[#6B6B6B] mt-0.5">
                     {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {selectedStop.formattedDistance}
-                    {selectedStop.walkingMinutes ? ` · ${selectedStop.walkingMinutes} min a pé` : ''}
+                    {selectedStop.walkingMinutes ? ` · ${t('{n} min a pé', { n: selectedStop.walkingMinutes })}` : ''}
                   </div>
                 </div>
               </div>
@@ -1828,9 +1828,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   return (
                     <div className="py-4 text-sm text-[#6B6B6B]">
                       {selectedStop.arrivalsOnly
-                        ? 'Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.'
-                        : unir && !unir.ok ? 'Não foi possível obter agora os horários da UNIR (vêm da AMP). Tenta outra vez daqui a pouco.'
-                        : 'Sem partidas nas próximas horas.'}
+                        ? t('Fim de linha: daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.')
+                        : unir && !unir.ok ? t('Não foi possível obter agora os horários da UNIR (vêm da AMP). Tenta outra vez daqui a pouco.')
+                        : t('Sem partidas nas próximas horas.')}
                     </div>
                   );
                 }

@@ -187,7 +187,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
         {(['todos', 'paragens', 'transportes', 'locais'] as (FavoriteCategory | 'todos')[]).map((cat) => {
           const isActive = activeCategory === cat;
           const count = countsByCategory[cat] || 0;
-          const label = cat === 'todos' ? 'Todos' : cat === 'paragens' ? 'Paragens' : cat === 'transportes' ? 'Linhas' : 'Locais';
+          const label = t(cat === 'todos' ? 'Todos' : cat === 'paragens' ? 'Paragens' : cat === 'transportes' ? 'Linhas' : 'Locais');
           return (
             <button
               key={cat}

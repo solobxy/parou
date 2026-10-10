@@ -198,7 +198,7 @@ export const InstalarApp: React.FC = () => {
             className="mt-2.5 h-9 px-3.5 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
           >
             {iphone ? <Share className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {iphone || android ? 'Como instalar' : 'Instalar'}
+            {iphone || android ? t('Como instalar') : t('Instalar')}
           </button>
           {verPassos && (
             <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}</div>
