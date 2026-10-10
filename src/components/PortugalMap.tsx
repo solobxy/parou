@@ -502,17 +502,18 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         // gravidade como nos sinais de trânsito, e o número pequeno e centrado lá dentro.
         // Vermelho = há algo grave; laranja = há algo moderado; preto = só informação.
         const moderada = g.pontos.some((q) => q.gravidade === 'Moderada');
-        const larg = n >= 100 ? 72 : n >= 10 ? 62 : 52;
+        // Tamanho próximo dos outros marcadores do mapa (círculos de 30–34 px), não maior
+        const larg = n >= 100 ? 50 : n >= 10 ? 42 : 36;
         const alt = Math.round(larg * 0.9);
-        const tamanhoNumero = n >= 100 ? 15 : n >= 10 ? 18 : 20;
+        const tamanhoNumero = n >= 100 ? 11 : n >= 10 ? 12 : 13;
         const cor = grave ? '#D92D20' : moderada ? '#FF6B1A' : '#111111';
         const icone = L.divIcon({
           className: 'parou-ponto-mapa',
-          html: `<div style="position:relative;width:${larg}px;height:${alt}px;cursor:pointer;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">
+          html: `<div style="position:relative;width:${larg}px;height:${alt}px;cursor:pointer;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">
             <svg xmlns="http://www.w3.org/2000/svg" width="${larg}" height="${alt}" viewBox="0 0 60 54" aria-hidden="true">
-              <polygon points="30,6.5 54,48 6,48" fill="#FFFFFF" stroke="${cor}" stroke-width="6" stroke-linejoin="round"/>
+              <polygon points="30,5.5 54.5,49 5.5,49" fill="#FFFFFF" stroke="${cor}" stroke-width="5" stroke-linejoin="round"/>
             </svg>
-            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.667 - tamanhoNumero / 2)}px;text-align:center;color:#111111;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:800;font-size:${tamanhoNumero}px;line-height:1">${n}</span>
+            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.665 - tamanhoNumero / 2)}px;text-align:center;color:#111111;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:800;font-size:${tamanhoNumero}px;line-height:1">${n}</span>
           </div>`,
           iconSize: [larg, alt],
           iconAnchor: [larg / 2, alt * 0.62],

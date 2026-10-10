@@ -49,6 +49,10 @@ export interface FavoriteLiveStatus {
   status: 'Normal' | 'Atrasos' | 'Perturbação' | 'Interrompido' | 'Indisponível';
   nextDepartureTime?: string;
   etaMinutes?: number;
+  /** A partida real (da linha perto de ti), para formatar como nas outras listas */
+  nextDeparture?: { time: string; state?: string; countdown_minutes?: number; displayText?: string; stop_name?: string };
+  /** Paragem de onde sai a próxima partida */
+  stopName?: string;
   delayMinutes?: number;
   statusDescription?: string;
   activeAlertsCount: number;
