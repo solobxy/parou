@@ -719,7 +719,7 @@ export default function App() {
   }, [resolveRouteFromPath]);
 
   return (
-    <div className="min-h-dvh bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-clip">
+    <div className="app-raiz min-h-dvh bg-[#FFFFFF] text-[#111111] flex flex-col antialiased w-full max-w-full overflow-x-clip">
       {/* Top Background Loading Banner */}
       <TopLoadingBanner />
       <AvisoSemRede />

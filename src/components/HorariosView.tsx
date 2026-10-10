@@ -442,7 +442,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col bg-[#FFFFFF] min-h-screen">
+    <div className="pagina-raiz flex-1 flex flex-col bg-[#FFFFFF] min-h-screen">
       {/* Top Search & Filter Bar */}
       <div className="border-b border-[#E6E6E3] bg-[#FFFFFF] p-4 sm:p-6 space-y-3">
         <div className="max-w-4xl mx-auto space-y-3">

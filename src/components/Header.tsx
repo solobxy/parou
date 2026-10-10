@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
 import { BotaoInstalar } from './InstalarApp';
+import { SeletorTema } from './SeletorTema';
 import { Avatar } from './Avatar';
 import { 
   Search, 
@@ -430,6 +431,9 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {idioma === 'en' ? 'PT' : 'EN'}
           </button>
+
+          {/* Tema: Claro, Escuro ou Âmbar */}
+          <SeletorTema />
 
           {/* Instalar a app (só aparece quando o browser permite e ainda não está instalada) */}
           <BotaoInstalar />

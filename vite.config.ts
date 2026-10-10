@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, Plugin} from 'vite';
+import {temasPlugin} from './vite.temas';
 
 function hmrSilencer(): Plugin {
   const silencerScript = `(function() {
@@ -129,6 +130,7 @@ export default defineConfig(async ({ command }) => {
     hmrSilencer(),
     react(),
     tailwindcss(),
+    temasPlugin(),
   ];
 
   if (command === 'build') {
