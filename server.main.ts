@@ -93,19 +93,25 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Rotas de administração e diagnóstico: só com a chave PAROU_ADMIN_TOKEN (no /etc/parou.env).
+// Rotas de administração e diagnóstico: só com a chave de administração (ver /etc/parou.env).
 // Sem chave configurada ficam todas fechadas. A chave vem no cabeçalho x-parou-admin ou em ?chave=.
+// Guarda-se no servidor só o resumo SHA-256 da chave (PAROU_ADMIN_HASH), nunca a chave em si.
 const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
+const RESUMO_ADMIN = String(process.env.PAROU_ADMIN_HASH || '').trim().toLowerCase();
 const ROTAS_ADMIN: Array<[string, RegExp]> = [
   ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+|diagnostico-unir\/paragens)\/?$/],
   ['GET', /^\/api\/(transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
   ['GET', /^\/(debug\/.*|diagnostico-unir)\/?$/],
 ];
 function pedidoDeAdmin(req: Request): boolean {
-  if (CHAVE_ADMIN.length < 16) return false;
   const dada = String(req.headers['x-parou-admin'] || req.query.chave || '');
-  if (dada.length !== CHAVE_ADMIN.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(dada), Buffer.from(CHAVE_ADMIN));
+  if (dada.length < 16) return false;
+  const resumoDado = crypto.createHash('sha256').update(dada).digest('hex');
+  const esperado = RESUMO_ADMIN.length === 64
+    ? RESUMO_ADMIN
+    : CHAVE_ADMIN.length >= 16 ? crypto.createHash('sha256').update(CHAVE_ADMIN).digest('hex') : '';
+  if (!esperado) return false;
+  return crypto.timingSafeEqual(Buffer.from(resumoDado), Buffer.from(esperado));
 }
 app.use((req: Request, res: Response, next: NextFunction) => {
   const protegida = ROTAS_ADMIN.some(([m, re]) => m === req.method && re.test(req.path));
