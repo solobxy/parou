@@ -55,7 +55,10 @@ import {
   dispatchOccurrenceNotification,
   sincronizarPush 
 } from './services/notifications';
-import { carregarFirebase, observarSessao } from './services/nuvem';
+import {
+  observarSessao, subscribeUserProfile, subscribeReports, subscribeComplaints,
+  fetchReportById, createReport, voteOccurrence, updateReport, getVoterId,
+} from './services/conta';
 import { eAdmin } from './utils/admin';
 import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
@@ -113,7 +116,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // Occurrences state - Zero fake data, strictly real reports from Firestore or verified feeds
+  // Occurrences state - Zero fake data, strictly real reports from the community or verified feeds
   const [featuredOccurrences, setFeaturedOccurrences] = useState<Occurrence[]>([]);
   const [importantOccurrences, setImportantOccurrences] = useState<Occurrence[]>([]);
   const [recentOccurrences, setRecentOccurrences] = useState<Occurrence[]>([]);
@@ -181,6 +184,21 @@ export default function App() {
   }, [ecraGrande, activeMobileView, paginaInfo, isNotFound, selectedOccurrence]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Link de recuperação da palavra-passe (?redefinir=...) enviado por email
+  const [codigoRedefinir, setCodigoRedefinir] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const codigo = url.searchParams.get('redefinir');
+      if (!codigo) return;
+      setCodigoRedefinir(codigo);
+      setIsLoginModalOpen(true);
+      url.searchParams.delete('redefinir');
+      window.history.replaceState(null, '', url.pathname + (url.search || '') + url.hash);
+    } catch {
+      // sem URL válido, ignora
+    }
+  }, []);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isPublicSourcesModalOpen, setIsPublicSourcesModalOpen] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
@@ -213,27 +231,10 @@ export default function App() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [isMobileFilterModalOpen, setIsMobileFilterModalOpen] = useState(false);
 
-  // Real-time Firestore synchronization on mount
+  // Sincronização em direto com o servidor da PAROU (ocorrências da comunidade e conta)
   useEffect(() => {
-    // O Firebase (ocorrências da comunidade e contas) carrega depois do primeiro ecrã, para a app
-    // abrir mais depressa. Até lá mostra-se o que ficou guardado no telemóvel.
-    let cancelado = false;
-    let unsubscribeReports: () => void = () => {};
-    let unsubscribeComplaints: () => void = () => {};
-    const arrancar = setTimeout(() => {
-      carregarFirebase().then((fb) => {
-        if (cancelado) return;
-        ligarFirebase(fb);
-      }).catch((err) => {
-        console.warn('Firebase indisponível (a usar a cópia local):', err);
-        setIsSyncing(false);
-        loadCachedReports().then((cached) => { if (cached && cached.length > 0) applyOccurrencesData(cached); });
-      });
-    }, 1200);
-
-    const ligarFirebase = (fb: typeof import('./services/firebase')) => {
-    // 3. Subscribe to real-time reports
-    unsubscribeReports = fb.subscribeReports(
+    // 3. Ocorrências da comunidade: o servidor avisa quando há novidades (de 30 em 30 s, só com o ecrã visível)
+    const unsubscribeReports = subscribeReports(
       (liveReports) => {
         if (liveReports && liveReports.length > 0) {
           // Monitor for incoming occurrences to trigger notifications
@@ -258,7 +259,7 @@ export default function App() {
           // Persist latest reports into IndexedDB for offline resilience
           saveReportsToCache(liveReports);
         } else {
-          // If Firestore returns empty while offline, keep local cached data
+          // Sem ocorrências do servidor: se estiver sem rede mantém a cópia local
           if (!isOffline) {
             setRecentOccurrences([]);
             setFeaturedOccurrences([]);
@@ -269,9 +270,8 @@ export default function App() {
         setIsSyncing(false);
       },
       (err) => {
-        console.warn('Real-time reports sync notice (recuperando do IndexedDB):', err);
+        console.warn('Sincronização das ocorrências indisponível (a usar a cópia local):', err);
         setIsSyncing(false);
-        // Fallback to IndexedDB when network error happens
         loadCachedReports().then((cached) => {
           if (cached && cached.length > 0) {
             applyOccurrencesData(cached);
@@ -280,44 +280,35 @@ export default function App() {
       }
     );
 
-    // 3.1 Reclamações para a moderação (só no modo de administração: poupa leituras)
+    // 3.1 Reclamações para a moderação (só no modo de administração)
+    let unsubscribeComplaints: () => void = () => {};
     if (eAdmin()) {
-      unsubscribeComplaints = fb.subscribeComplaints(
+      unsubscribeComplaints = subscribeComplaints(
         (liveComplaints) => {
           setComplaintsList(liveComplaints);
         },
         (err) => {
-          console.warn('Real-time complaints sync notice:', err);
+          console.warn('Sincronização das reclamações indisponível:', err);
         }
       );
     }
-    };
 
-    // 4. Listen to Firebase Auth state & subscribe to real-time reputation profile
+    // 4. Sessão iniciada e perfil de reputação (pontos e distintivo)
     let profileUnsub: (() => void) | null = null;
-    const authUnsub = observarSessao(async (fbUser) => {
-      if (fbUser) {
-        try {
-          const fb = await carregarFirebase();
-          const profile = await fb.ensureUserProfile(fbUser);
-          setCurrentUserProfile(profile);
-
-          if (profileUnsub) profileUnsub();
-          profileUnsub = fb.subscribeUserProfile(fbUser.uid, (updatedProfile) => {
-            if (updatedProfile) setCurrentUserProfile(updatedProfile);
-          });
-        } catch (err) {
-          console.warn('Error loading user profile:', err);
-        }
-      } else {
+    const authUnsub = observarSessao((utilizador) => {
+      if (utilizador) {
+        setCurrentUserProfile(utilizador);
         if (profileUnsub) profileUnsub();
+        profileUnsub = subscribeUserProfile(utilizador.userId, (updatedProfile) => {
+          if (updatedProfile) setCurrentUserProfile(updatedProfile);
+        });
+      } else {
+        if (profileUnsub) { profileUnsub(); profileUnsub = null; }
         setCurrentUserProfile(null);
       }
     });
 
     return () => {
-      cancelado = true;
-      clearTimeout(arrancar);
       unsubscribeReports();
       unsubscribeComplaints();
       authUnsub();
@@ -389,7 +380,7 @@ export default function App() {
   // Incêndios, avisos e perturbações atuais (com posição) para o Mapa
   const camadasMapa = usePontosMapa(activeNavTab === 'mapa' || activeMobileView === 'mapa');
 
-  // Dynamic real-time district counts computed directly from Firestore reports
+  // Dynamic real-time district counts computed directly from community reports
   const districtCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     ocorrenciasAtuais.forEach((report) => {
@@ -444,16 +435,8 @@ export default function App() {
     return allReportsList.filter((r) => r.authorId === currentUserProfile.userId);
   }, [allReportsList, currentUserProfile]);
 
-  // Unique voter identifier for the current session/account to prevent duplicate voting
-  // O mesmo identificador de voto que o Firebase usa (conta, ou um id deste telemóvel)
-  const voterId = useMemo(() => {
-    if (currentUserProfile?.userId) return currentUserProfile.userId;
-    try {
-      let id = localStorage.getItem('parou_voter_device_id');
-      if (!id) { id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; localStorage.setItem('parou_voter_device_id', id); }
-      return id;
-    } catch { return 'anon-user'; }
-  }, [currentUserProfile]);
+  // Identificador de voto: a conta, ou um id deste telemóvel
+  const voterId = useMemo(() => getVoterId(currentUserProfile?.userId), [currentUserProfile]);
 
   // Related occurrences for the selected report detail page
   const relatedOccurrences = useMemo(() => {
@@ -472,14 +455,14 @@ export default function App() {
       if (found) {
         setSelectedOccurrence(found);
       } else {
-        carregarFirebase().then((fb) => fb.fetchReportById(reportIdParam)).then((rep) => {
+        fetchReportById(reportIdParam).then((rep) => {
           if (rep) setSelectedOccurrence(rep);
         });
       }
     }
   }, [allReportsList]);
 
-  // Keep open selected occurrence synchronized with real-time Firestore updates
+  // Keep open selected occurrence synchronized with real-time updates
   useEffect(() => {
     if (selectedOccurrence) {
       const updated = allReportsList.find((r) => r.id === selectedOccurrence.id);
@@ -518,11 +501,11 @@ export default function App() {
     }
   };
 
-  // Handle new report submission to Firestore
+  // Handle new report submission
   const handleAddNewReport = async (newReport: Occurrence) => {
     setIsSyncing(true);
     try {
-      const newId = await (await carregarFirebase()).createReport(newReport);
+      const newId = await createReport(newReport);
       const savedReport: Occurrence = {
         ...newReport,
         id: newId || newReport.id,
@@ -533,16 +516,16 @@ export default function App() {
       handleSelectOccurrence(savedReport);
     } catch (err) {
       setIsSyncing(false);
-      console.error('Error saving report to Firestore:', err);
+      console.error('Error saving report:', err);
       throw err;
     }
   };
 
-  // Handle community confirmation and unconfirmation voting in Firestore
+  // Handle community confirmation and unconfirmation voting
   const handleVoteOccurrence = async (id: string, action: 'confirm' | 'unconfirm') => {
     setIsSyncing(true);
     try {
-      await (await carregarFirebase()).voteOccurrence(id, action, voterId, currentUserProfile?.userId);
+      await voteOccurrence(id, action, voterId, currentUserProfile?.userId);
       setLastUpdated(new Date());
       setIsSyncing(false);
     } catch (err) {
@@ -556,11 +539,11 @@ export default function App() {
     await handleVoteOccurrence(id, 'confirm');
   };
 
-  // Handle status update in Firestore
+  // Handle status update
   const handleUpdateReportStatus = async (id: string, newStatus: 'Ativa' | 'Em resolução' | 'Resolvida') => {
     setIsSyncing(true);
     try {
-      await (await carregarFirebase()).updateReport(id, { status: newStatus });
+      await updateReport(id, { status: newStatus });
       setLastUpdated(new Date());
       setIsSyncing(false);
     } catch (err) {
@@ -788,7 +771,7 @@ export default function App() {
         ) : paginaInfo ? (
           <PaginaInformativa pagina={paginaInfo} onVoltar={() => handleTabSelect('perto')} onAbrir={abrirPaginaInfo} />
         ) : selectedOccurrence ? (
-          /* Dedicated Report Detail Page with real Firestore data */
+          /* Dedicated Report Detail Page with real community data */
           <ReportDetailPage
             occurrence={selectedOccurrence}
             onBack={handleBackFromReportDetail}
@@ -903,7 +886,7 @@ export default function App() {
                 />
               </section>
 
-              {/* Central Column: Interactive Portugal Map with live Firestore counts */}
+              {/* Central Column: Interactive Portugal Map with live counts */}
               <section className="col-span-12 lg:col-span-4 xl:col-span-4 2xl:col-span-5 flex flex-col space-y-5 min-w-0">
                 <React.Suspense fallback={<div className="h-[460px] sm:h-[520px] md:h-[580px] w-full rounded-[8px] parou-esqueleto" />}><PortugalMap
                   selectedDistrict={selectedDistrictOnMap}
@@ -1212,7 +1195,8 @@ export default function App() {
 
       {isLoginModalOpen && <React.Suspense fallback={null}><LoginModal
         isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
+        onClose={() => { setIsLoginModalOpen(false); setCodigoRedefinir(null); }}
+        codigoRedefinir={codigoRedefinir}
       /></React.Suspense>}
 
       {isUserProfileModalOpen && <React.Suspense fallback={null}><UserProfileModal

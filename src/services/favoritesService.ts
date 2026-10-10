@@ -1,10 +1,5 @@
-// O Firebase só é carregado quando há sessão iniciada (ver ./nuvem.ts)
-import { carregarFirebase, utilizadorFirebase } from './nuvem';
+import { utilizadorAutenticado, favoritosDaConta } from './conta';
 type Unsubscribe = () => void;
-async function nuvem() {
-  const [{ db }, fs] = await Promise.all([carregarFirebase(), import('firebase/firestore')]);
-  return { db, ...fs };
-}
 import { FavoriteItem, FavoriteCategory, FavoriteLiveStatus } from '../types/favorites';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { sortDepartures } from '../utils/transitFormatter';
@@ -59,7 +54,7 @@ export function isItemFavorited(id: string): boolean {
 }
 
 /**
- * Add an item to favorites (local and Firestore if logged in)
+ * Add an item to favorites (local, and on the account if logged in)
  */
 export async function addFavorite(item: Omit<FavoriteItem, 'addedAt'>): Promise<FavoriteItem> {
   const fullItem: FavoriteItem = {
@@ -76,15 +71,12 @@ export async function addFavorite(item: Omit<FavoriteItem, 'addedAt'>): Promise<
 
   setLocalFavorites(updated);
 
-  // If user is authenticated, sync to Firestore
-  const user = utilizadorFirebase();
-  if (user) {
+  // Com sessão iniciada, guarda também na conta (no servidor da PAROU)
+  if (utilizadorAutenticado()) {
     try {
-      const { db, doc, setDoc } = await nuvem();
-      const favDocRef = doc(db, 'users', user.uid, 'favorites', fullItem.id);
-      await setDoc(favDocRef, fullItem, { merge: true });
+      await favoritosDaConta.guardar([fullItem]);
     } catch (err) {
-      console.warn('[FavoritesService] Erro ao guardar favorito no Firestore:', err);
+      console.warn('[FavoritesService] Não foi possível guardar o favorito na conta (fica neste telemóvel):', err);
     }
   }
 
@@ -99,15 +91,12 @@ export async function removeFavorite(id: string): Promise<void> {
   const filtered = current.filter((f) => f.id !== id);
   setLocalFavorites(filtered);
 
-  // If user is authenticated, delete from Firestore
-  const user = utilizadorFirebase();
-  if (user) {
+  // Com sessão iniciada, apaga também na conta
+  if (utilizadorAutenticado()) {
     try {
-      const { db, doc, deleteDoc } = await nuvem();
-      const favDocRef = doc(db, 'users', user.uid, 'favorites', id);
-      await deleteDoc(favDocRef);
+      await favoritosDaConta.apagar(id);
     } catch (err) {
-      console.warn('[FavoritesService] Erro ao remover favorito no Firestore:', err);
+      console.warn('[FavoritesService] Não foi possível apagar o favorito na conta:', err);
     }
   }
 }
@@ -125,114 +114,88 @@ export async function toggleFavorite(item: Omit<FavoriteItem, 'addedAt'>): Promi
   }
 }
 
+const CHAVE_SINCRONIA = 'parou_favoritos_sincronia';
+
+function lerSincronia(): { uid: string; em: number } | null {
+  try {
+    const raw = localStorage.getItem(CHAVE_SINCRONIA);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const quando = (f: FavoriteItem) => f.updatedAt || f.addedAt || 0;
+
 /**
- * Merge local favorites and remote Firestore favorites without duplicates.
- * Takes the most complete or most recently updated item.
+ * Junta os favoritos deste telemóvel com os da conta, sem duplicados.
+ * - Primeira vez que esta conta entra neste telemóvel: junta tudo (fica o mais recente de cada um).
+ * - Depois disso a conta é a verdade (o que apagaste noutro telemóvel não volta), e só sobem os
+ *   favoritos que criaste aqui desde a última sincronização.
  */
 export async function syncAndMergeFavorites(userId: string): Promise<FavoriteItem[]> {
   try {
     const localItems = getLocalFavorites();
-    const { db, collection, getDocs, doc, setDoc } = await nuvem();
-    const favsCollectionRef = collection(db, 'users', userId, 'favorites');
-    const querySnapshot = await getDocs(favsCollectionRef);
+    const remoteItems = (await favoritosDaConta.listar()) as FavoriteItem[];
+    const sincronia = lerSincronia();
+    const jaSincronizado = sincronia?.uid === userId;
 
-    const remoteItems: FavoriteItem[] = [];
-    querySnapshot.forEach((docSnap) => {
-      if (docSnap.exists()) {
-        remoteItems.push(docSnap.data() as FavoriteItem);
-      }
-    });
+    const mapa = new Map<string, FavoriteItem>();
+    for (const r of remoteItems) if (r?.id) mapa.set(r.id, r);
 
-    // Merge map keyed by ID
-    const mergedMap = new Map<string, FavoriteItem>();
-
-    // 1. Add remote items
-    for (const remote of remoteItems) {
-      mergedMap.set(remote.id, remote);
-    }
-
-    // 2. Merge local items: if not in remote, add to map and upload to Firestore
-    const itemsToUpload: FavoriteItem[] = [];
-    for (const local of localItems) {
-      const existing = mergedMap.get(local.id);
-      if (!existing) {
-        mergedMap.set(local.id, local);
-        itemsToUpload.push(local);
-      } else {
-        // Prefer newer timestamp
-        const newer = (local.updatedAt || local.addedAt) > (existing.updatedAt || existing.addedAt)
-          ? local
-          : existing;
-        mergedMap.set(local.id, newer);
+    const paraSubir: FavoriteItem[] = [];
+    for (const l of localItems) {
+      const existente = mapa.get(l.id);
+      if (!existente) {
+        // Só aproveita o que é novo aqui (ou tudo, na primeira ligação desta conta)
+        if (!jaSincronizado || quando(l) > (sincronia?.em || 0)) {
+          mapa.set(l.id, l);
+          paraSubir.push(l);
+        }
+      } else if (!jaSincronizado && quando(l) > quando(existente)) {
+        mapa.set(l.id, l);
+        paraSubir.push(l);
       }
     }
 
-    // Upload any local items that were missing in the cloud
-    for (const item of itemsToUpload) {
+    if (paraSubir.length > 0) {
       try {
-        const itemRef = doc(db, 'users', userId, 'favorites', item.id);
-        await setDoc(itemRef, item, { merge: true });
-      } catch (uploadErr) {
-        console.warn(`[FavoritesService] Falha ao subir favorito ${item.id}:`, uploadErr);
+        await favoritosDaConta.guardar(paraSubir);
+      } catch (err) {
+        console.warn('[FavoritesService] Falha ao subir favoritos para a conta:', err);
       }
     }
 
-    const mergedList = Array.from(mergedMap.values()).sort(
-      (a, b) => (b.addedAt || 0) - (a.addedAt || 0)
-    );
-
-    // Save combined state to local storage
-    setLocalFavorites(mergedList);
-    return mergedList;
+    const lista = Array.from(mapa.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    try { localStorage.setItem(CHAVE_SINCRONIA, JSON.stringify({ uid: userId, em: Date.now() })); } catch {}
+    if (JSON.stringify(lista) !== JSON.stringify(localItems)) setLocalFavorites(lista);
+    return lista;
   } catch (err) {
-    console.warn('[FavoritesService] Erro ao fundir favoritos com Firestore:', err);
+    console.warn('[FavoritesService] Não foi possível sincronizar os favoritos com a conta:', err);
     return getLocalFavorites();
   }
 }
 
-/**
- * Subscribe to Firestore favorites for live cross-device sync
- */
+/** Vai buscar à conta as alterações feitas noutros telemóveis (de minuto a minuto, com o ecrã visível). */
 export function subscribeToUserFavorites(
   userId: string,
   onUpdate: (favorites: FavoriteItem[]) => void
 ): Unsubscribe {
-  let cancelado = false;
-  let parar: Unsubscribe | null = null;
-  nuvem().then(({ db, collection, onSnapshot }) => {
-  if (cancelado) return;
-  const favsCollectionRef = collection(db, 'users', userId, 'favorites');
-
-  parar = onSnapshot(
-    favsCollectionRef,
-    (snapshot) => {
-      const remoteItems: FavoriteItem[] = [];
-      snapshot.forEach((docSnap) => {
-        if (docSnap.exists()) {
-          remoteItems.push(docSnap.data() as FavoriteItem);
-        }
-      });
-
-      // Merge with local storage
-      const localItems = getLocalFavorites();
-      const map = new Map<string, FavoriteItem>();
-
-      for (const item of localItems) map.set(item.id, item);
-      for (const item of remoteItems) map.set(item.id, item);
-
-      const combined = Array.from(map.values()).sort(
-        (a, b) => (b.addedAt || 0) - (a.addedAt || 0)
-      );
-
-      setLocalFavorites(combined);
-      onUpdate(combined);
-    },
-    (err) => {
-      console.warn('[FavoritesService] Erro no listener de favoritos Firestore:', err);
-    }
-  );
-  }).catch((err) => console.warn('[FavoritesService] Firebase indisponível:', err));
-  return () => { cancelado = true; parar?.(); };
+  let parado = false;
+  const atualizar = async () => {
+    if (parado || document.hidden || !utilizadorAutenticado()) return;
+    const antes = JSON.stringify(getLocalFavorites());
+    const lista = await syncAndMergeFavorites(userId);
+    if (!parado && JSON.stringify(lista) !== antes) onUpdate(lista);
+  };
+  const temporizador = setInterval(() => { void atualizar(); }, 60_000);
+  const aoVoltar = () => { if (!document.hidden) void atualizar(); };
+  document.addEventListener('visibilitychange', aoVoltar);
+  return () => {
+    parado = true;
+    clearInterval(temporizador);
+    document.removeEventListener('visibilitychange', aoVoltar);
+  };
 }
 
 type LinhaApi = import('./transitApi').ApiLineItem;

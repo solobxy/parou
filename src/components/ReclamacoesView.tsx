@@ -20,7 +20,7 @@ import {
   getVoterId,
   checkReportRateLimit,
   recordReportSubmission
-} from '../services/firebase';
+} from '../services/conta';
 import { CIDADES_OPTIONS } from '../data/mockData';
 
 interface ReclamacoesViewProps {

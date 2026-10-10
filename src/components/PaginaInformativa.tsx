@@ -103,9 +103,10 @@ function Privacidade() {
           e perturbações graves. O conteúdo das notificações vai cifrado. Ao desligares as notificações, estes dados são apagados.
         </p>
         <p>
-          <strong>Conta (opcional).</strong> Se entrares com Google ou email, usamos o teu nome, email e foto de perfil para a conta,
-          para sincronizar os favoritos entre dispositivos e para identificar as ocorrências que publicas. O email nunca é mostrado
-          a outras pessoas.
+          <strong>Conta (opcional).</strong> Se criares conta, guardamos no nosso servidor o teu nome, o teu email e uma versão
+          cifrada da palavra-passe (nunca a palavra-passe em si), para sincronizar os favoritos entre dispositivos e para
+          identificar as ocorrências que publicas. Ao entrares, guardamos no telemóvel um cookie técnico de sessão
+          (<em>parou_sessao</em>, 30 dias) para não teres de entrar de cada vez. O email nunca é mostrado a outras pessoas.
         </p>
         <p>
           <strong>Ocorrências e comentários que publicas.</strong> São públicos (título, descrição, local, hora e o nome que
@@ -129,10 +130,10 @@ function Privacidade() {
       <Secao titulo="Com quem partilhamos">
         <p>
           Não vendemos nem cedemos dados. Usamos estes prestadores, só para o funcionamento da PAROU: Hetzner (alojamento do servidor,
-          na Alemanha), Google Firebase (contas, ocorrências e sincronização de favoritos), os serviços de
+          na Alemanha, onde ficam também as contas, as ocorrências e a cópia dos favoritos), os serviços de
           notificações da Google, Apple e Mozilla (entregam as notificações, se as ligares) e OpenStreetMap (o teu browser descarrega
           os mapas diretamente dos servidores do OpenStreetMap, que veem o teu endereço IP) e Photon, da Komoot (quando procuras uma
-          morada, o nosso servidor envia-lhe só o texto escrito e a zona aproximada, nunca o teu IP). O Google pode tratar dados fora da União
+          morada, o nosso servidor envia-lhe só o texto escrito e a zona aproximada, nunca o teu IP). Os serviços de notificações podem tratar dados fora da União
           Europeia, com as garantias previstas no RGPD (cláusulas contratuais-tipo).
         </p>
       </Secao>

@@ -22,6 +22,7 @@ import {
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
+import { registarRotasComunidade, importarOcorrenciasPublicas } from './src/server/comunidade/rotas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
 import { registarPaginasSeo } from './src/server/seo/paginas';
@@ -130,6 +131,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 registarIndexNow(app);
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
 registarRotasDadosUtilizador(app);
+// Contas, favoritos na conta, ocorrências da comunidade e reclamações (antes estavam no Firebase)
+registarRotasComunidade(app, { eAdmin: pedidoDeAdmin });
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
 registarRotasPush(app);
 // Páginas públicas para os motores de pesquisa: linhas, paragens, operadores, greves e sitemaps
@@ -285,10 +288,14 @@ app.post('/api/public-sources/sync', async (req: Request, res: Response) => {
     const durationMs = Date.now() - startTime;
 
     console.log(`[Ingestion Engine] Concluído em ${durationMs}ms. ${occurrences.length} ocorrências reais.`);
+    // As ocorrências das fontes oficiais entram na base da comunidade aqui, no servidor
+    const { added, updated } = importarOcorrenciasPublicas(occurrences);
     return res.json({
       success: true,
       result,
       occurrences,
+      added,
+      updated,
       durationMs,
     });
   } catch (error: any) {

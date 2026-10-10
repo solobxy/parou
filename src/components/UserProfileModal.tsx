@@ -8,7 +8,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
-import { logout, apagarConta } from '../services/firebase';
+import { logout, apagarConta } from '../services/conta';
 import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
 
@@ -31,20 +31,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
   const [erroApagar, setErroApagar] = React.useState<string>('');
+  const [palavraApagar, setPalavraApagar] = React.useState('');
 
   if (!isOpen || !user) return null;
 
   const handleApagarConta = async () => {
     setAApagar('a-apagar');
     setErroApagar('');
-    const r = await apagarConta();
+    const r = await apagarConta(palavraApagar);
     if (r === 'ok') {
       onClose();
       return;
     }
     setAApagar('confirmar');
-    setErroApagar(r === 'reautenticar'
-      ? 'Por segurança, sai e volta a entrar na conta e depois apaga-a.'
+    setErroApagar(r === 'palavra-errada'
+      ? 'A palavra-passe não está certa.'
       : 'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.');
   };
 
@@ -197,20 +198,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           ) : (
             <div className="rounded-[10px] border border-[#F3C5C1] bg-[#FDF2F1] p-3 space-y-2">
               <p className="text-[12.5px] text-[#111111] leading-snug">
-                Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste
-                continuam visíveis, sem ligação à conta. Isto não se pode desfazer.
+                {t('Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste continuam visíveis, sem ligação à conta. Isto não se pode desfazer.')}
               </p>
-              {erroApagar && <p className="text-[12px] text-[#D92D20]">{erroApagar}</p>}
+              <input
+                type="password"
+                value={palavraApagar}
+                onChange={(e) => setPalavraApagar(e.target.value)}
+                placeholder={t('Escreve a tua palavra-passe para confirmar')}
+                autoComplete="current-password"
+                className="w-full px-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-[12.5px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none min-h-[40px]"
+              />
+              {erroApagar && <p role="alert" className="text-[12px] text-[#D92D20]">{t(erroApagar)}</p>}
               <div className="flex gap-2">
                 <button
                   onClick={handleApagarConta}
-                  disabled={aApagar === 'a-apagar'}
+                  disabled={aApagar === 'a-apagar' || palavraApagar.length === 0}
                   className="h-9 px-3 rounded-[8px] bg-[#D92D20] text-[#FFFFFF] text-[12.5px] font-semibold cursor-pointer disabled:opacity-60"
                 >
-                  {aApagar === 'a-apagar' ? 'A apagar…' : 'Sim, apagar a conta'}
+                  {aApagar === 'a-apagar' ? t('A apagar…') : t('Sim, apagar a conta')}
                 </button>
                 <button
-                  onClick={() => { setAApagar('nao'); setErroApagar(''); }}
+                  onClick={() => { setAApagar('nao'); setErroApagar(''); setPalavraApagar(''); }}
                   className="h-9 px-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[12.5px] font-semibold text-[#111111] cursor-pointer"
                 >
                   {t('Cancelar')}
