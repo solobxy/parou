@@ -1147,6 +1147,8 @@ export default function App() {
             {([
               ['/', 'Perto', () => handleTabSelect('perto')],
               ['/transportes', 'Horários', () => handleTabSelect('horarios')],
+              ['/cidades', 'Cidades', () => { window.location.href = '/cidades'; }],
+              ['/linhas', 'Linhas', () => { window.location.href = '/linhas'; }],
               ['/alertas', 'Alertas', () => handleTabSelect('alertas')],
               ['/ocorrencias', 'Ocorrências', () => handleTabSelect('reports')],
               ['/catalogo', 'Catálogo', () => handleTabSelect('catalogo')],

@@ -88,7 +88,7 @@ function rodape(): string {
   const principais = (ix?.operadores || []).slice(0, 14).map((o) => `<a href="/linhas/${o.slug}">${html(o.nome)}</a>`).join('');
   return `<footer class="rodape"><div class="in">
 <div class="marca" style="font-size:20px">${LOGO_SVG}PAROU</div>
-<nav aria-label="PAROU"><a href="/">Perto de mim</a><a href="/linhas">Linhas e horários</a><a href="/greves">Greves</a><a href="/alertas">Alertas</a><a href="/mapa">Mapa</a><a href="/sobre">Sobre</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a></nav>
+<nav aria-label="PAROU"><a href="/">Perto de mim</a><a href="/linhas">Linhas e horários</a><a href="/cidades">Cidades</a><a href="/greves">Greves</a><a href="/alertas">Alertas</a><a href="/mapa">Mapa</a><a href="/sobre">Sobre</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a></nav>
 <nav aria-label="Operadores">${principais}</nav>
 <p class="nota">Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.</p>
 </div></footer>`;
@@ -198,7 +198,8 @@ function paginaHub(): string {
   let corpo = `<h1>Linhas e horários de transportes públicos em Portugal</h1>
 <p class="sub">Horários de ${totalLinhas.toLocaleString('pt-PT')} linhas de autocarro, metro, comboio e barco e ${totalParagens.toLocaleString('pt-PT')} paragens de ${ix.operadores.length} operadores — Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e muitos mais. Escolhe o operador, a linha ou pesquisa uma paragem.</p>
 <form class="pesquisa" action="/pesquisa" method="get" role="search"><input name="q" type="search" placeholder="Linha ou paragem (ex.: 801, Marquês de Pombal)" aria-label="Pesquisar linha ou paragem" required minlength="2"><button class="btn" type="submit">Pesquisar</button></form>
-<div class="aviso">Queres saber quando passa o próximo? <a href="/"><b>Abre a PAROU</b></a> e vê os transportes à tua volta em tempo real.</div>`;
+<div class="aviso">Queres saber quando passa o próximo? <a href="/"><b>Abre a PAROU</b></a> e vê os transportes à tua volta em tempo real.</div>
+<h2>Por cidade</h2><p>${CIDADES.slice(0, 24).map((c) => `<a href="/cidade/${c.slug}">${html(c.nome)}</a>`).join(' · ')} · <a href="/cidades">todas</a></p>`;
   for (const [regiao, ops] of porRegiao) {
     corpo += `<h2>${html(NOME_REGIAO[regiao] || regiao)}</h2><div class="grelha">${ops
       .map((o) => `<a href="/linhas/${o.slug}"><b>${html(o.nome)}</b><small>${html(o.modo)} · ${o.linhas.length} ${o.linhas.length === 1 ? 'linha' : 'linhas'} · ${o.paragens.length.toLocaleString('pt-PT')} paragens</small></a>`)
@@ -694,16 +695,106 @@ function dataDados(): string {
   return (d.isValid ? d : DateTime.now()).toISODate() || '';
 }
 
+// ------------------------------------------------------------------------------------
+// Páginas por cidade: "autocarros em Braga", "transportes Maia horários"… — operadores que
+// servem a cidade, paragens principais (com ligação a cada uma) e perguntas frequentes.
+// ------------------------------------------------------------------------------------
+export const CIDADES: Array<{ slug: string; nome: string; lat: number; lon: number; raioKm: number }> = [
+  ['lisboa', 'Lisboa', 38.7223, -9.1393, 6], ['porto', 'Porto', 41.1579, -8.6291, 5], ['braga', 'Braga', 41.5454, -8.4265, 5],
+  ['coimbra', 'Coimbra', 40.2033, -8.4103, 5], ['aveiro', 'Aveiro', 40.6405, -8.6538, 4], ['faro', 'Faro', 37.0194, -7.9322, 4],
+  ['setubal', 'Setúbal', 38.5244, -8.8882, 4], ['leiria', 'Leiria', 39.7438, -8.8078, 4], ['viseu', 'Viseu', 40.6575, -7.9143, 4],
+  ['evora', 'Évora', 38.5714, -7.907, 3], ['santarem', 'Santarém', 39.2369, -8.6855, 3], ['viana-do-castelo', 'Viana do Castelo', 41.6932, -8.8329, 4],
+  ['vila-real', 'Vila Real', 41.3006, -7.7441, 3], ['braganca', 'Bragança', 41.8058, -6.7572, 3], ['guarda', 'Guarda', 40.5373, -7.2658, 3],
+  ['castelo-branco', 'Castelo Branco', 39.8222, -7.4932, 3], ['portalegre', 'Portalegre', 39.2938, -7.4312, 3], ['beja', 'Beja', 38.0151, -7.8632, 3],
+  ['funchal', 'Funchal', 32.6500, -16.9089, 5], ['ponta-delgada', 'Ponta Delgada', 37.7412, -25.6756, 4],
+  ['maia', 'Maia', 41.2357, -8.6199, 5], ['matosinhos', 'Matosinhos', 41.1844, -8.6963, 4], ['vila-nova-de-gaia', 'Vila Nova de Gaia', 41.1239, -8.6118, 5],
+  ['gondomar', 'Gondomar', 41.1446, -8.5323, 4], ['valongo', 'Valongo', 41.1886, -8.4983, 4], ['povoa-de-varzim', 'Póvoa de Varzim', 41.3804, -8.7609, 4],
+  ['vila-do-conde', 'Vila do Conde', 41.3533, -8.7472, 4], ['espinho', 'Espinho', 41.0076, -8.6410, 3], ['guimaraes', 'Guimarães', 41.4425, -8.2918, 4],
+  ['vila-nova-de-famalicao', 'Vila Nova de Famalicão', 41.4076, -8.5198, 4], ['santa-maria-da-feira', 'Santa Maria da Feira', 40.9268, -8.5436, 4],
+  ['amadora', 'Amadora', 38.7538, -9.2308, 3], ['sintra', 'Sintra', 38.8029, -9.3817, 6], ['cascais', 'Cascais', 38.6979, -9.4215, 5],
+  ['oeiras', 'Oeiras', 38.6913, -9.3110, 4], ['loures', 'Loures', 38.8309, -9.1685, 5], ['odivelas', 'Odivelas', 38.7929, -9.1838, 3],
+  ['almada', 'Almada', 38.6790, -9.1569, 4], ['seixal', 'Seixal', 38.6401, -9.1013, 5], ['barreiro', 'Barreiro', 38.6631, -9.0724, 4],
+  ['montijo', 'Montijo', 38.7067, -8.9739, 4], ['vila-franca-de-xira', 'Vila Franca de Xira', 38.9553, -8.9897, 5],
+  ['figueira-da-foz', 'Figueira da Foz', 40.1508, -8.8618, 4], ['torres-vedras', 'Torres Vedras', 39.0911, -9.2586, 4],
+  ['caldas-da-rainha', 'Caldas da Rainha', 39.4036, -9.1386, 3], ['portimao', 'Portimão', 37.1386, -8.5372, 4], ['albufeira', 'Albufeira', 37.0889, -8.2503, 4],
+  ['loule', 'Loulé', 37.1377, -8.0197, 4], ['lagos', 'Lagos', 37.1028, -8.6730, 3], ['olhao', 'Olhão', 37.0260, -7.8411, 3], ['covilha', 'Covilhã', 40.2806, -7.5043, 3],
+].map(([slug, nome, lat, lon, raioKm]) => ({ slug: slug as string, nome: nome as string, lat: lat as number, lon: lon as number, raioKm: raioKm as number }));
+
+function distKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const r = Math.PI / 180;
+  const x = (b.lon - a.lon) * r * Math.cos(((a.lat + b.lat) / 2) * r);
+  const y = (b.lat - a.lat) * r;
+  return Math.sqrt(x * x + y * y) * 6371;
+}
+
+function paginaCidade(c: (typeof CIDADES)[number]): string {
+  const ix = obterIndice()!;
+  const porOperador: Array<{ op: Operador; n: number; perto: Array<{ g: GrupoParagem; d: number }> }> = [];
+  for (const op of ix.operadores) {
+    const perto: Array<{ g: GrupoParagem; d: number }> = [];
+    for (const g of op.paragens) {
+      if (Math.abs(g.lat - c.lat) > 0.1 || Math.abs(g.lon - c.lon) > 0.13) continue;
+      const d = distKm(c, g);
+      if (d <= c.raioKm) perto.push({ g, d });
+    }
+    if (perto.length) porOperador.push({ op, n: perto.length, perto: perto.sort((a, b) => a.d - b.d) });
+  }
+  porOperador.sort((a, b) => b.n - a.n);
+  const totalParagens = porOperador.reduce((n, x) => n + x.n, 0);
+  const nomesOps = porOperador.map((x) => x.op.nome);
+  const listaOps = nomesOps.length > 1 ? `${nomesOps.slice(0, -1).join(', ')} e ${nomesOps[nomesOps.length - 1]}` : nomesOps[0] || '';
+  const perguntas = [
+    { p: `Como sei quando passa o próximo autocarro em ${c.nome}?`, r: `Abre a PAROU (parou.pt) e ativa a localização: vês as paragens à tua volta em ${c.nome} e as próximas partidas de cada linha${porOperador.length ? ` (${listaOps})` : ''}, com tempo real quando o operador o disponibiliza.` },
+    { p: `Que transportes públicos há em ${c.nome}?`, r: porOperador.length ? `Em ${c.nome} a PAROU tem ${totalParagens.toLocaleString('pt-PT')} paragens de ${porOperador.length} ${porOperador.length === 1 ? 'operador' : 'operadores'}: ${listaOps}.` : `A PAROU ainda não tem horários publicados para ${c.nome}.` },
+    { p: `Os horários dos transportes de ${c.nome} são oficiais?`, r: 'Sim. Os horários vêm dos dados publicados pelos operadores (GTFS) e pelo IMT, e são atualizados todos os dias. Podem mudar sem aviso; em caso de dúvida confirma junto do operador.' },
+    { p: `Há greves ou perturbações nos transportes em ${c.nome} hoje?`, r: 'Na página de greves e nos Alertas da PAROU vês as greves anunciadas e as perturbações dos operadores, além dos avisos de mau tempo do IPMA.' },
+  ];
+  let corpo = `<h1>Transportes públicos em ${html(c.nome)}: horários e próximos autocarros</h1>
+<p class="sub">${porOperador.length ? `Horários de ${listaOps} em ${html(c.nome)} — ${totalParagens.toLocaleString('pt-PT')} paragens, com as próximas partidas e tempo real quando disponível.` : `Transportes perto de ti em ${html(c.nome)}.`} Gratuito e sem anúncios.</p>
+<p><a class="btn laranja" href="/">Ver o que passa perto de mim</a> <a class="btn claro" href="/greves">Greves hoje</a></p>`;
+  for (const x of porOperador.slice(0, 8)) {
+    corpo += `<h2>${html(x.op.nome)} em ${html(c.nome)}</h2>
+<p>${x.n.toLocaleString('pt-PT')} paragens de ${html(x.op.modo.toLowerCase())} em ${html(c.nome)}. <a href="/linhas/${x.op.slug}">Todas as linhas e horários ${html(x.op.nome)}</a>.</p>
+<ul class="lista">${x.perto.slice(0, 12).map(({ g }) => `<li><a href="/paragens/${x.op.slug}/${g.slug}"><span class="t">${html(nomeBonito(g.nome))}</span></a></li>`).join('')}</ul>`;
+  }
+  corpo += `<h2>Perguntas frequentes</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}
+<h2>Outras cidades</h2><p>${CIDADES.filter((o) => o.slug !== c.slug).map((o) => `<a href="/cidade/${o.slug}">${html(o.nome)}</a>`).join(' · ')}</p>`;
+  return pagina({
+    titulo: `Autocarros e transportes em ${c.nome}: horários e tempo real | PAROU`,
+    descricao: `Horários dos transportes públicos em ${c.nome}${porOperador.length ? ` (${nomesOps.slice(0, 3).join(', ')})` : ''}: próximos autocarros, paragens perto de ti, greves e alertas. Grátis e sem anúncios.`,
+    caminho: `/cidade/${c.slug}`,
+    corpo,
+    migalhas: [{ nome: 'Início', url: '/' }, { nome: 'Cidades', url: '/cidades' }, { nome: c.nome, url: `/cidade/${c.slug}` }],
+    jsonld: [{
+      '@context': 'https://schema.org', '@type': 'FAQPage',
+      mainEntity: perguntas.map((q) => ({ '@type': 'Question', name: q.p, acceptedAnswer: { '@type': 'Answer', text: q.r } })),
+    }],
+  });
+}
+
+function paginaCidades(): string {
+  const corpo = `<h1>Transportes públicos por cidade</h1>
+<p class="sub">Horários de autocarros, metro, comboios e barcos nas cidades de Portugal, com as paragens de cada operador e os próximos transportes em tempo real.</p>
+<div class="grelha">${CIDADES.map((c) => `<a href="/cidade/${c.slug}"><b>${html(c.nome)}</b><small>Horários e paragens</small></a>`).join('')}</div>`;
+  return pagina({
+    titulo: 'Transportes públicos por cidade em Portugal: horários | PAROU',
+    descricao: 'Horários de autocarros, metro e comboios em Lisboa, Porto, Braga, Coimbra, Faro, Maia, Gaia, Sintra e mais cidades de Portugal. Próximos transportes em tempo real.',
+    caminho: '/cidades',
+    corpo,
+    migalhas: [{ nome: 'Início', url: '/' }, { nome: 'Cidades', url: '/cidades' }],
+  });
+}
+
 export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
   { loc: '/', freq: 'daily', pri: '1.0' },
   { loc: '/linhas', freq: 'weekly', pri: '0.9' },
+  { loc: '/cidades', freq: 'weekly', pri: '0.8' },
   { loc: '/greves', freq: 'hourly', pri: '0.9' },
   { loc: '/alertas', freq: 'hourly', pri: '0.8' },
   { loc: '/transportes', freq: 'weekly', pri: '0.8' },
   { loc: '/mapa', freq: 'hourly', pri: '0.6' },
   { loc: '/ocorrencias', freq: 'hourly', pri: '0.5' },
   { loc: '/catalogo', freq: 'monthly', pri: '0.4' },
-  { loc: '/cobertura', freq: 'monthly', pri: '0.3' },
   { loc: '/sobre', freq: 'monthly', pri: '0.4' },
   { loc: '/privacidade', freq: 'yearly', pri: '0.2' },
   { loc: '/termos', freq: 'yearly', pri: '0.2' },
@@ -711,7 +802,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
 
 export function todosOsEnderecos(): string[] {
   const ix = obterIndice();
-  const out = PAGINAS_APP.map((p) => p.loc);
+  const out = [...PAGINAS_APP.map((p) => p.loc), ...CIDADES.map((c) => `/cidade/${c.slug}`)];
   if (!ix) return out;
   for (const o of ix.operadores) {
     out.push(`/linhas/${o.slug}`, `/paragens/${o.slug}`);
@@ -781,6 +872,12 @@ export function registarPaginasSeo(app: Express) {
   });
 
   app.get('/linhas', pronto, (_req, res) => enviar(res, emCache('hub', 30 * 60_000, paginaHub), 900));
+  app.get('/cidades', pronto, (_req, res) => enviar(res, emCache('cidades', 6 * 3600_000, paginaCidades), 3600));
+  app.get('/cidade/:c', pronto, (req, res) => {
+    const c = CIDADES.find((x) => x.slug === req.params.c);
+    if (!c) return naoEncontrado(res);
+    enviar(res, emCache(`cidade:${c.slug}`, 6 * 3600_000, () => paginaCidade(c)), 3600);
+  });
 
   app.get('/linhas/:op', pronto, (req, res) => {
     const op = obterIndice()!.porSlugOperador.get(req.params.op);
@@ -867,7 +964,10 @@ export function registarPaginasSeo(app: Express) {
     const hoje = DateTime.now().toISODate() || '';
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.send(xml(PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri }))));
+    res.send(xml([
+      ...PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri })),
+      ...CIDADES.map((c) => ({ loc: `/cidade/${c.slug}`, freq: 'weekly', pri: '0.8' })),
+    ]));
   });
 
   app.get('/sitemap-linhas.xml', pronto, (_req, res) => {
