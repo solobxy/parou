@@ -209,7 +209,7 @@ const NoResposta: React.FC<{ no: No; nivel: number; ctx: ContextoResposta }> = (
         )}
       </div>
       {no.filhos.length > 0 && !recolhida && (
-        <ul className={nivel < MAX_NIVEIS_VISUAIS ? 'ml-3.5 pl-3 sm:ml-[18px] sm:pl-4 border-l-2 border-[#E6E6E3]' : 'border-t border-[#EFEFEC]'}>
+        <ul className={nivel < MAX_NIVEIS_VISUAIS ? 'ml-1 pl-2.5 sm:ml-[18px] sm:pl-4 border-l-2 border-[#E6E6E3]' : 'border-t border-[#EFEFEC]'}>
           {no.filhos.map((f) => <NoResposta key={f.r.id} no={f} nivel={nivel + 1} ctx={ctx} />)}
         </ul>
       )}
