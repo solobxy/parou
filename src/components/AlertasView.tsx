@@ -13,6 +13,7 @@ import {
   Wind,
   MapPin,
   ChevronDown,
+  ChevronUp,
   CalendarDays,
   Megaphone,
   TrainFront,
@@ -407,7 +408,15 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
   });
   const [verMaisDestaques, setVerMaisDestaques] = useState(false);
   const [verMaisNoticias, setVerMaisNoticias] = useState(false);
-  const [tempoAberto, setTempoAberto] = useState(false);
+  // O tempo aparece completo por defeito; quem quiser encurta no botão (e a escolha fica guardada)
+  const [tempoRecolhido, setTempoRecolhido] = useState<boolean>(() => {
+    try { return localStorage.getItem('parou_tempo_recolhido') === '1'; } catch { return false; }
+  });
+  const alternarTempo = () => {
+    const novo = !tempoRecolhido;
+    setTempoRecolhido(novo);
+    try { localStorage.setItem('parou_tempo_recolhido', novo ? '1' : '0'); } catch {}
+  };
 
   // Usa o GPS só se já estiver autorizado (sem pedir nada neste separador)
   useEffect(() => {
@@ -649,13 +658,14 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Tempo */}
       {!dados && aCarregar ? (
         <div className="rounded-[16px] bg-[#F4F4F2] h-[188px] animate-pulse" />
-      ) : dados && (agora || hoje) && avisosLocais.length === 0 ? (
-        /* Sem avisos: o tempo passa a uma linha discreta (toca para ver os próximos dias) */
+      ) : dados && (agora || hoje) && avisosLocais.length === 0 && tempoRecolhido ? (
+        /* Encurtado por escolha da pessoa (só sem avisos): uma linha, toca para voltar ao completo */
         <section className="rounded-[14px] bg-[#111111] text-[#FFFFFF] overflow-hidden" data-teste="tempo-compacto">
           <button
             type="button"
-            onClick={() => setTempoAberto((v) => !v)}
-            aria-expanded={tempoAberto}
+            onClick={alternarTempo}
+            aria-expanded={false}
+            aria-label="Mostrar o tempo completo"
             className="w-full min-h-[56px] px-3.5 py-2.5 flex items-center gap-3 text-left cursor-pointer"
           >
             <IconeTempo icone={agora?.icone || hoje?.icone || 'nuvens'} className="w-8 h-8 text-[#FF6B1A] shrink-0" />
@@ -670,25 +680,8 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                 {hoje ? `${hoje.tMin}° / ${hoje.tMax}° · ` : ''}Sem avisos meteorológicos
               </span>
             </span>
-            {dias.length > 1 && (
-              <ChevronDown className={`w-4 h-4 shrink-0 text-white/70 transition-transform ${tempoAberto ? 'rotate-180' : ''}`} aria-hidden="true" />
-            )}
+            <ChevronDown className="w-5 h-5 shrink-0 text-white/70" aria-hidden="true" />
           </button>
-          {tempoAberto && dias.length > 1 && (
-            <div className="grid grid-cols-3 border-t border-white/10">
-              {dias.slice(0, 3).map((d) => (
-                <div key={d.data} className="px-3 py-2.5 flex items-center gap-2 border-r border-white/10 last:border-r-0 min-w-0">
-                  <IconeTempo icone={d.icone} className="w-5 h-5 text-white/80 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-[11px] text-white/70 capitalize truncate">{d.rotulo}</div>
-                    <div className="font-['Barlow_Condensed'] text-[15px] font-bold tabular-nums leading-tight">
-                      {d.tMin}°<span className="text-white/40"> / </span>{d.tMax}°
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
       ) : dados && (agora || hoje) ? (
         <section className="rounded-[16px] bg-[#111111] text-[#FFFFFF] overflow-hidden shadow-[0_8px_24px_rgba(17,17,17,0.18)]">
@@ -754,8 +747,19 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             </div>
           ))}
           {avisosLocais.length === 0 && (
-            <div className="px-4 py-2 text-[11px] text-white/50 border-t border-white/10 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Sem avisos meteorológicos no distrito · IPMA, Open-Meteo
+            <div className="pl-4 pr-1.5 text-[11px] text-white/60 border-t border-white/10 flex items-center justify-between gap-2">
+              <span className="py-2 flex items-center gap-1.5 min-w-0">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Sem avisos meteorológicos no distrito · IPMA, Open-Meteo</span>
+              </span>
+              <button
+                type="button"
+                onClick={alternarTempo}
+                aria-expanded={true}
+                className="shrink-0 h-9 px-2.5 inline-flex items-center gap-1 text-[12px] font-semibold text-white/80 cursor-pointer"
+              >
+                Encurtar <ChevronUp className="w-4 h-4" aria-hidden="true" />
+              </button>
             </div>
           )}
         </section>
