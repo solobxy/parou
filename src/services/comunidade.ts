@@ -81,12 +81,21 @@ function consulta(f: FiltrosFeed): string {
   return s ? `?${s}` : '';
 }
 
+// Se o servidor responder com outra coisa (página de erro, resposta vazia), isso é um erro e não uma lista vazia.
+function respostaInvalida(): Error {
+  return new Error('Não foi possível carregar a comunidade.');
+}
+
 export async function listarConversas(f: FiltrosFeed = {}): Promise<{ itens: Publicacao[]; proxima: number | null }> {
-  return pedido('GET', `/api/comunidade/conversas${consulta(f)}`);
+  const r: any = await pedido('GET', `/api/comunidade/conversas${consulta(f)}`);
+  if (!r || !Array.isArray(r.itens)) throw respostaInvalida();
+  return { itens: r.itens, proxima: typeof r.proxima === 'number' ? r.proxima : null };
 }
 
 export async function lerConversa(id: string): Promise<{ publicacao: Publicacao; respostas: Resposta[] }> {
-  return pedido('GET', `/api/comunidade/conversas/${encodeURIComponent(id)}`);
+  const r: any = await pedido('GET', `/api/comunidade/conversas/${encodeURIComponent(id)}`);
+  if (!r || typeof r.publicacao !== 'object' || !r.publicacao || !Array.isArray(r.respostas)) throw respostaInvalida();
+  return { publicacao: r.publicacao, respostas: r.respostas };
 }
 
 export interface NovaPublicacao {

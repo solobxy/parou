@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
           <nav className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => onTabChange('mapa')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'mapa'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -134,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onTabChange('alertas')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'alertas'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -146,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onTabChange('perto')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'perto'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -158,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onTabChange('horarios')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'horarios'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -170,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onTabChange('comunidade')}
-              className={`hidden lg:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`hidden lg:flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'comunidade'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -183,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => onTabChange('favoritos')}
-              className={`hidden xl:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`hidden xl:flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'favoritos'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -200,7 +200,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {admin && <button
               onClick={() => onTabChange('coverage')}
-              className={`hidden md:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+              className={`hidden md:flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'coverage'
                   ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                   : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -214,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="relative shrink-0" ref={moreMenuRef}>
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className={`flex items-center gap-1 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+                className={`flex items-center gap-1 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                   isMoreTabActive
                     ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
                     : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
@@ -441,7 +441,7 @@ export const Header: React.FC<HeaderProps> = ({
               data-teste="botao-conta"
             >
               {currentUser.avatar ? (
-                <Avatar config={currentUser.avatar} tamanho={30} />
+                <Avatar config={currentUser.avatar} tamanho={38} />
               ) : currentUser.photoURL ? (
                 <img src={currentUser.photoURL} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
               ) : (
