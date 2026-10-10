@@ -19,7 +19,6 @@ import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { AvisoSemRede } from './components/AvisoSemRede';
 import { aplicarMetaRota } from './seo/rotasApp';
-import { PortugalMap } from './components/PortugalMap';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
 import { ImportantOccurrencesList } from './components/ImportantOccurrencesList';
 import { FiltersPanel } from './components/FiltersPanel';
@@ -29,13 +28,10 @@ import { ReportModal } from './components/ReportModal';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { ReportDetailPage } from './components/ReportDetailPage';
 import { HorariosView } from './components/HorariosView';
-import { NationalTransitCatalogView } from './components/NationalTransitCatalogView';
-import { ReclamacoesView } from './components/ReclamacoesView';
 import { AlertasView } from './components/AlertasView';
 import { PertoView } from './components/PertoView';
 import { LoginModal } from './components/LoginModal';
 import { UserProfileModal } from './components/UserProfileModal';
-import { AdminModerationModal } from './components/AdminModerationModal';
 import { NotificationModal } from './components/NotificationModal';
 import { NotificationToast } from './components/NotificationToast';
 import { PublicSourcesModal } from './components/PublicSourcesModal';
@@ -44,7 +40,6 @@ import { LiveSyncBar } from './components/LiveSyncBar';
 import { ExpandedFiltersBar } from './components/ExpandedFiltersBar';
 import { MobileFilterModal } from './components/MobileFilterModal';
 import { FavoritosView } from './components/FavoritosView';
-import { CoverageView } from './components/CoverageView';
 import { NotFoundView } from './components/NotFoundView';
 import { useFavorites } from './hooks/useFavorites';
 import { useOfflineReports } from './hooks/useOfflineReports';
@@ -84,6 +79,13 @@ import { iniciarCopiaDados } from './services/copiaDados';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
 import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
+
+// Ecrãs pesados ou pouco usados carregam só quando se abrem (a app abre mais depressa)
+const PortugalMap = React.lazy(() => import('./components/PortugalMap').then((m) => ({ default: m.PortugalMap })));
+const CoverageView = React.lazy(() => import('./components/CoverageView').then((m) => ({ default: m.CoverageView })));
+const NationalTransitCatalogView = React.lazy(() => import('./components/NationalTransitCatalogView').then((m) => ({ default: m.NationalTransitCatalogView })));
+const ReclamacoesView = React.lazy(() => import('./components/ReclamacoesView').then((m) => ({ default: m.ReclamacoesView })));
+const AdminModerationModal = React.lazy(() => import('./components/AdminModerationModal').then((m) => ({ default: m.AdminModerationModal })));
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -843,20 +845,20 @@ export default function App() {
             </div>
           ) : activeNavTab === 'catalogo' ? (
             <div className="max-w-6xl mx-auto py-2">
-              <NationalTransitCatalogView
+              <React.Suspense fallback={null}><NationalTransitCatalogView
                 onBackToMap={() => handleTabSelect('mapa')}
                 onSelectOperatorForReports={(opName) => {
                   handleFilterChange('operador', opName);
                   handleTabSelect('reports');
                 }}
-              />
+              /></React.Suspense>
             </div>
           ) : activeNavTab === 'reclamacoes' ? (
             <div className="max-w-5xl mx-auto py-2">
-              <ReclamacoesView
+              <React.Suspense fallback={null}><ReclamacoesView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
-              />
+              /></React.Suspense>
             </div>
           ) : activeNavTab === 'alertas' ? (
             <div className="w-full mx-auto py-2">
@@ -869,7 +871,7 @@ export default function App() {
             </div>
           ) : activeNavTab === 'coverage' ? (
             <div className="w-full mx-auto py-2">
-              <CoverageView onBackToMap={() => handleTabSelect('mapa')} />
+              <React.Suspense fallback={null}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
             </div>
           ) : (
             /* Standard 3-Column Homepage with dynamic PortugalMap in the center */
@@ -890,7 +892,7 @@ export default function App() {
 
               {/* Central Column: Interactive Portugal Map with live Firestore counts */}
               <section className="col-span-12 lg:col-span-4 xl:col-span-4 2xl:col-span-5 flex flex-col space-y-5 min-w-0">
-                <PortugalMap
+                <React.Suspense fallback={<div className="h-[460px] sm:h-[520px] md:h-[580px] w-full rounded-[8px] parou-esqueleto" />}><PortugalMap
                   selectedDistrict={selectedDistrictOnMap}
                   onSelectDistrict={handleDistrictSelectFromMap}
                   districtCounts={districtCounts}
@@ -898,7 +900,7 @@ export default function App() {
                   onSelectOccurrence={handleSelectOccurrence}
                   pontos={pontosMapa}
                   incendiosAtualizado={camadasMapa?.incendiosAtualizado}
-                />
+                /></React.Suspense>
               </section>
 
               {/* Right Column: Report CTA, Filters & Recent Occurrences Feed */}
@@ -939,7 +941,7 @@ export default function App() {
           {/* 1. Tab Mapa */}
           {activeMobileView === 'mapa' && (
             <div className="space-y-3.5">
-              <PortugalMap
+              <React.Suspense fallback={<div className="h-[460px] sm:h-[520px] md:h-[580px] w-full rounded-[8px] parou-esqueleto" />}><PortugalMap
                 selectedDistrict={selectedDistrictOnMap}
                 onSelectDistrict={handleDistrictSelectFromMap}
                 districtCounts={districtCounts}
@@ -948,7 +950,7 @@ export default function App() {
                 onReport={() => setIsReportModalOpen(true)}
                 pontos={pontosMapa}
                 incendiosAtualizado={camadasMapa?.incendiosAtualizado}
-              />
+              /></React.Suspense>
 
               {selectedDistrictOnMap ? (
                 <div className="space-y-3 pt-1">
@@ -1055,13 +1057,13 @@ export default function App() {
           {/* 4. Tab Catálogo Nacional */}
           {((activeMobileView === 'catalogo' && activeNavTab !== 'coverage') || activeNavTab === 'catalogo') && (
             <div className="space-y-3.5">
-              <NationalTransitCatalogView
+              <React.Suspense fallback={null}><NationalTransitCatalogView
                 onBackToMap={() => handleTabSelect('mapa')}
                 onSelectOperatorForReports={(opName) => {
                   handleFilterChange('operador', opName);
                   handleTabSelect('reports');
                 }}
-              />
+              /></React.Suspense>
             </div>
           )}
 
@@ -1112,17 +1114,17 @@ export default function App() {
           {/* 5. View Reclamações (acessível pelo cabeçalho no mobile) */}
           {activeMobileView === 'reclamacoes' && (
             <div className="space-y-3.5">
-              <ReclamacoesView
+              <React.Suspense fallback={null}><ReclamacoesView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
-              />
+              /></React.Suspense>
             </div>
           )}
 
           {/* View Cobertura (/coverage) no mobile */}
           {activeNavTab === 'coverage' && (
             <div className="space-y-3.5 pb-10">
-              <CoverageView onBackToMap={() => handleTabSelect('mapa')} />
+              <React.Suspense fallback={null}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
             </div>
           )}
         </div>
@@ -1206,12 +1208,12 @@ export default function App() {
         onOpenReportModal={() => setIsReportModalOpen(true)}
       />
 
-      <AdminModerationModal
+      {isAdminModalOpen && <React.Suspense fallback={null}><AdminModerationModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
         reports={allReportsList}
         complaints={complaintsList}
-      />
+      /></React.Suspense>}
 
       <NotificationModal
         isOpen={isNotificationModalOpen}
