@@ -251,7 +251,7 @@ export async function searchDestinationSuggestions(
     return {
       id: `stop-${s.stop_id}`,
       title: s.stop_name,
-      subtitle: `${s.feed_id.toUpperCase()} • Portugal`,
+      subtitle: `${s.location_type === 1 ? 'Estação' : 'Paragem'} · ${String(s.feed_id).replace(/_/g, ' ').toUpperCase()}`,
       latitude: s.stop_lat,
       longitude: s.stop_lon,
       type: s.location_type === 1 ? 'STATION' : 'PLACE',
@@ -262,6 +262,17 @@ export async function searchDestinationSuggestions(
   if (userLat && userLon) {
     results.sort((a, b) => (a.distanceFromUserMeters || 999999) - (b.distanceFromUserMeters || 999999));
   }
+
+  // A mesma paragem aparece várias vezes (um poste por sentido): fica só a mais perto
+  const nomesVistos = new Set<string>();
+  const unicas = results.filter((r) => {
+    const k = `${r.title.toLowerCase()}|${r.subtitle}`;
+    if (nomesVistos.has(k)) return false;
+    nomesVistos.add(k);
+    return true;
+  });
+  results.length = 0;
+  results.push(...unicas);
 
   const moradas = await pedidoMoradas;
   if (!moradas.length) return results.slice(0, 10);
