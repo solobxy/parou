@@ -872,7 +872,7 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     const fim = Date.parse(String(w.endTime || ''));
     const inicio = Date.parse(String(w.startTime || ''));
     if (!Number.isFinite(fim) || fim < agora) continue;
-    if (Number.isFinite(inicio) && inicio - agora > (canal ? 24 : 12) * 3600_000) continue;
+    if (Number.isFinite(inicio) && inicio - agora > 12 * 3600_000) continue;
     const area = String(w.idAreaAviso || '');
     if (!porArea.has(area)) continue;
     avisosPorDistrito.set(area, [...(avisosPorDistrito.get(area) || []), w]);
@@ -1118,7 +1118,7 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
     const fim = Date.parse(String(w.endTime || ''));
     const inicio = Date.parse(String(w.startTime || ''));
     if (!Number.isFinite(fim) || fim < agora) continue;
-    if (Number.isFinite(inicio) && inicio - agora > 12 * 3600_000) continue;
+    if (Number.isFinite(inicio) && inicio - agora > (canal ? 24 : 12) * 3600_000) continue;
     const area = String(w.idAreaAviso || '');
     if (!porArea.has(area)) continue;
     const k = `${area}:${nivel}`;
