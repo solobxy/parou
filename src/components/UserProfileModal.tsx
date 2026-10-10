@@ -122,7 +122,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-[#111111]">
-              As minhas ocorrências ({userReports.length})
+              {t('As minhas ocorrências ({n})', { n: userReports.length })}
             </h4>
 
             {/* Primary Action Button: Brand chamfer */}
@@ -134,7 +134,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               className="flex items-center gap-1 px-3 py-1.5 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[36px] cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Nova</span>
+              <span>{t('Nova')}</span>
             </button>
           </div>
 
@@ -157,7 +157,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <div className="text-xs font-semibold text-[#111111] truncate">{occ.title}</div>
                     <div className="text-[11px] text-[#6B6B6B] truncate flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3 h-3 stroke-[2]" />
-                      <span>{occ.district}</span>
+                      <span>{t(occ.district)}</span>
                       <span>·</span>
                       <span className="font-condensada tabular-nums">{quandoAconteceu(occ)}</span>
                     </div>

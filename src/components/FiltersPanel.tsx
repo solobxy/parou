@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import React, { useState } from 'react';
 import { 
   Compass, 
@@ -45,7 +46,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
       <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-[#E6E6E3]">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-bold text-[#111111]">
-            Filtros
+            {t('Filtros')}
           </span>
           {activeCount > 0 && (
             <span className="px-1.5 py-0.2 rounded-full bg-[#111111] text-[#FFFFFF] text-[10px] font-bold">
@@ -60,7 +61,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             className="flex items-center gap-1 text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer"
           >
             <RotateCcw className="w-3 h-3 stroke-[2]" />
-            <span>Limpar</span>
+            <span>{t('Limpar')}</span>
           </button>
         )}
       </div>
@@ -71,7 +72,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
         <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
           <div className="flex items-center gap-1.5 text-xs text-[#111111]">
             <Compass className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
-            <span>Distrito</span>
+            <span>{t('Distrito')}</span>
           </div>
           <select
             value={filters.distrito || 'Todos'}
@@ -87,7 +88,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
           >
             {DISTRITOS_OPTIONS.map((d) => (
               <option key={d} value={d} className="bg-[#FFFFFF] text-[#111111]">
-                {d === 'Todos' ? 'Todos' : d}
+                {t(d)}
               </option>
             ))}
           </select>
@@ -97,7 +98,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
         <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
           <div className="flex items-center gap-1.5 text-xs text-[#111111]">
             <MapPin className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
-            <span>Concelho</span>
+            <span>{t('Concelho')}</span>
           </div>
           <select
             value={filters.concelho || 'Todos'}
@@ -106,11 +107,11 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate disabled:opacity-40"
           >
             <option value="Todos" className="bg-[#FFFFFF] text-[#111111]">
-              {filters.distrito === 'Todos' ? 'Selecione distrito' : 'Todos'}
+              {filters.distrito === 'Todos' ? t('Selecione distrito') : t('Todos')}
             </option>
             {concelhosList.map((c) => (
               <option key={c} value={c} className="bg-[#FFFFFF] text-[#111111]">
-                {c}
+                {t(c)}
               </option>
             ))}
           </select>
@@ -120,7 +121,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
         <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
           <div className="flex items-center gap-1.5 text-xs text-[#111111]">
             <Layers className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
-            <span>Operador</span>
+            <span>{t('Operador')}</span>
           </div>
           <select
             value={filters.operador || 'Todos'}
@@ -129,7 +130,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
           >
             {OPERADORES_OPTIONS.map((op) => (
               <option key={op} value={op} className="bg-[#FFFFFF] text-[#111111]">
-                {op === 'Todos' ? 'Todos' : op}
+                {t(op)}
               </option>
             ))}
           </select>
@@ -140,7 +141,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer"
         >
-          <span>{showAdvanced ? 'Menos filtros' : 'Mais filtros'}</span>
+          <span>{showAdvanced ? t('Menos filtros') : t('Mais filtros')}</span>
           {showAdvanced ? <ChevronUp className="w-3.5 h-3.5 stroke-[2]" /> : <ChevronDown className="w-3.5 h-3.5 stroke-[2]" />}
         </button>
 
@@ -148,7 +149,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
           <div className="space-y-2 pt-1 border-t border-[#E6E6E3]">
             {/* Serviço */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-xs text-[#111111]">Serviço</span>
+              <span className="text-xs text-[#111111]">{t('Serviço')}</span>
               <select
                 value={filters.servico || 'Todos'}
                 onChange={(e) => onFilterChange('servico', e.target.value)}
@@ -156,7 +157,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
               >
                 {SERVICOS_OPTIONS.map((s) => (
                   <option key={s} value={s} className="bg-[#FFFFFF] text-[#111111]">
-                    {s === 'Todos' ? 'Todos' : s}
+                    {t(s)}
                   </option>
                 ))}
               </select>
@@ -164,15 +165,15 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
 
             {/* Tipo */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-xs text-[#111111]">Tipo de transporte</span>
+              <span className="text-xs text-[#111111]">{t('Tipo de transporte')}</span>
               <select
                 value={filters.tipoTransporte || 'Todos'}
                 onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
                 className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
               >
-                {TIPOS_TRANSPORTE_OPTIONS.map((t) => (
-                  <option key={t} value={t} className="bg-[#FFFFFF] text-[#111111]">
-                    {t === 'Todos' ? 'Todos' : t}
+                {TIPOS_TRANSPORTE_OPTIONS.map((tp) => (
+                  <option key={tp} value={tp} className="bg-[#FFFFFF] text-[#111111]">
+                    {t(tp)}
                   </option>
                 ))}
               </select>
@@ -180,7 +181,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
 
             {/* Categoria */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
-              <span className="text-xs text-[#111111]">Categoria</span>
+              <span className="text-xs text-[#111111]">{t('Categoria')}</span>
               <select
                 value={filters.categoria || 'Todas'}
                 onChange={(e) => onFilterChange('categoria', e.target.value)}
@@ -188,7 +189,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
               >
                 {CATEGORIAS_OPTIONS.map((c) => (
                   <option key={c} value={c} className="bg-[#FFFFFF] text-[#111111]">
-                    {c === 'Todas' ? 'Todas' : c}
+                    {t(c)}
                   </option>
                 ))}
               </select>

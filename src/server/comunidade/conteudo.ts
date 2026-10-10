@@ -6,6 +6,13 @@ import { base, emTransacao } from './baseDados';
 import { Conta, ErroConta, darPontos } from './contas';
 import { calculateConfidence } from '../../utils/confidenceUtils';
 
+/** Nas listas públicas ninguém vê quem votou: mostra-se só um resumo (SHA-256) de cada identificador.
+ *  A app calcula o mesmo resumo do próprio id (src/utils/resumo.ts) para saber se já votaste. */
+function resumos(lista: unknown): string[] {
+  if (!Array.isArray(lista)) return [];
+  return lista.map((x) => crypto.createHash('sha256').update(String(x)).digest('hex').slice(0, 16));
+}
+
 const TIPOS = ['ACIDENTE', 'ATRASOS', 'AVARIA', 'GREVE', 'OBRAS', 'CORTE', 'SERVICO_PUBLICO'];
 const GRAVIDADES = ['Grave', 'Moderada', 'Informação'];
 const ESTADOS_OCORRENCIA = ['Ativa', 'Em resolução', 'Resolvida', 'Em análise', 'Ocultada'];
@@ -71,8 +78,8 @@ function paraOcorrencia(id: string, d: any) {
     upvotes: confirmacoes,
     confirmationsCount: confirmacoes,
     unconfirmedCount: naoConfirmadas,
-    confirmedBy: Array.isArray(d.confirmedBy) ? d.confirmedBy : [],
-    unconfirmedBy: Array.isArray(d.unconfirmedBy) ? d.unconfirmedBy : [],
+    confirmedBy: resumos(d.confirmedBy),
+    unconfirmedBy: resumos(d.unconfirmedBy),
     reportsCount: typeof d.reportsCount === 'number' ? d.reportsCount : 0,
     isCommunityVerified: !!d.isCommunityVerified || confirmacoes >= 3,
     isBreaking: !!d.isBreaking,
@@ -347,9 +354,9 @@ function paraReclamacao(id: string, d: any) {
     status: d.status || 'Pública',
     commentsCount: typeof d.commentsCount === 'number' ? d.commentsCount : 0,
     upvotes: typeof d.upvotes === 'number' ? d.upvotes : 0,
-    upvotedBy: Array.isArray(d.upvotedBy) ? d.upvotedBy : [],
+    upvotedBy: resumos(d.upvotedBy),
     reportsCount: typeof d.reportsCount === 'number' ? d.reportsCount : 0,
-    reportedBy: Array.isArray(d.reportedBy) ? d.reportedBy : [],
+    reportedBy: resumos(d.reportedBy),
     isOpinion: true,
   };
 }

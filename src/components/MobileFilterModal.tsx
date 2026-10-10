@@ -103,7 +103,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {DISTRITOS_OPTIONS.map((d) => (
                 <option key={d} value={d}>
-                  {d === 'Todos' ? 'Todos os distritos' : d}
+                  {d === 'Todos' ? t('Todos os distritos') : t(d)}
                 </option>
               ))}
             </select>
@@ -122,7 +122,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {concelhosList.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {t(c)}
                 </option>
               ))}
             </select>
@@ -140,7 +140,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {CIDADES_OPTIONS.map((c) => (
                 <option key={c} value={c}>
-                  {c === 'Todas' ? 'Todas as cidades' : c}
+                  {c === 'Todas' ? t('Todas as cidades') : t(c)}
                 </option>
               ))}
             </select>
@@ -158,7 +158,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {OPERADORES_OPTIONS.map((op) => (
                 <option key={op} value={op}>
-                  {op === 'Todos' ? 'Todos os operadores' : op}
+                  {op === 'Todos' ? t('Todos os operadores') : t(op)}
                 </option>
               ))}
             </select>
@@ -176,7 +176,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {SERVICOS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s === 'Todos' ? 'Todos os serviços' : s}
+                  {s === 'Todos' ? t('Todos os serviços') : t(s)}
                 </option>
               ))}
             </select>
@@ -185,16 +185,16 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           {/* 6. Tipo de Transporte */}
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-              Tipo de Transporte
+              {t('Tipo de transporte')}
             </label>
             <select
               value={filters.tipoTransporte}
               onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
               className="w-full bg-[#F4F4F2] text-[#111111] text-xs font-semibold p-2.5 rounded-[8px] border border-[#E6E6E3] focus:outline-none min-h-[44px]"
             >
-              {TIPOS_TRANSPORTE_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'Todos' ? 'Todos os transportes' : t}
+              {TIPOS_TRANSPORTE_OPTIONS.map((tp) => (
+                <option key={tp} value={tp}>
+                  {tp === 'Todos' ? t('Todos os transportes') : t(tp)}
                 </option>
               ))}
             </select>
@@ -216,7 +216,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             >
               {CATEGORIAS_OPTIONS.map((cat) => (
                 <option key={cat} value={cat}>
-                  {cat === 'Todas' ? 'Todas as categorias' : cat}
+                  {cat === 'Todas' ? t('Todas as categorias') : t(cat)}
                 </option>
               ))}
             </select>
@@ -226,14 +226,14 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
         {/* Modal Footer */}
         <div className="p-3 border-t border-[#E6E6E3] bg-[#FFFFFF] shrink-0 space-y-2">
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
-            <span>Resultados:</span>
+            <span>{t('Resultados:')}</span>
             <div className="flex items-center gap-2">
               <span className="font-condensada font-bold text-[#111111] tabular-nums">
-                {matchingReportsCount} reports
+                {matchingReportsCount} {t('ocorrências')}
               </span>
               <span>·</span>
               <span className="font-condensada font-bold text-[#111111] tabular-nums">
-                {matchingTransitCount} transportes
+                {matchingTransitCount} {t('transportes')}
               </span>
             </div>
           </div>
@@ -245,7 +245,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
                 className="py-2.5 px-3 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[44px] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
-                <span>Limpar</span>
+                <span>{t('Limpar')}</span>
               </button>
             )}
 
@@ -254,7 +254,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
               onClick={handleApply}
               className="flex-1 py-2.5 px-4 rounded-[8px] brand-chamfer bg-[#FF6B1A] text-[#111111] text-xs font-bold min-h-[44px] flex items-center justify-center cursor-pointer"
             >
-              <span>Aplicar</span>
+              <span>{t('Aplicar')}</span>
             </button>
           </div>
         </div>

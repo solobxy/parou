@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, AlertTriangle, MapPin, Clock } from 'lucide-react';
 import { Occurrence } from '../types';
 import { quandoAconteceu } from '../utils/quando';
+import { t } from '../i18n';
 
 interface FeaturedOccurrenceProps {
   occurrences: Occurrence[];
@@ -43,11 +44,11 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
           {isSevere ? (
             <span className="flex items-center gap-1 text-xs font-bold text-[#D92D20]">
               <AlertTriangle className="w-4 h-4 stroke-[2]" />
-              <span>Grave</span>
+              <span>{t('Grave')}</span>
             </span>
           ) : (
             <span className="text-xs font-bold text-[#111111]">
-              Aviso
+              {t('Aviso')}
             </span>
           )}
           {current.transporte && (
@@ -65,12 +66,14 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
             <div className="flex items-center gap-1">
               <button
                 onClick={handlePrev}
+                aria-label={t('Anterior')}
                 className="p-1 rounded-[4px] hover:bg-[#E6E6E3] text-[#111111] cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
               >
                 <ChevronLeft className="w-4 h-4 stroke-[2]" />
               </button>
               <button
                 onClick={handleNext}
+                aria-label={t('Seguinte')}
                 className="p-1 rounded-[4px] hover:bg-[#E6E6E3] text-[#111111] cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
               >
                 <ChevronRight className="w-4 h-4 stroke-[2]" />
@@ -94,7 +97,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
       <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B] pt-1 border-t border-[#E6E6E3]">
         <MapPin className="w-3.5 h-3.5 text-[#111111] stroke-[2] shrink-0" />
         <span className="truncate">
-          {current.district}{current.concelho ? ` · ${current.concelho}` : ''}
+          {t(current.district)}{current.concelho ? ` · ${t(current.concelho)}` : ''}
         </span>
       </div>
     </div>

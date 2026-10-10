@@ -19,7 +19,7 @@ import {
   testarPush
 } from '../services/notifications';
 import { CIDADES_OPTIONS } from '../data/mockData';
-import { t } from '../i18n';
+import { t, LOCALE } from '../i18n';
 
 interface NotificationModalProps {
   isOpen: boolean;
@@ -141,12 +141,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               {t('Notificações')}
             </h2>
             <p className="text-xs text-[#6B6B6B]">
-              Greves, mau tempo e perturbações graves, mesmo com a app fechada.
+              {t('Greves, mau tempo e perturbações graves, mesmo com a app fechada.')}
             </p>
           </div>
 
           <button
             onClick={onClose}
+            aria-label={t('Fechar')}
             className="p-1 text-[#6B6B6B] hover:text-[#111111] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5 stroke-[2]" />
@@ -191,14 +192,14 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3] flex items-center justify-between">
                 <div className="min-w-0 pr-3">
                   <div className="text-sm font-semibold text-[#111111]">{t('Receber avisos')}</div>
-                  <div className="text-xs text-[#6B6B6B] leading-snug">Greves, perturbações e ocorrências graves nos distritos que escolheres.</div>
+                  <div className="text-xs text-[#6B6B6B] leading-snug">{t('Greves, perturbações e ocorrências graves nos distritos que escolheres.')}</div>
                 </div>
 
                 <button
                   onClick={handleToggleEnabled}
                   role="switch"
                   aria-checked={prefs.enabled}
-                  aria-label={prefs.enabled ? 'Desligar avisos' : 'Ligar avisos'}
+                  aria-label={prefs.enabled ? t('Desligar avisos') : t('Ligar avisos')}
                   className={`shrink-0 relative w-[52px] h-[30px] rounded-full transition-colors cursor-pointer ${
                     prefs.enabled ? 'bg-[#111111]' : 'bg-[#D6D6D2]'
                   }`}
@@ -208,13 +209,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               </div>
               {permissionState === 'denied' && (
                 <div className="p-3 rounded-[8px] border border-[#F3C5C1] bg-[#FDF2F1] text-xs text-[#111111] leading-snug">
-                  As notificações estão bloqueadas para a PAROU. Para as receberes, permite-as nas definições do browser
-                  (cadeado ao lado do endereço) ou do telemóvel e volta a ligar aqui.
+                  {t('As notificações estão bloqueadas para a PAROU. Para as receberes, permite-as nas definições do browser (cadeado ao lado do endereço) ou do telemóvel e volta a ligar aqui.')}
                 </div>
               )}
               {permissionState === 'unsupported' && (
                 <div className="p-3 rounded-[8px] bg-[#F4F4F2] text-xs text-[#6B6B6B] leading-snug">
-                  Este browser não suporta notificações. No iPhone, adiciona a PAROU ao ecrã principal (Partilhar › Adicionar ao ecrã principal) e abre-a a partir daí.
+                  {t('Este browser não suporta notificações. No iPhone, adiciona a PAROU ao ecrã principal (Partilhar › Adicionar ao ecrã principal) e abre-a a partir daí.')}
                 </div>
               )}
 
@@ -234,7 +234,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                             : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                         }`}
                       >
-                        {city}
+                        {t(city)}
                       </button>
                     );
                   })}
@@ -247,7 +247,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                   onClick={handleRunTest}
                   className="px-3 py-2 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-xs font-semibold text-[#111111] cursor-pointer min-h-[44px]"
                 >
-                  {testSuccess ? 'Enviada — deve chegar em segundos' : 'Testar notificação'}
+                  {testSuccess ? t('Enviada — deve chegar em segundos') : t('Testar notificação')}
                 </button>
               </div>
             </>
@@ -255,7 +255,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[#6B6B6B]">
-                  {history.length} {history.length === 1 ? 'notificação' : 'notificações'}
+                  {history.length} {history.length === 1 ? t('notificação') : t('notificações')}
                 </span>
                 {history.length > 0 && (
                   <button
@@ -288,7 +288,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                       <div className="flex items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-[#111111] truncate">{item.title}</span>
                         <span className="font-condensada text-[#6B6B6B] tabular-nums shrink-0">
-                          {new Date(item.timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(item.timestamp).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       <p className="text-xs text-[#6B6B6B] line-clamp-1">{item.body}</p>
@@ -306,7 +306,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold rounded-[8px] min-h-[44px] cursor-pointer"
           >
-            Concluir
+            {t('Concluir')}
           </button>
         </div>
       </div>

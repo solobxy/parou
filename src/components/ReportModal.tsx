@@ -13,6 +13,7 @@ import {
   PORTUGAL_DISTRICTS,
   CONCELHOS_BY_CIDADE
 } from '../data/mockData';
+import { t } from '../i18n';
 import {
   checkReportRateLimit,
   recordReportSubmission,
@@ -132,12 +133,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       return;
     }
 
-    if (!checkReportRateLimit()) {
-      setErrorMsg('Limite atingido. Aguarde alguns minutos antes de reportar novamente.');
+    const limite = checkReportRateLimit();
+    if (!limite.allowed) {
+      setErrorMsg(t('Aguarda {s} s antes de reportar outra vez.', { s: limite.remainingSeconds }));
       return;
     }
 
-    if (detectSpamKeywords(title) || detectSpamKeywords(description)) {
+    if (detectSpamKeywords(title).isSpam || detectSpamKeywords(description).isSpam) {
       setErrorMsg('O conteúdo contém termos não permitidos.');
       return;
     }
@@ -203,7 +205,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-[#E6E6E3] flex items-center justify-between gap-3 bg-[#FFFFFF]">
           <h2 className="text-base font-bold text-[#111111]">
-            Reportar ocorrência
+            {t('Reportar ocorrência')}
           </h2>
           <button
             onClick={onClose}
@@ -217,9 +219,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {isSubmitted ? (
           <div className="p-8 text-center space-y-3">
             <CheckCircle2 className="w-10 h-10 text-[#111111] mx-auto stroke-[2]" />
-            <h3 className="text-base font-bold text-[#111111]">Ocorrência registada</h3>
+            <h3 className="text-base font-bold text-[#111111]">{t('Ocorrência registada')}</h3>
             <p className="text-xs text-[#6B6B6B]">
-              A ocorrência foi publicada e já está visível para a comunidade.
+              {t('A ocorrência foi publicada e já está visível para a comunidade.')}
             </p>
             <button
               onClick={() => {
@@ -228,21 +230,45 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               }}
               className="mt-4 px-4 py-2 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer"
             >
-              Concluir
+              {t('Concluir')}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
             {errorMsg && (
               <div className="p-3 rounded-[8px] bg-[#F4F4F2] border border-[#D92D20] text-xs text-[#D92D20]">
-                {errorMsg}
+                {t(errorMsg)}
+              </div>
+            )}
+
+            {detectedDuplicate && (
+              <div role="alert" className="p-3 rounded-[8px] bg-[#FFF1E8] border border-[#FF6B1A] text-xs text-[#111111] space-y-2">
+                <p className="font-semibold">{t('Parece que isto já foi reportado:')}</p>
+                <p className="text-[#6B6B6B]">{detectedDuplicate.title}</p>
+                <div className="flex flex-wrap gap-2">
+                  {onConfirmExisting && (
+                    <button
+                      type="button"
+                      onClick={() => { onConfirmExisting(detectedDuplicate.id); setDetectedDuplicate(null); onClose(); }}
+                      className="h-9 px-3 rounded-[8px] bg-[#111111] text-[#FFFFFF] font-semibold cursor-pointer"
+                    >
+                      {t('Confirmar essa ocorrência')}
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="h-9 px-3 rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] text-[#111111] font-semibold cursor-pointer"
+                  >
+                    {t('Publicar na mesma')}
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Categoria */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1.5">
-                Categoria
+                {t('Categoria')}
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {CATEGORIAS.map(([cat, nome]) => (
@@ -257,7 +283,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                     }`}
                   >
-                    {nome}
+                    {t(nome)}
                   </button>
                 ))}
               </div>
@@ -266,7 +292,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {/* Gravidade */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1.5">
-                Gravidade
+                {t('Gravidade')}
               </label>
               <div className="grid grid-cols-3 gap-1.5">
                 {(['Informação', 'Moderada', 'Grave'] as SeverityLevel[]).map((sev) => (
@@ -280,7 +306,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                     }`}
                   >
-                    {sev}
+                    {t(sev)}
                   </button>
                 ))}
               </div>
@@ -289,14 +315,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {/* Título */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                Título
+                {t('Título')}
               </label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Atraso no Metro Linha Azul"
+                placeholder={t('Ex: Atraso no Metro Linha Azul')}
                 className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
               />
             </div>
@@ -304,14 +330,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {/* Descrição */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                Descrição
+                {t('Descrição')}
               </label>
               <textarea
                 rows={3}
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Detalhes sobre o que está a acontecer..."
+                placeholder={t('Detalhes sobre o que está a acontecer...')}
                 className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[80px]"
               />
             </div>
@@ -320,7 +346,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                  Distrito
+                  {t('Distrito')}
                 </label>
                 <select
                   value={district}
@@ -335,7 +361,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                  Concelho
+                  {t('Concelho')}
                 </label>
                 <select
                   value={concelho}
@@ -352,13 +378,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {/* Local específico */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                Local / Rua
+                {t('Local / Rua')}
               </label>
               <input
                 type="text"
                 value={locationDetails}
                 onChange={(e) => setLocationDetails(e.target.value)}
-                placeholder="Ex: Estação Marquês de Pombal"
+                placeholder={t('Ex: Estação Marquês de Pombal')}
                 className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
               />
             </div>
@@ -366,11 +392,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {/* Fotografia opcional */}
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
-                Fotografia (opcional)
+                {t('Fotografia (opcional)')}
               </label>
               {photoDataUrl ? (
                 <div className="relative rounded-[8px] overflow-hidden border border-[#E6E6E3]">
-                  <img src={photoDataUrl} alt="Foto" className="w-full h-36 object-cover" />
+                  <img src={photoDataUrl} alt={t('Foto')} className="w-full h-36 object-cover" />
                   <button
                     type="button"
                     onClick={() => setPhotoDataUrl('')}
@@ -386,7 +412,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   className="w-full py-3 border border-dashed border-[#E6E6E3] hover:border-[#111111] rounded-[8px] text-xs font-semibold text-[#6B6B6B] hover:text-[#111111] flex items-center justify-center gap-1.5 min-h-[44px] cursor-pointer"
                 >
                   <Camera className="w-4 h-4 stroke-[2]" />
-                  <span>{isPhotoLoading ? 'A processar...' : 'Carregar foto'}</span>
+                  <span>{isPhotoLoading ? t('A processar...') : t('Carregar foto')}</span>
                 </button>
               )}
               <input
@@ -405,10 +431,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 disabled={isSubmitting}
                 className="w-full py-3 bg-[#FF6B1A] text-[#111111] font-bold text-sm rounded-[8px] brand-chamfer min-h-[44px] cursor-pointer transition-opacity disabled:opacity-50"
               >
-                {isSubmitting ? 'A publicar…' : 'Publicar ocorrência'}
+                {isSubmitting ? t('A publicar…') : t('Publicar ocorrência')}
               </button>
               <p className="text-[11.5px] text-[#6B6B6B] text-center mt-2 leading-snug">
-                Fica visível para todos durante 24 horas. Não incluas dados pessoais (nomes, matrículas, contactos).
+                {t('Fica visível para todos durante 24 horas. Não incluas dados pessoais (nomes, matrículas, contactos).')}
               </p>
             </div>
           </form>

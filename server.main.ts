@@ -23,6 +23,7 @@ import {
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas } from './src/server/comunidade/rotas';
+import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
 import { registarPaginasSeo } from './src/server/seo/paginas';
@@ -108,7 +109,7 @@ const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
 const RESUMO_ADMIN = String(process.env.PAROU_ADMIN_HASH || '').trim().toLowerCase();
 const ROTAS_ADMIN: Array<[string, RegExp]> = [
   ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+|diagnostico-unir\/paragens)\/?$/],
-  ['GET', /^\/api\/(transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
+  ['GET', /^\/api\/(estatisticas\/resumo|transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
   ['GET', /^\/(debug\/.*|diagnostico-unir)\/?$/],
 ];
 function pedidoDeAdmin(req: Request): boolean {
@@ -133,6 +134,8 @@ registarIndexNow(app);
 registarRotasDadosUtilizador(app);
 // Contas, favoritos na conta, ocorrências da comunidade e reclamações (antes estavam no Firebase)
 registarRotasComunidade(app, { eAdmin: pedidoDeAdmin });
+// Contagem anónima de utilizadores (só a administração vê os números)
+registarRotasEstatisticas(app, { eAdmin: pedidoDeAdmin });
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
 registarRotasPush(app);
 // Páginas públicas para os motores de pesquisa: linhas, paragens, operadores, greves e sitemaps

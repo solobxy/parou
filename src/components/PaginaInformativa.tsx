@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { t } from '../i18n';
+import { lerPreferenciaContagem, mudarPreferenciaContagem } from '../services/estatisticas';
 import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide-react';
 
 export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar';
@@ -12,7 +14,7 @@ interface Props {
 const CONTACTO = 'diniscash@gmail.com';
 const TELEFONE = '913 488 258';
 const TELEFONE_LINK = '+351913488258';
-const ATUALIZADO = '8 de outubro de 2026';
+const ATUALIZADO = '10 de outubro de 2026';
 
 function Secao({ titulo, children, id }: { titulo: string; children: React.ReactNode; id?: string }) {
   return (
@@ -70,6 +72,30 @@ function Sobre({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
   );
 }
 
+/** Interruptor da contagem anónima de utilizadores (página de Privacidade). */
+function PreferenciaContagem() {
+  const [contar, setContar] = useState<boolean | null>(null);
+  const [aGuardar, setAGuardar] = useState(false);
+  useEffect(() => { void lerPreferenciaContagem().then(setContar); }, []);
+  if (contar === null) return null;
+  const mudar = async () => {
+    setAGuardar(true);
+    const ok = await mudarPreferenciaContagem(!contar);
+    if (ok) setContar(!contar);
+    setAGuardar(false);
+  };
+  return (
+    <button
+      onClick={mudar}
+      disabled={aGuardar}
+      data-teste="preferencia-contagem"
+      className="mt-1 h-10 px-4 rounded-[10px] border border-[#E6E6E3] bg-[#F4F4F2] text-[13.5px] font-semibold text-[#111111] cursor-pointer disabled:opacity-60"
+    >
+      {contar ? t('Não contar as minhas visitas') : t('Voltar a contar as minhas visitas')}
+    </button>
+  );
+}
+
 function Privacidade() {
   return (
     <>
@@ -118,13 +144,22 @@ function Privacidade() {
           necessário (no máximo 30 dias nos registos do servidor).
         </p>
         <p>
+          <strong>Contagem anónima de utilizadores.</strong> Para sabermos quantas pessoas usam a PAROU (e se ela está a fazer falta),
+          contamos as aberturas da app com um número aleatório guardado num cookie (<em>parou_visita</em>, 13 meses). Assim, quem abre a
+          app muitas vezes no mesmo dia, ou volta noutro dia, conta como a mesma pessoa. No servidor ficam só esse número cifrado, o
+          dia, o idioma e se abriste pela app Android, pela app instalada ou pelo site. Não guardamos o teu IP nem o tipo de
+          browser, não ligamos isto à tua conta e não o partilhamos com ninguém. Só nós vemos os totais. Se preferires não ser contado,
+          podes desligar aqui:
+        </p>
+        <PreferenciaContagem />
+        <p>
           <strong>Não usamos</strong> publicidade, perfis de utilizador, cookies de publicidade nem ferramentas de análise de terceiros.
         </p>
       </Secao>
       <Secao titulo="Fundamento">
         <p>
-          A localização e a conta baseiam-se no teu consentimento (podes retirá-lo quando quiseres). A cópia dos favoritos, os dados
-          técnicos e as ocorrências públicas baseiam-se no interesse legítimo de prestar e proteger o serviço que pediste.
+          A localização e a conta baseiam-se no teu consentimento (podes retirá-lo quando quiseres). A cópia dos favoritos, a contagem
+          anónima de utilizadores, os dados técnicos e as ocorrências públicas baseiam-se no interesse legítimo de prestar, melhorar e proteger o serviço que pediste (podes opor-te à contagem a qualquer momento, como acima).
         </p>
       </Secao>
       <Secao titulo="Com quem partilhamos">

@@ -5,6 +5,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { NotificationLogItem } from '../types';
+import { t } from '../i18n';
 
 interface NotificationToastProps {
   notification: NotificationLogItem | null;
@@ -29,12 +30,13 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
 
   return (
     <aside
-      aria-label="Notificação"
+      aria-label={t('Notificação')}
       className="fixed top-20 right-3 sm:right-6 z-50 max-w-sm w-full"
     >
       <div className="relative rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] p-3.5 shadow-md text-[#111111]">
         <button
           onClick={onClose}
+          aria-label={t('Fechar')}
           className="absolute top-2.5 right-2.5 p-1 text-[#6B6B6B] hover:text-[#111111] cursor-pointer"
         >
           <X className="w-4 h-4 stroke-[2]" />
@@ -63,7 +65,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
                 }}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#111111] hover:underline cursor-pointer"
               >
-                <span>Ver ocorrência</span>
+                <span>{t('Ver ocorrência')}</span>
                 <ChevronRight className="w-3.5 h-3.5 stroke-[2]" />
               </button>
             )}
