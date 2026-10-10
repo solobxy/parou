@@ -8,6 +8,7 @@
 // Cada fonte tem cache própria e falha em silêncio: se uma cair, as outras continuam.
 // =====================================================================================
 import { DateTime } from 'luxon';
+import { categoriaDoAviso } from '../utils/imagemAviso';
 import { getCentralAlerts } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
@@ -871,7 +872,7 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     const fim = Date.parse(String(w.endTime || ''));
     const inicio = Date.parse(String(w.startTime || ''));
     if (!Number.isFinite(fim) || fim < agora) continue;
-    if (Number.isFinite(inicio) && inicio - agora > 12 * 3600_000) continue;
+    if (Number.isFinite(inicio) && inicio - agora > (canal ? 24 : 12) * 3600_000) continue;
     const area = String(w.idAreaAviso || '');
     if (!porArea.has(area)) continue;
     avisosPorDistrito.set(area, [...(avisosPorDistrito.get(area) || []), w]);
@@ -1041,6 +1042,8 @@ export interface CandidatoPush {
   /** Pode tocar de noite (aviso vermelho, incêndio importante) */
   urgente: boolean;
   url: string;
+  /** Tipo de aviso (greve, incendio, tempo…), para escolher a imagem no canal do WhatsApp */
+  categoria?: string;
 }
 
 const OPERADORES_PUSH: Array<{ chave: string; nome: string; re: RegExp; distritos: string[] }> = [
@@ -1087,7 +1090,13 @@ function quandoCurto(iso: string | null | undefined): string {
   return dt.setLocale('pt-PT').toFormat("cccc, d 'de' LLLL 'às' HH:mm");
 }
 
-export async function candidatosPush(): Promise<CandidatoPush[]> {
+/**
+ * `canal`: lista para o painel do WhatsApp do administrador. Mesmas fontes e critérios das notificações,
+ * mas com janelas mais largas (uma greve anunciada para daqui a uns dias já vale um post) e, nas
+ * perturbações graves, só as de operadores grandes ou que afetam várias linhas.
+ */
+export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<CandidatoPush[]> {
+  const canal = Boolean(opcoes.canal);
   const lista: CandidatoPush[] = [];
   const agora = Date.now();
   const distritos = await obterDistritos().catch(() => DISTRITOS_RECURSO);
@@ -1133,6 +1142,7 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
       distritos: [d.nome],
       urgente: nivel === 'red',
       url: '/alertas',
+      categoria: 'tempo',
     });
   }
 
@@ -1153,11 +1163,13 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
     // Greves: anunciadas para as próximas 36 h ou a decorrer (desde há menos de 12 h)
     // Perturbações graves: a decorrer há menos de 3 h ou a começar nas próximas 12 h
     if (Number.isFinite(inicioMs)) {
-      if (inicioMs - agora > (greve ? 36 : 12) * 3600_000) continue;
-      if (agora - inicioMs > (greve ? 12 : 3) * 3600_000) continue;
+      if (inicioMs - agora > (greve ? (canal ? 168 : 36) : (canal ? 24 : 12)) * 3600_000) continue;
+      if (agora - inicioMs > (greve ? (canal ? 24 : 12) : (canal ? 6 : 3)) * 3600_000) continue;
     }
     const op = operadorPush(`${a.operador || ''} ${a.título || ''}`);
     if (op?.chave === 'aviacao') continue; // aviões não são o foco da PAROU (aparecem nos Alertas)
+    // No canal, uma linha de bairro com problemas não chega: só operadores grandes ou várias linhas
+    if (canal && !greve && (!op || op.chave === 'carris-metropolitana') && (a.linhas?.length || 0) < 3) continue;
     const nomeOp = op?.nome || String(a.operador || 'Transportes');
     const reg = semAcentos(String(a.região || ''));
     const distritosAviso = op ? op.distritos
@@ -1174,6 +1186,7 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
       distritos: distritosAviso,
       urgente: false,
       url: '/alertas',
+      categoria: greve ? 'greve' : categoriaDoAviso(a),
     });
   }
 
@@ -1182,7 +1195,7 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
   for (const n of feeds.flat().sort((a, b) => a.data.localeCompare(b.data))) {
     if (n.categoria !== 'greve') continue;
     const idade = agora - Date.parse(n.data);
-    if (!Number.isFinite(idade) || idade > 12 * 3600_000 || idade < -3600_000) continue;
+    if (!Number.isFinite(idade) || idade > (canal ? 36 : 12) * 3600_000 || idade < -3600_000) continue;
     const op = operadorPush(n.texto);
     if (op?.chave === 'aviacao') continue;
     const dist = op ? op.distritos : distritosNoTexto(n.texto, nomesDistritos);
@@ -1196,6 +1209,7 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
       distritos: dist,
       urgente: false,
       url: '/alertas',
+      categoria: 'greve',
     });
   }
 
@@ -1211,6 +1225,7 @@ export async function candidatosPush(): Promise<CandidatoPush[]> {
       distritos: i.distrito ? [i.distrito] : [],
       urgente: true,
       url: '/mapa',
+      categoria: 'incendio',
     });
   }
 

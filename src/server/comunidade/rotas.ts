@@ -3,7 +3,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import {
   Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, terminarSessao, apagarConta, confirmarPalavra,
   mudarNome, mudarPalavra, criarPedidoRecuperacao, redefinirPalavra, listarFavoritos, guardarFavoritos, apagarFavorito,
-  limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta,
+  limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta, contaEAdmin,
 } from './contas';
 import {
   listarConversas, obterConversa, criarConversa, responder, votar, denunciar, bloquearAutor, listarBloqueados, desbloquear,
@@ -79,8 +79,8 @@ function semLimite(res: Response) {
   return res.status(429).json({ erro: 'Demasiados pedidos. Espera um pouco e tenta outra vez.', codigo: 'limite' });
 }
 
-export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Request) => boolean }) {
-  const { eAdmin } = opcoes;
+export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Request) => boolean; avisosCanal?: () => Promise<unknown[]> }) {
+  const { eAdmin, avisosCanal } = opcoes;
   setInterval(limparSessoesExpiradas, 3600_000).unref?.();
   setTimeout(limparSessoesExpiradas, 30_000);
   iniciarCopiasDeSeguranca();
@@ -433,6 +433,16 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
     return false;
   };
+  // Avisos que valem um post no canal do WhatsApp (greves, mau tempo grave, incêndios importantes…).
+  // Abre com a chave de administração ou com a conta do Criador.
+  app.get('/api/comunidade/admin/avisos-canal', async (req, res) => {
+    const conta = eAdmin(req) ? null : contaDoPedido(req, res);
+    if (!eAdmin(req) && !(conta && contaEAdmin(conta))) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ itens: avisosCanal ? await avisosCanal() : [] });
+    } catch (err) { erro(res, err); }
+  });
   app.get('/api/comunidade/admin/fila', (req, res) => {
     if (!soAdmin(req, res)) return;
     try { res.json(filaDeModeracao()); } catch (err) { erro(res, err); }
