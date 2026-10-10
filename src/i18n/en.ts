@@ -297,6 +297,7 @@ export const EN: Record<string, string> = {
   'Insira o seu nome.': 'Please enter your name.',
   'Email ou palavra-passe incorretos.': 'Incorrect email or password.',
   'Sem ligação à internet. Verifica a rede e tenta outra vez.': 'No internet connection. Check your network and try again.',
+  'O servidor está ocupado neste momento. Tenta outra vez daqui a pouco.': 'The server is busy right now. Try again in a moment.',
 
   'Recuperar palavra-passe': 'Recover password',
   'Nova palavra-passe': 'New password',

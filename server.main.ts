@@ -1892,6 +1892,11 @@ async function startServer() {
       });
     });
 
+    // O Caddy mantém as ligações abertas até 2 minutos; o Node fecha as inativas ao fim de 5 s por
+    // omissão e, quando um POST apanha uma ligação a fechar, o utilizador vê um erro 502.
+    httpServer.keepAliveTimeout = 125_000;
+    httpServer.headersTimeout = 130_000;
+
     httpServer.on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
         console.warn(`[PAROU.PT Server] Porto ${port} já está em utilização por outro processo.`);
