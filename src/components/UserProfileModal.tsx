@@ -11,6 +11,7 @@ import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
 import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
+import { MedalhaPioneiro } from './MedalhaPioneiro';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -92,14 +93,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold text-[#111111] truncate">
-              {user.displayName}
+            <h3 className="text-base font-bold text-[#111111] truncate flex items-center gap-1.5">
+              <span className="truncate">{user.displayName}</span>
+              {user.pioneiro && <MedalhaPioneiro compacta />}
             </h3>
             <p className="text-xs text-[#6B6B6B] truncate">
               {user.email}
             </p>
           </div>
         </div>
+
+        {user.pioneiro && (
+          <div className="mt-4">
+            <MedalhaPioneiro />
+          </div>
+        )}
 
         {/* Reputation strip */}
         <div className="grid grid-cols-2 gap-2 my-4">

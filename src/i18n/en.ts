@@ -628,4 +628,7 @@ export const EN: Record<string, string> = {
   'Por favor selecione um ficheiro de imagem válido.': 'Please choose a valid image file.',
   'Erro ao publicar ocorrência.': 'Could not publish the incident.',
   'Erro ao submeter reclamação.': 'Could not submit the complaint.',
+  'Pioneiro': 'Pioneer',
+  'Pioneiro: criou a conta até ao fim de 2026': 'Pioneer: created an account before the end of 2026',
+  'Criaste a conta até ao fim de 2026, quando a PAROU era nova.': 'You created your account before the end of 2026, when PAROU was new.',
 };
