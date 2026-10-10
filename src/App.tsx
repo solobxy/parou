@@ -27,8 +27,6 @@ import { ReportsView } from './components/ReportsView';
 import { ReportModal } from './components/ReportModal';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { ReportDetailPage } from './components/ReportDetailPage';
-import { HorariosView } from './components/HorariosView';
-import { AlertasView } from './components/AlertasView';
 import { PertoView } from './components/PertoView';
 import { LoginModal } from './components/LoginModal';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -81,6 +79,8 @@ import { eOcorrenciaAtual } from './utils/quando';
 import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
 
 // Ecrãs pesados ou pouco usados carregam só quando se abrem (a app abre mais depressa)
+const HorariosView = React.lazy(() => import('./components/HorariosView').then((m) => ({ default: m.HorariosView })));
+const AlertasView = React.lazy(() => import('./components/AlertasView').then((m) => ({ default: m.AlertasView })));
 const PortugalMap = React.lazy(() => import('./components/PortugalMap').then((m) => ({ default: m.PortugalMap })));
 const CoverageView = React.lazy(() => import('./components/CoverageView').then((m) => ({ default: m.CoverageView })));
 const NationalTransitCatalogView = React.lazy(() => import('./components/NationalTransitCatalogView').then((m) => ({ default: m.NationalTransitCatalogView })));
@@ -818,14 +818,14 @@ export default function App() {
             </div>
           ) : activeNavTab === 'horarios' ? (
             <div className="max-w-5xl mx-auto py-2">
-              <HorariosView 
+              <React.Suspense fallback={<div className="p-4 space-y-3"><div className="parou-esqueleto h-10 w-2/3" /><div className="parou-esqueleto h-24" /><div className="parou-esqueleto h-24" /></div>}><HorariosView 
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}
                 matchingReportsCount={matchingReportsCount}
                 onViewReports={() => handleTabSelect('reports')}
                 onOpenCatalog={() => handleTabSelect('catalogo')}
-              />
+              /></React.Suspense>
             </div>
           ) : activeNavTab === 'favoritos' ? (
             <div className="w-full mx-auto py-2">
@@ -862,12 +862,12 @@ export default function App() {
             </div>
           ) : activeNavTab === 'alertas' ? (
             <div className="w-full mx-auto py-2">
-              <AlertasView
+              <React.Suspense fallback={<div className="p-4 space-y-3"><div className="parou-esqueleto h-10 w-2/3" /><div className="parou-esqueleto h-24" /><div className="parou-esqueleto h-24" /></div>}><AlertasView
                 ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
                 onAvisosLigados={(p) => setNotificationPrefs(p)}
-              />
+              /></React.Suspense>
             </div>
           ) : activeNavTab === 'coverage' ? (
             <div className="w-full mx-auto py-2">
@@ -1024,14 +1024,14 @@ export default function App() {
           {/* 4. Tab Horários */}
           {activeMobileView === 'horarios' && (
             <div className="space-y-3.5 -mx-3 sm:-mx-6">
-              <HorariosView
+              <React.Suspense fallback={<div className="p-4 space-y-3"><div className="parou-esqueleto h-10 w-2/3" /><div className="parou-esqueleto h-24" /><div className="parou-esqueleto h-24" /></div>}><HorariosView
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}
                 matchingReportsCount={matchingReportsCount}
                 onViewReports={() => setActiveMobileView('reports')}
                 onOpenCatalog={() => handleTabSelect('catalogo')}
-              />
+              /></React.Suspense>
             </div>
           )}
 
@@ -1070,12 +1070,12 @@ export default function App() {
           {/* Tab Alertas (Mobile) */}
           {(activeMobileView === 'alertas' || activeNavTab === 'alertas') && (
             <div className="-mx-3 sm:-mx-6">
-              <AlertasView
+              <React.Suspense fallback={<div className="p-4 space-y-3"><div className="parou-esqueleto h-10 w-2/3" /><div className="parou-esqueleto h-24" /><div className="parou-esqueleto h-24" /></div>}><AlertasView
                 ocorrenciasComunidade={ocorrenciasAtuais}
                 onAbrirOcorrencia={handleSelectOccurrence}
                 onVerMapa={() => handleTabSelect('mapa')}
                 onAvisosLigados={(p) => setNotificationPrefs(p)}
-              />
+              /></React.Suspense>
             </div>
           )}
 
