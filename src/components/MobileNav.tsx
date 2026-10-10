@@ -32,7 +32,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       aria-label={t('Navegação inferior')}
       className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFFFFF] border-t border-[#E6E6E3] pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.04)] w-full overflow-hidden"
     >
-      <div className="grid grid-cols-6 items-center h-16 max-w-lg mx-auto px-1 gap-0.5">
+      <div className="grid grid-cols-6 items-center h-16 max-w-lg mx-auto px-0 min-[360px]:px-1 gap-0 min-[360px]:gap-0.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           // As ocorrências da comunidade vivem dentro do Mapa
@@ -62,7 +62,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   </span>
                 )}
               </div>
-              <span className={`text-[10.5px] mt-0.5 tracking-tight max-w-full ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
+              <span className={`text-[10px] min-[360px]:text-[10.5px] mt-0.5 tracking-tight max-w-full ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
                 {t(tab.label)}
               </span>
             </button>

@@ -66,7 +66,7 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
   const [aviso, setAviso] = useState('');
   const pedidoAtual = useRef(0);
   const scrollGuardado = useRef(0);
-  const avisoTimer = useRef<ReturnType<typeof setTimeout>>();
+  const avisoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const mostrarAviso = useCallback((texto: string) => {
     setAviso(texto);
