@@ -79,6 +79,34 @@ function esquecerPosicao() {
   try { localStorage.removeItem(CHAVE_ULTIMA_POSICAO); } catch {}
 }
 
+// Filtro de Kalman simples: junta as leituras do GPS pesando cada uma pela sua precisão.
+// Parado, o ponto deixa de "tremer"; a andar ou de autocarro, acompanha sem atraso notável.
+interface EstadoFiltro { lat: number; lon: number; variancia: number; t: number }
+
+function metrosEntrePontos(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dy = (lat2 - lat1) * 111_320;
+  const dx = (lon2 - lon1) * 111_320 * Math.cos((lat1 * Math.PI) / 180);
+  return Math.hypot(dx, dy);
+}
+
+function filtrarPosicao(prev: EstadoFiltro | null, lat: number, lon: number, acc: number, t: number, velMs: number | null): EstadoFiltro {
+  const medida = Math.max(acc, 3); // nenhum GPS de telemóvel é melhor do que ~3 m
+  const v2 = medida * medida;
+  if (!prev) return { lat, lon, variancia: v2, t };
+  // A mesma leitura chegou por dois caminhos (pedido único + vigilância): conta uma vez
+  if (t <= prev.t) return prev;
+  const dt = (t - prev.t) / 1000;
+  const d = metrosEntrePontos(prev.lat, prev.lon, lat, lon);
+  // Salto grande (GPS que acordou, viagem rápida): recomeça nesta leitura em vez de arrastar o ponto
+  if (dt > 30 || d > Math.max(60, 4 * (medida + Math.sqrt(prev.variancia)))) return { lat, lon, variancia: v2, t };
+  // Quanto mais depressa se anda, menos se confia na posição anterior
+  const vel = velMs !== null && Number.isFinite(velMs) ? velMs : d / Math.max(dt, 1);
+  const q = Math.min(30, Math.max(3, vel * 1.5 + 2));
+  const variancia = prev.variancia + dt * q * q;
+  const k = variancia / (variancia + v2);
+  return { lat: prev.lat + (lat - prev.lat) * k, lon: prev.lon + (lon - prev.lon) * k, variancia: (1 - k) * variancia, t };
+}
+
 export function useUserLocation() {
   // Começa já na última posição conhecida: ao voltar ao Perto o mapa não salta para Lisboa
   const [status, setStatus] = useState<LocationPermissionStatus>(() => (memoriaPosicao ? 'active' : 'idle'));
@@ -90,7 +118,14 @@ export function useUserLocation() {
 
   const watchIdRef = useRef<number | null>(null);
   const previousCoordsRef = useRef<UserCoords | null>(memoriaPosicao && !memoriaPosicao.isManual ? memoriaPosicao : null);
+  const filtroRef = useRef<EstadoFiltro | null>(null);
+  // O que o ecrã já recebeu: só se avisa a página quando há mudança que se veja (poupa trabalho ao telemóvel)
+  const emitidoRef = useRef<UserCoords | null>(memoriaPosicao);
+  const statusAtualRef = useRef<LocationPermissionStatus>(status);
+  statusAtualRef.current = status;
   const setCoords = useCallback((c: UserCoords | null) => {
+    emitidoRef.current = c;
+    if (!c || c.isManual) filtroRef.current = null; // posição nova à mão ou perdida: o filtro recomeça
     lembrarPosicao(c);
     setCoordsEstado(c);
   }, []);
@@ -137,13 +172,15 @@ export function useUserLocation() {
         return;
       }
 
+      const accuracy = Math.round(position.coords.accuracy || 10);
+      const timestamp = position.timestamp || Date.now();
       const newCoords: UserCoords = {
         latitude: lat,
         longitude: lon,
-        accuracy: Math.round(position.coords.accuracy || 10),
+        accuracy,
         heading: position.coords.heading,
         speed: position.coords.speed ? Math.round(position.coords.speed * 3.6) : null,
-        timestamp: position.timestamp || Date.now(),
+        timestamp,
         source,
         isManual: false,
       };
@@ -158,12 +195,30 @@ export function useUserLocation() {
         return;
       }
 
+      // Posição suavizada: cada leitura pesa conforme a sua precisão (o ponto deixa de saltar)
+      const velMs = typeof position.coords.speed === 'number' && Number.isFinite(position.coords.speed) ? position.coords.speed : null;
+      const filtrada = filtrarPosicao(filtroRef.current, lat, lon, accuracy, timestamp, velMs);
+      filtroRef.current = filtrada;
+      newCoords.latitude = filtrada.lat;
+      newCoords.longitude = filtrada.lon;
+
       gpsNestaSessao = true;
+      previousCoordsRef.current = newCoords;
+
+      // Só avisa a página se o ponto andou ≥ 3 m, a precisão mudou, ou já passaram 15 s
+      const visto = emitidoRef.current;
+      if (
+        visto && !visto.isManual && statusAtualRef.current === 'active' &&
+        metrosEntrePontos(visto.latitude, visto.longitude, newCoords.latitude, newCoords.longitude) < 3 &&
+        Math.abs(visto.accuracy - newCoords.accuracy) < 5 &&
+        timestamp - visto.timestamp < 15_000
+      ) {
+        return;
+      }
       setMotivoBloqueio(null);
       setCoords(newCoords);
       setStatus('active');
       setErrorMessage(null);
-      previousCoordsRef.current = newCoords;
       try { localStorage.setItem(CHAVE_LOCALIZACAO_OK, '1'); } catch {}
     };
 
@@ -292,6 +347,7 @@ export function useUserLocation() {
             isManual: false,
           };
           setCoords(freshCoords);
+          filtroRef.current = { lat, lon, variancia: Math.max(freshCoords.accuracy, 3) ** 2, t: freshCoords.timestamp };
           setStatus('active');
           setErrorMessage(null);
           setIsRefreshingGps(false);

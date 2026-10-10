@@ -63,6 +63,33 @@ export function formatTransitName(raw?: string | null): string {
   }).join(' ');
 }
 
+// Formatadores criados uma única vez: construir um Intl.DateTimeFormat custa ~100× mais do que usá-lo,
+// e esta função corre dezenas de vezes por segundo no Perto.
+const TZ = 'Europe/Lisbon';
+const FMT_HORA = new Intl.DateTimeFormat('pt-PT', { timeZone: TZ, hour12: false, hour: '2-digit', minute: '2-digit' });
+const FMT_DIGITOS = new Intl.DateTimeFormat('pt-PT', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const FMT_DIA_PT = new Intl.DateTimeFormat('pt-PT', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric' });
+const FMT_DIA_CA = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric' });
+let fmtSemana: Intl.DateTimeFormat | null = null;
+
+/** Hora/dia de Lisboa "agora", calculados no máximo uma vez por minuto (o fuso só muda em horas certas). */
+let agoraBalde = -1;
+let agoraCache = { nowMinutes: 0, todayDigits: '', diaHojePt: '', diaHojeCa: '' };
+function contextoAgora(now: Date) {
+  const balde = Math.floor(now.getTime() / 60000);
+  if (balde !== agoraBalde) {
+    const partes = FMT_HORA.format(now).split(':').map(Number);
+    agoraCache = {
+      nowMinutes: (partes[0] || 0) * 60 + (partes[1] || 0),
+      todayDigits: FMT_DIGITOS.format(now).split('/').reverse().join(''),
+      diaHojePt: FMT_DIA_PT.format(now),
+      diaHojeCa: FMT_DIA_CA.format(now),
+    };
+    agoraBalde = balde;
+  }
+  return agoraCache;
+}
+
 export interface FormattedDeparture {
   minutesDiff: number;
   bigText: string;    // "4 min" ou "a chegar"
@@ -106,22 +133,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
 
   // 1. Obter hora atual em Portugal
   const now = new Date();
-  const lisbonTimeParts = now.toLocaleTimeString('pt-PT', {
-    timeZone: 'Europe/Lisbon',
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit'
-  }).split(':').map(Number);
-
-  const nowMinutes = (lisbonTimeParts[0] || 0) * 60 + (lisbonTimeParts[1] || 0);
-
-  // Data atual em dígitos yyyyMMdd no fuso de Portugal
-  const todayDigits = now.toLocaleDateString('pt-PT', {
-    timeZone: 'Europe/Lisbon',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).split('/').reverse().join('');
+  const { nowMinutes, todayDigits, diaHojePt, diaHojeCa } = contextoAgora(now);
 
   // 2. Extrair hora exata da partida
   let rawTime =
@@ -206,12 +218,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
   let exactTime = typeof rawTime === 'string' && rawTime.length >= 4 ? rawTime.slice(0, 5) : '';
   if (!exactTime && effectiveMinutes !== null) {
     const depDate = new Date(now.getTime() + effectiveMinutes * 60000);
-    exactTime = depDate.toLocaleTimeString('pt-PT', {
-      timeZone: 'Europe/Lisbon',
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    exactTime = FMT_HORA.format(depDate);
   }
 
   // Até 1 hora: minutos em grande ("12 min"). Mais longe: a hora em grande ("23:56"),
@@ -227,12 +234,16 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
   let subText = exactTime;
   if (longe && effectiveMinutes !== null) {
     const depDate = new Date(now.getTime() + effectiveMinutes * 60000);
-    const diaDep = depDate.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
-    const diaHoje = now.toLocaleDateString('pt-PT', { timeZone: 'Europe/Lisbon' });
-    if (diaDep !== diaHoje) {
+    const diaDep = FMT_DIA_PT.format(depDate);
+    if (diaDep !== diaHojePt) {
       // "amanhã" só no dia seguinte; mais longe (linhas que hoje não passam), o dia da semana
-      const dias = Math.round((Date.parse(depDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })) - Date.parse(now.toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' }))) / 86400000);
-      subText = dias >= 2 ? depDate.toLocaleDateString(LOCALE, { weekday: 'long', timeZone: 'Europe/Lisbon' }) : t('amanhã');
+      const dias = Math.round((Date.parse(FMT_DIA_CA.format(depDate)) - Date.parse(diaHojeCa)) / 86400000);
+      if (dias >= 2) {
+        fmtSemana = fmtSemana || new Intl.DateTimeFormat(LOCALE, { weekday: 'long', timeZone: TZ });
+        subText = fmtSemana.format(depDate);
+      } else {
+        subText = t('amanhã');
+      }
     } else {
       const h = Math.floor(effectiveMinutes / 60);
       const m = effectiveMinutes % 60;
