@@ -1368,7 +1368,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <p className="text-sm text-[#6B6B6B] mt-2">
               {isCalculatingRoutes
                 ? 'A calcular percursos com os horários de hoje…'
-                : 'Não encontrámos ligações em transportes nas próximas 2 horas daqui para lá (com no máximo um transbordo e até ~900 m a pé de cada lado).'}
+                : 'Não encontrámos ligações em transportes nas próximas 2 horas daqui para lá (com até três transbordos e até ~900 m a pé de cada lado).'}
             </p>
           </div>
         )}
@@ -1443,6 +1443,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                     {isSel && route.id !== 'a-pe' && (
                       <>
+                      <AvisoPartida route={route} />
                       <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
                         {route.legs.map((leg, i) => {
                           if (leg.mode === 'WALK' && leg.durationMinutes <= 0) return null;
@@ -1463,7 +1464,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         })}
                         <li className="text-[11px] text-[#6B6B6B]">Horários programados{route.realtimeLabel === 'Horário da AMP' ? ' da AMP' : ''}; podem mudar com o trânsito.</li>
                       </ol>
-                      <AvisoPartida route={route} />
                       </>
                     )}
                   </div>
