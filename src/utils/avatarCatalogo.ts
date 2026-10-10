@@ -1,5 +1,6 @@
 // Catálogo do avatar da PAROU: sete personagens (as três primeiras livres, as outras abrem com
-// reputação: 25, 50, 75 e 100) que se vestem com as mesmas peças.
+// reputação: 25, 50, 75 e 100) que se vestem com as mesmas peças. As medalhas são só de prestígio:
+// nenhuma é livre, abrem aos 50, 75, 100 e 200 pontos e aparecem junto ao avatar em todo o lado.
 // Fica num ficheiro à parte, sem desenhos nem textos traduzidos, porque o servidor e a app usam as
 // mesmas regras: o servidor confirma sempre que as peças escolhidas existem e que a pessoa já tem
 // reputação para as usar.
@@ -7,7 +8,7 @@
 // Cada peça tem um código fixo (que fica guardado na conta) e, se for caso disso, a reputação mínima.
 // Os códigos já existentes nunca mudam (há contas que os usam).
 
-export type CategoriaId = 'personagem' | 'cor' | 'chapeu' | 'expressao' | 'cara' | 'roupa' | 'calcado' | 'mao' | 'fundo';
+export type CategoriaId = 'personagem' | 'cor' | 'chapeu' | 'expressao' | 'cara' | 'roupa' | 'calcado' | 'mao' | 'fundo' | 'medalha';
 
 export interface ItemAvatar {
   id: string;
@@ -146,10 +147,23 @@ export const CATEGORIAS_AVATAR: CategoriaAvatar[] = [
       { id: 'ouro', nome: 'Ouro', rep: 200 },
     ],
   },
+  {
+    id: 'medalha', nome: 'Medalha', itens: [
+      { id: 'nenhum', nome: 'Sem medalha' },
+      { id: 'coracao', nome: 'Coração', rep: 50 },
+      { id: 'laco', nome: 'Laço de presente', rep: 50 },
+      { id: 'estrela', nome: 'Estrela', rep: 75 },
+      { id: 'trevo', nome: 'Trevo', rep: 75 },
+      { id: 'roseta', nome: 'Roseta', rep: 100 },
+      { id: 'escudo', nome: 'Escudo', rep: 100 },
+      { id: 'diamante', nome: 'Diamante', rep: 200 },
+      { id: 'ouro', nome: 'Medalha de ouro', rep: 200 },
+    ],
+  },
 ];
 
 export const AVATAR_PADRAO: ConfigAvatar = {
-  personagem: 'paro', cor: 'laranja', chapeu: 'boné', expressao: 'feliz', cara: 'nenhum', roupa: 'nenhum', calcado: 'ténis', mao: 'nenhum', fundo: 'auto',
+  personagem: 'paro', cor: 'laranja', chapeu: 'boné', expressao: 'feliz', cara: 'nenhum', roupa: 'nenhum', calcado: 'ténis', mao: 'nenhum', fundo: 'auto', medalha: 'nenhum',
 };
 
 /** Junta o que vem da conta com o avatar padrão e ignora tudo o que não existe no catálogo. */

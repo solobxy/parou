@@ -8,7 +8,7 @@
 // externas; é usado como <img> (data URI), por isso cada avatar é isolado e leve.
 import { AVATAR_PADRAO, CATEGORIAS_AVATAR, ConfigAvatar, avatarOuPadrao } from './avatarCatalogo';
 
-export type VistaAvatar = 'completa' | 'palco' | 'redonda' | 'cabeca' | 'chapeu' | 'cara' | 'corpo' | 'pes' | 'mao';
+export type VistaAvatar = 'completa' | 'palco' | 'redonda' | 'cabeca' | 'chapeu' | 'cara' | 'corpo' | 'pes' | 'mao' | 'medalha';
 
 const INK = '#1B1B1B';
 const NOITE = '#1B2433';
@@ -872,6 +872,119 @@ function fundo(id: string, p: Pal, cx: number, cy: number): string {
   }
 }
 
+// ---------- medalhas (só com reputação) ----------
+// Cada medalha é desenhada numa caixa de 100×100 com contorno branco (e um fio escuro por fora), para se
+// ler bem em tamanho pequeno, tanto em fundos claros como escuros. Ficam no canto do avatar.
+function aroMedalha(formas: string): string {
+  return `<g fill="#FFFFFF" stroke="#111111" stroke-opacity=".22" stroke-width="13" stroke-linejoin="round">${formas}</g>` +
+    `<g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="8" stroke-linejoin="round">${formas}</g>`;
+}
+function degrade(k: Ctx, de: string, ate: string): string {
+  const i = k.id('m');
+  k.defs += `<linearGradient id="${i}" x1="0.1" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="${de}"/><stop offset="1" stop-color="${ate}"/></linearGradient>`;
+  return `url(#${i})`;
+}
+/** Coração (caminho) com centro, tamanho e rotação (a ponta fica para baixo a 0°). */
+function coracaoD(cx: number, cy: number, s: number, rot = 0): string {
+  const a = (rot * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+  const pt = (x: number, y: number) => `${f(cx + s * (x * ca - y * sa))},${f(cy + s * (x * sa + y * ca))}`;
+  return `M ${pt(0, 0.95)} C ${pt(-1.25, 0)} ${pt(-1, -0.95)} ${pt(0, -0.5)} C ${pt(1, -0.95)} ${pt(1.25, 0)} ${pt(0, 0.95)} Z`;
+}
+const brilhoM = (d: string, w = 5) => L(d, w, '#FFFFFF', so(0.6));
+
+function medalha(k: Ctx, id: string): string {
+  switch (id) {
+    case 'coracao': {
+      const d = 'M50 88 C14 62 6 36 22 21 C35 9 47 17 50 28 C53 17 65 9 78 21 C94 36 86 62 50 88 Z';
+      return aroMedalha(`<path d="${d}"/>`) + P(d, degrade(k, '#FF7A94', '#D81E4A')) + brilhoM('M23 34 C24 27 29 22 36 22');
+    }
+    case 'laco': {
+      const esq = 'M50 50 C34 14 6 20 10 44 C13 62 36 60 50 50 Z';
+      const dir = 'M50 50 C66 14 94 20 90 44 C87 62 64 60 50 50 Z';
+      const caudas = 'M45 56 L31 90 L45 82 L50 92 L55 82 L69 90 L55 56 Z';
+      const no = 'M40 50 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 Z';
+      const g = degrade(k, '#FF8A3D', '#E5530A');
+      return aroMedalha(`<path d="${esq}"/><path d="${dir}"/><path d="${caudas}"/><path d="${no}"/>`) +
+        P(caudas, '#C9460A') + P(esq, g) + P(dir, g) +
+        P('M50 50 C40 28 22 28 22 41 C23 51 38 54 50 50 Z', '#C9460A', op(0.45)) + P('M50 50 C60 28 78 28 78 41 C77 51 62 54 50 50 Z', '#C9460A', op(0.45)) +
+        P(no, '#FFA866') + brilhoM('M17 38 C19 30 25 26 31 27', 4.5);
+    }
+    case 'estrela': {
+      const d = estrelaD(50, 54, 44, 19, 5, 3);
+      return aroMedalha(`<path d="${d}"/>`) + P(d, degrade(k, '#FFE070', '#F2A100')) +
+        P(estrelaD(50, 54, 22, 9.5, 2.5, 1.5), '#FFFFFF', op(0.35)) + brilhoM('M31 38 L42 26', 4.5);
+    }
+    case 'trevo': {
+      const folhas = [0, 90, 180, 270].map((a) => {
+        const r = (a * Math.PI) / 180;
+        return coracaoD(50 + 22 * Math.sin(r), 50 - 22 * Math.cos(r), 26, a);
+      });
+      const caule = 'M47 52 C50 68 58 80 66 91 L74 86 C66 77 58 66 56 50 Z';
+      const g = degrade(k, '#5BE394', '#1E9E58');
+      const veias = [0, 90, 180, 270].map((a) => {
+        const r = (a * Math.PI) / 180;
+        return L(`M50 50 L${f(50 + 17 * Math.sin(r))} ${f(50 - 17 * Math.cos(r))}`, 3, '#FFFFFF', so(0.5));
+      }).join('');
+      return aroMedalha(folhas.map((d) => `<path d="${d}"/>`).join('') + `<path d="${caule}"/>`) +
+        P(caule, '#1F7A3A') + folhas.map((d) => P(d, g)).join('') + veias;
+    }
+    case 'roseta': {
+      const caudaE = 'M35 64 L26 92 L39 85 L47 93 L51 68 Z';
+      const caudaD = 'M65 64 L74 92 L61 85 L53 93 L49 68 Z';
+      let bolas = '';
+      for (let i = 0; i < 12; i++) {
+        const a = (i * 30 * Math.PI) / 180;
+        bolas += C(50 + 25 * Math.cos(a), 44 + 25 * Math.sin(a), 10.5, 'currentColor');
+      }
+      const formas = `<path d="${caudaE}"/><path d="${caudaD}"/>` + bolas.replace(/fill="currentColor"/g, '') + C(50, 44, 25, '#FFFFFF').replace(' fill="#FFFFFF"', '');
+      const g = degrade(k, '#6AA6FF', '#2B5FD0');
+      return aroMedalha(formas) + P(caudaE, '#E5484D') + P(caudaD, '#C9323B') +
+        bolas.replace(/currentColor/g, g) + C(50, 44, 25, g) + C(50, 44, 19, '#FFFFFF', op(0.95)) + C(50, 44, 15, '#1F4FB8') +
+        P(estrelaD(50, 45, 11, 4.6, 1.6, 1), degrade(k, '#FFE070', '#F2A100'));
+    }
+    case 'escudo': {
+      const d = 'M50 8 L86 21 C87 52 74 76 50 92 C26 76 13 52 14 21 Z';
+      return aroMedalha(`<path d="${d}"/>`) + P(d, degrade(k, '#FF8A3D', '#E5530A')) +
+        `<path transform="translate(50 52) scale(.74) translate(-50 -50)" d="${d}" fill="#111111"/>` +
+        L('M34 50 L45 61 L67 37', 8, '#FFFFFF') + brilhoM('M24 24 C24 36 27 46 31 53', 3.4);
+    }
+    case 'diamante': {
+      const d = 'M28 16 L72 16 L93 40 L50 90 L7 40 Z';
+      return aroMedalha(`<path d="${d}"/>`) +
+        P('M7 40 L28 16 L38 40 Z', '#9CEBFF') + P('M28 16 L72 16 L62 40 L38 40 Z', '#D4F7FF') + P('M72 16 L93 40 L62 40 Z', '#6FD6FA') +
+        P('M7 40 L38 40 L50 90 Z', '#4FC3F7') + P('M38 40 L62 40 L50 90 Z', '#8AE2FF') + P('M62 40 L93 40 L50 90 Z', '#2C8FE0') +
+        L('M28 16 L38 40 M72 16 L62 40 M7 40 L93 40', 2, '#FFFFFF', so(0.55));
+    }
+    case 'ouro': {
+      const fitaE = 'M22 6 L40 6 L58 40 L44 46 Z';
+      const fitaD = 'M78 6 L60 6 L42 40 L56 46 Z';
+      const moeda = 'M20 62 a30 30 0 1 0 60 0 a30 30 0 1 0 -60 0 Z';
+      return aroMedalha(`<path d="${fitaE}"/><path d="${fitaD}"/><path d="${moeda}"/>`) +
+        P(fitaE, '#2B5FD0') + P(fitaD, '#E5484D') + P(moeda, degrade(k, '#FFE98A', '#E39A00')) +
+        C(50, 62, 23, 'none', ' stroke="#B77700" stroke-width="3"') +
+        P(estrelaD(50, 63, 15, 6.4, 2, 1.2), degrade(k, '#D98E00', '#A56A00')) + brilhoM('M29 52 C32 44 38 40 44 39', 4.5);
+    }
+    default:
+      return `<circle cx="50" cy="50" r="30" fill="none" stroke="#B8B8B2" stroke-width="5" stroke-dasharray="7 9" stroke-linecap="round"/>`;
+  }
+}
+
+/** Medalha sozinha (para as miniaturas e para pôr junto ao avatar). */
+export function desenharMedalha(id: string): string {
+  const k = new Ctx();
+  const corpo = medalha(k, id);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs>${k.defs}</defs>${corpo}</svg>`;
+}
+
+const memoMedalha = new Map<string, string>();
+/** Endereço (data URI) da medalha; vazio quando não há medalha. */
+export function urlDaMedalha(id: string | undefined | null): string {
+  if (!id || id === 'nenhum' || !CATEGORIAS_AVATAR.find((c) => c.id === 'medalha')!.itens.some((i) => i.id === id)) return '';
+  let u = memoMedalha.get(id);
+  if (!u) { u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(desenharMedalha(id)); memoMedalha.set(id, u); }
+  return u;
+}
+
 // ---------- montagem ----------
 const corDe = (id: string) => CATEGORIAS_AVATAR.find((c) => c.id === 'cor')!.itens.find((i) => i.id === id)?.hex || '#FF6B1A';
 
@@ -921,6 +1034,8 @@ export function caixaDoAvatar(entrada: Partial<ConfigAvatar> | null | undefined,
       const W = Math.max(110, (o + 52) / 0.75);
       return [m.x - W / 2 + 10, m.y - o - 12, W, W * 0.75];
     }
+    case 'medalha':
+      return [0, 0, 100, 100];
     case 'palco': { // corpo inteiro com o espaço fixo para o chapéu mais alto: a personagem não muda de tamanho ao trocar de chapéu
       const topo = Math.min(-4, hat.y - 96 * hat.esc - 8);
       return [-6, topo, 212, 256 - topo];
@@ -939,6 +1054,7 @@ export function desenharAvatar(entrada: Partial<ConfigAvatar> | null | undefined
   const k = new Ctx();
   const roupa = ROUPAS[cfg.roupa];
   const chapeu = CHAPEUS[cfg.chapeu];
+  if (vista === 'medalha') return desenharMedalha(cfg.medalha);
   const caixa = caixaDoAvatar(cfg, vista);
   let s = '';
 
@@ -992,15 +1108,23 @@ export function desenharAvatar(entrada: Partial<ConfigAvatar> | null | undefined
   // chapéu
   if (chapeu) s += cfg.chapeu === 'auscultadores' && rig.fones ? fonesAbsolutos(rig.fones) : G(mover(rig.chapeu.x, rig.chapeu.y, rig.chapeu.esc), chapeu.d(k));
 
+  // medalha: na vista redonda a app põe-na por cima do círculo; nas vistas inteiras fica no canto da personagem
+  if ((vista === 'completa' || vista === 'palco') && cfg.medalha !== 'nenhum') {
+    s += `<g transform="${mover(MEDALHA_POS.x, MEDALHA_POS.y, MEDALHA_POS.tam / 100)}">${medalha(k, cfg.medalha)}</g>`;
+  }
+
   const [x, y, w, h] = caixa;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(x)} ${f(y)} ${f(w)} ${f(h)}"><defs>${GRAD_PUPILA}${k.defs}</defs>${s}</svg>`;
 }
+
+/** Onde fica a medalha nas vistas inteiras (canto de baixo à direita do círculo de fundo). */
+const MEDALHA_POS = { x: 138, y: 168, tam: 64 };
 
 const memo = new Map<string, string>();
 /** Endereço (data URI) da imagem do avatar; o resultado fica guardado para não desenhar duas vezes. */
 export function urlDoAvatar(entrada: Partial<ConfigAvatar> | null | undefined, vista: VistaAvatar = 'completa'): string {
   const cfg = avatarOuPadrao(entrada);
-  const chave = `${cfg.personagem}|${cfg.cor}|${cfg.chapeu}|${cfg.expressao}|${cfg.cara}|${cfg.roupa}|${cfg.calcado}|${cfg.mao}|${cfg.fundo}|${vista}`;
+  const chave = `${cfg.personagem}|${cfg.cor}|${cfg.chapeu}|${cfg.expressao}|${cfg.cara}|${cfg.roupa}|${cfg.calcado}|${cfg.mao}|${cfg.fundo}|${cfg.medalha}|${vista}`;
   let u = memo.get(chave);
   if (!u) {
     u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(desenharAvatar(cfg, vista));
