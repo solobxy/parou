@@ -26,6 +26,7 @@ const SVG_ICONES: Record<TipoPontoMapa, string> = {
   inundacao: '<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/>',
   protecao_civil: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   aviso_tempo: '<path d="M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973"/><path d="m13 12-3 5h4l-3 5"/>',
+  sismo: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   greve: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
   perturbacao: '<path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/>',
   obras: '<path d="M9.3 6.2a4.55 4.55 0 0 0 5.4 0"/><path d="M7.9 10.7c.9.8 2.4 1.3 4.1 1.3s3.2-.5 4.1-1.3"/><path d="M13.9 3.5a1.93 1.93 0 0 0-3.8-.1l-3 10c-.1.2-.1.4-.1.6 0 1.7 2.2 3 5 3s5-1.3 5-3c0-.2 0-.4-.1-.5Z"/><path d="m7.5 12.2-4.7 2.7c-.5.3-.8.7-.8 1.1s.3.8.8 1.1l7.6 4.5c.9.5 2.1.5 3 0l7.6-4.5c.7-.3 1-.7 1-1.1s-.3-.8-.8-1.1l-4.7-2.8"/>',
@@ -551,7 +552,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
           <div style="font-size:14px;font-weight:700;color:#111111;line-height:1.25">${escaparHtml(p.titulo)}</div>
           ${p.subtitulo ? `<div style="font-size:12.5px;color:#4B4B4B;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
-          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${p.tipo === 'aviso_tempo' ? 'Desde' : 'Início'}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>até</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
+          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início'}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>até</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
           <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">Fonte: ${ligacao}</div>
         </div>`,
         { closeButton: true, autoPanPadding: [24, 24] },

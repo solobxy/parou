@@ -1,5 +1,5 @@
 // Pontos do separador Mapa (vêm de /api/mapa): o que está a acontecer agora
-export type TipoPontoMapa = 'incendio' | 'acidente' | 'inundacao' | 'protecao_civil' | 'aviso_tempo' | 'greve' | 'perturbacao' | 'obras';
+export type TipoPontoMapa = 'incendio' | 'acidente' | 'inundacao' | 'protecao_civil' | 'aviso_tempo' | 'sismo' | 'greve' | 'perturbacao' | 'obras';
 
 export interface PontoMapa {
   id: string;
@@ -27,7 +27,7 @@ export type GrupoCamada = 'incendios' | 'tempo' | 'estrada' | 'transportes' | 'c
 
 export function grupoDoPonto(t: TipoPontoMapa): GrupoCamada {
   if (t === 'incendio') return 'incendios';
-  if (t === 'aviso_tempo' || t === 'inundacao') return 'tempo';
+  if (t === 'aviso_tempo' || t === 'inundacao' || t === 'sismo') return 'tempo';
   if (t === 'acidente' || t === 'protecao_civil') return 'estrada';
   return 'transportes';
 }
