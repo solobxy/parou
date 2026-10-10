@@ -90,7 +90,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
               <span>·</span>
               <span>{occurrence.severity}</span>
             </div>
-            <span className="font-['Barlow_Condensed'] tabular-nums">{quandoAconteceu(occurrence)}</span>
+            <span className="font-condensada tabular-nums">{quandoAconteceu(occurrence)}</span>
           </div>
 
           {/* Title & Description */}

@@ -246,7 +246,7 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({
                         <span className="font-semibold text-[#111111]">{report.status}</span>
                         <span className="text-[#6B6B6B]">· {report.type}</span>
                       </div>
-                      <span className="font-['Barlow_Condensed'] text-[#6B6B6B] tabular-nums">
+                      <span className="font-condensada text-[#6B6B6B] tabular-nums">
                         {new Date(report.timestamp).toLocaleDateString('pt-PT')}
                       </span>
                     </div>
@@ -306,7 +306,7 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({
                         <span className="font-semibold text-[#111111]">{c.status}</span>
                         <span className="text-[#6B6B6B]">· {c.company}</span>
                       </div>
-                      <span className="font-['Barlow_Condensed'] text-[#6B6B6B] tabular-nums">
+                      <span className="font-condensada text-[#6B6B6B] tabular-nums">
                         {new Date(c.timestamp).toLocaleDateString('pt-PT')}
                       </span>
                     </div>

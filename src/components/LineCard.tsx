@@ -72,14 +72,14 @@ export const LineCard: React.FC<LineCardProps> = ({
                   />
                 )}
                 <span 
-                  className={`font-['Barlow_Condensed'] text-xl font-bold tabular-nums leading-none ${showExactTimeAsBig ? 'text-[#111111]' : parsed.textColorClass}`}
+                  className={`font-condensada text-xl font-bold tabular-nums leading-none ${showExactTimeAsBig ? 'text-[#111111]' : parsed.textColorClass}`}
                   style={{ color: showExactTimeAsBig ? '#111111' : parsed.textColor }}
                 >
                   {bigDisplay}
                 </span>
               </div>
               {!showExactTimeAsBig && parsed.subText && (
-                <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                   {parsed.subText}
                 </span>
               )}

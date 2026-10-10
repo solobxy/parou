@@ -163,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Star className="w-4 h-4 stroke-[2]" />
               <span>Favoritos</span>
               {favoritesCount > 0 && (
-                <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">
+                <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
                   ({favoritesCount})
                 </span>
               )}
@@ -213,7 +213,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <span>Favoritos</span>
                       </div>
                       {favoritesCount > 0 && (
-                        <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
+                        <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
                           {favoritesCount}
                         </span>
                       )}
@@ -287,7 +287,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <span>Fontes</span>
                           </div>
                           {publicReportsCount !== undefined && publicReportsCount > 0 && (
-                            <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums">
+                            <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
                               {publicReportsCount}
                             </span>
                           )}
@@ -307,7 +307,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <span>Moderação</span>
                           </div>
                           {pendingModerationCount !== undefined && pendingModerationCount > 0 && (
-                            <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#D92D20] tabular-nums">
+                            <span className="font-condensada text-xs font-bold text-[#D92D20] tabular-nums">
                               {pendingModerationCount}
                             </span>
                           )}

@@ -240,7 +240,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                       <span>·</span>
                       <span>{item.district}</span>
                       <span>·</span>
-                      <span className="font-['Barlow_Condensed'] tabular-nums">
+                      <span className="font-condensada tabular-nums">
                         {new Date(item.timestamp).toLocaleDateString('pt-PT')}
                       </span>
                     </div>
@@ -264,7 +264,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                       }`}
                     >
                       <ThumbsUp className="w-3.5 h-3.5 stroke-[2]" />
-                      <span className="font-['Barlow_Condensed'] tabular-nums">{item.upvotes || 0}</span>
+                      <span className="font-condensada tabular-nums">{item.upvotes || 0}</span>
                     </button>
 
                     <button
@@ -272,7 +272,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-[6px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[36px] cursor-pointer"
                     >
                       <MessageSquare className="w-3.5 h-3.5 stroke-[2]" />
-                      <span className="font-['Barlow_Condensed'] tabular-nums">{item.commentsCount || 0}</span>
+                      <span className="font-condensada tabular-nums">{item.commentsCount || 0}</span>
                       {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </button>
                   </div>
@@ -287,7 +287,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
                           <div key={com.id} className="pt-1.5 text-xs">
                             <div className="flex items-center gap-2 text-[#6B6B6B]">
                               <strong className="text-[#111111]">{com.authorName}</strong>
-                              <span className="font-['Barlow_Condensed'] tabular-nums">
+                              <span className="font-condensada tabular-nums">
                                 {new Date(com.timestamp).toLocaleTimeString('pt-PT')}
                               </span>
                             </div>

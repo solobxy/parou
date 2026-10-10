@@ -1264,7 +1264,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </button>
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="font-['Barlow_Condensed'] text-[22px] leading-none font-bold text-[#111111]">
+              <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">
                 Transportes perto
               </h2>
               <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{subtitulo}</p>
@@ -1332,7 +1332,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" />
               <span className="font-semibold truncate">{topAlert.título || (topAlert as any).title}</span>
             </div>
-            <span className="font-['Barlow_Condensed'] text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
+            <span className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
               {topAlert.severity}
             </span>
           </div>
@@ -1404,7 +1404,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-['Barlow_Condensed'] text-xl font-bold text-[#111111] tabular-nums">
+                        <span className="font-condensada text-xl font-bold text-[#111111] tabular-nums">
                           {route.totalDurationMinutes} min
                         </span>
                         <span className="text-xs text-[#6B6B6B]">· Chegada ~{route.arrivalTime}</span>
@@ -1543,7 +1543,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         )}
                       </div>
                     </div>
-                    <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-['Barlow_Condensed'] text-[13px] font-bold text-[#111111] tabular-nums">
+                    <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-condensada text-[13px] font-bold text-[#111111] tabular-nums">
                       <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
                       {stop.formattedDistance}
                     </span>
@@ -1582,14 +1582,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   />
                                 )}
                                 <span 
-                                  className={`font-['Barlow_Condensed'] text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
+                                  className={`font-condensada text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
                                   style={{ color: parsed.textColor }}
                                 >
                                   {parsed.bigText}
                                 </span>
                               </div>
                               {parsed.subText && (
-                                <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                                <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}
                                 </span>
                               )}
@@ -1778,7 +1778,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {!aqui && ultima && <span className="block text-[11px] font-semibold text-[#6B6B6B]">Fim de linha</span>}
                                 </span>
                                 {p.hora && (
-                                  <span className={`shrink-0 font-['Barlow_Condensed'] text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
+                                  <span className={`shrink-0 font-condensada text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
                                     {p.hora}
                                   </span>
                                 )}
@@ -1884,14 +1884,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   />
                                 )}
                                 <span
-                                  className={`font-['Barlow_Condensed'] text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                                  className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
                                   style={{ color: parsed.textColor }}
                                 >
                                   {parsed.bigText}
                                 </span>
                               </div>
                               {parsed.subText && (
-                                <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                                <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}
                                 </span>
                               )}

@@ -246,14 +246,14 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
         <div className="max-w-6xl mx-auto mt-3 pt-3 border-t border-[#E6E6E3] flex items-center justify-between flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-4 flex-wrap">
             <span className="flex items-center gap-1.5 font-semibold text-[#111111]">
-              <span className="font-['Barlow_Condensed'] font-bold text-sm tabular-nums text-[#C2410C]">
+              <span className="font-condensada font-bold text-sm tabular-nums text-[#C2410C]">
                 {countsByStatus.Ativo}
               </span>
               <span>ativos</span>
             </span>
 
             <span className="flex items-center gap-1.5 text-[#6B6B6B]">
-              <span className="font-['Barlow_Condensed'] font-bold text-sm tabular-nums text-[#111111]">
+              <span className="font-condensada font-bold text-sm tabular-nums text-[#111111]">
                 {countsByStatus.Futuro}
               </span>
               <span>agendados</span>
@@ -290,7 +290,7 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
                   }`}
                 >
                   <span>{st}</span>
-                  <span className="font-['Barlow_Condensed'] font-bold tabular-nums text-xs">
+                  <span className="font-condensada font-bold tabular-nums text-xs">
                     ({countsByStatus[st]})
                   </span>
                 </button>
@@ -427,7 +427,7 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
                         .map((ln, idx) => (
                           <span
                             key={idx}
-                            className="px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] text-[11px] font-['Barlow_Condensed'] font-bold tabular-nums text-[#111111]"
+                            className="px-1.5 py-0.5 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] text-[11px] font-condensada font-bold tabular-nums text-[#111111]"
                           >
                             {ln}
                           </span>
@@ -438,9 +438,9 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
                   {/* Bottom details */}
                   <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-[#6B6B6B] pt-1">
                     <div className="flex items-center gap-3">
-                      <span>Início: <strong className="font-['Barlow_Condensed'] tabular-nums text-[#111111]">{new Date(alert.start_datetime).toLocaleDateString('pt-PT')}</strong></span>
+                      <span>Início: <strong className="font-condensada tabular-nums text-[#111111]">{new Date(alert.start_datetime).toLocaleDateString('pt-PT')}</strong></span>
                       {alert.end_datetime && (
-                        <span>Fim: <strong className="font-['Barlow_Condensed'] tabular-nums text-[#111111]">{new Date(alert.end_datetime).toLocaleDateString('pt-PT')}</strong></span>
+                        <span>Fim: <strong className="font-condensada tabular-nums text-[#111111]">{new Date(alert.end_datetime).toLocaleDateString('pt-PT')}</strong></span>
                       )}
                     </div>
 
@@ -481,28 +481,28 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
                   <span className="text-[11px] text-[#6B6B6B]">Ativos</span>
-                  <div className="font-['Barlow_Condensed'] text-xl font-bold text-[#111111] tabular-nums mt-0.5">
+                  <div className="font-condensada text-xl font-bold text-[#111111] tabular-nums mt-0.5">
                     {diagnostic.active_alerts_count}
                   </div>
                 </div>
 
                 <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
                   <span className="text-[11px] text-[#6B6B6B]">Futuros</span>
-                  <div className="font-['Barlow_Condensed'] text-xl font-bold text-[#111111] tabular-nums mt-0.5">
+                  <div className="font-condensada text-xl font-bold text-[#111111] tabular-nums mt-0.5">
                     {diagnostic.future_alerts_count}
                   </div>
                 </div>
 
                 <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
                   <span className="text-[11px] text-[#6B6B6B]">Terminados</span>
-                  <div className="font-['Barlow_Condensed'] text-xl font-bold text-[#111111] tabular-nums mt-0.5">
+                  <div className="font-condensada text-xl font-bold text-[#111111] tabular-nums mt-0.5">
                     {diagnostic.ended_alerts_count}
                   </div>
                 </div>
 
                 <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
                   <span className="text-[11px] text-[#6B6B6B]">Duplicados</span>
-                  <div className="font-['Barlow_Condensed'] text-xl font-bold text-[#111111] tabular-nums mt-0.5">
+                  <div className="font-condensada text-xl font-bold text-[#111111] tabular-nums mt-0.5">
                     {diagnostic.duplicates_avoided_count}
                   </div>
                 </div>
@@ -624,7 +624,7 @@ export const AlertCenterView: React.FC<AlertCenterViewProps> = ({
                 {prefs.favoriteLines.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
                     {prefs.favoriteLines.map((ln) => (
-                      <span key={ln} className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] font-['Barlow_Condensed'] font-bold tabular-nums">
+                      <span key={ln} className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] font-condensada font-bold tabular-nums">
                         <span>{ln}</span>
                         <button
                           onClick={() => {

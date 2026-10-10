@@ -38,7 +38,7 @@ export const LineChip: React.FC<LineChipProps> = ({
 
   return (
     <span
-      className={`min-w-[32px] h-[28px] px-1.5 rounded-[4px] font-['Barlow_Condensed'] font-bold text-sm tracking-tight inline-flex items-center justify-center leading-none tabular-nums shrink-0 select-none ${className}`}
+      className={`min-w-[32px] h-[28px] px-1.5 rounded-[4px] font-condensada font-bold text-sm tracking-tight inline-flex items-center justify-center leading-none tabular-nums shrink-0 select-none ${className}`}
       style={{
         backgroundColor: bgColor,
         color: resolvedTextColor,

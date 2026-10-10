@@ -227,11 +227,11 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
             <span>Resultados:</span>
             <div className="flex items-center gap-2">
-              <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums">
+              <span className="font-condensada font-bold text-[#111111] tabular-nums">
                 {matchingReportsCount} reports
               </span>
               <span>·</span>
-              <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums">
+              <span className="font-condensada font-bold text-[#111111] tabular-nums">
                 {matchingTransitCount} transportes
               </span>
             </div>

@@ -58,7 +58,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[#6B6B6B] font-['Barlow_Condensed'] tabular-nums">
+          <span className="text-xs text-[#6B6B6B] font-condensada tabular-nums">
             {quandoAconteceu(current)}
           </span>
           {occurrences.length > 1 && (

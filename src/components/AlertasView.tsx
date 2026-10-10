@@ -374,7 +374,7 @@ function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
           </span>
           <span className="flex items-center gap-1.5 shrink-0">
             {novo && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">Novo</span>}
-            <span className="font-['Barlow_Condensed'] text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString('pt-PT')} km</span>
+            <span className="font-condensada text-[13px] font-bold text-[#6B6B6B] tabular-nums">{f.distanciaKm.toLocaleString('pt-PT')} km</span>
           </span>
         </div>
         <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-1">
@@ -439,7 +439,18 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
     try {
       const r = await fetch(`/api/alertas${qs ? `?${qs}` : ''}`, { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error(String(r.status));
-      const j: RespostaAlertas = await r.json();
+      const bruto: any = await r.json();
+      // Resposta incompleta (ex.: servidor a arrancar) não pode partir o ecrã: listas vazias por defeito
+      if (!bruto || typeof bruto !== 'object' || !bruto.local) throw new Error('resposta incompleta');
+      const j: RespostaAlertas = {
+        ...bruto,
+        ocorrencias: bruto.ocorrencias || [],
+        protecaoCivil: bruto.protecaoCivil || [],
+        avisosMeteo: bruto.avisosMeteo || [],
+        noticias: bruto.noticias || [],
+        feriados: bruto.feriados || [],
+        distritos: bruto.distritos || [],
+      };
       ultimaResposta = j;
       setDados(j);
       setErro(false);
@@ -669,7 +680,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             className="w-full min-h-[56px] px-3.5 py-2.5 flex items-center gap-3 text-left cursor-pointer"
           >
             <IconeTempo icone={agora?.icone || hoje?.icone || 'nuvens'} className="w-8 h-8 text-[#FF6B1A] shrink-0" />
-            <span className="font-['Barlow_Condensed'] text-[34px] leading-none font-bold tabular-nums shrink-0">
+            <span className="font-condensada text-[34px] leading-none font-bold tabular-nums shrink-0">
               {agora ? `${agora.temperatura}°` : `${hoje?.tMax}°`}
             </span>
             <span className="min-w-0 flex-1">
@@ -693,15 +704,15 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               <div className="flex items-end gap-2 mt-1">
                 {agora ? (
                   <>
-                    <span className="font-['Barlow_Condensed'] text-[64px] leading-[0.85] font-bold tabular-nums">{agora.temperatura}°</span>
+                    <span className="font-condensada text-[64px] leading-[0.85] font-bold tabular-nums">{agora.temperatura}°</span>
                     {hoje && (
-                      <span className="font-['Barlow_Condensed'] text-[15px] text-white/70 tabular-nums pb-1">
+                      <span className="font-condensada text-[15px] text-white/70 tabular-nums pb-1">
                         {hoje.tMin}° / {hoje.tMax}°
                       </span>
                     )}
                   </>
                 ) : hoje ? (
-                  <span className="font-['Barlow_Condensed'] text-[52px] leading-[0.85] font-bold tabular-nums">
+                  <span className="font-condensada text-[52px] leading-[0.85] font-bold tabular-nums">
                     {hoje.tMin}°<span className="text-white/40"> / </span>{hoje.tMax}°
                   </span>
                 ) : null}
@@ -725,7 +736,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                   <IconeTempo icone={d.icone} className="w-5 h-5 text-white/80 shrink-0" />
                   <div className="min-w-0">
                     <div className="text-[11px] text-white/60 capitalize truncate">{d.rotulo}</div>
-                    <div className="font-['Barlow_Condensed'] text-[15px] font-bold tabular-nums leading-tight">
+                    <div className="font-condensada text-[15px] font-bold tabular-nums leading-tight">
                       {d.tMin}°<span className="text-white/40"> / </span>{d.tMax}°
                     </div>
                   </div>
@@ -770,7 +781,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         <section className={`rounded-[16px] border p-4 ${feriado.emDias === 0 ? 'bg-[#FF6B1A] border-[#FF6B1A] text-[#111111]' : 'bg-[#FFFFFF] border-[#E6E6E3]'}`}>
           <div className="flex items-start gap-3">
             <div className={`w-11 h-11 rounded-[12px] flex flex-col items-center justify-center shrink-0 ${feriado.emDias === 0 ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111]'}`}>
-              <span className="font-['Barlow_Condensed'] text-[18px] font-bold leading-none tabular-nums">{Number(feriado.data.slice(8, 10))}</span>
+              <span className="font-condensada text-[18px] font-bold leading-none tabular-nums">{Number(feriado.data.slice(8, 10))}</span>
               <span className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
                 {['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(feriado.data.slice(5, 7)) - 1]}
               </span>
@@ -824,7 +835,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             >
               {f.rotulo}
               {n > 0 && (
-                <span className={`font-['Barlow_Condensed'] text-[12px] tabular-nums ${ativo ? 'text-white/70' : 'text-[#6B6B6B]'}`}>{n}</span>
+                <span className={`font-condensada text-[12px] tabular-nums ${ativo ? 'text-white/70' : 'text-[#6B6B6B]'}`}>{n}</span>
               )}
             </button>
           );
@@ -835,10 +846,10 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {dados && (filtro === 'incendios' || (filtro === 'tudo' && incendiosPerto.length > 0)) && (
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
+            <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-[#FF6B1A]" />
               {filtro === 'incendios' ? 'Incêndios ativos' : 'Incêndios perto'}
-              <span className="font-['Barlow_Condensed'] text-[13px] text-[#6B6B6B] tabular-nums">
+              <span className="font-condensada text-[13px] text-[#6B6B6B] tabular-nums">
                 {filtro === 'incendios' ? incendios?.total || 0 : incendiosPerto.length}
               </span>
             </h2>
@@ -879,7 +890,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {filtro !== 'incendios' && (
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111]">Na rede e na estrada</h2>
+          <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111]">Na rede e na estrada</h2>
           {onVerMapa && (
             <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">Ver no mapa</button>
           )}
@@ -928,7 +939,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                       {(d.meta || (d.linhas && d.linhas.length > 0)) && (
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                           {d.linhas?.slice(0, 4).map((l) => (
-                            <span key={l} className="font-['Barlow_Condensed'] text-[12px] font-bold px-1.5 h-5 inline-flex items-center rounded-[4px] bg-[#F4F4F2] text-[#111111]">{l}</span>
+                            <span key={l} className="font-condensada text-[12px] font-bold px-1.5 h-5 inline-flex items-center rounded-[4px] bg-[#F4F4F2] text-[#111111]">{l}</span>
                           ))}
                           {d.meta && <span className="text-[12px] text-[#6B6B6B]">{d.meta}</span>}
                         </div>
@@ -954,7 +965,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
 
       {/* Notícias */}
       <section className="space-y-2">
-        <h2 className="font-['Barlow_Condensed'] text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
+        <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
           <Newspaper className="w-4 h-4" /> Notícias
         </h2>
         {!dados && aCarregar ? (

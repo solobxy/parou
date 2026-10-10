@@ -70,7 +70,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
 
         <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B]">
           <span className="hidden sm:inline">Atualizado:</span>
-          <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums text-xs">
+          <span className="font-condensada font-bold text-[#111111] tabular-nums text-xs">
             <span className="sm:hidden">{formattedTime.slice(0, 5)}</span>
             <span className="hidden sm:inline">{formattedTime}</span>
           </span>
@@ -88,7 +88,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
       <div className="flex items-center gap-3 text-xs">
         <div className="flex items-center gap-1.5">
           <span className="text-[#6B6B6B]">Ocorrências:</span>
-          <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums text-sm">
+          <span className="font-condensada font-bold text-[#111111] tabular-nums text-sm">
             {totalAlertsCount}
           </span>
         </div>
@@ -96,7 +96,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
         {severeCount > 0 && (
           <div className="flex items-center gap-1 text-[#D92D20] font-semibold">
             <AlertTriangle className="w-3.5 h-3.5 stroke-[2]" />
-            <span className="font-['Barlow_Condensed'] font-bold tabular-nums text-sm">
+            <span className="font-condensada font-bold tabular-nums text-sm">
               {severeCount}
             </span>
           </div>
@@ -105,7 +105,7 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
         {districtsWithAlertsCount > 0 && (
           <div className="hidden md:flex items-center gap-1.5 text-[#6B6B6B]">
             <span>Distritos:</span>
-            <span className="font-['Barlow_Condensed'] font-bold text-[#111111] tabular-nums text-sm">
+            <span className="font-condensada font-bold text-[#111111] tabular-nums text-sm">
               {districtsWithAlertsCount}
             </span>
           </div>

@@ -133,6 +133,14 @@ h1, h2, h3, h4 {
   }
 }
 
+/* Letra condensada da marca, com alternativas parecidas enquanto a Barlow ainda não chegou
+   (sem isto o browser mostrava letra com serifas nos primeiros segundos) */
+@layer utilities {
+  .font-condensada {
+    font-family: 'Barlow Condensed', 'Roboto Condensed', 'Arial Narrow', 'Helvetica Neue', system-ui, sans-serif;
+  }
+}
+
 /* Tabular Numbers for Timetable & Countdown */
 .font-tabular {
   font-family: var(--font-condensed);

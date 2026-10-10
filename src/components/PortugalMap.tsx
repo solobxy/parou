@@ -383,7 +383,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         const icon = L.divIcon({
           className: 'custom-district-badge-icon',
           html: `
-            <div style="background-color: ${badgeBg}; color: ${badgeText};" class="px-2 py-1 rounded-[6px] border ${borderClass} shadow-md flex items-center gap-1.5 font-['Barlow_Condensed'] font-bold text-xs min-w-[38px] justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${isSelected ? 'ring-2 ring-black scale-110' : ''}">
+            <div style="background-color: ${badgeBg}; color: ${badgeText};" class="px-2 py-1 rounded-[6px] border ${borderClass} shadow-md flex items-center gap-1.5 font-condensada font-bold text-xs min-w-[38px] justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 ${isSelected ? 'ring-2 ring-black scale-110' : ''}">
               <span>${stats.code}</span>
               ${stats.totalCount > 0 ? `<span class="px-1 py-0.2 rounded bg-black/15 text-[11px] leading-tight tabular-nums">${stats.totalCount}</span>` : ''}
             </div>
@@ -583,10 +583,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         <div className="flex flex-row flex-wrap items-center justify-between p-2 sm:p-3 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-x-2 gap-y-1.5 z-10 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             {/* No telemóvel o título fica só para leitores de ecrã: poupa uma linha */}
-            <span className="sr-only sm:not-sr-only font-['Barlow_Condensed'] text-base leading-tight font-bold text-[#111111]">
+            <span className="sr-only sm:not-sr-only font-condensada text-base leading-tight font-bold text-[#111111]">
               Mapa de Ocorrências
             </span>
-            <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#111111] font-['Barlow_Condensed'] text-xs font-bold tabular-nums">
+            <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F4F2] text-[#111111] font-condensada text-xs font-bold tabular-nums">
               {totalOccurrencesCount} {totalOccurrencesCount === 1 ? 'ativa' : 'ativas'}
             </span>
             {selectedDistrict && (
@@ -660,7 +660,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                 >
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.cor }} />
                   {g.rotulo}
-                  <span className="font-['Barlow_Condensed'] text-[12px] tabular-nums text-[#6B6B6B]">{n}</span>
+                  <span className="font-condensada text-[12px] tabular-nums text-[#6B6B6B]">{n}</span>
                 </button>
               );
             })}
@@ -723,15 +723,15 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
           {/* Quick Legend at Bottom-Left */}
           <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">
-            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+            <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#D92D20]"></div>
               <span>Grave</span>
             </div>
-            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+            <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B1A]"></div>
               <span>Moderada</span>
             </div>
-            <div className="flex items-center gap-1 font-['Barlow_Condensed'] font-semibold text-[#111111]">
+            <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#111111]"></div>
               <span>Info</span>
             </div>

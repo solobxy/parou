@@ -52,7 +52,7 @@ export const Logo: React.FC<LogoProps> = ({
 
       {showText && (
         <span
-          className="font-['Barlow_Condensed'] font-bold leading-none"
+          className="font-condensada font-bold leading-none"
           style={{
             fontSize: `${fontSize}px`,
             letterSpacing: '0.06em',

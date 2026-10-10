@@ -342,7 +342,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
             </span>
           </div>
           {report?.ingestion?.workerProgress && report.ingestion.workerProgress.totalOperators > 0 && (
-            <span className="font-['Barlow_Condensed'] text-xs font-bold text-[#6B6B6B] tabular-nums">
+            <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
               {report.ingestion.workerProgress.loadedOperators} / {report.ingestion.workerProgress.totalOperators}
             </span>
           )}
@@ -354,28 +354,28 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Feeds registados</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {report.totals.totalFeeds}
             </div>
           </div>
 
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Linhas</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {report.totals.totalLines.toLocaleString('pt-PT')}
             </div>
           </div>
 
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Paragens</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {report.totals.totalStops.toLocaleString('pt-PT')}
             </div>
           </div>
 
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
             <span className="text-[11px] text-[#6B6B6B]">Operacionais</span>
-            <div className="font-['Barlow_Condensed'] text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
+            <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {report.totals.okCount}
             </div>
           </div>
@@ -445,10 +445,10 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
                     <td className="py-3 px-3">
                       {getStatusBadge(feed)}
                     </td>
-                    <td className="py-3 px-3 text-right font-['Barlow_Condensed'] font-bold tabular-nums text-[#111111]">
+                    <td className="py-3 px-3 text-right font-condensada font-bold tabular-nums text-[#111111]">
                       {feed.lines_count ?? 0}
                     </td>
-                    <td className="py-3 px-3 text-right font-['Barlow_Condensed'] font-bold tabular-nums text-[#111111]">
+                    <td className="py-3 px-3 text-right font-condensada font-bold tabular-nums text-[#111111]">
                       {feed.stops_count ?? 0}
                     </td>
                     <td className="py-3 px-3 text-right">
@@ -546,7 +546,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
                 <span className="font-semibold text-[#111111]">{log.feed_id}</span>
                 <span className="text-[#6B6B6B] ml-2">{log.message}</span>
               </div>
-              <span className="font-['Barlow_Condensed'] text-[#6B6B6B] shrink-0 tabular-nums">
+              <span className="font-condensada text-[#6B6B6B] shrink-0 tabular-nums">
                 {new Date(log.timestamp).toLocaleTimeString('pt-PT')}
               </span>
             </div>

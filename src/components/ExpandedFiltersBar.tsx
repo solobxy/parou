@@ -131,7 +131,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               }`}
             >
               <span>Ocorrências:</span>
-              <span className="font-['Barlow_Condensed'] font-bold tabular-nums text-sm">
+              <span className="font-condensada font-bold tabular-nums text-sm">
                 {reportsCount}
               </span>
             </button>
@@ -147,7 +147,7 @@ export const ExpandedFiltersBar: React.FC<ExpandedFiltersBarProps> = ({
               }`}
             >
               <span>Transportes:</span>
-              <span className="font-['Barlow_Condensed'] font-bold tabular-nums text-sm">
+              <span className="font-condensada font-bold tabular-nums text-sm">
                 {transitCount}
               </span>
             </button>

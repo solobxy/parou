@@ -201,7 +201,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-['Barlow_Condensed'] text-xs text-[#6B6B6B] w-5 text-right tabular-nums">
+                            <span className="font-condensada text-xs text-[#6B6B6B] w-5 text-right tabular-nums">
                               {sIdx + 1}
                             </span>
                             <span className={`text-sm truncate ${isNearest ? 'font-bold text-[#111111]' : 'text-[#111111]'}`}>
@@ -268,14 +268,14 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                   />
                                                 )}
                                                 <span 
-                                                  className={`font-['Barlow_Condensed'] text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                                                  className={`font-condensada text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
                                                   style={{ color: parsed.textColor }}
                                                 >
                                                   {parsed.bigText}
                                                 </span>
                                               </div>
                                               {parsed.subText && (
-                                                <span className="font-['Barlow_Condensed'] text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
+                                                <span className="font-condensada text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
                                                   {parsed.subText}
                                                 </span>
                                               )}
