@@ -171,7 +171,10 @@ export function obterIncidentes(): { atualizado: string | null; incidentes: Inci
   return {
     atualizado: estado ? new Date(estado.atualizado).toISOString() : null,
     // Dados com mais de 3 h (o Fogos.pt deixou de responder): podem já estar apagados, não se mostram
-    incidentes: estado && Date.now() - estado.atualizado < 3 * 3600_000 ? estado.incidentes : [],
+    // (filtra outra vez o estado: dados guardados antes desta regra podem trazer incêndios já apagados)
+    incidentes: estado && Date.now() - estado.atualizado < 3 * 3600_000
+      ? estado.incidentes.filter((i) => !/encerrad|conclusao|vigilancia|falso/.test(semAcentos(i.estado)))
+      : [],
     temChave: Boolean(CHAVE),
   };
 }
