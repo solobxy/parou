@@ -17,6 +17,7 @@ import {
   batchInsertRoutes,
   batchInsertStops,
   batchInsertTrips,
+  completarNomesDeLinhas,
   batchInsertStopTimes,
   batchInsertCalendar,
   batchInsertCalendarDates,
@@ -619,6 +620,9 @@ export async function ingestGtfsZipFeed(feedItem: FeedItem): Promise<void> {
     });
 
     batchInsertTrips(tripsToInsert);
+
+    // Linhas cujo nome vem vazio ou "-" no feed (ex.: Metro do Porto) ficam com o trajeto como nome
+    try { completarNomesDeLinhas(getDatabase(), feedId); } catch {}
 
     // 4. Process calendar.txt & calendar_dates.txt
     let validFrom = '';

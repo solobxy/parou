@@ -8,7 +8,7 @@ import { t, LOCALE } from '../i18n';
 const ACRONYMS = new Set([
   'CP', 'IC', 'AP', 'IR', 'R', 'U', 'STCP', 'MTS', 'TCB', 'TML', 'CARRIS',
   'METRO', 'RL', 'TST', 'TUB', 'SMTUC', 'TUG', 'TUA', 'TAV', 'AVE',
-  'EST', 'GPS', 'ID', 'CE', 'HPH', 'HSJ', 'IPO'
+  'EST', 'GPS', 'ID', 'CE', 'HPH', 'HSJ', 'IPO', 'ISMAI', 'ISEP', 'ISCAP', 'ESMAD', 'FEUP'
 ]);
 
 const LOWERCASE_WORDS = new Set([
@@ -55,7 +55,11 @@ export function formatTransitName(raw?: string | null): string {
       return pre + stem.charAt(0).toUpperCase() + stem.slice(1) + '.' + post;
     }
 
-    return pre + core.charAt(0).toUpperCase() + core.slice(1).toLowerCase() + post;
+    // "d'Este" / "D'ESTE" -> "D'Este" (a letra a seguir ao apóstrofo também leva maiúscula)
+    const comCaixa = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
+    const comApostrofo = comCaixa.replace(/(['’])([a-zà-ÿ])/g, (_m, ap: string, letra: string) => ap + letra.toUpperCase());
+    // No meio do nome, "d'" fica em minúscula: "Vila d'Este"
+    return pre + (idx > 0 && /^D['’]/.test(comApostrofo) ? 'd' + comApostrofo.slice(1) : comApostrofo) + post;
   }).join(' ');
 }
 

@@ -498,17 +498,21 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         const grave = g.pontos.some((q) => q.gravidade === 'Grave');
         const lat = g.pontos.reduce((s, q) => s + q.lat, 0) / n;
         const lon = g.pontos.reduce((s, q) => s + q.lon, 0) / n;
-        // Triângulo de aviso (são ocorrências, não paragens) com o número lá dentro
-        const larg = n >= 100 ? 66 : n >= 10 ? 58 : 48;
-        const alt = Math.round(larg * 0.92);
-        const cor = grave ? '#D92D20' : '#111111';
+        // Sinal de perigo (são ocorrências, não paragens): fundo branco, contorno grosso na cor da
+        // gravidade como nos sinais de trânsito, e o número pequeno e centrado lá dentro.
+        // Vermelho = há algo grave; laranja = há algo moderado; preto = só informação.
+        const moderada = g.pontos.some((q) => q.gravidade === 'Moderada');
+        const larg = n >= 100 ? 72 : n >= 10 ? 62 : 52;
+        const alt = Math.round(larg * 0.9);
+        const tamanhoNumero = n >= 100 ? 15 : n >= 10 ? 18 : 20;
+        const cor = grave ? '#D92D20' : moderada ? '#FF6B1A' : '#111111';
         const icone = L.divIcon({
           className: 'parou-ponto-mapa',
-          html: `<div style="position:relative;width:${larg}px;height:${alt}px;cursor:pointer;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))">
-            <svg xmlns="http://www.w3.org/2000/svg" width="${larg}" height="${alt}" viewBox="0 0 48 44" aria-hidden="true">
-              <path d="M24 4.2 L44.2 39.2 Q45.4 41.4 42.9 41.4 H5.1 Q2.6 41.4 3.8 39.2 Z" fill="${cor}" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
+          html: `<div style="position:relative;width:${larg}px;height:${alt}px;cursor:pointer;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">
+            <svg xmlns="http://www.w3.org/2000/svg" width="${larg}" height="${alt}" viewBox="0 0 60 54" aria-hidden="true">
+              <polygon points="30,6.5 54,48 6,48" fill="#FFFFFF" stroke="${cor}" stroke-width="6" stroke-linejoin="round"/>
             </svg>
-            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.46)}px;text-align:center;color:#FFFFFF;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:700;font-size:${n >= 100 ? 16 : n >= 10 ? 17 : 19}px;line-height:1">${n}</span>
+            <span style="position:absolute;left:0;right:0;top:${Math.round(alt * 0.667 - tamanhoNumero / 2)}px;text-align:center;color:#111111;font-family:'Barlow Condensed',Barlow,sans-serif;font-weight:800;font-size:${tamanhoNumero}px;line-height:1">${n}</span>
           </div>`,
           iconSize: [larg, alt],
           iconAnchor: [larg / 2, alt * 0.62],
