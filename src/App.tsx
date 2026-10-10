@@ -1175,7 +1175,7 @@ export default function App() {
                 onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); abrir(); }}
                 className="text-[#6B6B6B] hover:text-[#111111] transition-colors"
               >
-                {nome}
+                {t(nome)}
               </a>
             ))}
             <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{t('Linhas e horários')}</a>

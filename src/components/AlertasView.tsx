@@ -273,12 +273,12 @@ function quandoTermina(iso: string): string {
 
 function haQuanto(ms: number): string {
   const min = Math.max(0, Math.round((Date.now() - ms) / 60000));
-  if (min < 1) return 'agora';
-  if (min < 60) return `há ${min} min`;
+  if (min < 1) return t('agora');
+  if (min < 60) return t('há {n} min', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `há ${h} h`;
+  if (h < 24) return t('há {n} h', { n: h });
   const d = Math.round(h / 24);
-  return d === 1 ? 'ontem' : `há ${d} dias`;
+  return d === 1 ? t('ontem') : t('há {n} dias', { n: d });
 }
 
 function dataFeriado(iso: string): string {

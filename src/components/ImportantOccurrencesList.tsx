@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronRight, AlertTriangle } from 'lucide-react';
 import { Occurrence } from '../types';
 import { quandoAconteceu } from '../utils/quando';
+import { t, tn } from '../i18n';
 
 interface ImportantOccurrencesListProps {
   occurrences: Occurrence[];
@@ -19,13 +20,13 @@ export const ImportantOccurrencesList: React.FC<ImportantOccurrencesListProps> =
       {/* Header */}
       <div className="p-3.5 bg-[#F4F4F2] border-b border-[#E6E6E3] flex items-center justify-between">
         <h3 className="text-sm font-bold text-[#111111]">
-          Ocorrências importantes
+          {t('Ocorrências importantes')}
         </h3>
         <button
           onClick={onViewAll}
           className="text-xs font-semibold text-[#111111] hover:underline cursor-pointer min-h-[32px] flex items-center"
         >
-          Ver todas
+          {t('Ver todas')}
         </button>
       </div>
 
@@ -33,7 +34,7 @@ export const ImportantOccurrencesList: React.FC<ImportantOccurrencesListProps> =
       <div className="divide-y divide-[#E6E6E3]">
         {occurrences.length === 0 ? (
           <div className="p-4 text-center text-xs text-[#6B6B6B]">
-            Sem ocorrências importantes no momento.
+            {t('Sem ocorrências importantes no momento.')}
           </div>
         ) : (
           occurrences.map((item) => {

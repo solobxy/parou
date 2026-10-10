@@ -98,7 +98,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
 
         <div className="pb-3 border-b border-[#E6E6E3]">
           <h3 className="text-lg font-bold text-[#111111]">
-            {mode === 'login' ? 'Iniciar sessão' : 'Criar conta'}
+            {mode === 'login' ? t('Iniciar sessão') : t('Criar conta')}
           </h3>
         </div>
 

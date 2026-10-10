@@ -33,10 +33,10 @@ export const LiveSyncBar: React.FC<LiveSyncBarProps> = ({
       if (diffSec < 15) {
         setRelativeTime('agora mesmo');
       } else if (diffSec < 60) {
-        setRelativeTime(`há ${diffSec}s`);
+        setRelativeTime(t('há {n} s', { n: diffSec }));
       } else {
         const mins = Math.floor(diffSec / 60);
-        setRelativeTime(`há ${mins} min`);
+        setRelativeTime(t('há {n} min', { n: mins }));
       }
     };
 
