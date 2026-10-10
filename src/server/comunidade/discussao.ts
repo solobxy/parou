@@ -7,11 +7,13 @@
 //  - quem apaga a conta fica como "Utilizador PAROU" e o texto mantém-se (como nas ocorrências).
 import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
-import { Conta, ErroConta, avatarDaLinha, contaPioneira, ganharPontos } from './contas';
+import { Conta, ErroConta, avatarDaLinha, contaEAdmin, contaPioneira, ganharPontos } from './contas';
 import { pareceSpam } from './conteudo';
 import { avatarOuPadrao, ConfigAvatar } from '../../utils/avatarCatalogo';
 
-export const TIPOS_CONVERSA = ['queixa', 'pergunta', 'elogio', 'conversa'] as const;
+export const TIPOS_CONVERSA = ['queixa', 'pergunta', 'elogio', 'conversa', 'novidade'] as const;
+/** O que as pessoas podem escolher ao publicar ('novidade' só sai da conta do Criador, por si só) */
+const TIPOS_CRIAVEIS = ['queixa', 'pergunta', 'elogio', 'conversa'] as const;
 export const MOTIVOS_DENUNCIA = ['spam', 'insulto', 'dados-pessoais', 'falso', 'outro'] as const;
 const DENUNCIAS_PARA_ESCONDER = 3;
 const TAMANHO_PAGINA = 20;
@@ -42,6 +44,7 @@ export interface AutorPublico {
   nome: string;
   avatar: ConfigAvatar;
   pioneiro: boolean;
+  criador?: boolean; // conta de administração (o Criador da PAROU)
   pontos: number;
   operador?: string;
   apagada?: boolean; // a conta foi apagada
@@ -89,16 +92,18 @@ export interface RespostaSaida {
 
 function autorDe(l: any): AutorPublico {
   if (!l.u_id) return { nome: 'Utilizador PAROU', avatar: avatarOuPadrao(null), pioneiro: false, pontos: 0, apagada: true };
+  const criador = contaEAdmin({ email: String(l.u_email || '') });
   return {
     nome: String(l.u_nome),
-    avatar: avatarDaLinha(l.u_avatar),
+    avatar: avatarDaLinha(l.u_avatar, criador),
     pioneiro: contaPioneira(Number(l.u_criado)),
+    ...(criador ? { criador: true } : {}),
     pontos: Number(l.u_pontos) || 0,
     ...(l.u_operador ? { operador: String(l.u_operador) } : {}),
   };
 }
 
-const COLUNAS_AUTOR = 'u.id AS u_id, u.nome AS u_nome, u.avatar AS u_avatar, u.pontos AS u_pontos, u.criado AS u_criado, u.operador AS u_operador';
+const COLUNAS_AUTOR = 'u.id AS u_id, u.nome AS u_nome, u.avatar AS u_avatar, u.pontos AS u_pontos, u.criado AS u_criado, u.operador AS u_operador, u.email AS u_email';
 
 function marcar(lista: string[]) { return lista.map(() => '?').join(','); }
 
@@ -273,7 +278,7 @@ export function criarConversa(viewer: Conta | null, entrada: any): string {
   const titulo = umaLinha(entrada?.titulo, 120);
   const texto = limpar(entrada?.texto, 2000);
   if (titulo.length < 4) throw new ErroConta('titulo', 'Escreve um título com pelo menos 4 letras.');
-  const tipo = (TIPOS_CONVERSA as readonly string[]).includes(String(entrada?.tipo)) ? String(entrada.tipo) : 'conversa';
+  const tipo = (TIPOS_CRIAVEIS as readonly string[]).includes(String(entrada?.tipo)) ? String(entrada.tipo) : 'conversa';
   validarTextoPublico(titulo, texto);
   const operador = umaLinha(entrada?.operador, 60), linha = umaLinha(entrada?.linha, 20);
   const concelho = umaLinha(entrada?.concelho, 80), distrito = umaLinha(entrada?.distrito, 60);

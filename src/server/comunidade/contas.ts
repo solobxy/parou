@@ -72,7 +72,7 @@ export function perfilDaConta(c: Conta): PerfilApp {
     avatar: c.avatar,
     ...(c.operador ? { operador: c.operador } : {}),
     ...(contaEAdmin(c) ? { admin: true } : {}),
-    proximaPeca: proximaPeca(c.pontos),
+    proximaPeca: contaEAdmin(c) ? null : proximaPeca(c.pontos),
   };
 }
 
@@ -131,9 +131,13 @@ function limparNome(txt: unknown, email: string): string {
 }
 
 // ------------------------------- contas -------------------------------
-export function avatarDaLinha(texto: unknown): ConfigAvatar {
-  if (typeof texto !== 'string' || !texto) return avatarOuPadrao(null);
-  try { return avatarOuPadrao(JSON.parse(texto)); } catch { return avatarOuPadrao(null); }
+export function avatarDaLinha(texto: unknown, criador = false): ConfigAvatar {
+  let bruto: any = null;
+  if (typeof texto === 'string' && texto) { try { bruto = JSON.parse(texto); } catch { bruto = null; } }
+  const cfg = avatarOuPadrao(bruto);
+  // O Criador leva a sua medalha por defeito (até escolher outra, ou "sem medalha", no editor)
+  if (criador && !(bruto && typeof bruto === 'object' && bruto.medalha !== undefined)) cfg.medalha = 'criador';
+  return cfg;
 }
 
 function lerConta(linha: any): Conta | null {
@@ -141,7 +145,7 @@ function lerConta(linha: any): Conta | null {
   return {
     id: linha.id, email: linha.email, nome: linha.nome, foto: linha.foto || null,
     pontos: Number(linha.pontos), ocorrencias: Number(linha.ocorrencias), criado: Number(linha.criado),
-    avatar: avatarDaLinha(linha.avatar), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
+    avatar: avatarDaLinha(linha.avatar, contaEAdmin(linha)), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
   };
 }
 
@@ -229,7 +233,7 @@ export function apagarConta(id: string) {
 export function mudarAvatar(id: string, entrada: unknown): ConfigAvatar {
   const c = contaPorId(id);
   if (!c) throw new ErroConta('sem_sessao', 'Entra na tua conta.', 401);
-  const r = validarAvatar(entrada, c.pontos);
+  const r = validarAvatar(entrada, c.pontos, contaEAdmin(c));
   if (!r.ok) throw new ErroConta('avatar', r.erro, 400);
   base().prepare('UPDATE utilizadores SET avatar = ? WHERE id = ?').run(JSON.stringify(r.config), id);
   return r.config;

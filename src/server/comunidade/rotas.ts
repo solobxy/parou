@@ -16,6 +16,7 @@ import {
   criarComentario,
 } from './conteudo';
 import { iniciarCopiasDeSeguranca } from './baseDados';
+import { iniciarNovidadesAutomaticas } from './novidades';
 import { emailAtivo, enviarEmail } from './email';
 
 const COOKIE = 'parou_sessao';
@@ -83,6 +84,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   setInterval(limparSessoesExpiradas, 3600_000).unref?.();
   setTimeout(limparSessoesExpiradas, 30_000);
   iniciarCopiasDeSeguranca();
+  iniciarNovidadesAutomaticas();
 
   // Tudo isto muda sempre: nunca vai para a cache. E quem escreve tem de vir do próprio site.
   app.use(['/api/conta', '/api/comunidade'], (req: Request, res: Response, next: NextFunction) => {

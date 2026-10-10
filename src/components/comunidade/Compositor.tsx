@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Check } from 'lucide-react';
 import { t } from '../../i18n';
 import { Folha } from '../Folha';
-import { publicar, TIPOS_CONVERSA, TipoConversa } from '../../services/comunidade';
+import { publicar, TIPOS_ESCOLHIVEIS, TipoConversa } from '../../services/comunidade';
 import { ROTULO_TIPO, OPERADORES_COMUNIDADE, textoDeErro } from './pecas';
 import { posicaoAtual } from '../../utils/posicao';
 
@@ -11,6 +11,7 @@ const DICA_TIPO: Record<TipoConversa, string> = {
   pergunta: 'Preciso de ajuda',
   elogio: 'Algo correu bem',
   conversa: 'Falar de transportes',
+  novidade: 'Novidades da PAROU',
 };
 
 interface CompositorProps {
@@ -89,7 +90,7 @@ const Formulario: React.FC<CompositorProps> = ({ onFechar, onPublicado, operador
         <fieldset>
           <legend className="text-[13px] font-semibold text-[#4A4A4A] mb-1.5">{t('Sobre o quê?')}</legend>
           <div role="radiogroup" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {TIPOS_CONVERSA.map((x) => (
+            {TIPOS_ESCOLHIVEIS.map((x) => (
               <button
                 key={x}
                 type="button"

@@ -13,6 +13,11 @@ export interface NovidadeCanal {
   titulo: string;
   /** Texto final, como vai para o canal */
   texto: string;
+  /**
+   * Texto simples para a Comunidade. Se existir, o servidor publica a novidade sozinho, pela conta do
+   * Criador, uma única vez (várias do mesmo dia saem juntas numa só publicação).
+   */
+  comunidade?: string;
 }
 
 export const NOVIDADES: NovidadeCanal[] = [
@@ -48,6 +53,7 @@ Participar dá reputação, e a reputação desbloqueia personagens, fundos e me
 🏅 Quem criar conta até 31/12/2026 fica com a medalha *Pioneiro*.
 
 parou.pt/comunidade`,
+    comunidade: "Já podes perguntar, avisar do que está mal e agradecer a quem ajudou, sem anúncios. Participar dá reputação, e quem criar conta até 31/12/2026 fica com a medalha Pioneiro.",
   },
   {
     id: 'avatar',
@@ -61,6 +67,7 @@ Escolhe entre 7 personagens (Paro, Estrela, Gato, Cato, Camaleão, Autocarro e P
 Umas peças são livres; as outras abrem com reputação.
 
 parou.pt/comunidade`,
+    comunidade: "7 personagens (Paro, Estrela, Gato, Cato, Camaleão, Autocarro e Paragem), com chapéus, óculos, roupas, objetos e 18 fundos. Umas peças são livres e as outras abrem com reputação.",
   },
   {
     id: 'medalhas',
@@ -74,6 +81,7 @@ São só para quem ganha reputação: coração e laço aos 50 pontos, estrela e
 Aparecem junto ao teu avatar nos comentários.
 
 parou.pt/comunidade`,
+    comunidade: "Coração e laço aos 50 pontos, estrela e trevo aos 75, roseta e escudo aos 100, diamante e medalha de ouro aos 200. Aparecem junto ao teu avatar nos comentários.",
   },
   {
     id: 'perto-fluido',
@@ -85,6 +93,7 @@ parou.pt/comunidade`,
 O mapa ficou mais leve e a tua posição deixou de "tremer". Quando o sinal de GPS está fraco, vês um círculo com a margem de erro, e as distâncias às paragens atualizam enquanto andas.
 
 parou.pt`,
+    comunidade: "O mapa do Perto ficou mais leve e a tua posição deixou de tremer. Com sinal de GPS fraco vês um círculo com a margem de erro, e as distâncias às paragens atualizam enquanto andas.",
   },
   {
     id: 'planeador',
@@ -98,6 +107,7 @@ Escreve para onde vais e a PAROU encontra o caminho, com até 3 transbordos e a 
 Carrega em *Avisar-me antes de sair de casa* e recebes uma notificação na hora certa, mesmo com a app fechada.
 
 parou.pt`,
+    comunidade: "Escreve para onde vais e a PAROU encontra o caminho, com até 3 transbordos e a parte a pé. Em Avisar-me antes de sair de casa recebes uma notificação na hora certa, mesmo com a app fechada.",
   },
   {
     id: 'alertas-noticias',
@@ -111,6 +121,7 @@ parou.pt`,
 Em *Notícias* tens greves, tempo, trânsito e feriados.
 
 parou.pt/alertas`,
+    comunidade: "Alertas mostra no mapa o que está a afetar os transportes agora (avisos da Carris Metropolitana, Metro de Lisboa, incêndios e sismos). Em Notícias tens greves, tempo, trânsito e feriados.",
   },
   {
     id: 'ingles',
@@ -122,5 +133,6 @@ parou.pt/alertas`,
 Toca em *EN* no topo e a app muda para inglês. Útil para quem visita Portugal.
 
 parou.pt`,
+    comunidade: "Toca em EN no topo e a app muda para inglês.",
   },
 ];
