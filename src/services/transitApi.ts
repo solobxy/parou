@@ -643,6 +643,10 @@ export interface ApiLineItem {
   operator_id: string;
   feed_id: string;
   aviso_horario?: string;
+  /** Horários fora da base (UNIR): a app vai buscá-los ao operador */
+  horario_externo?: boolean;
+  /** UNIR: paragens (ids "unir:...") onde ver as passagens da linha, uma por sentido */
+  paragens_unir?: string[];
   nearest_stop?: {
     id: string;
     name: string;

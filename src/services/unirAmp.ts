@@ -24,6 +24,8 @@ export interface PassagemUnir {
   viagem: string;
   /** Código da paragem (ex.: gon:1031) a que esta passagem se refere */
   paragem: string;
+  /** Nome da paragem, como a AMP o escreve */
+  nomeParagem?: string;
 }
 
 interface Entrada { t: number; ok: boolean; lista: PassagemUnir[]; nome?: string }
@@ -73,6 +75,7 @@ async function pedir(codigo: string, desvioDias: number): Promise<Entrada> {
           sentido: limpar(x.sentido),
           viagem: limpar(x.trip_id),
           paragem: codigo,
+          nomeParagem: limpar(d?.designa) || undefined,
         };
       }).filter((x: PassagemUnir) => x.linha && Number.isFinite(x.segundos));
       lista.sort((a, b) => a.segundos - b.segundos);
