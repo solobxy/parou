@@ -101,7 +101,10 @@ html[data-tema="ambar"] :is([role="dialog"], .tema-menu) {
   box-shadow: 0 24px 60px rgba(160,70,10,.22), inset 0 1px 0 rgba(255,255,255,.9);
 }
 
-/* cartões em vidro: realce na aresta de cima e sombra quente (sem desfocar, para as listas continuarem leves) */
+/* cartões em vidro: ligeiramente translúcidos, com realce na aresta de cima e sombra quente (sem desfocar, para as listas continuarem leves) */
+html[data-tema="ambar"] [class~="bg-[#FFFFFF]"]:is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-2xl"]):not([role="dialog"]):not([class*="absolute"]):not([class*="fixed"]) {
+  background-color: rgba(255,250,244,.84);
+}
 html[data-tema="ambar"] :is([class~="bg-[#FFFFFF]"], [class~="bg-[#F4F4F2]"]):is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-[24px]"], [class*="rounded-2xl"], [class*="rounded-3xl"]):not([role="dialog"]) {
   box-shadow: 0 10px 28px rgba(190,90,20,.10), inset 0 1px 0 rgba(255,255,255,.85);
 }
