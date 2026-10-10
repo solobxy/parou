@@ -6,6 +6,8 @@ async function nuvem() {
   return { db, ...fs };
 }
 import { FavoriteItem, FavoriteCategory, FavoriteLiveStatus } from '../types/favorites';
+import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
+import { sortDepartures } from '../utils/transitFormatter';
 
 const LOCAL_STORAGE_KEY = 'parou_user_favorites';
 
@@ -233,6 +235,40 @@ export function subscribeToUserFavorites(
   return () => { cancelado = true; parar?.(); };
 }
 
+type LinhaApi = import('./transitApi').ApiLineItem;
+
+/** Id da linha na base (os favoritos guardam-no como "line-<id>"). */
+function idDaLinha(item: FavoriteItem): string {
+  return item.id.replace(/^line-/, '');
+}
+
+/** A linha guardada, se ela passar perto de ti: pelo id ou, se as variantes foram juntas, pelo número e operador. */
+function linhaPerto(item: FavoriteItem, perto: LinhaApi[]): LinhaApi | undefined {
+  const id = idDaLinha(item);
+  return perto.find((l) => l.id === id)
+    || perto.find((l) => item.lineCode && l.code === item.lineCode && (!item.operatorId || l.operator_id === item.operatorId));
+}
+
+/**
+ * Pede ao servidor as linhas que passam perto da última posição conhecida e fica só com as guardadas
+ * (completando as da UNIR com os horários da AMP). Sem posição ou sem resposta devolve vazio.
+ */
+async function partidasDasLinhasGuardadas(items: FavoriteItem[]): Promise<LinhaApi[]> {
+  const guardadas = items.filter((i) => i.type === 'linha' || i.type === 'transporte');
+  if (guardadas.length === 0) return [];
+  const pos = ultimaPosicaoConhecida();
+  if (!pos) return [];
+  try {
+    const { fetchLinesNear } = await import('./transitApi');
+    const { completarLinhasUnir } = await import('./unirPerto');
+    const { lines } = await fetchLinesNear(pos.latitude, pos.longitude, 1500, AbortSignal.timeout(8000));
+    const nossas = lines.filter((l) => guardadas.some((g) => linhaPerto(g, [l])));
+    return await completarLinhasUnir(nossas);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Enrich favorites with real-time status, departures, and alerts
  */
@@ -253,6 +289,9 @@ export async function enrichFavoritesLiveStatus(
   } catch (err) {
     console.warn('[FavoritesService] Erro ao carregar alertas ao vivo:', err);
   }
+
+  // 1b. Linhas guardadas: as partidas reais perto da última posição conhecida
+  const linhasPerto = await partidasDasLinhasGuardadas(items);
 
   // 2. Fetch live departures for stops or transit lines
   for (const item of items) {
@@ -275,6 +314,8 @@ export async function enrichFavoritesLiveStatus(
       let nextDepartureTime = '';
       let etaMinutes: number | undefined = undefined;
       let isRealtime = false;
+      let nextDeparture: FavoriteLiveStatus['nextDeparture'];
+      let stopName: string | undefined;
 
       if (matchedAlerts.length > 0) {
         const hasSevere = matchedAlerts.some((a) => 
@@ -317,25 +358,21 @@ export async function enrichFavoritesLiveStatus(
           // fallback gracefully
         }
       } else if (item.type === 'linha' || item.type === 'transporte') {
-        // Estimate departure for frequent lines based on time
-        const hour = now.getHours();
-        const mins = now.getMinutes();
-        if (hour >= 6 && hour <= 23) {
-          isRealtime = true;
-          etaMinutes = Math.max(2, (mins % 7));
-          nextDepartureTime = `Em ${etaMinutes} min`;
-          if (statusLevel === 'Normal') {
-            statusDescription = 'Frequência regular (4-7 min)';
+        // Só mostra a próxima partida quando existe de facto (a linha passa perto de ti agora).
+        // Nunca se inventa um tempo: sem dados fica sem hora.
+        const real = linhaPerto(item, linhasPerto);
+        if (real) {
+          const partida = sortDepartures(real.departures || []).find((d) => d.state !== 'Sem dados' && d.state !== 'Suprimido');
+          if (partida) {
+            nextDepartureTime = partida.time;
+            nextDeparture = partida;
+            etaMinutes = partida.countdown_minutes;
+            isRealtime = partida.state === 'Tempo Real';
+            stopName = partida.stop_name || real.nearest_stop?.name;
           }
-        } else {
-          statusDescription = 'Serviço noturno reduzido';
-          nextDepartureTime = 'A partir das 06:30';
         }
       } else if (item.type === 'rota') {
-        isRealtime = true;
-        etaMinutes = 5;
-        nextDepartureTime = 'Próxima saída em 5 min';
-        statusDescription = `${item.estimatedMinutes ? `Duração: ~${item.estimatedMinutes} min` : 'Em serviço'}`;
+        statusDescription = item.estimatedMinutes ? `Duração: ~${item.estimatedMinutes} min` : 'Em serviço';
       }
 
       statusMap.set(item.id, {
@@ -344,6 +381,8 @@ export async function enrichFavoritesLiveStatus(
         status: statusLevel,
         nextDepartureTime: nextDepartureTime || undefined,
         etaMinutes,
+        nextDeparture,
+        stopName,
         delayMinutes: delayMinutes > 0 ? delayMinutes : undefined,
         statusDescription,
         activeAlertsCount: matchedAlerts.length,

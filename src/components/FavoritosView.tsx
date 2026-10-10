@@ -244,14 +244,14 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                       {formatTransitName(item.title)}
                     </h3>
                     <p className="text-xs text-[#6B6B6B] mt-0.5 truncate">
-                      {formatTransitName(item.operatorName || item.locality || item.subtitle)}
+                      {[formatTransitName(item.operatorName || item.locality || item.subtitle), live?.stopName ? formatTransitName(live.stopName) : ''].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
                   {live && live.nextDepartureTime && (() => {
-                    const parsed = parseDepartureTime({
+                    const parsed = parseDepartureTime(live.nextDeparture || {
                       time: live.nextDepartureTime,
                       isRealtime: live.isRealtime,
                     });
