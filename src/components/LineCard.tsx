@@ -3,6 +3,7 @@ import { Star, Radio, MapPin } from 'lucide-react';
 import { ApiLineItem } from '../services/transitApi';
 import { LineChip } from './LineChip';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { t } from '../i18n';
 
 interface LineCardProps {
   line: ApiLineItem;
@@ -11,6 +12,8 @@ interface LineCardProps {
   onToggleFavorite: (e: React.MouseEvent, lineId: string) => void;
   compact?: boolean;
   showExactTimeAsBig?: boolean;
+  /** Mostra o operador por baixo (distingue linhas com o mesmo nome, ex.: Linha Azul de Lisboa e do Porto) */
+  mostrarOperador?: boolean;
 }
 
 export const LineCard: React.FC<LineCardProps> = ({
@@ -19,6 +22,7 @@ export const LineCard: React.FC<LineCardProps> = ({
   isFavorite,
   onToggleFavorite,
   showExactTimeAsBig = false,
+  mostrarOperador = false,
 }) => {
   // Título e paragem da partida que aparece à direita (o destino e a paragem dessa partida,
   // não os da linha em geral — senão "Cordoaria" aparecia com a hora do outro sentido)
@@ -46,9 +50,9 @@ export const LineCard: React.FC<LineCardProps> = ({
               {rawDest}
             </h3>
           </div>
-          {paragemProxima && (
+          {(paragemProxima || (mostrarOperador && line.operator)) && (
             <div className="text-xs text-[#6B6B6B] truncate mt-0.5">
-              {formatTransitName(paragemProxima)}
+              {[mostrarOperador ? line.operator : '', paragemProxima ? formatTransitName(paragemProxima) : ''].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>
@@ -90,8 +94,9 @@ export const LineCard: React.FC<LineCardProps> = ({
         <button
           onClick={(e) => onToggleFavorite(e, line.id)}
           className="p-2 text-[#6B6B6B] hover:text-[#111111] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-          title={isFavorite ? 'Remover dos favoritos' : 'Guardar nos favoritos'}
-          aria-label="Favorito"
+          title={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
+          aria-label={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
+          aria-pressed={isFavorite}
         >
           <Star className={`w-4 h-4 stroke-[2] ${isFavorite ? 'fill-[#111111] text-[#111111]' : ''}`} />
         </button>

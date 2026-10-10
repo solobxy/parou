@@ -10,8 +10,11 @@ import {
   Star,
   Layers,
   ChevronRight,
-  Database
+  Database,
+  LocateFixed,
+  History
 } from 'lucide-react';
+import { registarLinhaVista, linhasPreferidas, registarPesquisa, pesquisasRecentes, esquecerPesquisas, guardarLinhasPerto, linhasPertoGuardadas } from '../utils/historicoLinhas';
 import { 
   ApiLineItem,
   fetchLinesNear,
@@ -24,7 +27,7 @@ import { LineDetailModal } from './LineDetailModal';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
-import { t } from '../i18n';
+import { t, tn } from '../i18n';
 
 interface HorariosViewProps {
   filters?: FilterState;
@@ -218,6 +221,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         if (res.lines) {
           lastNearLines = res.lines;
           setNearLines(res.lines);
+          guardarLinhasPerto(res.lines.map((l: ApiLineItem) => l.id));
         }
       }
     } catch {
@@ -352,6 +356,67 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     return () => clearTimeout(timer);
   }, [searchQuery, selectedMode, currentPage, loadAllLines]);
 
+  // Abrir uma linha: fica nas "tuas linhas" e, se veio de uma pesquisa, guarda a pesquisa
+  const abrirLinha = useCallback((id: string) => {
+    registarLinhaVista(id);
+    if (searchQuery.trim().length >= 2) registarPesquisa(searchQuery);
+    setSelectedLineId(id);
+  }, [searchQuery]);
+
+  // As tuas linhas (mais vistas / recentes) e as que estavam perto da última vez
+  const [tuasLinhas, setTuasLinhas] = useState<ApiLineItem[]>([]);
+  const [linhasUltimaVez, setLinhasUltimaVez] = useState<ApiLineItem[]>([]);
+  const [pesquisas, setPesquisas] = useState<string[]>(() => pesquisasRecentes());
+  useEffect(() => {
+    const ids = linhasPreferidas(8).filter((id) => !favoriteLineIds.includes(id));
+    if (!ids.length) { setTuasLinhas([]); return; }
+    let cancelado = false;
+    fetchLinesByIds(ids)
+      .then((lines) => {
+        if (cancelado) return;
+        const ordem = new Map(ids.map((id, i) => [id, i]));
+        setTuasLinhas([...lines].sort((a, b) => (ordem.get(a.id) ?? 99) - (ordem.get(b.id) ?? 99)));
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [favoriteLineIds, selectedLineId]);
+  useEffect(() => {
+    if (userCoords) { setLinhasUltimaVez([]); return; }
+    const guardadas = linhasPertoGuardadas();
+    if (!guardadas) return;
+    let cancelado = false;
+    fetchLinesByIds(guardadas.ids).then((lines) => { if (!cancelado) setLinhasUltimaVez(lines); }).catch(() => {});
+    return () => { cancelado = true; };
+  }, [userCoords]);
+  useEffect(() => { if (!selectedLineId) setPesquisas(pesquisasRecentes()); }, [selectedLineId]);
+
+  // Ativar a localização aqui mesmo (sem ir ao Perto)
+  const [aLocalizar, setALocalizar] = useState(false);
+  const [erroLocalizacao, setErroLocalizacao] = useState('');
+  const ativarLocalizacao = () => {
+    if (!('geolocation' in navigator)) { setErroLocalizacao(t('Este browser não dá a localização.')); return; }
+    setALocalizar(true);
+    setErroLocalizacao('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setALocalizar(false);
+        const c = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, heading: null, speed: null, timestamp: Date.now(), isManual: false, source: 'gps_high' as const };
+        try { localStorage.setItem('parou_localizacao_ok', '1'); } catch {}
+        lembrarPosicao(c);
+        setUserCoords({ lat: c.latitude, lon: c.longitude });
+      },
+      (err) => {
+        setALocalizar(false);
+        setErroLocalizacao(err.code === 1 ? t('Permite a localização nas definições do browser.') : t('Não foi possível obter a tua posição.'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60_000 },
+    );
+  };
+
+  const aPesquisar = searchQuery.trim().length > 0;
+  const idsMostrados = new Set<string>([...(userCoords ? nearLines.map((l) => l.id) : []), ...favoriteLines.map((l) => l.id)]);
+  const tuasLinhasVisiveis = tuasLinhas.filter((l) => !idsMostrados.has(l.id)).slice(0, 6);
+
   const MODES_LIST = [
     { label: 'Todos', value: 'Todos' },
     { label: 'Metro', value: 'Metro' },
@@ -405,7 +470,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                       : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                   }`}
                 >
-                  {mode.label}
+                  {t(mode.label)}
                 </button>
               );
             })}
@@ -415,8 +480,78 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
 
       {/* Main Content Area */}
       <div className="max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1">
+        {/* Pesquisas recentes (só com a pesquisa vazia) */}
+        {!aPesquisar && pesquisas.length > 0 && (
+          <section className="space-y-2" data-teste="pesquisas-recentes">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[13px] font-semibold text-[#6B6B6B] flex items-center gap-1.5">
+                <History className="w-4 h-4" aria-hidden="true" /> {t('Pesquisas recentes')}
+              </h2>
+              <button
+                onClick={() => { esquecerPesquisas(); setPesquisas([]); }}
+                className="text-[12px] font-semibold text-[#6B6B6B] min-h-[36px] px-1 cursor-pointer"
+              >
+                {t('Limpar')}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {pesquisas.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => { setSearchQuery(q); setCurrentPage(1); }}
+                  className="h-9 px-3 rounded-full bg-[#F4F4F2] text-[13px] font-semibold text-[#111111] cursor-pointer"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Sem localização: convite para ativar + as linhas que estavam perto da última vez */}
+        {!aPesquisar && !userCoords && (
+          <section className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-start gap-3" data-teste="horarios-sem-localizacao">
+            <div className="w-10 h-10 rounded-full bg-[#F4F4F2] flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5 text-[#111111]" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold text-[#111111] leading-snug">{t('Vê primeiro as linhas perto de ti')}</div>
+              <p className="text-[13px] text-[#6B6B6B] mt-0.5 leading-snug">{t('Com a localização ligada, mostramos as próximas partidas das linhas à tua volta.')}</p>
+              {erroLocalizacao && <p className="text-[12.5px] text-[#D92D20] mt-1.5">{erroLocalizacao}</p>}
+              <button
+                onClick={ativarLocalizacao}
+                disabled={aLocalizar}
+                className="mt-2.5 h-10 px-3.5 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {aLocalizar ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+                {aLocalizar ? t('A localizar…') : t('Ativar localização')}
+              </button>
+            </div>
+          </section>
+        )}
+        {!aPesquisar && !userCoords && linhasUltimaVez.length > 0 && (
+          <section className="space-y-2" data-teste="linhas-ultima-vez">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-[#111111]">{t('Perto da última vez')}</h2>
+              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">{linhasUltimaVez.length}</span>
+            </div>
+            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {linhasUltimaVez.map((line) => (
+                <LineCard
+                  key={line.id}
+                  line={line}
+                  onClick={() => abrirLinha(line.id)}
+                  isFavorite={favoriteLineIds.includes(line.id)}
+                  onToggleFavorite={(e, id) => { e.stopPropagation(); toggleFavoriteLine(id); }}
+                  mostrarOperador
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Perto de si */}
-        {userCoords && (sortedNearLines.length > 0 || isDbLoading) && (
+        {!aPesquisar && userCoords && (sortedNearLines.length > 0 || isDbLoading) && (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
@@ -424,7 +559,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               </h2>
               {sortedNearLines.length > 0 && (
                 <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
-                  {upcomingNearLines.length} {upcomingNearLines.length === 1 ? 'próxima' : 'próximas'}
+                  {tn(upcomingNearLines.length, '{n} próxima', '{n} próximas')}
                 </span>
               )}
             </div>
@@ -433,7 +568,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             {outdatedNoticePertoDeSi && (
               <div className="px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#6B6B6B] flex items-center gap-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-[#6B6B6B] stroke-[2] shrink-0" />
-                <span>Horários {outdatedNoticePertoDeSi} podem estar desatualizados</span>
+                <span>{t('Horários {op} podem estar desatualizados', { op: outdatedNoticePertoDeSi })}</span>
               </div>
             )}
 
@@ -449,7 +584,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                   <LineCard
                     key={line.id}
                     line={line}
-                    onClick={() => setSelectedLineId(line.id)}
+                    onClick={() => abrirLinha(line.id)}
                     isFavorite={favoriteLineIds.includes(line.id)}
                     onToggleFavorite={(e, id) => {
                       e.stopPropagation();
@@ -481,7 +616,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                     <LineCard
                       key={line.id}
                       line={line}
-                      onClick={() => setSelectedLineId(line.id)}
+                      onClick={() => abrirLinha(line.id)}
                       isFavorite={favoriteLineIds.includes(line.id)}
                       onToggleFavorite={(e, id) => {
                         e.stopPropagation();
@@ -497,7 +632,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         )}
 
         {/* Favoritos */}
-        {favoriteLines.length > 0 && (
+        {!aPesquisar && favoriteLines.length > 0 && (
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
@@ -513,7 +648,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 <LineCard
                   key={line.id}
                   line={line}
-                  onClick={() => setSelectedLineId(line.id)}
+                  onClick={() => abrirLinha(line.id)}
                   isFavorite={true}
                   onToggleFavorite={(e, id) => {
                     e.stopPropagation();
@@ -525,11 +660,33 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           </section>
         )}
 
+        {/* As tuas linhas: as que mais abres (as mais recentes pesam mais) */}
+        {!aPesquisar && tuasLinhasVisiveis.length > 0 && (
+          <section className="space-y-2" data-teste="tuas-linhas">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-[#111111]">{t('As tuas linhas')}</h2>
+              <span className="text-xs text-[#6B6B6B]">{t('Mais vistas')}</span>
+            </div>
+            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {tuasLinhasVisiveis.map((line) => (
+                <LineCard
+                  key={line.id}
+                  line={line}
+                  onClick={() => abrirLinha(line.id)}
+                  isFavorite={favoriteLineIds.includes(line.id)}
+                  onToggleFavorite={(e, id) => { e.stopPropagation(); toggleFavoriteLine(id); }}
+                  mostrarOperador
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Todas as Linhas */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[18px] font-semibold text-[#111111]">
-              {t('Linhas')}
+              {aPesquisar ? t('Resultados') : t('Todas as linhas')}
             </h2>
             {allLinesTotal > 0 && (
               <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
@@ -553,8 +710,9 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 {allLines.map((line) => (
                   <LineCard
                     key={line.id}
+                    mostrarOperador
                     line={line}
-                    onClick={() => setSelectedLineId(line.id)}
+                    onClick={() => abrirLinha(line.id)}
                     isFavorite={favoriteLineIds.includes(line.id)}
                     onToggleFavorite={(e, id) => {
                       e.stopPropagation();
@@ -576,7 +734,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                   </button>
 
                   <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums">
-                    Página {currentPage} de {totalPages}
+                    {t('Página {a} de {b}', { a: currentPage, b: totalPages })}
                   </span>
 
                   <button

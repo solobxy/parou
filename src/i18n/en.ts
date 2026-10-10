@@ -127,6 +127,22 @@ export const EN: Record<string, string> = {
   'local escolhido': 'chosen place',
   ' · a afinar a posição…': ' · refining position…',
 
+  'Pesquisas recentes': 'Recent searches',
+  'Limpar': 'Clear',
+  'Vê primeiro as linhas perto de ti': 'See the lines near you first',
+  'Com a localização ligada, mostramos as próximas partidas das linhas à tua volta.': 'With location on, we show the next departures of the lines around you.',
+  'Perto da última vez': 'Near you last time',
+  'As tuas linhas': 'Your lines',
+  'Mais vistas': 'Most viewed',
+  'Resultados': 'Results',
+  'Todas as linhas': 'All lines',
+  'Página {a} de {b}': 'Page {a} of {b}',
+  '{n} próxima': '{n} upcoming',
+  '{n} próximas': '{n} upcoming',
+  'Horários {op} podem estar desatualizados': '{op} timetables may be out of date',
+  'Guardar nos favoritos': 'Save to favourites',
+  'Favorito': 'Favourite',
+
   // Favoritos
   'As tuas paragens e linhas guardadas.': 'Your saved stops and lines.',
   'Adicionar': 'Add',
