@@ -1,5 +1,5 @@
 import { PublicSourceConfig, IngestionSyncResult, Occurrence } from '../types';
-import { batchImportPublicReports } from './firebase';
+import { carregarFirebase } from './nuvem';
 import { cabecalhosAdmin } from '../utils/admin';
 
 export async function fetchPublicSourcesList(): Promise<PublicSourceConfig[]> {
@@ -41,7 +41,7 @@ export async function syncPublicSourcesNow(): Promise<{
     const result: IngestionSyncResult = data?.result;
 
     // Save normalized occurrences to Firestore
-    const { added, updated } = await batchImportPublicReports(occurrences);
+    const { added, updated } = await (await carregarFirebase()).batchImportPublicReports(occurrences);
 
     const durationMs = Date.now() - startTime;
     return {
