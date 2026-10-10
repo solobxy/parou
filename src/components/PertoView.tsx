@@ -47,6 +47,7 @@ import {
 import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
+import { InputPesquisa } from './InputPesquisa';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { t, tn } from '../i18n';
@@ -461,7 +462,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         const results = await searchDestinations(destinationQuery, lat, lon);
         if (atual) setSuggestions(results);
       } catch {}
-    }, 300);
+    }, 60);
 
     return () => { atual = false; clearTimeout(timer); };
   }, [destinationQuery, userCoords]);
@@ -963,6 +964,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
     });
   }, [stops, activeFilterTab, favoriteStopIds]);
 
+  // Só se desenham as paragens mais próximas; as restantes aparecem a pedido (cada cartão tem muitas partidas)
+  const [maxParagens, setMaxParagens] = useState(24);
+  useEffect(() => { setMaxParagens(24); }, [activeFilterTab]);
+  const paragensVisiveis = useMemo(() => filteredStops.slice(0, maxParagens), [filteredStops, maxParagens]);
+
   // UNIR: pede à AMP as partidas das paragens UNIR mais próximas e da paragem aberta
   const unirPorParagemRef = useRef(unirPorParagem);
   unirPorParagemRef.current = unirPorParagem;
@@ -1070,6 +1076,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
     return Bus;
   };
 
+  // Ecrã próprio da rota: com um destino escolhido a lista de paragens dá lugar às opções de viagem
+  const emRota = Boolean(selectedDestination) && (calculatedRoutes.length > 0 || isCalculatingRoutes || rotasCalculadas);
+
   // Lista de sugestões (pesquisa de destino ou de local)
   const listaSugestoes = (compacta: boolean) => (
     <div className={`bg-[#FFFFFF] border border-[#E6E6E3] rounded-[12px] shadow-lg divide-y divide-[#E6E6E3] overflow-y-auto ${compacta ? 'max-h-48' : 'max-h-56'}`}>
@@ -1105,11 +1114,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
-            <input
+            <InputPesquisa
               autoFocus
-              type="text"
-              value={destinationQuery}
-              onChange={(e) => setDestinationQuery(e.target.value)}
+              valor={destinationQuery}
+              onTexto={setDestinationQuery}
               placeholder={t('Rua, localidade ou paragem')}
               className="w-full pl-9 pr-3 h-11 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111]"
             />
@@ -1255,8 +1263,33 @@ export const PertoView: React.FC<PertoViewProps> = ({
     >
       {/* Painel: Transportes perto */}
       <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
+        {/* Cabeçalho (telemóvel): na rota, seta para voltar aos transportes perto */}
+        {emRota && selectedDestination && (
+          <div className="lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none" {...gestoPainel}>
+            <button
+              onClick={() => setMapaExpandido((v) => !v)}
+              className="flex items-center justify-center w-full h-6 cursor-pointer"
+              aria-label={mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa'}
+            >
+              <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
+            </button>
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                onClick={handleClearDestination}
+                className="shrink-0 w-10 h-10 -ml-1 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
+                aria-label={t('Voltar aos transportes perto')}
+              >
+                <ArrowLeft className="w-5 h-5 stroke-[2.25]" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">{t('Como chegar')}</h2>
+                <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{t('a {d}', { d: selectedDestination.title })}</p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Cabeçalho (telemóvel) */}
-        <div className="lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none" {...gestoPainel}>
+        <div className={`${emRota ? 'hidden ' : ''}lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none`} {...gestoPainel}>
           <button
             onClick={() => setMapaExpandido((v) => !v)}
             className="flex items-center justify-center w-full h-6 cursor-pointer"
@@ -1305,22 +1338,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
           {/* Search Box */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2]" />
-            <input
-              type="text"
-              value={destinationQuery}
-              onChange={(e) => setDestinationQuery(e.target.value)}
-              placeholder={localizacaoPronta ? 'Para onde vais?' : 'Procurar um local'}
+            <InputPesquisa
+              valor={destinationQuery}
+              onTexto={setDestinationQuery}
+              onLimpar={handleClearDestination}
+              placeholder={localizacaoPronta ? t('Para onde vais?') : t('Procurar um local')}
               className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
+              classeLimpar="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
+              rotuloLimpar={t('Limpar pesquisa')}
             />
-            {destinationQuery && (
-              <button
-                onClick={handleClearDestination}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
-                aria-label={t('Limpar pesquisa')}
-              >
-                <X className="w-3.5 h-3.5 stroke-[2]" />
-              </button>
-            )}
             {suggestions.length > 0 && !pesquisarLocal && (
               <div className="absolute left-0 right-0 top-full mt-1 z-50">{listaSugestoes(false)}</div>
             )}
@@ -1328,7 +1354,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         </div>
 
         {/* Contextual Alert Banner */}
-        {topAlert && localizacaoPronta && (
+        {!emRota && topAlert && localizacaoPronta && (
           <div className="mx-3 mb-2 lg:mx-0 lg:mb-0 px-3 py-2 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none flex items-center justify-between text-xs text-[#9A3412] shrink-0">
             <div className="flex items-center gap-2 truncate">
               <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" />
@@ -1341,6 +1367,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         )}
 
         {/* Filtros por modo */}
+        {!emRota && (
         <div className="flex items-center px-3 lg:px-4 pb-2 lg:py-2 lg:border-b lg:border-[#E6E6E3] gap-1.5 overflow-x-auto shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['todos', 'autocarro', 'metro', 'comboio', 'barco', 'favoritos'] as const).map((tab) => (
             <button
@@ -1357,38 +1384,44 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </button>
           ))}
         </div>
+        )}
 
         {/* Percursos: a calcular / sem resultados */}
-        {selectedDestination && calculatedRoutes.length === 0 && (isCalculatingRoutes || rotasCalculadas) && (
-          <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 shrink-0">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide truncate">Como chegar a {selectedDestination.title}</span>
-              <button onClick={handleClearDestination} className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0">{t('Cancelar')}</button>
+        {emRota && selectedDestination && calculatedRoutes.length === 0 && (
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-2 pb-6">
+            <div className="hidden lg:flex items-center gap-2.5 pb-3">
+              <button onClick={handleClearDestination} className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer" aria-label={t('Voltar aos transportes perto')}>
+                <ArrowLeft className="w-4.5 h-4.5 stroke-[2.25]" />
+              </button>
+              <span className="font-semibold text-[15px] text-[#111111] truncate">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
             </div>
-            <p className="text-sm text-[#6B6B6B] mt-2">
-              {isCalculatingRoutes
-                ? 'A calcular percursos com os horários de hoje…'
-                : 'Não encontrámos ligações em transportes nas próximas 2 horas daqui para lá (com até três transbordos e até ~900 m a pé de cada lado).'}
-            </p>
+            {isCalculatingRoutes ? (
+              <div className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-center gap-3 text-[14px] text-[#6B6B6B]">
+                <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2] shrink-0" />
+                <span>{t('A calcular percursos com os horários de hoje…')}</span>
+              </div>
+            ) : (
+              <div className="rounded-[14px] bg-[#F4F4F2] p-4">
+                <p className="text-[14px] font-semibold text-[#111111]">{t('Sem ligações nas próximas 2 horas')}</p>
+                <p className="text-[13px] text-[#6B6B6B] mt-1 leading-snug">
+                  {t('Não encontrámos ligações em transportes daqui para lá (até três transbordos e ~900 m a pé de cada lado).')}
+                </p>
+                <button onClick={handleClearDestination} className="mt-3 h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer">
+                  {t('Voltar aos transportes perto')}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Route Planning Result Panel (if destination active) */}
-        {selectedDestination && calculatedRoutes.length > 0 && (
-          <div className="p-4 border-y border-[#E6E6E3] bg-[#F4F4F2]/50 space-y-3 shrink-0 max-h-[45%] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 min-w-0">
-                <CornerDownRight className="w-4 h-4 text-[#FF6B1A] stroke-[2] shrink-0" />
-                <span className="font-semibold text-xs text-[#111111] uppercase tracking-wide truncate">
-                  Como chegar a {selectedDestination.title}
-                </span>
-              </div>
-              <button 
-                onClick={handleClearDestination}
-                className="text-xs text-[#6B6B6B] hover:text-[#111111] cursor-pointer shrink-0"
-              >
-                {t('Cancelar')}
+        {emRota && selectedDestination && calculatedRoutes.length > 0 && (
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-6 space-y-3">
+            <div className="hidden lg:flex items-center gap-2.5 px-1 pb-1">
+              <button onClick={handleClearDestination} className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer" aria-label={t('Voltar aos transportes perto')}>
+                <ArrowLeft className="w-4.5 h-4.5 stroke-[2.25]" />
               </button>
+              <span className="font-semibold text-[15px] text-[#111111] truncate">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
             </div>
 
             <div className="space-y-2">
@@ -1474,6 +1507,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         )}
 
         {/* Lista de paragens */}
+        {!emRota && (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-4 lg:px-3 lg:pt-3 space-y-2">
           {!localizacaoPronta ? (
             <div className="space-y-2" aria-hidden="true">
@@ -1502,7 +1536,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <span>{t('A procurar paragens próximas…')}</span>
             </div>
           ) : filteredStops.length > 0 ? (
-            filteredStops.map((stop) => {
+            <>
+            {paragensVisiveis.map((stop) => {
               const isSelected = selectedStop?.id === stop.id;
               const stopDeps = [...(stop.nextDepartures || []), ...partidasUnirDe(stop)];
               const IconeModo = iconeModo(stop.transportMode);
@@ -1610,7 +1645,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   )}
                 </div>
               );
-            })
+            })}
+            {filteredStops.length > paragensVisiveis.length && (
+              <button
+                onClick={() => setMaxParagens((n) => n + 24)}
+                className="w-full h-11 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] text-[13.5px] font-semibold text-[#111111] active:bg-[#F4F4F2] cursor-pointer"
+              >
+                {t('Mostrar mais paragens')} ({filteredStops.length - paragensVisiveis.length})
+              </button>
+            )}
+            </>
           ) : (
             falhouCarregar && !isDbLoading ? (
               <div className="p-8 text-center space-y-3">
@@ -1630,6 +1674,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             )
           )}
         </div>
+        )}
 
         {/* Detalhe da paragem escolhida */}
         {selectedStop && (
@@ -1930,23 +1975,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <div className="lg:hidden absolute top-3 left-3 right-[60px] z-20">
             <div className="relative flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
               <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
-              <input
-                type="text"
-                value={destinationQuery}
-                onChange={(e) => setDestinationQuery(e.target.value)}
+              <InputPesquisa
+                valor={destinationQuery}
+                onTexto={setDestinationQuery}
+                onLimpar={handleClearDestination}
                 onFocus={() => setSearchFocused(true)}
                 placeholder={t('Para onde vais?')}
                 className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
+                classeLimpar="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
+                rotuloLimpar={t('Limpar pesquisa')}
               />
-              {destinationQuery && (
-                <button
-                  onClick={handleClearDestination}
-                  className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
-                  aria-label={t('Limpar pesquisa')}
-                >
-                  <X className="w-3.5 h-3.5 stroke-[2]" />
-                </button>
-              )}
             </div>
             {searchFocused && suggestions.length > 0 && <div className="mt-1">{listaSugestoes(true)}</div>}
           </div>

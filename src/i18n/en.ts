@@ -337,4 +337,10 @@ export const EN: Record<string, string> = {
   'Avisar-me antes de sair de casa': 'Remind me before I leave',
   '{n} min antes': '{n} min before',
   'linha': 'line',
+  'Como chegar': 'Directions',
+  'a {d}': 'to {d}',
+  'Sem ligações nas próximas 2 horas': 'No connections in the next 2 hours',
+  'Não encontrámos ligações em transportes daqui para lá (até três transbordos e ~900 m a pé de cada lado).': 'We found no public transport connections from here to there (up to three transfers and ~900 m walking at each end).',
+  'Mostrar mais paragens': 'Show more stops',
+  'A calcular percursos com os horários de hoje…': 'Working out routes with today\'s timetables…',
 };
