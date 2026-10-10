@@ -133,6 +133,20 @@ function base(): DatabaseSync {
     enviados_dia INTEGER NOT NULL DEFAULT 0
   )`);
   db.exec(`CREATE TABLE IF NOT EXISTS vistos (id TEXT PRIMARY KEY, quando INTEGER NOT NULL)`);
+  // so_lembretes = 1: a subscrição só serve para lembretes de partida (não recebe alertas gerais)
+  try { db.exec('ALTER TABLE subscricoes ADD COLUMN so_lembretes INTEGER NOT NULL DEFAULT 0'); } catch { /* já existe */ }
+  db.exec(`CREATE TABLE IF NOT EXISTS lembretes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL,
+    quando INTEGER NOT NULL,
+    titulo TEXT NOT NULL,
+    corpo TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '/',
+    tag TEXT NOT NULL DEFAULT '',
+    criado INTEGER NOT NULL,
+    enviado INTEGER NOT NULL DEFAULT 0
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_lembretes_quando ON lembretes (enviado, quando)');
   return db;
 }
 
@@ -149,7 +163,7 @@ interface Subscricao {
 // -------------------------------------------------------------------------------------
 // Envio
 // -------------------------------------------------------------------------------------
-async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, dados: object, urgente = false): Promise<number> {
+async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, dados: object, urgente = false, ttl?: number): Promise<number> {
   const corpo = cifrarPush(Buffer.from(JSON.stringify(dados), 'utf8'), sub.p256dh, sub.auth);
   const r = await fetch(sub.endpoint, {
     method: 'POST',
@@ -157,7 +171,7 @@ async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, d
       Authorization: cabecalhoVapid(sub.endpoint),
       'Content-Encoding': 'aes128gcm',
       'Content-Type': 'application/octet-stream',
-      TTL: urgente ? '21600' : '43200',
+      TTL: String(ttl ?? (urgente ? 21600 : 43200)),
       Urgency: urgente ? 'high' : 'normal',
     },
     body: new Uint8Array(corpo),
@@ -171,9 +185,9 @@ async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, d
 }
 
 /** Envia e trata da resposta (apaga subscrições que já não existem). Devolve true se entregou. */
-async function enviarA(sub: Subscricao, dados: object, urgente: boolean): Promise<boolean> {
+async function enviarA(sub: Subscricao, dados: object, urgente: boolean, ttl?: number): Promise<boolean> {
   try {
-    const estado = await enviar(sub, dados, urgente);
+    const estado = await enviar(sub, dados, urgente, ttl);
     if (estado === 404 || estado === 410) {
       base().prepare('DELETE FROM subscricoes WHERE endpoint = ?').run(sub.endpoint);
       return false;
@@ -228,7 +242,7 @@ function horaDeSilencio(): boolean {
 // Para os testes automáticos: permite trocar a fonte dos avisos e correr um ciclo à mão
 let fonteCandidatos: () => Promise<CandidatoPush[]> = candidatosPush;
 export function _testes() {
-  return { definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; }, ciclo, interessa, base };
+  return { definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; }, ciclo, interessa, base, enviarLembretes };
 }
 
 let ultimoCiclo: { quando: string; candidatos: number; novos: string[]; entregues: number; falhas: number } | null = null;
@@ -274,7 +288,7 @@ async function ciclo(): Promise<void> {
     }
     if (novos.length === 0) return;
 
-    const subs = b.prepare('SELECT endpoint, p256dh, auth, distritos, dia, enviados_dia, falhas FROM subscricoes').all() as unknown as Subscricao[];
+    const subs = b.prepare('SELECT endpoint, p256dh, auth, distritos, dia, enviados_dia, falhas FROM subscricoes WHERE so_lembretes = 0').all() as unknown as Subscricao[];
     const hoje = DateTime.now().setZone('Europe/Lisbon').toISODate() || '';
     let entregues = 0;
     let falhas = 0;
@@ -315,6 +329,37 @@ async function ciclo(): Promise<void> {
   } finally {
     emCiclo = false;
   }
+}
+
+let emLembretes = false;
+export async function enviarLembretes(): Promise<number> {
+  if (emLembretes) return 0;
+  emLembretes = true;
+  let enviados = 0;
+  try {
+    const b = base();
+    const agora = Date.now();
+    const devidos = b.prepare(
+      `SELECT l.id, l.quando, l.titulo, l.corpo, l.url, l.tag, s.endpoint, s.p256dh, s.auth, s.distritos, s.dia, s.enviados_dia, s.falhas
+       FROM lembretes l JOIN subscricoes s ON s.endpoint = l.endpoint
+       WHERE l.enviado = 0 AND l.quando <= ? ORDER BY l.quando LIMIT 200`,
+    ).all(agora + 15_000) as unknown as Array<Subscricao & { id: number; quando: number; titulo: string; corpo: string; url: string; tag: string }>;
+    for (const l of devidos) {
+      b.prepare('UPDATE lembretes SET enviado = 1 WHERE id = ?').run(l.id); // marca antes: nunca se envia duas vezes
+      if (agora - l.quando > 10 * 60_000) continue; // já passou demasiado tempo (servidor parado): já não serve
+      const ok = await enviarA(l, { title: l.titulo, body: l.corpo, url: l.url, tag: l.tag || `lembrete-${l.id}` }, true, 600);
+      if (ok) enviados++;
+    }
+    b.prepare('DELETE FROM lembretes WHERE quando < ?').run(agora - 24 * 3600_000);
+    // lembretes de subscrições que já não existem
+    b.prepare('DELETE FROM lembretes WHERE endpoint NOT IN (SELECT endpoint FROM subscricoes)').run();
+    if (enviados) console.log(`[Push] ${enviados} lembretes de partida enviados`);
+  } catch (err: any) {
+    console.warn('[Push] Lembretes:', err?.message || err);
+  } finally {
+    emLembretes = false;
+  }
+  return enviados;
 }
 
 function limpeza() {
@@ -381,13 +426,15 @@ export function registarRotasPush(app: Express) {
       .slice(0, 30);
     try {
       const agora = Date.now();
+      // modo "lembretes": a pessoa não ligou os alertas, só pediu avisos de partida
+      const soLembretes = corpo?.modo === 'lembretes' ? 1 : 0;
       base()
         .prepare(
-          `INSERT INTO subscricoes (endpoint, p256dh, auth, distritos, criado, visto) VALUES (?, ?, ?, ?, ?, ?)
+          `INSERT INTO subscricoes (endpoint, p256dh, auth, distritos, criado, visto, so_lembretes) VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth,
-             distritos = excluded.distritos, visto = excluded.visto, falhas = 0`,
+             distritos = excluded.distritos, visto = excluded.visto, falhas = 0, so_lembretes = excluded.so_lembretes`,
         )
-        .run(sub.endpoint, sub.p256dh, sub.auth, JSON.stringify(distritos), agora, agora);
+        .run(sub.endpoint, sub.p256dh, sub.auth, JSON.stringify(soLembretes ? [] : distritos), agora, agora, soLembretes);
       res.json({ ok: true });
     } catch (err: any) {
       console.warn('[Push] Erro a guardar subscrição:', err?.message || err);
@@ -440,6 +487,50 @@ export function registarRotasPush(app: Express) {
     res.json({ ok });
   });
 
+  // Lembretes de partida ("sai de casa daqui a 5 min"): a app pede, o servidor envia à hora certa
+  app.post('/api/push/lembrete', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (limitar(req, 120)) return res.status(429).json({ erro: 'demasiados pedidos' });
+    try {
+      const corpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+      const endpoint = String(corpo?.endpoint || '').slice(0, 1000);
+      const b = base();
+      if (!b.prepare('SELECT 1 FROM subscricoes WHERE endpoint = ?').get(endpoint)) return res.status(404).json({ erro: 'subscrição não encontrada' });
+      const quando = Number(corpo?.quando);
+      const agora = Date.now();
+      if (!Number.isFinite(quando) || quando < agora - 60_000 || quando > agora + 14 * 3600_000) return res.status(400).json({ erro: 'hora inválida' });
+      const titulo = String(corpo?.titulo || '').trim().slice(0, 100);
+      const texto = String(corpo?.corpo || '').trim().slice(0, 220);
+      if (!titulo) return res.status(400).json({ erro: 'falta o título' });
+      const url = typeof corpo?.url === 'string' && /^\/(?![\/\\])/.test(corpo.url) ? corpo.url.slice(0, 200) : '/';
+      const tag = String(corpo?.tag || '').slice(0, 80);
+      if (tag) b.prepare('DELETE FROM lembretes WHERE endpoint = ? AND tag = ? AND enviado = 0').run(endpoint, tag);
+      const pendentes = (b.prepare('SELECT COUNT(*) AS n FROM lembretes WHERE endpoint = ? AND enviado = 0').get(endpoint) as { n: number }).n;
+      if (pendentes >= 10) return res.status(429).json({ erro: 'demasiados lembretes ativos' });
+      const feitosHoje = (b.prepare('SELECT COUNT(*) AS n FROM lembretes WHERE endpoint = ? AND criado > ?').get(endpoint, agora - 24 * 3600_000) as { n: number }).n;
+      if (feitosHoje >= 60) return res.status(429).json({ erro: 'limite diário' });
+      const r = b.prepare('INSERT INTO lembretes (endpoint, quando, titulo, corpo, url, tag, criado) VALUES (?, ?, ?, ?, ?, ?, ?)').run(endpoint, Math.round(quando), titulo, texto, url, tag, agora);
+      res.json({ ok: true, id: Number(r.lastInsertRowid) });
+    } catch (err: any) {
+      console.warn('[Push] Lembrete:', err?.message || err);
+      res.status(500).json({ erro: 'indisponível' });
+    }
+  });
+
+  app.post('/api/push/lembrete/cancelar', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const corpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+      const endpoint = String(corpo?.endpoint || '').slice(0, 1000);
+      const tag = String(corpo?.tag || '').slice(0, 80);
+      if (endpoint && tag) base().prepare('DELETE FROM lembretes WHERE endpoint = ? AND tag = ? AND enviado = 0').run(endpoint, tag);
+      res.json({ ok: true });
+    } catch {
+      res.status(500).json({ erro: 'indisponível' });
+    }
+  });
+
+  setInterval(() => void enviarLembretes(), 20_000).unref();
   setTimeout(() => void ciclo(), 90_000);
   setInterval(() => void ciclo(), INTERVALO_MS);
   setTimeout(limpeza, 120_000);

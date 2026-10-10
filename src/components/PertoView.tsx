@@ -46,6 +46,7 @@ import {
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
+import { AvisoPartida } from './AvisoPartida';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { t, tn } from '../i18n';
@@ -1441,6 +1442,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                       ))}
                     </div>
                     {isSel && route.id !== 'a-pe' && (
+                      <>
                       <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
                         {route.legs.map((leg, i) => {
                           if (leg.mode === 'WALK' && leg.durationMinutes <= 0) return null;
@@ -1461,6 +1463,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         })}
                         <li className="text-[11px] text-[#6B6B6B]">Horários programados{route.realtimeLabel === 'Horário da AMP' ? ' da AMP' : ''}; podem mudar com o trânsito.</li>
                       </ol>
+                      <AvisoPartida route={route} />
+                      </>
                     )}
                   </div>
                 );
