@@ -13,22 +13,33 @@ export class ErroServidor extends Error {
 }
 
 export async function pedido<T = any>(metodo: string, url: string, corpo?: unknown): Promise<T> {
-  let r: Response;
-  try {
-    r = await fetch(url, {
-      method: metodo,
-      credentials: 'same-origin',
-      headers: { ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}), ...cabecalhosAdmin() },
-      body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
-      signal: AbortSignal.timeout(15000),
-    });
-  } catch {
-    throw new ErroServidor('Sem ligação à internet. Verifica a rede e tenta outra vez.', 'rede', 0);
+  // Se o servidor estiver a reiniciar ou a ligação cair a meio (502/503/504), tenta mais uma vez
+  // antes de mostrar o erro: o servidor recusa publicações repetidas, por isso é seguro.
+  for (let tentativa = 0; ; tentativa++) {
+    let r: Response;
+    try {
+      r = await fetch(url, {
+        method: metodo,
+        credentials: 'same-origin',
+        headers: { ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}), ...cabecalhosAdmin() },
+        body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new ErroServidor('Sem ligação à internet. Verifica a rede e tenta outra vez.', 'rede', 0);
+    }
+    if (tentativa === 0 && (r.status === 502 || r.status === 503 || r.status === 504)) {
+      await new Promise((ok) => setTimeout(ok, 800));
+      continue;
+    }
+    let json: any = null;
+    try { json = await r.json(); } catch {}
+    if (!r.ok) {
+      const semResposta = r.status >= 500 && !json?.erro;
+      throw new ErroServidor(json?.erro || (semResposta ? 'O servidor está ocupado neste momento. Tenta outra vez daqui a pouco.' : 'Não foi possível concluir. Tenta outra vez.'), json?.codigo || 'erro', r.status);
+    }
+    return json as T;
   }
-  let json: any = null;
-  try { json = await r.json(); } catch {}
-  if (!r.ok) throw new ErroServidor(json?.erro || 'Não foi possível concluir. Tenta outra vez.', json?.codigo || 'erro', r.status);
-  return json as T;
 }
 
 // ---------------------------------------------------------------------------------------------
