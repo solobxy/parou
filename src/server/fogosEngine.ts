@@ -106,7 +106,8 @@ function converter(i: any): IncidenteProtecaoCivil | null {
   const estadoTxt = String(i.status || '').trim();
   const est = semAcentos(estadoTxt);
   // "Encerrada", "Conclusão" e afins já não interessam a quem está na rua
-  if (/encerrad|conclusao|falso alarme|falso alerta/.test(est)) return null;
+  // "Vigilância" = já apagado, só em observação: também sai (só ficam os ativos)
+  if (/encerrad|conclusao|vigilancia|falso alarme|falso alerta/.test(est)) return null;
   const segundos = Number(i.dateTime?.sec ?? i.created?.sec);
   return {
     id: String(i.id || i._id?.$id || `${lat},${lon}`),
@@ -122,7 +123,7 @@ function converter(i: any): IncidenteProtecaoCivil | null {
     meios: { humanos: numero(i.man), terrestres: numero(i.terrain), aereos: numero(i.aerial) },
     inicio: Number.isFinite(segundos) && segundos > 0 ? new Date(segundos * 1000).toISOString() : null,
     importante: Boolean(i.important),
-    aAcalmar: /resolucao|vigilancia/.test(est),
+    aAcalmar: /resolucao/.test(est),
   };
 }
 
@@ -169,7 +170,8 @@ export function obterIncidentes(): { atualizado: string | null; incidentes: Inci
   atualizar().catch(() => {});
   return {
     atualizado: estado ? new Date(estado.atualizado).toISOString() : null,
-    incidentes: estado?.incidentes || [],
+    // Dados com mais de 3 h (o Fogos.pt deixou de responder): podem já estar apagados, não se mostram
+    incidentes: estado && Date.now() - estado.atualizado < 3 * 3600_000 ? estado.incidentes : [],
     temChave: Boolean(CHAVE),
   };
 }
