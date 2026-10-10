@@ -1,7 +1,6 @@
 import React from 'react';
 import { MapPin, TriangleAlert, Compass, Clock, Star } from 'lucide-react';
 import { t } from '../i18n';
-import { t } from '../i18n';
 
 export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes';
 
