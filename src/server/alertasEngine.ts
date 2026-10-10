@@ -10,6 +10,7 @@
 import { DateTime } from 'luxon';
 import { getCentralAlerts } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
+import { getDatabase } from './db/gtfsDatabase';
 
 const UA = 'PAROU.PT/2.0 (+https://parou.pt)';
 const ZONA = 'Europe/Lisbon';
@@ -738,7 +739,7 @@ export function aquecerAlertas(): void {
 // de distrito; perturbações e greves dos operadores na cidade do operador).
 // Só entra o que está ativo neste momento (ou começa nas próximas 12 h).
 // ---------------------------------------------------------------------------------
-export type TipoPontoMapa = 'incendio' | 'acidente' | 'inundacao' | 'protecao_civil' | 'aviso_tempo' | 'greve' | 'perturbacao' | 'obras';
+export type TipoPontoMapa = 'incendio' | 'acidente' | 'inundacao' | 'protecao_civil' | 'aviso_tempo' | 'sismo' | 'greve' | 'perturbacao' | 'obras';
 
 export interface PontoMapa {
   id: string;
@@ -784,6 +785,49 @@ function avisoSemFimAntigo(a: any, fimMs: number, inicioMs: number, agora: numbe
   if (Number.isFinite(fimMs) || !Number.isFinite(inicioMs)) return false;
   const limiteDias = a.tipo === 'obras' ? 60 : 3;
   return agora - inicioMs > limiteDias * 24 * 3600_000;
+}
+
+/** Centros dos concelhos da Área Metropolitana de Lisboa (os avisos da Carris Metropolitana indicam o concelho no título) */
+const CONCELHOS_AML: Record<string, [number, number]> = {
+  lisboa: [38.7223, -9.1393], amadora: [38.7538, -9.2308], odivelas: [38.7928, -9.1833], loures: [38.8309, -9.1685],
+  oeiras: [38.697, -9.3103], cascais: [38.6979, -9.4215], sintra: [38.8029, -9.3817], mafra: [38.9371, -9.3263],
+  'vila franca de xira': [38.9563, -9.0147], almada: [38.679, -9.1569], seixal: [38.6405, -9.101], barreiro: [38.6631, -9.0724],
+  moita: [38.65, -8.9899], montijo: [38.7064, -8.9737], alcochete: [38.7556, -8.9604], palmela: [38.5685, -8.9019],
+  sesimbra: [38.444, -9.1015], setubal: [38.5244, -8.8882],
+};
+
+/** Avisos que só informam (reforços, novos horários): vivem na página Alertas, não são ocorrências no mapa */
+const TIPOS_SO_INFORMATIVOS = new Set(['reforço de serviço', 'novo horário', 'alteração de horário']);
+
+/** Onde pôr um aviso da Carris Metropolitana: nas paragens afetadas, ou no centro do concelho do título */
+function posicaoDoAviso(a: any): { lat: number; lon: number } | null {
+  const paragens: string[] = Array.isArray(a.paragens) ? a.paragens.map(String).filter(Boolean).slice(0, 10) : [];
+  if (paragens.length) {
+    try {
+      const ids = paragens.map((p) => (p.startsWith('cm:') ? p : `cm:${p}`));
+      const rows = getDatabase()
+        .prepare(`SELECT stop_lat AS lat, stop_lon AS lon FROM stops WHERE stop_id IN (${ids.map(() => '?').join(',')})`)
+        .all(...ids) as Array<{ lat: number; lon: number }>;
+      const bons = rows.filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
+      if (bons.length) {
+        const lat = bons.reduce((t, r) => t + r.lat, 0) / bons.length;
+        const lon = bons.reduce((t, r) => t + r.lon, 0) / bons.length;
+        // Paragens muito afastadas (linhas inteiras): fica a primeira
+        const longe = bons.some((r) => distanciaKm(lat, lon, r.lat, r.lon) > 4);
+        return longe ? { lat: bons[0].lat, lon: bons[0].lon } : { lat, lon };
+      }
+    } catch { /* base indisponível: usa o concelho */ }
+  }
+  const doTitulo = /^\s*([^|]{3,40}?)\s*\|/.exec(String(a.título || ''))?.[1];
+  const candidatos = [doTitulo, ...(Array.isArray(a.municípios) ? a.municípios : [])].filter(Boolean).map((x) => semAcentos(String(x)).trim());
+  for (const c of candidatos) {
+    const centro = CONCELHOS_AML[c];
+    if (centro) {
+      const [dLat, dLon] = jitter(`aviso:${a.id}`, 0.012);
+      return { lat: centro[0] + dLat, lon: centro[1] + dLon };
+    }
+  }
+  return null;
 }
 
 export async function obterCamadasMapa(): Promise<{ atualizado: string; incendiosAtualizado: string | null; pontos: PontoMapa[] }> {
@@ -856,16 +900,19 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     });
   }
 
-  // 3. Perturbações, greves e obras anunciadas pelos operadores (ativas agora): um símbolo
-  //    por operador (a Carris Metropolitana sozinha tem dezenas de avisos de paragens)
+  // 3. Perturbações, greves e obras anunciadas pelos operadores (ativas agora).
+  //    Carris Metropolitana: cada aviso no seu sítio (paragens afetadas ou concelho). Os outros
+  //    operadores (e avisos sem posição) ficam num símbolo por operador.
   const oficiais = await Promise.race([
     getCentralAlerts().catch(() => []),
     new Promise<any[]>((r) => setTimeout(() => r([]), 3500)),
   ]);
   const porOperador = new Map<string, { centro: { lat: number; lon: number }; nome: string; itens: any[] }>();
+  const individuais = new Map<string, { a: any; pos: { lat: number; lon: number }; linhas: Set<string> }>();
   for (const a of oficiais as any[]) {
     if (a.status !== 'Ativo') continue;
     if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue;
+    if (TIPOS_SO_INFORMATIVOS.has(String(a.tipo))) continue;
     const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
     if (Number.isFinite(fimMs) && fimMs < agora) continue;
     const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
@@ -873,12 +920,39 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
     if (a.tipo === 'greve' && !Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
     if (avisoSemFimAntigo(a, fimMs, inicioMs, agora)) continue;
     const op = semAcentos(String(a.operador || ''));
+    const linhasAviso = (Array.isArray(a.linhas) ? a.linhas : []).map((l: unknown) => String(l).replace(/_\d+$/, ''));
+    if (/carris metropolitana|\btml\b/.test(op)) {
+      // O mesmo aviso chega por duas fontes (TML e Carris Metropolitana): fica um só
+      const chaveAviso = semAcentos(String(a.título || '')).replace(/[^a-z0-9]/g, '');
+      const ja = individuais.get(chaveAviso);
+      if (ja) { linhasAviso.forEach((l: string) => ja.linhas.add(l)); continue; }
+      const pos = posicaoDoAviso(a);
+      if (pos) { individuais.set(chaveAviso, { a, pos, linhas: new Set(linhasAviso) }); continue; }
+    }
     const centro = CENTRO_OPERADOR.find((c) => c.re.test(op));
     if (!centro) continue;
     const chave = String(centro.re);
     const g = porOperador.get(chave) || { centro, nome: String(a.operador || 'Operador'), itens: [] as any[] };
     g.itens.push(a);
     porOperador.set(chave, g);
+  }
+  for (const { a, pos, linhas } of individuais.values()) {
+    const titulo = String(a.título || '').replace(/\s+/g, ' ').trim();
+    const listaLinhas = Array.from(linhas).slice(0, 6);
+    pontos.push({
+      id: `av:${a.id}`,
+      tipo: a.tipo === 'greve' ? 'greve' : a.tipo === 'obras' ? 'obras' : 'perturbacao',
+      lat: pos.lat,
+      lon: pos.lon,
+      titulo: titulo.length > 140 ? `${titulo.slice(0, 137).trimEnd()}…` : titulo || 'Aviso da Carris Metropolitana',
+      subtitulo: ['Carris Metropolitana', listaLinhas.length ? `${listaLinhas.length > 1 ? 'linhas' : 'linha'} ${listaLinhas.join(', ')}` : ''].filter(Boolean).join(' · '),
+      cor: a.tipo === 'greve' ? '#D92D20' : '#111111',
+      gravidade: a.severity === 'Grave' ? 'Grave' : a.severity === 'Moderada' ? 'Moderada' : 'Informativo',
+      fonte: 'Carris Metropolitana',
+      url: String(a.source_url || '') || undefined,
+      inicio: a.start_datetime || null,
+      fim: a.end_datetime || null,
+    });
   }
   const pesoSev: Record<string, number> = { Grave: 2, Moderada: 1 };
   for (const [chave, g] of porOperador) {
@@ -905,6 +979,44 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
       fim: principal.end_datetime || null,
     });
   }
+
+  // 4. Sismos recentes (IPMA): sentidos pela população (últimas 48 h) ou de magnitude 3,5 ou mais (últimas 24 h)
+  try {
+    const sismos = await emCache('ipma:sismos', 10 * 60_000, async () => {
+      const respostas = await Promise.allSettled([
+        buscarJson('https://api.ipma.pt/open-data/observation/seismic/7.json'),
+        buscarJson('https://api.ipma.pt/open-data/observation/seismic/3.json'),
+      ]);
+      const todos: any[] = [];
+      for (const r of respostas) if (r.status === 'fulfilled' && Array.isArray(r.value?.data)) todos.push(...r.value.data);
+      if (!todos.length) throw new Error('sem dados');
+      return todos;
+    }, [] as any[]);
+    for (const q of sismos) {
+      const quando = Date.parse(`${String(q.time || '')}Z`);
+      const mag = Number(q.magnitud);
+      const lat = Number(q.lat);
+      const lon = Number(q.lon);
+      if (!Number.isFinite(quando) || !Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(mag) || mag < -50) continue;
+      const idadeH = (agora - quando) / 3600_000;
+      const sentido = q.sensed === true;
+      if (idadeH < 0 || !((sentido && idadeH <= 48) || (mag >= 3.5 && idadeH <= 24))) continue;
+      const regiao = String(q.local || q.obsRegion || '').replace(/\s+/g, ' ').trim();
+      pontos.push({
+        id: `sismo:${q.sismoId || `${q.time}:${q.lat}:${q.lon}`}`,
+        tipo: 'sismo',
+        lat,
+        lon,
+        titulo: `Sismo de magnitude ${mag.toFixed(1).replace('.', ',')}${regiao ? ` · ${regiao}` : ''}`,
+        subtitulo: [sentido ? `Sentido pela população${q.degree ? ` (intensidade ${q.degree})` : ''}` : '', Number.isFinite(Number(q.depth)) ? `profundidade ${Math.round(Number(q.depth))} km` : ''].filter(Boolean).join(' · '),
+        cor: '#7C3AED',
+        gravidade: mag >= 4.5 ? 'Grave' : mag >= 3.5 || sentido ? 'Moderada' : 'Informativo',
+        fonte: 'IPMA',
+        url: String(q.shakemapref || '') || 'https://www.ipma.pt/pt/geofisica/sismologia/',
+        inicio: new Date(quando).toISOString(),
+      });
+    }
+  } catch { /* sem sismos: o resto do mapa segue */ }
 
   return { atualizado: new Date().toISOString(), incendiosAtualizado: pc.atualizado, pontos };
 }

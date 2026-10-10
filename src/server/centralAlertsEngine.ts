@@ -158,6 +158,19 @@ export function extractGeoEntities(text: string, operator: string): {
   };
 }
 
+// Alerta que a fonte deixou de publicar (retirado antes do fim previsto): deixa de contar como ativo.
+// Só se aplica quando a fonte respondeu com avisos (uma resposta vazia pode ser uma falha).
+function retirarDesaparecidos(fonte: string, vistos: Set<string>): void {
+  if (vistos.size === 0) return;
+  const prefixo = `${fonte}:`;
+  for (const [chave, alerta] of centralState.alerts) {
+    if (chave.startsWith(prefixo) && !vistos.has(chave) && alerta.status !== 'Terminado' && alerta.status !== 'Cancelado') {
+      alerta.status = 'Cancelado';
+      alerta.last_update = new Date().toISOString();
+    }
+  }
+}
+
 // Ingest TML GO Hub Official Alerts (Real GTFS-RT endpoint)
 async function ingestTmlAlerts(): Promise<number> {
   const sourceName = 'TML GO Hub';
@@ -166,10 +179,12 @@ async function ingestTmlAlerts(): Promise<number> {
   try {
     const rawAlerts = await getTmlAlerts();
     let imported = 0;
+    const vistos = new Set<string>();
 
     for (const raw of rawAlerts) {
       const extId = raw._id || `tml-${raw.title || ''}-${raw.active_period_start_date || 0}`;
       const key = `${sourceName}:${extId}`;
+      vistos.add(key);
 
       const title = raw.title?.trim() || 'Aviso de Circulação';
       const desc = raw.description?.trim() || 'Aviso oficial emitido pela autoridade de transportes.';
@@ -257,6 +272,7 @@ async function ingestTmlAlerts(): Promise<number> {
       }
     }
 
+    retirarDesaparecidos(sourceName, vistos);
     return imported;
   } catch (err: any) {
     centralState.sourcesErrorList.push({
@@ -290,9 +306,11 @@ async function ingestCarrisMetropolitanaAlerts(): Promise<number> {
     if (!Array.isArray(data)) return 0;
 
     let imported = 0;
+    const vistos = new Set<string>();
     for (const a of data) {
       const extId = a.id || `${a.cause || 'alert'}-${a.active_period?.[0]?.start || 0}`;
       const key = `${sourceName}:${extId}`;
+      vistos.add(key);
 
       const title = a.header_text?.translation?.[0]?.text?.trim() ||
                     (typeof a.header_text === 'string' ? a.header_text.trim() : '') ||
@@ -369,6 +387,7 @@ async function ingestCarrisMetropolitanaAlerts(): Promise<number> {
       }
     }
 
+    retirarDesaparecidos(sourceName, vistos);
     return imported;
   } catch (err: any) {
     centralState.sourcesErrorList.push({
@@ -380,85 +399,115 @@ async function ingestCarrisMetropolitanaAlerts(): Promise<number> {
   }
 }
 
-// Ingest Metro de Lisboa Live Perturbations
+// Letras acentuadas e símbolos que a página do Metro escreve como entidades HTML
+const ENTIDADES_HTML: Record<string, string> = {
+  ccedil: 'ç', Ccedil: 'Ç', atilde: 'ã', Atilde: 'Ã', otilde: 'õ', Otilde: 'Õ', aacute: 'á', Aacute: 'Á', eacute: 'é', Eacute: 'É',
+  iacute: 'í', Iacute: 'Í', oacute: 'ó', Oacute: 'Ó', uacute: 'ú', Uacute: 'Ú', acirc: 'â', Acirc: 'Â', ecirc: 'ê', Ecirc: 'Ê',
+  ocirc: 'ô', Ocirc: 'Ô', agrave: 'à', Agrave: 'À', nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', ordm: 'º', ordf: 'ª',
+};
+function textoDeHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-zA-Z]+);/g, (m, nome) => ENTIDADES_HTML[nome] ?? m)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Metro de Lisboa: estado das 4 linhas, lido do painel oficial que o próprio site usa
+// (https://app.metrolisboa.pt/status/estado_Linhas.php). Cada linha traz "Circulação normal"
+// ou o texto da perturbação. O aviso mantém o mesmo id enquanto durar e termina quando a linha
+// volta ao normal.
 async function ingestMetroLisboaAlerts(): Promise<number> {
   const sourceName = 'Metropolitano de Lisboa';
   const sourceUrl = 'https://www.metrolisboa.pt/viajar/estado-das-linhas/';
+  const estadoUrl = 'https://app.metrolisboa.pt/status/estado_Linhas.php';
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(sourceUrl, {
+    const res = await fetch(estadoUrl, {
       headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0' },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(7000),
     });
-    clearTimeout(timeout);
-
-    if (!res.ok) return 0;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
 
-    const lines = [
-      { name: 'Azul', code: 'Linha Azul' },
-      { name: 'Amarela', code: 'Linha Amarela' },
-      { name: 'Verde', code: 'Linha Verde' },
-      { name: 'Vermelha', code: 'Linha Vermelha' }
-    ];
-
+    const filas = html.split(/<tr[\s>]/i).slice(1);
+    let linhasLidas = 0;
     let imported = 0;
-    const nowIso = new Date().toISOString();
+    const agoraIso = new Date().toISOString();
 
-    for (const l of lines) {
-      const regex = new RegExp(`Linha\\s+${l.name}[\\s\\S]*?class="[^"]*(ok|perturbada|interrompida|status)[^"]*"`, 'i');
-      const match = html.match(regex);
-      if (match) {
-        const mStr = match[0].toLowerCase();
-        let isPerturbed = mStr.includes('perturbad');
-        let isInterrupted = mStr.includes('interrompid');
+    for (const fila of filas) {
+      const nome = /alt="Linha\s+([^"]+)"/i.exec(fila)?.[1]?.trim();
+      if (!nome) continue;
+      linhasLidas++;
+      const slug = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-');
+      const extId = `ml-${slug}`;
+      const key = `${sourceName}:${extId}`;
+      const existing = centralState.alerts.get(key);
 
-        if (isPerturbed || isInterrupted) {
-          const extId = `ml-${l.name.toLowerCase()}-${new Date().toISOString().slice(0, 13)}`;
-          const key = `${sourceName}:${extId}`;
+      const semPerturbacao = /class="[^"]*semperturbacao/i.test(fila);
+      const itens = Array.from(fila.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)).map((m) => textoDeHtml(m[1])).filter(Boolean);
+      const normal = semPerturbacao || itens.length === 0 || itens.every((x) => /^circula[cç][aã]o normal$/i.test(x));
 
-          const tipo: CentralAlertType = isInterrupted ? 'interrupção' : 'atraso significativo';
-          const title = isInterrupted 
-            ? `Interrupção na ${l.code} do Metro de Lisboa` 
-            : `Perturbação na ${l.code} do Metro de Lisboa`;
-          const desc = isInterrupted
-            ? `A circulação na ${l.code} encontra-se temporariamente interrompida de acordo com o portal oficial.`
-            : `A circulação na ${l.code} efetua-se com perturbações e tempos de espera superiores ao normal.`;
-
-          const contentHash = generateContentHash(title, desc, nowIso);
-          const existing = centralState.alerts.get(key);
-
-          if (!existing) {
-            const newAlert: CentralAlert = {
-              id: `alert-ml-${extId}`,
-              external_id: extId,
-              tipo,
-              título: title,
-              descrição: desc,
-              operador: 'Metropolitano de Lisboa',
-              linhas: [l.code],
-              paragens: [],
-              região: 'Área Metropolitana de Lisboa',
-              municípios: ['Lisboa', 'Amadora'],
-              start_datetime: nowIso,
-              end_datetime: null,
-              published_datetime: nowIso,
-              source: sourceName,
-              source_url: sourceUrl,
-              last_update: nowIso,
-              status: 'Ativo',
-              content_hash: contentHash,
-              severity: isInterrupted ? 'Grave' : 'Moderada',
-            };
-            centralState.alerts.set(key, newAlert);
-            imported++;
-          }
+      if (normal) {
+        // A linha voltou ao normal: o aviso termina agora
+        if (existing && existing.status === 'Ativo') {
+          existing.end_datetime = agoraIso;
+          existing.status = 'Terminado';
+          existing.last_update = agoraIso;
         }
+        continue;
       }
+
+      const texto = itens.join(' · ').slice(0, 500);
+      const interrompida = /interrompid|interrup[cç][aã]o|suspens/i.test(texto);
+      const tipo: CentralAlertType = interrompida ? 'interrupção' : 'atraso significativo';
+      const title = interrompida ? `Circulação interrompida na Linha ${nome} do Metro de Lisboa` : `Perturbação na Linha ${nome} do Metro de Lisboa`;
+      const desc = texto;
+      const start = existing && existing.status === 'Ativo' ? existing.start_datetime : agoraIso;
+      const contentHash = generateContentHash(title, desc, start);
+
+      if (existing) {
+        if (existing.content_hash !== contentHash || existing.status !== 'Ativo') {
+          existing.título = title;
+          existing.descrição = desc;
+          existing.tipo = tipo;
+          existing.start_datetime = start;
+          existing.end_datetime = null;
+          existing.status = 'Ativo';
+          existing.severity = interrompida ? 'Grave' : 'Moderada';
+          existing.last_update = agoraIso;
+          existing.content_hash = contentHash;
+        }
+        centralState.duplicatesAvoidedCount++;
+        continue;
+      }
+      centralState.alerts.set(key, {
+        id: `alert-${extId}`,
+        external_id: extId,
+        tipo,
+        título: title,
+        descrição: desc,
+        operador: 'Metropolitano de Lisboa',
+        linhas: [`Linha ${nome}`],
+        paragens: [],
+        região: 'Área Metropolitana de Lisboa',
+        municípios: ['Lisboa', 'Amadora'],
+        start_datetime: start,
+        end_datetime: null,
+        published_datetime: start,
+        source: sourceName,
+        source_url: sourceUrl,
+        last_update: agoraIso,
+        status: 'Ativo',
+        content_hash: contentHash,
+        severity: interrompida ? 'Grave' : 'Moderada',
+      });
+      imported++;
     }
 
+    // Se o painel mudou e já não se encontra nenhuma linha, regista-se a falha (e nada é dado como terminado)
+    if (linhasLidas === 0) throw new Error('Painel do Metro de Lisboa sem linhas reconhecidas');
     return imported;
   } catch (err: any) {
     centralState.sourcesErrorList.push({
