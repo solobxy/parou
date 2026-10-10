@@ -68,6 +68,12 @@ process.env.DISABLE_HMR = 'true';
 
 const app = express();
 app.use(compression());
+// Ninguém pode meter a PAROU dentro de outro site (proteção contra cliques enganadores)
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 
 // Proteção contra abusos (robôs a pedir sem parar ou uma app com um erro em ciclo): limite
