@@ -139,7 +139,7 @@ export const BotaoInstalar: React.FC = () => {
     <div className="relative">
       <button
         onClick={tocar}
-        className="w-11 h-11 flex items-center justify-center bg-[#111111] hover:bg-[#2B2B2B] rounded-[10px] text-[#FFFFFF] transition-colors cursor-pointer"
+        className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
         aria-label="Instalar a app PAROU"
         title="Instalar a app"
         data-teste="instalar-topo"

@@ -3,24 +3,27 @@ import App from './App.tsx';
 import { ProtecaoErros, apanharErrosGlobais } from './components/ProtecaoErros';
 import './index.css';
 
-// Prevent iOS Safari page pinch-to-zoom on the webpage
+// Pinch-to-zoom da página (iOS Safari): bloqueado no Perto (ecrã fixo, com o mapa e barras fixas, onde
+// ampliar sem querer estraga o ecrã) e dentro dos mapas, que tratam do próprio zoom. Nos ecrãs de
+// leitura (Horários, Alertas, Favoritos, páginas) fica permitido, para quem precisa de ver maior.
 if (typeof document !== 'undefined') {
+  const bloquearGesto = (e: Event) => {
+    const alvo = e.target as HTMLElement | null;
+    if (alvo?.closest('.map-canvas-container')) return false; // zoom do próprio mapa
+    if (alvo?.closest('.leaflet-container')) return true; // outros mapas tratam do seu zoom
+    return document.documentElement.classList.contains('pagina-fixa');
+  };
   document.addEventListener(
     'gesturestart',
     (e) => {
-      // Only allow gesture/pinch if target is inside the map canvas
-      if (!(e.target as HTMLElement)?.closest('.map-canvas-container')) {
-        e.preventDefault();
-      }
+      if (bloquearGesto(e)) e.preventDefault();
     },
     { passive: false }
   );
   document.addEventListener(
     'gesturechange',
     (e) => {
-      if (!(e.target as HTMLElement)?.closest('.map-canvas-container')) {
-        e.preventDefault();
-      }
+      if (bloquearGesto(e)) e.preventDefault();
     },
     { passive: false }
   );
