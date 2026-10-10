@@ -325,4 +325,16 @@ export const EN: Record<string, string> = {
   // Erros
   'Algo correu mal': 'Something went wrong',
   'Recarregar': 'Reload',
+  'o transporte': 'the service',
+  'Sai de casa daqui a {n} min': 'Leave home in {n} min',
+  'Apanha {l} às {h} em {p}': 'Take {l} at {h} from {p}',
+  'chegas às {h}': 'you arrive at {h}',
+  'Ativa as notificações nas definições do telemóvel para receberes o aviso.': 'Turn on notifications in your phone settings to get the reminder.',
+  'Este telemóvel não suporta avisos com a app fechada.': 'This phone can\'t show reminders while the app is closed.',
+  'Não foi possível agendar o aviso. Tenta outra vez.': 'Couldn\'t schedule the reminder. Try again.',
+  'Aviso às {h}': 'Reminder at {h}',
+  'Cancelar aviso': 'Cancel reminder',
+  'Avisar-me antes de sair de casa': 'Remind me before I leave',
+  '{n} min antes': '{n} min before',
+  'linha': 'line',
 };

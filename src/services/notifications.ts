@@ -358,7 +358,9 @@ export async function sincronizarPush(prefs: NotificationPreferences): Promise<'
   if (!reg) return 'sem-suporte';
   try {
     let sub = await reg.pushManager.getSubscription();
-    if (!prefs.enabled || Notification.permission !== 'granted') {
+    // Sem alertas ligados mas com lembretes de partida pendentes: a subscrição fica, só para os lembretes
+    const soLembretes = !prefs.enabled && temLembretesAtivos();
+    if ((!prefs.enabled && !soLembretes) || Notification.permission !== 'granted') {
       if (sub) {
         await fetch('/api/push/cancelar', {
           method: 'POST',
@@ -387,7 +389,7 @@ export async function sincronizarPush(prefs: NotificationPreferences): Promise<'
     const g = await fetch('/api/push/subscrever', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscricao: sub.toJSON(), distritos }),
+      body: JSON.stringify({ subscricao: sub.toJSON(), distritos: soLembretes ? [] : distritos, modo: soLembretes ? 'lembretes' : 'alertas' }),
     });
     return g.ok ? 'ok' : 'erro';
   } catch (err) {
@@ -440,4 +442,100 @@ export async function triggerTestNotification(
 
   addNotificationToHistory(logItem);
   return logItem;
+}
+
+// ---------------------------------------------------------------------------------
+// Lembretes de partida: "sai de casa daqui a 5 min". O servidor envia o push à hora certa,
+// mesmo com a app fechada. Ficam registados neste telemóvel para a app mostrar o estado.
+// ---------------------------------------------------------------------------------
+const CHAVE_LEMBRETES = 'parou_lembretes_v1';
+export interface LembreteLocal { tag: string; quando: number; texto: string }
+
+function lerLembretes(): LembreteLocal[] {
+  try {
+    const l = JSON.parse(localStorage.getItem(CHAVE_LEMBRETES) || '[]');
+    return (Array.isArray(l) ? l : []).filter((x: LembreteLocal) => x && typeof x.tag === 'string' && x.quando > Date.now() - 10 * 60_000);
+  } catch {
+    return [];
+  }
+}
+function gravarLembretes(l: LembreteLocal[]): void {
+  try { localStorage.setItem(CHAVE_LEMBRETES, JSON.stringify(l.slice(-20))); } catch { /* sem armazenamento */ }
+}
+export function temLembretesAtivos(): boolean {
+  if (typeof window === 'undefined') return false;
+  return lerLembretes().some((x) => x.quando > Date.now());
+}
+export function lembreteAtivo(tag: string): LembreteLocal | null {
+  if (typeof window === 'undefined') return null;
+  return lerLembretes().find((x) => x.tag === tag && x.quando > Date.now()) || null;
+}
+
+async function subscreverParaLembretes(reg: ServiceWorkerRegistration): Promise<PushSubscription | null> {
+  const r = await fetch('/api/push/chave', { cache: 'no-store' });
+  if (!r.ok) return null;
+  const { chave } = (await r.json()) as { chave: string };
+  const chaveBytes = chaveParaBytes(chave);
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !bytesIguais(sub.options?.applicationServerKey, chaveBytes)) {
+    await sub.unsubscribe().catch(() => false);
+    sub = null;
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes as BufferSource });
+  const alertasLigados = getStoredNotificationPreferences().enabled;
+  const distritos = alertasLigados ? (getStoredNotificationPreferences().districts || []) : [];
+  const g = await fetch('/api/push/subscrever', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subscricao: sub.toJSON(), distritos, modo: alertasLigados ? 'alertas' : 'lembretes' }),
+  });
+  return g.ok ? sub : null;
+}
+
+export type ResultadoLembrete = 'ok' | 'sem-suporte' | 'sem-permissao' | 'erro';
+
+/** Pede ao servidor um aviso à hora "quando" (ms). Tem de ser chamada num toque (pede a permissão). */
+export async function criarLembrete(p: { tag: string; quando: number; titulo: string; corpo: string; url?: string }): Promise<ResultadoLembrete> {
+  if (!pushSuportado()) return 'sem-suporte';
+  try {
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    if (Notification.permission !== 'granted') return 'sem-permissao';
+    const reg = await registoSW();
+    if (!reg) return 'sem-suporte';
+    const enviar = async (sub: PushSubscription) => fetch('/api/push/lembrete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, quando: p.quando, titulo: p.titulo, corpo: p.corpo, url: p.url || '/', tag: p.tag }),
+    });
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await subscreverParaLembretes(reg);
+    if (!sub) return 'erro';
+    let r = await enviar(sub);
+    if (r.status === 404) {
+      // o servidor não conhece esta subscrição (ex.: foi apagada): volta a registá-la
+      const nova = await subscreverParaLembretes(reg);
+      if (!nova) return 'erro';
+      r = await enviar(nova);
+    }
+    if (!r.ok) return 'erro';
+    gravarLembretes([...lerLembretes().filter((x) => x.tag !== p.tag), { tag: p.tag, quando: p.quando, texto: p.titulo }]);
+    return 'ok';
+  } catch (err) {
+    console.warn('[Lembrete] Falhou:', err);
+    return 'erro';
+  }
+}
+
+export async function cancelarLembrete(tag: string): Promise<void> {
+  gravarLembretes(lerLembretes().filter((x) => x.tag !== tag));
+  try {
+    const reg = await registoSW();
+    const sub = await reg?.pushManager.getSubscription();
+    if (!sub) return;
+    await fetch('/api/push/lembrete/cancelar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, tag }),
+    });
+  } catch { /* o servidor ignora lembretes já enviados */ }
 }
