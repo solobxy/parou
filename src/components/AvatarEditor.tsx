@@ -187,7 +187,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
 
         {/* Peças */}
         <div className="min-w-0">
-          <div role="tablist" aria-label={t('Tipo de peça')} className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 [scrollbar-width:none]">
+          <div role="tablist" aria-label={t('Tipo de peça')} className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 [scrollbar-width:none]">
             {CATEGORIAS_AVATAR.map((c) => (
               <button
                 key={c.id}

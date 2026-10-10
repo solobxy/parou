@@ -137,7 +137,7 @@ export const BotaoInstalar: React.FC = () => {
     if (r === 'passos') setVerPassos(true);
   };
   return (
-    <div className="relative">
+    <div className="relative max-[359px]:hidden">
       <button
         onClick={tocar}
         className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
