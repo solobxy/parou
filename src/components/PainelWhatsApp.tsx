@@ -7,12 +7,14 @@ import { CANAL_WHATSAPP } from '../config/ligacoes';
 import { NOVIDADES, type NovidadeCanal } from '../config/novidades';
 import { fetchCentralAlerts } from '../services/centralAlertsApi';
 import type { CentralAlert } from '../types/alerts';
-import { eImportante, ordenarAvisos, quandoDoAviso, RASCUNHOS, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
+import { avisosImportantes, chaveDoAviso, ordenarAvisos, quandoDoAviso, RASCUNHOS, semRepetidos, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
+import { CATEGORIAS_AVISO, categoriaDoAviso, imagemDaCategoria, nomeDaCategoria, type CategoriaAviso } from '../utils/imagemAviso';
+import { partilharComImagens, podePartilharFicheiros } from '../utils/partilhaImagem';
 
 // Painel só para o administrador. O WhatsApp não deixa programas publicarem em canais, por isso aqui
 // ficam os textos prontos para copiar e colar. Os avisos já publicados ficam lembrados neste telemóvel.
 const CHAVE_PUBLICADOS = 'parou_whatsapp_publicados';
-type Publicados = Record<string, { titulo: string; em: number }>;
+type Publicados = Record<string, { titulo: string; em: number; chave?: string }>;
 
 function lerPublicados(): Publicados {
   try {
@@ -58,6 +60,8 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   const [tipo, setTipo] = useState<TipoNovidade>('novidade');
   const [titulo, setTitulo] = useState('');
   const [texto, setTexto] = useState('');
+  const [imagemManual, setImagemManual] = useState<EscolhaImagem>('nenhuma');
+  const partilhaManual = usePartilha();
 
   const carregar = useCallback(async () => {
     setErro('');
@@ -76,8 +80,9 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   useEffect(() => () => clearTimeout(temporizador.current), []);
 
   const lista = useMemo(() => {
-    const base = (avisos || []).filter((a) => !publicados[a.id]);
-    return ordenarAvisos(soImportantes ? base.filter(eImportante) : base);
+    const chaves = new Set(Object.values(publicados).map((p) => p.chave).filter(Boolean));
+    const base = (avisos || []).filter((a) => !publicados[a.id] && !chaves.has(chaveDoAviso(a)));
+    return soImportantes ? avisosImportantes(base) : ordenarAvisos(semRepetidos(base));
   }, [avisos, publicados, soImportantes]);
 
   const dizer = (s: string) => {
@@ -93,7 +98,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   };
 
   const marcarPublicado = (a: CentralAlert) => {
-    const novo = { ...publicados, [a.id]: { titulo: a['título'], em: Date.now() } };
+    const novo = { ...publicados, [a.id]: { titulo: a['título'], em: Date.now(), chave: chaveDoAviso(a) } };
     setPublicados(novo); guardarPublicados(novo);
   };
   // Novidades da app já escritas (config/novidades.ts): ficam lembradas com o prefixo "nov:"
@@ -153,16 +158,16 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
         {aba === 'avisos' && (
           <div role="tabpanel">
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <button type="button" onClick={() => setSoImportantes(true)} aria-pressed={soImportantes} className={`h-11 px-4 rounded-full text-[14px] font-semibold cursor-pointer border-2 ${soImportantes ? 'border-[#111111] bg-[#F4F4F2]' : 'border-[#E6E6E3]'}`}>Importantes</button>
-              <button type="button" onClick={() => setSoImportantes(false)} aria-pressed={!soImportantes} className={`h-11 px-4 rounded-full text-[14px] font-semibold cursor-pointer border-2 ${!soImportantes ? 'border-[#111111] bg-[#F4F4F2]' : 'border-[#E6E6E3]'}`}>Todos</button>
+              <button type="button" onClick={() => setSoImportantes(true)} aria-pressed={soImportantes} className={`h-11 px-4 rounded-full text-[14px] font-semibold cursor-pointer border-2 ${soImportantes ? 'border-[#111111] bg-[#F4F4F2]' : 'border-[#E6E6E3]'}`}>Só os importantes</button>
+              <button type="button" onClick={() => setSoImportantes(false)} aria-pressed={!soImportantes} className={`h-11 px-4 rounded-full text-[14px] font-semibold cursor-pointer border-2 ${!soImportantes ? 'border-[#111111] bg-[#F4F4F2]' : 'border-[#E6E6E3]'}`}>Ver todos</button>
               <button type="button" onClick={() => void carregar()} className="h-11 w-11 rounded-full bg-[#F4F4F2] flex items-center justify-center cursor-pointer hover:bg-[#E6E6E3]" aria-label="Atualizar a lista"><RefreshCw className="w-4 h-4 stroke-[2.2]" aria-hidden="true" /></button>
             </div>
             {avisos === null && <p className="text-[14px] text-[#6B6B6B] py-6 text-center">A carregar…</p>}
             {erro && <p role="alert" className="text-[14px] font-semibold text-[#9F1D14] py-3">{erro}</p>}
             {avisos !== null && !erro && lista.length === 0 && (
               <div className="rounded-[12px] bg-[#F4F4F2] border border-[#E6E6E3] p-4 text-center">
-                <p className="text-[15px] font-bold text-[#111111]">Nada novo para publicar</p>
-                <p className="text-[13.5px] text-[#6B6B6B] mt-1">{soImportantes ? 'Não há avisos importantes por publicar. Vê em "Todos" se quiseres escolher outro.' : 'Não há avisos por publicar neste momento.'}</p>
+                <p className="text-[15px] font-bold text-[#111111]">Nada importante neste momento</p>
+                <p className="text-[13.5px] text-[#6B6B6B] mt-1">{soImportantes ? 'Quando houver uma greve, um incêndio, um acidente ou uma interrupção grave, aparece aqui.' : 'Não há avisos por publicar neste momento.'}</p>
               </div>
             )}
             <ul className="space-y-3">
@@ -221,9 +226,18 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
               <p className="text-[13px] font-semibold text-[#6B6B6B] mb-1">Assim fica no WhatsApp</p>
               <pre className="whitespace-pre-wrap break-words rounded-[12px] bg-[#E7F3E3] border border-[#D3E7CD] p-3 text-[14.5px] leading-snug text-[#111111] font-[inherit]" data-teste="pre-visualizacao">{textoNovidade}</pre>
             </div>
-            <button type="button" onClick={() => void copiarTexto('novidade', textoNovidade, null)} disabled={!titulo.trim() && !texto.trim()} className={`${botao} w-full bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-novidade">
-              {copiado === 'novidade' ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
-            </button>
+            <SeletorImagemAviso id="wa-img-manual" valor={imagemManual} onMudar={setImagemManual} />
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => void copiarTexto('novidade', textoNovidade, null)} disabled={!titulo.trim() && !texto.trim()} className={`${botao} flex-1 min-w-[140px] bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-novidade">
+                {copiado === 'novidade' ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
+              </button>
+              {imagemManual !== 'nenhuma' && podePartilharFicheiros() && (
+                <button type="button" onClick={() => void partilhaManual.partilhar(textoNovidade, [imagemDaCategoria(imagemManual)])} disabled={partilhaManual.aPartilhar || (!titulo.trim() && !texto.trim())} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-manual">
+                  <Share2 className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />{partilhaManual.aPartilhar ? 'A preparar…' : 'Partilhar com imagem'}
+                </button>
+              )}
+            </div>
+            {partilhaManual.falhouPartilha && <p role="alert" className="text-[13px] text-[#9F1D14]">Não deu para abrir a partilha. Guarda a imagem e copia o texto.</p>}
           </div>
         )}
 
@@ -251,30 +265,48 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   );
 };
 
+function usePartilha() {
+  const [aPartilhar, setAPartilhar] = useState(false);
+  const [falhouPartilha, setFalhouPartilha] = useState(false);
+  const partilhar = async (texto: string, imagens: string[]) => {
+    setFalhouPartilha(false); setAPartilhar(true);
+    const r = await partilharComImagens(texto, imagens);
+    if (r === 'falhou') setFalhouPartilha(true);
+    setAPartilhar(false);
+  };
+  return { aPartilhar, falhouPartilha, partilhar };
+}
+
+type EscolhaImagem = CategoriaAviso | 'nenhuma';
+
+// Imagem fixa do tipo de aviso: miniatura (toca para guardar) e lista para trocar de tipo ou tirar a imagem
+const SeletorImagemAviso: React.FC<{ id: string; valor: EscolhaImagem; onMudar: (v: EscolhaImagem) => void }> = ({ id, valor, onMudar }) => (
+  <div className="mb-2 flex items-center gap-3" data-teste="imagem-aviso">
+    {valor !== 'nenhuma' ? (
+      <a href={imagemDaCategoria(valor)} download className="shrink-0 block w-[88px] h-[88px] rounded-[12px] overflow-hidden border border-[#E6E6E3] bg-[#111111]" aria-label={`Guardar a imagem: ${nomeDaCategoria(valor)}`}>
+        <img src={imagemDaCategoria(valor)} alt={`Imagem para o aviso: ${nomeDaCategoria(valor)}`} width={88} height={88} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+      </a>
+    ) : (
+      <div className="shrink-0 w-[88px] h-[88px] rounded-[12px] border-2 border-dashed border-[#E6E6E3] flex items-center justify-center text-[12px] font-semibold text-[#6B6B6B] text-center px-2">Sem imagem</div>
+    )}
+    <div className="min-w-0 flex-1">
+      <label htmlFor={id} className="block text-[12.5px] font-semibold text-[#6B6B6B] mb-1">Imagem</label>
+      <select id={id} value={valor} onChange={(e) => onMudar(e.target.value as EscolhaImagem)} className="w-full h-11 rounded-[10px] border-2 border-[#E6E6E3] bg-[#FFFFFF] px-2 text-[16px] font-semibold text-[#111111]">
+        {CATEGORIAS_AVISO.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+        <option value="nenhuma">Sem imagem</option>
+      </select>
+      {valor !== 'nenhuma' && <p className="text-[12.5px] text-[#6B6B6B] mt-1">Toca na imagem para a guardar.</p>}
+    </div>
+  </div>
+);
+
 const CartaoNovidade: React.FC<{
   n: NovidadeCanal; valor: string; onMudar: (v: string) => void; copiado: boolean; onCopiar: (el: HTMLTextAreaElement | null) => void; onPublicado: () => void;
 }> = ({ n, valor, onMudar, copiado, onCopiar, onPublicado }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null);
-  const [aPartilhar, setAPartilhar] = useState(false);
-  const [falhouPartilha, setFalhouPartilha] = useState(false);
+  const { aPartilhar, falhouPartilha, partilhar } = usePartilha();
   const temImagens = Boolean(n.imagens && n.imagens.length);
-  const podePartilhar = temImagens && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
-  // Abre a folha de partilha do telemóvel com o texto e as imagens (escolhe-se o WhatsApp lá)
-  const partilhar = async () => {
-    setFalhouPartilha(false); setAPartilhar(true);
-    try {
-      const ficheiros = await Promise.all((n.imagens || []).map(async (src) => {
-        const r = await fetch(src);
-        if (!r.ok) throw new Error('imagem');
-        return new File([await r.blob()], src.split('/').pop() || 'imagem.jpg', { type: 'image/jpeg' });
-      }));
-      const dados = { text: valor, files: ficheiros };
-      if (!navigator.canShare(dados)) throw new Error('sem partilha');
-      await navigator.share(dados);
-    } catch (err) {
-      if ((err as { name?: string })?.name !== 'AbortError') setFalhouPartilha(true);
-    } finally { setAPartilhar(false); }
-  };
+  const podePartilhar = temImagens && podePartilharFicheiros();
   const primeiro = n.etiqueta === 'Primeiro post';
   const dia = n.data.split('-').reverse().slice(0, 2).join('/');
   return (
@@ -310,7 +342,7 @@ const CartaoNovidade: React.FC<{
           {copiado ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
         </button>
         {podePartilhar && (
-          <button type="button" onClick={() => void partilhar()} disabled={aPartilhar} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-novidade">
+          <button type="button" onClick={() => void partilhar(valor, n.imagens || [])} disabled={aPartilhar} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-novidade">
             <Share2 className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />{aPartilhar ? 'A preparar…' : 'Partilhar com imagem'}
           </button>
         )}
@@ -325,6 +357,9 @@ const CartaoAviso: React.FC<{
   a: CentralAlert; valor: string; onMudar: (v: string) => void; copiado: boolean; onCopiar: (el: HTMLTextAreaElement | null) => void; onPublicado: () => void;
 }> = ({ a, valor, onMudar, copiado, onCopiar, onPublicado }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const [imagem, setImagem] = useState<EscolhaImagem>(() => categoriaDoAviso(a));
+  const { aPartilhar, falhouPartilha, partilhar } = usePartilha();
+  const podePartilhar = imagem !== 'nenhuma' && podePartilharFicheiros();
   const cor = a.severity === 'Grave' ? 'bg-[#FDE8E6] text-[#9F1D14]' : a.severity === 'Moderada' ? 'bg-[#FFF1DC] text-[#8A4B00]' : 'bg-[#F4F4F2] text-[#4A4A4A]';
   return (
     <li className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-3" data-teste="cartao-aviso">
@@ -333,6 +368,7 @@ const CartaoAviso: React.FC<{
         <span className="px-2 h-6 inline-flex items-center rounded-full bg-[#F4F4F2] text-[12px] font-semibold text-[#4A4A4A]">{a.tipo}</span>
         <span className="text-[12.5px] text-[#6B6B6B]">{a.status === 'Futuro' ? 'Vai começar' : 'Ativo'}{quandoDoAviso(a) ? ` · ${quandoDoAviso(a)}` : ''}</span>
       </div>
+      <SeletorImagemAviso id={`wa-img-${a.id}`} valor={imagem} onMudar={setImagem} />
       <label className="sr-only" htmlFor={`wa-${a.id}`}>Texto para o WhatsApp: {a['título']}</label>
       <textarea
         id={`wa-${a.id}`}
@@ -346,9 +382,15 @@ const CartaoAviso: React.FC<{
         <button type="button" onClick={() => onCopiar(ref.current)} className={`${botao} flex-1 min-w-[140px] bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-aviso">
           {copiado ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
         </button>
+        {podePartilhar && (
+          <button type="button" onClick={() => void partilhar(valor, [imagemDaCategoria(imagem as CategoriaAviso)])} disabled={aPartilhar} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-aviso">
+            <Share2 className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />{aPartilhar ? 'A preparar…' : 'Partilhar com imagem'}
+          </button>
+        )}
         <button type="button" onClick={onPublicado} className={`${botao} bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] border border-[#E6E6E3]`} data-teste="ja-publiquei">Já publiquei</button>
         {a.source_url && <a href={a.source_url} target="_blank" rel="noopener noreferrer" className="h-11 px-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#4A4A4A] underline underline-offset-2">Ver fonte<ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /></a>}
       </div>
+      {falhouPartilha && <p role="alert" className="mt-1.5 text-[13px] text-[#9F1D14]">Não deu para abrir a partilha. Guarda a imagem e copia o texto.</p>}
     </li>
   );
 };
