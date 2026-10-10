@@ -6,8 +6,7 @@ import {
   AlertPreferences,
   DEFAULT_ALERT_PREFERENCES 
 } from '../types/alerts';
-import { db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { carregarFirebase } from './nuvem';
 import { cabecalhosAdmin } from '../utils/admin';
 
 const PREFS_STORAGE_KEY = 'parou_central_alerts_prefs_v1';
@@ -45,8 +44,9 @@ export function saveStoredAlertPreferences(prefs: AlertPreferences): void {
 
 // Sync preferences to Firestore when user has account
 export async function syncAlertPreferencesToFirebase(userId: string, prefs: AlertPreferences): Promise<void> {
-  if (!db || !userId) return;
+  if (!userId) return;
   try {
+    const [{ db }, { doc, setDoc }] = await Promise.all([carregarFirebase(), import('firebase/firestore')]);
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, { alertPreferences: prefs, lastUpdated: new Date().toISOString() }, { merge: true });
   } catch (err) {
@@ -56,8 +56,9 @@ export async function syncAlertPreferencesToFirebase(userId: string, prefs: Aler
 
 // Load preferences from Firestore when user logs in
 export async function loadAlertPreferencesFromFirebase(userId: string): Promise<AlertPreferences | null> {
-  if (!db || !userId) return null;
+  if (!userId) return null;
   try {
+    const [{ db }, { doc, getDoc }] = await Promise.all([carregarFirebase(), import('firebase/firestore')]);
     const userRef = doc(db, 'users', userId);
     const snap = await getDoc(userRef);
     if (snap.exists()) {

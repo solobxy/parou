@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { observarSessao, utilizadorFirebase } from '../services/nuvem';
 import { 
   FavoriteItem, 
   FavoriteCategory, 
@@ -18,7 +18,7 @@ import {
 
 export function useFavorites() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getLocalFavorites());
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(utilizadorFirebase());
   const [activeCategory, setActiveCategory] = useState<FavoriteCategory | 'todos'>('todos');
   const [liveStatuses, setLiveStatuses] = useState<Map<string, FavoriteLiveStatus>>(new Map());
   const [isLoadingLive, setIsLoadingLive] = useState(false);
@@ -33,7 +33,7 @@ export function useFavorites() {
   useEffect(() => {
     let unsubscribeFirestore: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = observarSessao(async (user) => {
       setCurrentUser(user);
 
       if (user) {

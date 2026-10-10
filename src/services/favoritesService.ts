@@ -1,13 +1,10 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  getDocs, 
-  onSnapshot, 
-  Unsubscribe 
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+// O Firebase só é carregado quando há sessão iniciada (ver ./nuvem.ts)
+import { carregarFirebase, utilizadorFirebase } from './nuvem';
+type Unsubscribe = () => void;
+async function nuvem() {
+  const [{ db }, fs] = await Promise.all([carregarFirebase(), import('firebase/firestore')]);
+  return { db, ...fs };
+}
 import { FavoriteItem, FavoriteCategory, FavoriteLiveStatus } from '../types/favorites';
 
 const LOCAL_STORAGE_KEY = 'parou_user_favorites';
@@ -78,9 +75,10 @@ export async function addFavorite(item: Omit<FavoriteItem, 'addedAt'>): Promise<
   setLocalFavorites(updated);
 
   // If user is authenticated, sync to Firestore
-  const user = auth.currentUser;
+  const user = utilizadorFirebase();
   if (user) {
     try {
+      const { db, doc, setDoc } = await nuvem();
       const favDocRef = doc(db, 'users', user.uid, 'favorites', fullItem.id);
       await setDoc(favDocRef, fullItem, { merge: true });
     } catch (err) {
@@ -100,9 +98,10 @@ export async function removeFavorite(id: string): Promise<void> {
   setLocalFavorites(filtered);
 
   // If user is authenticated, delete from Firestore
-  const user = auth.currentUser;
+  const user = utilizadorFirebase();
   if (user) {
     try {
+      const { db, doc, deleteDoc } = await nuvem();
       const favDocRef = doc(db, 'users', user.uid, 'favorites', id);
       await deleteDoc(favDocRef);
     } catch (err) {
@@ -131,6 +130,7 @@ export async function toggleFavorite(item: Omit<FavoriteItem, 'addedAt'>): Promi
 export async function syncAndMergeFavorites(userId: string): Promise<FavoriteItem[]> {
   try {
     const localItems = getLocalFavorites();
+    const { db, collection, getDocs, doc, setDoc } = await nuvem();
     const favsCollectionRef = collection(db, 'users', userId, 'favorites');
     const querySnapshot = await getDocs(favsCollectionRef);
 
@@ -195,9 +195,13 @@ export function subscribeToUserFavorites(
   userId: string,
   onUpdate: (favorites: FavoriteItem[]) => void
 ): Unsubscribe {
+  let cancelado = false;
+  let parar: Unsubscribe | null = null;
+  nuvem().then(({ db, collection, onSnapshot }) => {
+  if (cancelado) return;
   const favsCollectionRef = collection(db, 'users', userId, 'favorites');
 
-  return onSnapshot(
+  parar = onSnapshot(
     favsCollectionRef,
     (snapshot) => {
       const remoteItems: FavoriteItem[] = [];
@@ -225,6 +229,8 @@ export function subscribeToUserFavorites(
       console.warn('[FavoritesService] Erro no listener de favoritos Firestore:', err);
     }
   );
+  }).catch((err) => console.warn('[FavoritesService] Firebase indisponível:', err));
+  return () => { cancelado = true; parar?.(); };
 }
 
 /**
