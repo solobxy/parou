@@ -53,6 +53,19 @@ function jaInstalada(): boolean {
   }
 }
 
+function eSamsung(): boolean {
+  return typeof navigator !== 'undefined' && /SamsungBrowser/i.test(navigator.userAgent || '');
+}
+
+/** Abre esta mesma página no Chrome (a app instalada pelo Chrome vem assinada pela Google e não leva aviso do Play Protect). */
+function enderecoChrome(): string {
+  try {
+    const { host, pathname, search, protocol } = window.location;
+    const completo = encodeURIComponent(`${protocol}//${host}${pathname}${search}`);
+    return `intent://${host}${pathname}${search}#Intent;scheme=${protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${completo};end`;
+  } catch { return 'https://parou.pt/'; }
+}
+
 function eIphone(): boolean {
   const ua = navigator.userAgent || '';
   return /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
@@ -75,7 +88,10 @@ export function useInstalarApp() {
   const disponivel = !naApp;
 
   /** Abre o pedido do browser se houver; senão devolve 'passos' (mostrar como fazer). */
-  const instalar = async (): Promise<'aceite' | 'recusado' | 'passos'> => {
+  const instalar = async (opcoes?: { aqui?: boolean }): Promise<'aceite' | 'recusado' | 'passos'> => {
+    // No Samsung Internet a instalação gera o aviso "App insegura bloqueada" do Play Protect:
+    // primeiro oferecemos o Chrome (sem aviso); a pessoa pode escolher instalar ali mesmo.
+    if (eSamsung() && !opcoes?.aqui) return 'passos';
     // Abre diretamente o pedido nativo do telemóvel ("Instalar app"). Se o browser ainda não o
     // deu, espera um instante (o toque continua válido uns segundos) antes de mostrar os passos.
     const pedido = pedidoGuardado() || (iphone ? null : await esperarPedido(2500));
@@ -106,18 +122,29 @@ export const PassosIphone: React.FC = () => (
   </ol>
 );
 
-export const PassosAndroid: React.FC = () => (
+const AvisoSamsung: React.FC<{ onAqui?: () => void }> = ({ onAqui }) => (
+  <div className="mb-2.5 rounded-[10px] bg-[#FFF6E5] border border-[#F3DDB0] p-2.5" data-teste="aviso-samsung">
+    <p className="text-[12.5px] leading-snug text-[#111111]">
+      {t('No Samsung Internet o Google Play Protect pode mostrar «App insegura bloqueada». É um falso alarme, mas no Chrome a instalação faz-se sem avisos.')}
+    </p>
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <a href={enderecoChrome()} className="h-10 px-3.5 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold inline-flex items-center" data-teste="abrir-no-chrome">{t('Abrir no Chrome')}</a>
+      {onAqui && <button type="button" onClick={onAqui} className="h-10 px-2 text-[12.5px] font-semibold text-[#4A4A4A] underline underline-offset-2 cursor-pointer" data-teste="instalar-aqui">{t('Instalar aqui mesmo')}</button>}
+    </div>
+    <p className="mt-1.5 text-[12px] text-[#6B6B6B] leading-snug">{t('Se aparecer o aviso, toca em «Mais detalhes» e depois em «Instalar mesmo assim».')}</p>
+  </div>
+);
+
+export const PassosAndroid: React.FC<{ onAqui?: () => void }> = ({ onAqui }) => (
+  <>
+  {eSamsung() && <AvisoSamsung onAqui={onAqui} />}
   <ol className="text-[12.5px] text-[#111111] space-y-1 list-decimal pl-4">
     <li>Toca no menu <strong>⋮</strong> do browser (canto superior direito).</li>
     <li>Escolhe <strong>Instalar app</strong> {t('ou')} <strong>Adicionar ao ecrã principal</strong>.</li>
     <li>Confirma em <strong>{t('Instalar')}</strong>.</li>
     <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">Se já a instalaste, abre-a pelo ícone <strong>PAROU</strong> no ecrã principal.</li>
-    {typeof navigator !== 'undefined' && /SamsungBrowser/i.test(navigator.userAgent || '') && (
-      <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">
-        {t('No Samsung Internet pode surgir o aviso "App insegura bloqueada" do Google Play Protect. É um falso alarme do navegador: toca em "Mais detalhes" e depois em "Instalar mesmo assim". Se preferires, instala pelo Chrome.')}
-      </li>
-    )}
   </ol>
+  </>
 );
 
 export const PassosComputador: React.FC = () => (
@@ -141,6 +168,11 @@ export const BotaoInstalar: React.FC = () => {
     setAEsperar(false);
     if (r === 'passos') setVerPassos(true);
   };
+  const instalarAqui = async () => {
+    setVerPassos(false);
+    const r = await instalar({ aqui: true });
+    if (r === 'passos') setVerPassos(true);
+  };
   return (
     <div className="relative max-[359px]:hidden">
       <button
@@ -160,7 +192,7 @@ export const BotaoInstalar: React.FC = () => {
               <img src="/icon-192.png" alt="" className="w-8 h-8 rounded-[8px]" />
               <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{plataforma === 'iphone' ? ' no iPhone' : ''}</div>
             </div>
-            {plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}
+            {plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid onAqui={() => void instalarAqui()} /> : <PassosComputador />}
           </div>
         </>
       )}
@@ -188,6 +220,10 @@ export const InstalarApp: React.FC = () => {
     if (r === 'aceite') fechar();
     else if (r === 'passos') setVerPassos((v) => !v);
   };
+  const instalarAqui = async () => {
+    const r = await pedirInstalar({ aqui: true });
+    if (r === 'aceite') fechar();
+  };
 
   return (
     <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5">
@@ -206,7 +242,7 @@ export const InstalarApp: React.FC = () => {
             {iphone || android ? t('Como instalar') : t('Instalar')}
           </button>
           {verPassos && (
-            <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid /> : <PassosComputador />}</div>
+            <div className="mt-2.5">{plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid onAqui={() => void instalarAqui()} /> : <PassosComputador />}</div>
           )}
         </div>
         <button onClick={fechar} className="shrink-0 w-10 h-10 -mr-2 -mt-2 rounded-full text-[#6B6B6B] flex items-center justify-center cursor-pointer" aria-label={t('Fechar')}>
