@@ -126,7 +126,8 @@ function Privacidade() {
           Não vendemos nem cedemos dados. Usamos estes prestadores, só para o funcionamento da PAROU: Hetzner (alojamento do servidor,
           na Alemanha), Google Firebase (contas, ocorrências e sincronização de favoritos), os serviços de
           notificações da Google, Apple e Mozilla (entregam as notificações, se as ligares) e OpenStreetMap (o teu browser descarrega
-          os mapas diretamente dos servidores do OpenStreetMap, que veem o teu endereço IP). O Google pode tratar dados fora da União
+          os mapas diretamente dos servidores do OpenStreetMap, que veem o teu endereço IP) e Photon, da Komoot (quando procuras uma
+          morada, o nosso servidor envia-lhe só o texto escrito e a zona aproximada, nunca o teu IP). O Google pode tratar dados fora da União
           Europeia, com as garantias previstas no RGPD (cláusulas contratuais-tipo).
         </p>
       </Secao>
