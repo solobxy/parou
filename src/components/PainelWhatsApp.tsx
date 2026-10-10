@@ -4,6 +4,7 @@ import { Folha } from './Folha';
 import { eAdmin } from '../utils/admin';
 import { utilizadorAutenticado } from '../services/conta';
 import { CANAL_WHATSAPP } from '../config/ligacoes';
+import { NOVIDADES, type NovidadeCanal } from '../config/novidades';
 import { fetchCentralAlerts } from '../services/centralAlertsApi';
 import type { CentralAlert } from '../types/alerts';
 import { eImportante, ordenarAvisos, quandoDoAviso, RASCUNHOS, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
@@ -95,6 +96,12 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
     const novo = { ...publicados, [a.id]: { titulo: a['título'], em: Date.now() } };
     setPublicados(novo); guardarPublicados(novo);
   };
+  // Novidades da app já escritas (config/novidades.ts): ficam lembradas com o prefixo "nov:"
+  const pendentesNov = useMemo(() => NOVIDADES.filter((n) => !publicados[`nov:${n.id}`]), [publicados]);
+  const marcarNovidade = (n: NovidadeCanal) => {
+    const novo = { ...publicados, [`nov:${n.id}`]: { titulo: n.titulo, em: Date.now() } };
+    setPublicados(novo); guardarPublicados(novo);
+  };
   const desfazer = (id: string) => {
     const novo = { ...publicados }; delete novo[id];
     setPublicados(novo); guardarPublicados(novo);
@@ -106,7 +113,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
 
   const abas: Array<{ id: typeof aba; nome: string; n?: number }> = [
     { id: 'avisos', nome: 'Avisos', n: avisos ? lista.length : undefined },
-    { id: 'novidades', nome: 'Novidades' },
+    { id: 'novidades', nome: 'Novidades', n: pendentesNov.length },
     { id: 'publicados', nome: 'Publicados', n: nPublicados },
   ];
 
@@ -167,7 +174,32 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
         {aba === 'novidades' && (
           <div role="tabpanel" className="space-y-3">
             <div>
-              <p className="text-[13px] font-semibold text-[#6B6B6B] mb-1.5">Começar de um rascunho</p>
+              <h3 className="text-[15px] font-bold text-[#111111]">Prontas a publicar</h3>
+              <p className="text-[13px] text-[#6B6B6B] leading-snug mt-0.5">Escritas por mim a partir do que sai na app. Publica por ordem, uma ou duas por dia, e carrega em <strong>Já publiquei</strong> para saírem da lista.</p>
+            </div>
+            {pendentesNov.length === 0 ? (
+              <div className="rounded-[12px] bg-[#F4F4F2] border border-[#E6E6E3] p-4 text-center">
+                <p className="text-[15px] font-bold text-[#111111]">Tudo publicado</p>
+                <p className="text-[13.5px] text-[#6B6B6B] mt-1">Quando sair algo novo na app, o texto aparece aqui.</p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {pendentesNov.map((n) => (
+                  <CartaoNovidade
+                    key={n.id}
+                    n={n}
+                    valor={editados[`nov:${n.id}`] ?? n.texto}
+                    onMudar={(v) => setEditados((e) => ({ ...e, [`nov:${n.id}`]: v }))}
+                    copiado={copiado === `nov:${n.id}`}
+                    onCopiar={(el) => void copiarTexto(`nov:${n.id}`, editados[`nov:${n.id}`] ?? n.texto, el)}
+                    onPublicado={() => marcarNovidade(n)}
+                  />
+                ))}
+              </ul>
+            )}
+            <div className="pt-3 border-t border-[#E6E6E3]">
+              <h3 className="text-[15px] font-bold text-[#111111]">Escrever à mão</h3>
+              <p className="text-[13px] font-semibold text-[#6B6B6B] mt-2 mb-1.5">Começar de um rascunho</p>
               <div className="flex flex-wrap gap-2">
                 {RASCUNHOS.map((r, i) => <button key={r.nome} type="button" onClick={() => escolherRascunho(i)} className="h-11 px-4 rounded-full bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[14px] font-semibold cursor-pointer">{r.nome}</button>)}
               </div>
@@ -198,7 +230,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
         {aba === 'publicados' && (
           <div role="tabpanel">
             {nPublicados === 0 ? (
-              <p className="text-[14px] text-[#6B6B6B] py-6 text-center">Ainda não marcaste nenhum aviso como publicado.</p>
+              <p className="text-[14px] text-[#6B6B6B] py-6 text-center">Ainda não marcaste nada como publicado.</p>
             ) : (
               <ul className="space-y-2">
                 {Object.entries(publicados).sort((a, b) => b[1].em - a[1].em).map(([id, p]) => (
@@ -216,6 +248,38 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
         )}
       </div>
     </Folha>
+  );
+};
+
+const CartaoNovidade: React.FC<{
+  n: NovidadeCanal; valor: string; onMudar: (v: string) => void; copiado: boolean; onCopiar: (el: HTMLTextAreaElement | null) => void; onPublicado: () => void;
+}> = ({ n, valor, onMudar, copiado, onCopiar, onPublicado }) => {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const primeiro = n.etiqueta === 'Primeiro post';
+  const dia = n.data.split('-').reverse().slice(0, 2).join('/');
+  return (
+    <li className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-3" data-teste="cartao-novidade">
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        <span className={`px-2 h-6 inline-flex items-center rounded-full text-[12px] font-bold ${primeiro ? 'bg-[#FF6B1A] text-[#111111]' : 'bg-[#E7F3E3] text-[#14693A]'}`}>{n.etiqueta}</span>
+        <span className="text-[13.5px] font-semibold text-[#111111]">{n.titulo}</span>
+        <span className="text-[12.5px] text-[#6B6B6B]">· {dia}</span>
+      </div>
+      <label className="sr-only" htmlFor={`wa-nov-${n.id}`}>Texto para o WhatsApp: {n.titulo}</label>
+      <textarea
+        id={`wa-nov-${n.id}`}
+        ref={ref}
+        value={valor}
+        onChange={(e) => onMudar(e.target.value)}
+        rows={Math.min(14, Math.max(5, valor.split('\n').length + Math.floor(valor.length / 46)))}
+        className="w-full px-3 py-2 rounded-[10px] border-2 border-[#E6E6E3] bg-[#FAFAF8] text-[15px] leading-snug text-[#111111] focus:border-[#111111] outline-none resize-none"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => onCopiar(ref.current)} className={`${botao} flex-1 min-w-[140px] bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-novidade-pronta">
+          {copiado ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
+        </button>
+        <button type="button" onClick={onPublicado} className={`${botao} bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] border border-[#E6E6E3]`} data-teste="ja-publiquei-novidade">Já publiquei</button>
+      </div>
+    </li>
   );
 };
 
