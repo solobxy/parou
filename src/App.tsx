@@ -77,11 +77,12 @@ const PortugalMap = React.lazy(() => import('./components/PortugalMap').then((m)
 const CoverageView = React.lazy(() => import('./components/CoverageView').then((m) => ({ default: m.CoverageView })));
 const NationalTransitCatalogView = React.lazy(() => import('./components/NationalTransitCatalogView').then((m) => ({ default: m.NationalTransitCatalogView })));
 const ReclamacoesView = React.lazy(() => import('./components/ReclamacoesView').then((m) => ({ default: m.ReclamacoesView })));
+const ComunidadeView = React.lazy(() => import('./components/ComunidadeView').then((m) => ({ default: m.ComunidadeView })));
 const AdminModerationModal = React.lazy(() => import('./components/AdminModerationModal').then((m) => ({ default: m.AdminModerationModal })));
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
-  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage'>('perto');
+  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'>('perto');
   const [activeMobileView, setActiveMobileView] = useState<MobileTab>('perto');
   // Ecrã grande (computador) ou telemóvel: só um dos dois layouts é montado
   const [ecraGrande, setEcraGrande] = useState<boolean>(() => {
@@ -556,7 +557,7 @@ export default function App() {
   };
 
   // Sync tab navigation and update canonical clean URL & Document Title
-  const handleTabSelect = useCallback((tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage') => {
+  const handleTabSelect = useCallback((tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage') => {
     setIsNotFound(false);
     setPaginaInfo(null);
     setActiveNavTab(tab);
@@ -567,6 +568,7 @@ export default function App() {
     else if (tab === 'alertas') setActiveMobileView('alertas');
     else if (tab === 'catalogo') setActiveMobileView('catalogo');
     else if (tab === 'reclamacoes') setActiveMobileView('reclamacoes');
+    else if (tab === 'comunidade') setActiveMobileView('comunidade');
     else if (tab === 'coverage') setActiveMobileView('catalogo');
     else setActiveMobileView('mapa');
 
@@ -578,13 +580,17 @@ export default function App() {
       favoritos: '/favoritos',
       catalogo: '/catalogo',
       reclamacoes: '/reclamacoes',
+      comunidade: '/comunidade',
       alertas: '/alertas',
       coverage: '/cobertura',
     };
     const newPath = pathMap[tab] || '/';
     try {
       if (typeof window !== 'undefined' && window.location.pathname !== newPath) {
+        const estavaNaComunidade = window.location.pathname.startsWith('/comunidade');
         window.history.pushState({ tab }, '', newPath);
+        // Já estava numa conversa da comunidade: avisa a vista para voltar à lista
+        if (tab === 'comunidade' && estavaNaComunidade) window.dispatchEvent(new PopStateEvent('popstate'));
       }
     } catch {
       // Cross-origin iframe fallback
@@ -598,6 +604,7 @@ export default function App() {
       favoritos: 'Os Meus Favoritos — Transportes e Paragens | PAROU',
       catalogo: 'Catálogo Nacional de Operadores de Transporte | PAROU',
       reclamacoes: 'Portal de Reclamações de Transportes em Portugal | PAROU',
+      comunidade: 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes',
       alertas: 'Alertas — Greves, Tempo, Trânsito e Feriados | PAROU',
       coverage: 'Catálogo de Feeds & Cobertura Nacional de Transportes | PAROU',
     };
@@ -672,6 +679,10 @@ export default function App() {
       setActiveNavTab('reclamacoes');
       setActiveMobileView('reclamacoes');
       document.title = 'Portal de Reclamações de Transportes em Portugal | PAROU';
+    } else if (pathname === '/comunidade' || /^\/comunidade\/pub-[a-z0-9]{1,12}-[a-f0-9]{10}$/.test(pathname)) {
+      setActiveNavTab('comunidade');
+      setActiveMobileView('comunidade');
+      document.title = 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes';
     } else if (pathname === '/alertas') {
       setActiveNavTab('alertas');
       setActiveMobileView('alertas');
@@ -855,6 +866,13 @@ export default function App() {
           ) : activeNavTab === 'reclamacoes' ? (
             <div className="max-w-5xl mx-auto py-2">
               <React.Suspense fallback={null}><ReclamacoesView
+                currentUser={currentUserProfile}
+                onOpenLoginModal={() => setIsLoginModalOpen(true)}
+              /></React.Suspense>
+            </div>
+          ) : activeNavTab === 'comunidade' ? (
+            <div className="py-2">
+              <React.Suspense fallback={null}><ComunidadeView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
               /></React.Suspense>
@@ -1120,6 +1138,16 @@ export default function App() {
             </div>
           )}
 
+          {/* 6. Comunidade */}
+          {activeMobileView === 'comunidade' && (
+            <div>
+              <React.Suspense fallback={null}><ComunidadeView
+                currentUser={currentUserProfile}
+                onOpenLoginModal={() => setIsLoginModalOpen(true)}
+              /></React.Suspense>
+            </div>
+          )}
+
           {/* View Cobertura (/coverage) no mobile */}
           {activeNavTab === 'coverage' && (
             <div className="space-y-3.5 pb-10">
@@ -1150,6 +1178,7 @@ export default function App() {
               ['/linhas', 'Linhas', () => { window.location.href = '/linhas'; }],
               ['/alertas', 'Alertas', () => handleTabSelect('alertas')],
               ['/ocorrencias', 'Ocorrências', () => handleTabSelect('reports')],
+              ['/comunidade', 'Comunidade', () => handleTabSelect('comunidade')],
               ['/catalogo', 'Catálogo', () => handleTabSelect('catalogo')],
               ['/sobre', 'Sobre', () => abrirPaginaInfo('sobre')],
               ['/privacidade', 'Privacidade', () => abrirPaginaInfo('privacidade')],

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
 import { BotaoInstalar } from './InstalarApp';
+import { Avatar } from './Avatar';
 import { 
   Search, 
   MapPin, 
@@ -15,6 +16,7 @@ import {
   Radio, 
   Database,
   ChevronDown,
+  Users,
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -22,8 +24,8 @@ import { eAdmin } from '../utils/admin';
 import { t, idioma, mudarIdioma } from '../i18n';
 
 interface HeaderProps {
-  activeTab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage';
-  onTabChange: (tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'alertas' | 'coverage') => void;
+  activeTab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage';
+  onTabChange: (tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage') => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenReportModal: () => void;
@@ -75,7 +77,19 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isMoreTabActive = ['favoritos', 'reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab);
+  // Em ecrã largo a Comunidade tem botão próprio; nos mais estreitos fica no menu "Mais"
+  const [ecraLargo, setEcraLargo] = useState<boolean>(() => {
+    try { return window.matchMedia('(min-width: 1024px)').matches; } catch { return false; }
+  });
+  useEffect(() => {
+    let mq: MediaQueryList;
+    try { mq = window.matchMedia('(min-width: 1024px)'); } catch { return; }
+    const mudar = () => setEcraLargo(mq.matches);
+    mq.addEventListener?.('change', mudar);
+    return () => mq.removeEventListener?.('change', mudar);
+  }, []);
+
+  const isMoreTabActive = ['favoritos', 'reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab) || (activeTab === 'comunidade' && !ecraLargo);
 
   const getMoreTabLabel = () => t((() => {
     switch (activeTab) {
@@ -83,6 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'reports': return 'Ocorrências';
       case 'catalogo': return 'Catálogo';
       case 'reclamacoes': return 'Reclamações';
+      case 'comunidade': return 'Comunidade';
       case 'coverage': return 'Cobertura';
       default: return 'Mais';
     }
@@ -151,6 +166,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Clock className="w-4 h-4 stroke-[2]" />
               <span>{t('Horários')}</span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('comunidade')}
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+                activeTab === 'comunidade'
+                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
+                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
+              }`}
+              data-teste="aba-comunidade"
+            >
+              <Users className="w-4 h-4 stroke-[2]" />
+              <span>{t('Comunidade')}</span>
             </button>
 
             <button
@@ -244,6 +272,19 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <Database className="w-4 h-4 stroke-[2]" />
                       <span>{t('Catálogo')}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onTabChange('comunidade');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`lg:hidden w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors cursor-pointer min-h-[44px] ${
+                        activeTab === 'comunidade' ? 'font-semibold text-[#111111] bg-[#F4F4F2]' : 'text-[#111111] hover:bg-[#F4F4F2]'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 stroke-[2]" />
+                      <span>{t('Comunidade')}</span>
                     </button>
 
                     <button
@@ -397,7 +438,9 @@ export const Header: React.FC<HeaderProps> = ({
               aria-label={t('A tua conta: {nome}', { nome: currentUser.displayName })}
               data-teste="botao-conta"
             >
-              {currentUser.photoURL ? (
+              {currentUser.avatar ? (
+                <Avatar config={currentUser.avatar} tamanho={30} />
+              ) : currentUser.photoURL ? (
                 <img src={currentUser.photoURL} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
               ) : (
                 <span className="w-7 h-7 rounded-full bg-[#111111] text-[#FFFFFF] text-[11px] font-bold flex items-center justify-center" aria-hidden="true">

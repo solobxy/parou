@@ -802,6 +802,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
   { loc: '/transportes', freq: 'weekly', pri: '0.8' },
   { loc: '/mapa', freq: 'hourly', pri: '0.6' },
   { loc: '/ocorrencias', freq: 'hourly', pri: '0.5' },
+  { loc: '/comunidade', freq: 'daily', pri: '0.5' },
   { loc: '/catalogo', freq: 'monthly', pri: '0.4' },
   { loc: '/sobre', freq: 'monthly', pri: '0.4' },
   { loc: '/privacidade', freq: 'yearly', pri: '0.2' },

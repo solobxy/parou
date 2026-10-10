@@ -1,8 +1,8 @@
 import React from 'react';
-import { MapPin, TriangleAlert, Compass, Clock, Star } from 'lucide-react';
+import { MapPin, TriangleAlert, Compass, Clock, Star, Users } from 'lucide-react';
 import { t } from '../i18n';
 
-export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes';
+export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes' | 'comunidade';
 
 interface MobileNavProps {
   activeMobileView: MobileTab;
@@ -23,6 +23,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     { id: 'alertas' as MobileTab, label: 'Alertas', icon: TriangleAlert },
     { id: 'perto' as MobileTab, label: 'Perto', icon: Compass },
     { id: 'horarios' as MobileTab, label: 'Horários', icon: Clock },
+    { id: 'comunidade' as MobileTab, label: 'Comunidade', icon: Users },
     { id: 'favoritos' as MobileTab, label: 'Favoritos', icon: Star, count: favoritesCount },
   ];
 
@@ -31,7 +32,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       aria-label={t('Navegação inferior')}
       className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFFFFF] border-t border-[#E6E6E3] pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.04)] w-full overflow-hidden"
     >
-      <div className="grid grid-cols-5 items-center h-16 max-w-lg mx-auto px-1.5 gap-1">
+      <div className="grid grid-cols-6 items-center h-16 max-w-lg mx-auto px-1 gap-0.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           // As ocorrências da comunidade vivem dentro do Mapa
@@ -41,7 +42,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
             <button
               key={tab.id}
               onClick={() => onMobileViewChange(tab.id)}
-              className={`min-h-[48px] min-w-[44px] flex flex-col items-center justify-center transition-colors relative cursor-pointer ${
+              className={`min-h-[48px] min-w-0 flex flex-col items-center justify-center transition-colors relative cursor-pointer ${
                 isActive
                   ? 'bg-[#FF6B1A] text-[#111111] font-bold rounded-[8px] brand-chamfer py-1'
                   : 'text-[#6B6B6B] hover:text-[#111111] py-1'
@@ -61,7 +62,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   </span>
                 )}
               </div>
-              <span className={`text-[11px] mt-0.5 tracking-tight ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
+              <span className={`text-[10.5px] mt-0.5 tracking-tight max-w-full ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
                 {t(tab.label)}
               </span>
             </button>

@@ -5,13 +5,19 @@ import {
   ThumbsUp, 
   LogOut, 
   Plus,
-  ChevronRight
+  ChevronRight,
+  Pencil,
+  UserX
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
 import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
 import { MedalhaPioneiro } from './MedalhaPioneiro';
+import { Avatar } from './Avatar';
+import { AvatarEditor } from './AvatarEditor';
+import { BotaoWhatsApp } from './BotaoWhatsApp';
+import { listarBloqueados, desbloquear } from '../services/comunidade';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -33,8 +39,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
   const [erroApagar, setErroApagar] = React.useState<string>('');
   const [palavraApagar, setPalavraApagar] = React.useState('');
+  const [editorAvatar, setEditorAvatar] = React.useState(false);
+  const [bloqueados, setBloqueados] = React.useState<Array<{ ref: string; nome: string }> | null>(null);
+  const [bloqueadosAbertos, setBloqueadosAbertos] = React.useState(false);
+  const [erroBloqueados, setErroBloqueados] = React.useState('');
 
   if (!isOpen || !user) return null;
+
+  const alternarBloqueados = async () => {
+    const abrir = !bloqueadosAbertos;
+    setBloqueadosAbertos(abrir);
+    if (abrir && bloqueados === null) {
+      try { setBloqueados(await listarBloqueados()); setErroBloqueados(''); }
+      catch { setErroBloqueados(t('Não foi possível carregar a lista. Tenta outra vez.')); }
+    }
+  };
+  const tirarBloqueio = async (ref: string) => {
+    try { await desbloquear(ref); setBloqueados((l) => (l || []).filter((x) => x.ref !== ref)); setErroBloqueados(''); }
+    catch { setErroBloqueados(t('Não foi possível desbloquear agora. Tenta outra vez.')); }
+  };
 
   const handleApagarConta = async () => {
     setAApagar('a-apagar');
@@ -80,17 +103,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Profile Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-[#E6E6E3]">
-          {user.photoURL ? (
-            <img
-              src={user.photoURL}
-              alt={user.displayName}
-              className="w-12 h-12 rounded-[8px] object-cover border border-[#E6E6E3]"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] flex items-center justify-center text-sm font-bold text-[#111111]">
-              {user.displayName.substring(0, 2).toUpperCase()}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setEditorAvatar(true)}
+            aria-label={t('Personalizar avatar')}
+            className="relative shrink-0 w-14 h-14 rounded-full cursor-pointer"
+            data-teste="avatar-perfil"
+          >
+            <Avatar config={user.avatar} tamanho={56} />
+            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#111111] text-[#FFFFFF] border-2 border-[#FFFFFF] flex items-center justify-center" aria-hidden="true">
+              <Pencil className="w-3 h-3 stroke-[2.5]" />
+            </span>
+          </button>
 
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-bold text-[#111111] truncate flex items-center gap-1.5">
@@ -103,6 +127,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Avatar: próxima peça por abrir */}
+        <button
+          type="button"
+          onClick={() => setEditorAvatar(true)}
+          data-teste="personalizar-avatar"
+          className="mt-3 w-full min-h-[48px] px-3 py-2 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] hover:bg-[#ECECE8] flex items-center gap-2 text-left cursor-pointer"
+        >
+          <Pencil className="w-4 h-4 stroke-[2] shrink-0" aria-hidden="true" />
+          <span className="flex-1 min-w-0 leading-tight">
+            <span className="block text-[14px] font-semibold text-[#111111]">{t('Personalizar avatar')}</span>
+            {user.proximaPeca && (
+              <span className="block text-[12px] text-[#6B6B6B]">{t('Faltam {n} pts para: {nome}', { n: user.proximaPeca.falta, nome: t(user.proximaPeca.nome) })}</span>
+            )}
+          </span>
+          <ChevronRight className="w-4 h-4 text-[#6B6B6B] shrink-0" aria-hidden="true" />
+        </button>
 
         {/* Reputation strip */}
         <div className="grid grid-cols-2 gap-2 my-4">
@@ -179,6 +219,37 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Utilizadores bloqueados na comunidade */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={alternarBloqueados}
+            aria-expanded={bloqueadosAbertos}
+            className="w-full min-h-[44px] flex items-center gap-2 text-[13.5px] font-semibold text-[#111111] cursor-pointer"
+          >
+            <UserX className="w-4 h-4 stroke-[2]" aria-hidden="true" />
+            <span className="flex-1 text-left">{t('Utilizadores bloqueados')}</span>
+            <ChevronRight className={`w-4 h-4 text-[#6B6B6B] transition-transform ${bloqueadosAbertos ? 'rotate-90' : ''}`} aria-hidden="true" />
+          </button>
+          {bloqueadosAbertos && (
+            <div className="mt-1 rounded-[10px] border border-[#E6E6E3] divide-y divide-[#E6E6E3]">
+              {erroBloqueados && <p role="alert" className="p-3 text-[12.5px] text-[#D92D20]">{erroBloqueados}</p>}
+              {bloqueados === null && !erroBloqueados && <p className="p-3 text-[12.5px] text-[#6B6B6B]">{t('A carregar…')}</p>}
+              {bloqueados !== null && bloqueados.length === 0 && <p className="p-3 text-[12.5px] text-[#6B6B6B]">{t('Não bloqueaste ninguém.')}</p>}
+              {(bloqueados || []).map((b) => (
+                <div key={b.ref} className="flex items-center gap-2 p-2 pl-3">
+                  <span className="flex-1 min-w-0 truncate text-[13.5px] text-[#111111]">{b.nome}</span>
+                  <button type="button" onClick={() => tirarBloqueio(b.ref)} className="h-11 px-3 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] text-[13px] font-semibold text-[#111111] cursor-pointer">
+                    {t('Desbloquear')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <BotaoWhatsApp variante="cartao" className="mt-3" />
+
         {/* Sair da conta */}
         <button
           onClick={handleLogout}
@@ -201,7 +272,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           ) : (
             <div className="rounded-[10px] border border-[#F3C5C1] bg-[#FDF2F1] p-3 space-y-2">
               <p className="text-[12.5px] text-[#111111] leading-snug">
-                {t('Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste continuam visíveis, sem ligação à conta. Isto não se pode desfazer.')}
+                {t('Apagar a conta remove o teu perfil, os pontos, o avatar e os favoritos sincronizados. As ocorrências, publicações e respostas que escreveste continuam visíveis como “Utilizador PAROU”, sem ligação à conta (podes apagá-las antes). Isto não se pode desfazer.')}
               </p>
               <input
                 type="password"
@@ -231,6 +302,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
         </div>
       </div>
+      <AvatarEditor
+        aberta={editorAvatar}
+        onFechar={() => setEditorAvatar(false)}
+        avatar={user.avatar}
+        pontos={user.reputationPoints}
+        onGuardado={() => setEditorAvatar(false)}
+      />
     </div>
   );
 };
