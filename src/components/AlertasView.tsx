@@ -633,13 +633,13 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Cabeçalho */}
       <header className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[28px] leading-none font-bold tracking-tight text-[#111111]">{t('Alertas')}</h1>
+          <h1 className="text-[28px] leading-none font-bold tracking-tight text-[#111111]">{t('Notícias')}</h1>
           <p className="text-[13px] text-[#6B6B6B] mt-1.5 leading-snug">{t('Greves, tempo, trânsito e feriados que mexem com as tuas viagens.')}</p>
         </div>
         <button
           onClick={() => { setACarregar(true); carregar(); }}
           className="shrink-0 w-10 h-10 rounded-full bg-[#F4F4F2] text-[#111111] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
-          aria-label={t('Atualizar alertas')}
+          aria-label={t('Atualizar notícias')}
         >
           <RefreshCw className={`w-4 h-4 stroke-[2] ${aCarregar ? 'animate-spin' : ''}`} />
         </button>
@@ -671,7 +671,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
 
       {erro && !dados && (
         <div className="rounded-[14px] border border-[#E6E6E3] p-5 text-center text-sm text-[#6B6B6B]">
-          {t('Não foi possível carregar os alertas.')}{' '}
+          {t('Não foi possível carregar as notícias.')}{' '}
           <button onClick={() => carregar()} className="font-semibold text-[#111111] underline cursor-pointer">{t('Tentar outra vez')}</button>
         </div>
       )}
@@ -831,7 +831,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       )}
 
       {/* Filtros */}
-      <nav className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t('Filtrar alertas')}>
+      <nav className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t('Filtrar notícias')}>
         {FILTROS.map((f) => {
           const ativo = filtro === f.id;
           const n = contagem(f.id);
@@ -976,7 +976,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
       {/* Notícias */}
       <section className="space-y-2">
         <h2 className="font-condensada text-[19px] leading-tight font-bold text-[#111111] flex items-center gap-1.5">
-          <Newspaper className="w-4 h-4" /> {t('Notícias')}
+          <Newspaper className="w-4 h-4" /> {t('Na imprensa')}
         </h2>
         {!dados && aCarregar ? (
           <div className="h-[160px] rounded-[14px] bg-[#F4F4F2] animate-pulse" />

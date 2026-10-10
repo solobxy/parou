@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map as IconeMapa, TriangleAlert, Compass, Clock, Star, Users } from 'lucide-react';
+import { TriangleAlert, Newspaper, Compass, Clock, Star, Users } from 'lucide-react';
 import { t } from '../i18n';
 
 export type MobileTab = 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'alertas' | 'catalogo' | 'filtros' | 'reclamacoes' | 'comunidade';
@@ -19,8 +19,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   favoritesCount = 0,
 }) => {
   const tabs: Array<{ id: MobileTab; label: string; icon: React.ElementType; count?: number }> = [
-    { id: 'mapa' as MobileTab, label: 'Em direto', icon: IconeMapa },
-    { id: 'alertas' as MobileTab, label: 'Alertas', icon: TriangleAlert },
+    { id: 'mapa' as MobileTab, label: 'Alertas', icon: TriangleAlert },
+    { id: 'alertas' as MobileTab, label: 'Notícias', icon: Newspaper },
     { id: 'perto' as MobileTab, label: 'Perto', icon: Compass },
     { id: 'horarios' as MobileTab, label: 'Horários', icon: Clock },
     { id: 'comunidade' as MobileTab, label: 'Comunidade', icon: Users },

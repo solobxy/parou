@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigation, AlertTriangle, Clock } from 'lucide-react';
+import { Navigation, Newspaper, Clock } from 'lucide-react';
 import { t } from '../i18n';
 
 interface NotFoundViewProps {
@@ -34,8 +34,8 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigateHome, onNa
               onClick={() => onNavigateTab('alertas')}
               className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-[#111111] text-xs font-semibold min-h-[44px] cursor-pointer"
             >
-              <AlertTriangle className="w-3.5 h-3.5 stroke-[2]" />
-              <span>{t('Alertas')}</span>
+              <Newspaper className="w-3.5 h-3.5 stroke-[2]" />
+              <span>{t('Notícias')}</span>
             </button>
 
             <button
