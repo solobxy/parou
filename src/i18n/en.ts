@@ -232,8 +232,6 @@ export const EN: Record<string, string> = {
   'Mapa de Ocorrências': 'Incident map',
   '{n} ativa': '{n} active',
   '{n} ativas': '{n} active',
-  'Ecrã inteiro': 'Full screen',
-  'Sair de ecrã inteiro': 'Exit full screen',
   'Centrar Portugal': 'Centre on Portugal',
   'Reportar': 'Report',
   'Reportar ocorrência': 'Report an incident',
