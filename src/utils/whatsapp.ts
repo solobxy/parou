@@ -26,9 +26,9 @@ export function eImportante(a: CentralAlert): boolean {
   return a.severity === 'Grave' || TIPOS_IMPORTANTES.includes(a.tipo);
 }
 
-/** Ordem: ativos antes dos que ainda vão começar, depois os mais graves e os mais recentes. */
+/** Ordem: os mais graves primeiro; a igual gravidade, os ativos antes dos que ainda vão começar e os mais recentes antes. */
 export function ordenarAvisos(lista: CentralAlert[]): CentralAlert[] {
-  const peso = (a: CentralAlert) => (a.status === 'Ativo' ? 0 : 1) * 10 + (a.severity === 'Grave' ? 0 : a.severity === 'Moderada' ? 1 : 2);
+  const peso = (a: CentralAlert) => (a.severity === 'Grave' ? 0 : a.severity === 'Moderada' ? 1 : 2) * 10 + (a.status === 'Ativo' ? 0 : 1);
   return [...lista].sort((x, y) => peso(x) - peso(y) || String(y.published_datetime).localeCompare(String(x.published_datetime)));
 }
 

@@ -125,7 +125,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
           )}
         </div>
 
-        <div role="tablist" aria-label="Secções" className="flex gap-2 mt-4 overflow-x-auto pb-1 [scrollbar-width:none]">
+        <div role="tablist" aria-label="Secções" className="flex gap-1.5 sm:gap-2 mt-4 overflow-x-auto pb-1 [scrollbar-width:none]">
           {abas.map((x) => (
             <button
               key={x.id}
@@ -133,7 +133,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
               type="button"
               aria-selected={aba === x.id}
               onClick={() => setAba(x.id)}
-              className={`shrink-0 h-11 px-4 rounded-full text-[14px] font-semibold cursor-pointer ${aba === x.id ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] hover:bg-[#E6E6E3]'}`}
+              className={`shrink-0 h-11 px-3 sm:px-4 rounded-full text-[14px] font-semibold cursor-pointer ${aba === x.id ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] hover:bg-[#E6E6E3]'}`}
             >
               {x.nome}{x.n !== undefined ? <span className="ml-1.5 opacity-70 tabular-nums">{x.n}</span> : null}
             </button>
@@ -182,7 +182,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
             </div>
             <div>
               <label htmlFor="wa-texto" className="block text-[13px] font-semibold text-[#111111] mb-1">Texto</label>
-              <textarea id="wa-texto" value={texto} onChange={(e) => setTexto(e.target.value)} rows={6} maxLength={1200} className="w-full px-3 py-2 rounded-[10px] border-2 border-[#E6E6E3] text-[16px] leading-snug text-[#111111] focus:border-[#111111] outline-none" />
+              <textarea id="wa-texto" value={texto} onChange={(e) => setTexto(e.target.value)} rows={6} maxLength={1200} className="w-full px-3 py-2 rounded-[10px] border-2 border-[#E6E6E3] text-[16px] leading-snug text-[#111111] focus:border-[#111111] outline-none resize-none" />
             </div>
             <div>
               <p className="text-[13px] font-semibold text-[#6B6B6B] mb-1">Assim fica no WhatsApp</p>
@@ -237,7 +237,7 @@ const CartaoAviso: React.FC<{
         value={valor}
         onChange={(e) => onMudar(e.target.value)}
         rows={Math.min(12, Math.max(5, valor.split('\n').length + Math.floor(valor.length / 46)))}
-        className="w-full px-3 py-2 rounded-[10px] border-2 border-[#E6E6E3] bg-[#FAFAF8] text-[15px] leading-snug text-[#111111] focus:border-[#111111] outline-none"
+        className="w-full px-3 py-2 rounded-[10px] border-2 border-[#E6E6E3] bg-[#FAFAF8] text-[15px] leading-snug text-[#111111] focus:border-[#111111] outline-none resize-none"
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => onCopiar(ref.current)} className={`${botao} flex-1 min-w-[140px] bg-[#FF6B1A] text-[#111111] brand-chamfer`} data-teste="copiar-aviso">
