@@ -35,6 +35,7 @@ export interface PerfilApp {
   avatar: ConfigAvatar;
   operador?: string;
   proximaPeca: { nome: string; falta: number } | null;
+  admin?: boolean;
 }
 
 /** Medalha "Pioneiro": todas as contas criadas até ao fim de 2026 (31/12 às 23:59, hora de Lisboa; em dezembro Lisboa = UTC). */
@@ -48,6 +49,12 @@ export function distintivo(pontos: number): string {
   if (pontos >= 250) return 'Sentinela de Trânsito';
   if (pontos >= 100) return 'Colaborador Ativo';
   return 'Novo Observador';
+}
+
+/** Contas de administração: os e-mails vêm de PAROU_ADMIN_EMAILS (separados por vírgulas) no servidor. */
+export function contaEAdmin(c: { email: string }): boolean {
+  const lista = String(process.env.PAROU_ADMIN_EMAILS || '').toLowerCase().split(',').map((e) => e.trim()).filter(Boolean);
+  return lista.length > 0 && lista.includes(String(c.email || '').toLowerCase());
 }
 
 export function perfilDaConta(c: Conta): PerfilApp {
@@ -64,6 +71,7 @@ export function perfilDaConta(c: Conta): PerfilApp {
     pioneiro: contaPioneira(c.criado),
     avatar: c.avatar,
     ...(c.operador ? { operador: c.operador } : {}),
+    ...(contaEAdmin(c) ? { admin: true } : {}),
     proximaPeca: proximaPeca(c.pontos),
   };
 }

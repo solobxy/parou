@@ -894,4 +894,5 @@ export const EN: Record<string, string> = {
   'Estado inválido.': 'Invalid status.',
   'Avatar inválido.': 'Invalid avatar.',
   'Ainda não tens reputação para uma das peças escolhidas.': 'You don\'t have enough reputation yet for one of the chosen items.',
+  'No Samsung Internet pode surgir o aviso "App insegura bloqueada" do Google Play Protect. É um falso alarme do navegador: toca em "Mais detalhes" e depois em "Instalar mesmo assim". Se preferires, instala pelo Chrome.': 'In Samsung Internet you may see Google Play Protect\'s "Unsafe app blocked" warning. It\'s a false alarm from the browser: tap "More details" and then "Install anyway". Or install from Chrome instead.',
 };

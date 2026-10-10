@@ -66,6 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
   favoritesCount = 0,
 }) => {
   const admin = eAdmin();
+  // O painel do WhatsApp também abre com a conta de administração (sem precisar da chave neste telemóvel)
+  const painelWhatsApp = admin || Boolean(currentUser?.admin);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -319,7 +321,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>}
                   </div>
 
-                  {(onOpenPublicSourcesModal || onOpenAdminModal || (onOpenWhatsApp && admin)) && (
+                  {(onOpenPublicSourcesModal || onOpenAdminModal || (onOpenWhatsApp && painelWhatsApp)) && (
                     <div className="py-1">
                       {onOpenPublicSourcesModal && (
                         <button
@@ -341,7 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </button>
                       )}
 
-                      {onOpenWhatsApp && admin && (
+                      {onOpenWhatsApp && painelWhatsApp && (
                         <button
                           onClick={() => {
                             onOpenWhatsApp();

@@ -112,6 +112,11 @@ export const PassosAndroid: React.FC = () => (
     <li>Escolhe <strong>Instalar app</strong> {t('ou')} <strong>Adicionar ao ecrã principal</strong>.</li>
     <li>Confirma em <strong>{t('Instalar')}</strong>.</li>
     <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">Se já a instalaste, abre-a pelo ícone <strong>PAROU</strong> no ecrã principal.</li>
+    {typeof navigator !== 'undefined' && /SamsungBrowser/i.test(navigator.userAgent || '') && (
+      <li className="list-none -ml-4 pt-1 text-[#6B6B6B]">
+        {t('No Samsung Internet pode surgir o aviso "App insegura bloqueada" do Google Play Protect. É um falso alarme do navegador: toca em "Mais detalhes" e depois em "Instalar mesmo assim". Se preferires, instala pelo Chrome.')}
+      </li>
+    )}
   </ol>
 );
 
