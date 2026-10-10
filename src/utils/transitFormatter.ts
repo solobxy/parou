@@ -6,8 +6,8 @@ import { t, LOCALE } from '../i18n';
  */
 
 const ACRONYMS = new Set([
-  'CP', 'IC', 'AP', 'IR', 'R', 'U', 'STCP', 'MTS', 'TCB', 'TML', 'CARRIS',
-  'METRO', 'RL', 'TST', 'TUB', 'SMTUC', 'TUG', 'TUA', 'TAV', 'AVE',
+  'CP', 'IC', 'AP', 'IR', 'R', 'U', 'STCP', 'MTS', 'TCB', 'TML',
+  'RL', 'TST', 'TUB', 'SMTUC', 'TUG', 'TUA', 'TAV', 'AVE',
   'EST', 'GPS', 'ID', 'CE', 'HPH', 'HSJ', 'IPO', 'ISMAI', 'ISEP', 'ISCAP', 'ESMAD', 'FEUP'
 ]);
 
