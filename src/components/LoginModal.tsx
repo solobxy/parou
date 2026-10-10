@@ -61,14 +61,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      let message = 'Erro ao processar o pedido.';
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        message = 'Email ou palavra-passe incorretos.';
-      } else if (err.code === 'auth/email-already-in-use') {
-        message = 'Este email já está associado a uma conta.';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Formato de email inválido.';
-      }
+      const MENSAGENS: Record<string, string> = {
+        'auth/invalid-credential': 'Email ou palavra-passe incorretos.',
+        'auth/user-not-found': 'Email ou palavra-passe incorretos.',
+        'auth/wrong-password': 'Email ou palavra-passe incorretos.',
+        'auth/email-already-in-use': 'Este email já tem conta. Escolhe "Iniciar sessão".',
+        'auth/invalid-email': 'Esse email não parece válido.',
+        'auth/weak-password': 'Palavra-passe fraca: usa pelo menos 6 caracteres.',
+        'auth/too-many-requests': 'Demasiadas tentativas. Espera uns minutos e tenta outra vez.',
+        'auth/network-request-failed': 'Sem ligação à internet. Verifica a rede e tenta outra vez.',
+        'auth/operation-not-allowed': 'Criar conta com email está temporariamente indisponível. Usa "Continuar com o Google".',
+        'auth/user-disabled': 'Esta conta foi desativada.',
+      };
+      const message = MENSAGENS[err?.code] || `Não foi possível concluir (${err?.code || 'erro desconhecido'}). Tenta outra vez.`;
       setErrorMsg(message);
     } finally {
       setLoading(false);

@@ -63,13 +63,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         role="dialog"
         aria-modal="true"
       >
-        <button
-          onClick={onClose}
-          className="absolute right-3.5 top-3.5 p-1 text-[#6B6B6B] hover:text-[#111111] cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-          aria-label="Fechar"
-        >
-          <X className="w-5 h-5 stroke-[2]" />
-        </button>
+        {/* Cabeçalho: título e fechar (o "Sair" fica em baixo, longe do X) */}
+        <div className="flex items-center justify-between gap-3 -mt-1 mb-3">
+          <h2 className="text-lg font-bold text-[#111111]">A tua conta</h2>
+          <button
+            onClick={onClose}
+            className="-mr-2 w-11 h-11 rounded-full text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2] cursor-pointer flex items-center justify-center"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5 stroke-[2]" />
+          </button>
+        </div>
 
         {/* Profile Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-[#E6E6E3]">
@@ -93,14 +97,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {user.email}
             </p>
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[#F4F4F2] hover:bg-[#E6E6E3] text-xs font-semibold text-[#111111] cursor-pointer min-h-[36px]"
-          >
-            <LogOut className="w-3.5 h-3.5 stroke-[2]" />
-            <span>Sair</span>
-          </button>
         </div>
 
         {/* Reputation strip */}
@@ -178,8 +174,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Sair da conta */}
+        <button
+          onClick={handleLogout}
+          className="mt-5 w-full h-11 flex items-center justify-center gap-2 rounded-[10px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[14px] font-semibold text-[#111111] cursor-pointer"
+          data-teste="sair-conta"
+        >
+          <LogOut className="w-4 h-4 stroke-[2]" />
+          <span>Sair da conta</span>
+        </button>
+
         {/* Apagar conta (RGPD / Google Play) */}
-        <div className="mt-5 pt-4 border-t border-[#E6E6E3]">
+        <div className="mt-4 pt-4 border-t border-[#E6E6E3]">
           {aApagar === 'nao' ? (
             <button
               onClick={() => setAApagar('confirmar')}
