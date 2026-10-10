@@ -3,8 +3,12 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import {
   Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, terminarSessao, apagarConta, confirmarPalavra,
   mudarNome, mudarPalavra, criarPedidoRecuperacao, redefinirPalavra, listarFavoritos, guardarFavoritos, apagarFavorito,
-  limparSessoesExpiradas, VALIDADE_SESSAO_MS,
+  limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta,
 } from './contas';
+import {
+  listarConversas, obterConversa, criarConversa, responder, votar, denunciar, bloquearAutor, listarBloqueados, desbloquear,
+  apagarConteudo, filaDeModeracao, moderar,
+} from './discussao';
 import {
   versaoConteudo, identificarVotante, listarOcorrencias, obterOcorrencia, criarOcorrencia, votarOcorrencia,
   denunciarOcorrencia, mudarEstadoOcorrencia, apagarOcorrencia, importarOcorrenciasPublicas, listarReclamacoes,
@@ -133,6 +137,16 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       if (!conta) return res.status(401).json({ erro: 'Entra na tua conta.', codigo: 'sem_sessao' });
       if (req.body?.nome !== undefined) mudarNome(conta.id, req.body.nome);
       res.json({ ok: true });
+    } catch (err) { erro(res, err); }
+  });
+
+  // Avatar da mascote (as peças têm de existir e a reputação tem de chegar)
+  app.put('/api/conta/avatar', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!conta) return res.status(401).json({ erro: 'Entra na tua conta.', codigo: 'sem_sessao' });
+      if (!dentroDoLimite(`avatar:${conta.id}`, 60, 3600_000)) return semLimite(res);
+      res.json({ avatar: mudarAvatar(conta.id, req.body?.avatar) });
     } catch (err) { erro(res, err); }
   });
 
@@ -333,6 +347,105 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       if (!dentroDoLimite(`comentario:${ipDe(req)}`, 10, 10 * 60_000)) return semLimite(res);
       res.status(201).json({ id: criarComentario(req.params.id, req.body?.texto, req.body?.nome, conta) });
     } catch (err) { erro(res, err); }
+  });
+
+  // ============================== CONVERSAS (publicações e respostas) ==============================
+  app.get('/api/comunidade/conversas', (req, res) => {
+    try {
+      if (!dentroDoLimite(`ler-conversas:${ipDe(req)}`, 240, 60_000)) return semLimite(res);
+      res.json(listarConversas(contaDoPedido(req, res), eAdmin(req), (req.query || {}) as any));
+    } catch (err) { erro(res, err); }
+  });
+
+  app.get('/api/comunidade/conversas/:id', (req, res) => {
+    try {
+      if (!dentroDoLimite(`ler-conversas:${ipDe(req)}`, 240, 60_000)) return semLimite(res);
+      const c = obterConversa(contaDoPedido(req, res), eAdmin(req), req.params.id);
+      if (!c) return res.status(404).json({ erro: 'Publicação não encontrada.', codigo: 'nao_existe' });
+      res.json(c);
+    } catch (err) { erro(res, err); }
+  });
+
+  app.post('/api/comunidade/conversas', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!dentroDoLimite(`nova-conversa:${ipDe(req)}`, 12, 10 * 60_000)) return semLimite(res);
+      res.status(201).json({ id: criarConversa(conta, req.body) });
+    } catch (err) { erro(res, err); }
+  });
+
+  app.post('/api/comunidade/conversas/:id/respostas', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!dentroDoLimite(`nova-resposta:${ipDe(req)}`, 40, 10 * 60_000)) return semLimite(res);
+      res.status(201).json({ id: responder(conta, req.params.id, req.body?.paiId, req.body?.texto) });
+    } catch (err) { erro(res, err); }
+  });
+
+  app.post('/api/comunidade/votos', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!dentroDoLimite(`voto-conversa:${ipDe(req)}`, 120, 60_000)) return semLimite(res);
+      res.json(votar(conta, req.body?.alvoId, req.body?.valor));
+    } catch (err) { erro(res, err); }
+  });
+
+  app.post('/api/comunidade/denuncias', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!dentroDoLimite(`denuncia-conversa:${ipDe(req)}`, 30, 3600_000)) return semLimite(res);
+      res.json(denunciar(conta, req.body?.alvoId, req.body?.motivo));
+    } catch (err) { erro(res, err); }
+  });
+
+  app.post('/api/comunidade/bloquear', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!dentroDoLimite(`bloquear:${ipDe(req)}`, 60, 3600_000)) return semLimite(res);
+      bloquearAutor(conta, req.body?.alvoId);
+      res.json({ ok: true });
+    } catch (err) { erro(res, err); }
+  });
+
+  app.get('/api/comunidade/bloqueados', (req, res) => {
+    res.json({ itens: listarBloqueados(contaDoPedido(req, res)) });
+  });
+
+  app.delete('/api/comunidade/bloqueados/:ref', (req, res) => {
+    try {
+      desbloquear(contaDoPedido(req, res), req.params.ref);
+      res.json({ ok: true });
+    } catch (err) { erro(res, err); }
+  });
+
+  app.delete('/api/comunidade/conteudo/:id', (req, res) => {
+    try {
+      apagarConteudo(contaDoPedido(req, res), eAdmin(req), req.params.id);
+      res.json({ ok: true });
+    } catch (err) { erro(res, err); }
+  });
+
+  // ---------- administração (só com a chave de administração) ----------
+  const soAdmin = (req: Request, res: Response): boolean => {
+    if (eAdmin(req)) return true;
+    res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    return false;
+  };
+  app.get('/api/comunidade/admin/fila', (req, res) => {
+    if (!soAdmin(req, res)) return;
+    try { res.json(filaDeModeracao()); } catch (err) { erro(res, err); }
+  });
+  app.post('/api/comunidade/admin/moderar', (req, res) => {
+    if (!soAdmin(req, res)) return;
+    try { moderar(req.body?.alvoId, req.body?.acao); res.json({ ok: true }); } catch (err) { erro(res, err); }
+  });
+  app.post('/api/comunidade/admin/operador', (req, res) => {
+    if (!soAdmin(req, res)) return;
+    try { res.json({ ok: definirOperador(req.body?.email, req.body?.operador) }); } catch (err) { erro(res, err); }
+  });
+  app.post('/api/comunidade/admin/suspender', (req, res) => {
+    if (!soAdmin(req, res)) return;
+    try { res.json({ ok: suspenderConta(req.body?.email, req.body?.dias) }); } catch (err) { erro(res, err); }
   });
 }
 

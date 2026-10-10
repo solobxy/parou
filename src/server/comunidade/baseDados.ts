@@ -76,6 +76,76 @@ export function base(): DatabaseSync {
       momento INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_comentarios_reclamacao ON comentarios (reclamacao_id, momento);
+
+    -- Conversas da comunidade: publicações com respostas em cadeia, votos, denúncias e bloqueios.
+    -- Quando uma conta é apagada, o conteúdo fica mas sem autor ("Utilizador PAROU").
+    CREATE TABLE IF NOT EXISTS publicacoes (
+      id TEXT PRIMARY KEY,
+      autor_id TEXT REFERENCES utilizadores(id) ON DELETE SET NULL,
+      titulo TEXT NOT NULL,
+      texto TEXT NOT NULL DEFAULT '',
+      tipo TEXT NOT NULL DEFAULT 'conversa',
+      operador TEXT,
+      linha TEXT,
+      concelho TEXT,
+      distrito TEXT,
+      lat REAL,
+      lon REAL,
+      criado INTEGER NOT NULL,
+      pontos INTEGER NOT NULL DEFAULT 0,
+      respostas INTEGER NOT NULL DEFAULT 0,
+      denuncias INTEGER NOT NULL DEFAULT 0,
+      revisto INTEGER NOT NULL DEFAULT 0,
+      estado TEXT NOT NULL DEFAULT 'visivel'
+    );
+    CREATE INDEX IF NOT EXISTS idx_publicacoes_criado ON publicacoes (criado DESC);
+    CREATE INDEX IF NOT EXISTS idx_publicacoes_autor ON publicacoes (autor_id, criado);
+    CREATE INDEX IF NOT EXISTS idx_publicacoes_operador ON publicacoes (operador, criado DESC);
+    CREATE TABLE IF NOT EXISTS respostas (
+      id TEXT PRIMARY KEY,
+      publicacao_id TEXT NOT NULL REFERENCES publicacoes(id) ON DELETE CASCADE,
+      pai_id TEXT,
+      autor_id TEXT REFERENCES utilizadores(id) ON DELETE SET NULL,
+      texto TEXT NOT NULL DEFAULT '',
+      oficial TEXT,
+      criado INTEGER NOT NULL,
+      profundidade INTEGER NOT NULL DEFAULT 0,
+      pontos INTEGER NOT NULL DEFAULT 0,
+      denuncias INTEGER NOT NULL DEFAULT 0,
+      revisto INTEGER NOT NULL DEFAULT 0,
+      estado TEXT NOT NULL DEFAULT 'visivel'
+    );
+    CREATE INDEX IF NOT EXISTS idx_respostas_publicacao ON respostas (publicacao_id, criado);
+    CREATE INDEX IF NOT EXISTS idx_respostas_autor ON respostas (autor_id, criado);
+    CREATE TABLE IF NOT EXISTS votos_comunidade (
+      alvo_id TEXT NOT NULL,
+      utilizador_id TEXT NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+      valor INTEGER NOT NULL,
+      criado INTEGER NOT NULL,
+      PRIMARY KEY (alvo_id, utilizador_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_votos_utilizador ON votos_comunidade (utilizador_id);
+    CREATE TABLE IF NOT EXISTS denuncias_comunidade (
+      alvo_id TEXT NOT NULL,
+      utilizador_id TEXT NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+      motivo TEXT NOT NULL,
+      criado INTEGER NOT NULL,
+      PRIMARY KEY (alvo_id, utilizador_id)
+    );
+    CREATE TABLE IF NOT EXISTS bloqueios (
+      utilizador_id TEXT NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+      bloqueado_id TEXT NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+      criado INTEGER NOT NULL,
+      PRIMARY KEY (utilizador_id, bloqueado_id)
+    );
+    -- Pontos de reputação ganhos por dia e por motivo (para haver um limite diário e ninguém "fabricar" pontos)
+    CREATE TABLE IF NOT EXISTS ganhos_pontos (
+      utilizador_id TEXT NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+      dia TEXT NOT NULL,
+      motivo TEXT NOT NULL,
+      pontos INTEGER NOT NULL,
+      PRIMARY KEY (utilizador_id, dia, motivo)
+    );
   `);
   migrar(nova);
   db = nova;
@@ -100,6 +170,14 @@ function migrar(b: DatabaseSync) {
     }
     b.exec('UPDATE utilizadores SET pontos = MAX(0, pontos - 50)');
     b.exec('PRAGMA user_version = 1');
+  }
+  if (versao < 2) {
+    // Avatar da conta, conta oficial de operador (resposta oficial) e suspensão temporária
+    const colunas = (b.prepare('PRAGMA table_info(utilizadores)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!colunas.includes('avatar')) b.exec('ALTER TABLE utilizadores ADD COLUMN avatar TEXT');
+    if (!colunas.includes('operador')) b.exec('ALTER TABLE utilizadores ADD COLUMN operador TEXT');
+    if (!colunas.includes('suspenso_ate')) b.exec('ALTER TABLE utilizadores ADD COLUMN suspenso_ate INTEGER');
+    b.exec('PRAGMA user_version = 2');
   }
 }
 

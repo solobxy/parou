@@ -3,6 +3,7 @@
 // A sessão é um número aleatório num cookie; no servidor guarda-se só o resumo dele.
 import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
+import { avatarOuPadrao, validarAvatar, ConfigAvatar, proximaPeca } from '../../utils/avatarCatalogo';
 
 export const VALIDADE_SESSAO_MS = 30 * 24 * 3600_000;
 const RENOVAR_APOS_MS = 24 * 3600_000;
@@ -15,6 +16,9 @@ export interface Conta {
   pontos: number;
   ocorrencias: number;
   criado: number;
+  avatar: ConfigAvatar;
+  operador: string | null; // conta oficial de um operador (as respostas levam "Resposta oficial")
+  suspensoAte: number; // 0 = sem suspensão
 }
 
 export interface PerfilApp {
@@ -28,6 +32,9 @@ export interface PerfilApp {
   badge: string;
   createdAt: number;
   pioneiro: boolean;
+  avatar: ConfigAvatar;
+  operador?: string;
+  proximaPeca: { nome: string; falta: number } | null;
 }
 
 /** Medalha "Pioneiro": todas as contas criadas até ao fim de 2026 (31/12 às 23:59, hora de Lisboa; em dezembro Lisboa = UTC). */
@@ -55,6 +62,9 @@ export function perfilDaConta(c: Conta): PerfilApp {
     badge: distintivo(c.pontos),
     createdAt: c.criado,
     pioneiro: contaPioneira(c.criado),
+    avatar: c.avatar,
+    ...(c.operador ? { operador: c.operador } : {}),
+    proximaPeca: proximaPeca(c.pontos),
   };
 }
 
@@ -113,16 +123,22 @@ function limparNome(txt: unknown, email: string): string {
 }
 
 // ------------------------------- contas -------------------------------
+export function avatarDaLinha(texto: unknown): ConfigAvatar {
+  if (typeof texto !== 'string' || !texto) return avatarOuPadrao(null);
+  try { return avatarOuPadrao(JSON.parse(texto)); } catch { return avatarOuPadrao(null); }
+}
+
 function lerConta(linha: any): Conta | null {
   if (!linha) return null;
   return {
     id: linha.id, email: linha.email, nome: linha.nome, foto: linha.foto || null,
     pontos: Number(linha.pontos), ocorrencias: Number(linha.ocorrencias), criado: Number(linha.criado),
+    avatar: avatarDaLinha(linha.avatar), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
   };
 }
 
 export function contaPorId(id: string): Conta | null {
-  return lerConta(base().prepare('SELECT id, email, nome, foto, pontos, ocorrencias, criado FROM utilizadores WHERE id = ?').get(id));
+  return lerConta(base().prepare('SELECT id, email, nome, foto, pontos, ocorrencias, criado, avatar, operador, suspenso_ate FROM utilizadores WHERE id = ?').get(id));
 }
 
 export async function registar(emailBruto: unknown, palavra: unknown, nome: unknown): Promise<{ conta: Conta; token: string }> {
@@ -199,6 +215,49 @@ export function apagarConta(id: string) {
     }
     base().prepare('DELETE FROM utilizadores WHERE id = ?').run(id); // sessões, favoritos e pedidos vão atrás
   });
+}
+
+/** Guarda o avatar escolhido (as peças têm de existir e a reputação tem de chegar). */
+export function mudarAvatar(id: string, entrada: unknown): ConfigAvatar {
+  const c = contaPorId(id);
+  if (!c) throw new ErroConta('sem_sessao', 'Entra na tua conta.', 401);
+  const r = validarAvatar(entrada, c.pontos);
+  if (!r.ok) throw new ErroConta('avatar', r.erro, 400);
+  base().prepare('UPDATE utilizadores SET avatar = ? WHERE id = ?').run(JSON.stringify(r.config), id);
+  return r.config;
+}
+
+const diaDeHoje = () => new Date().toISOString().slice(0, 10);
+
+/** Dá pontos por uma ação da comunidade, com um máximo por dia e por motivo. Devolve os pontos dados. */
+export function ganharPontos(id: string | undefined | null, motivo: string, pontos: number, maxPorDia: number): number {
+  if (!id || pontos <= 0) return 0;
+  const dia = diaDeHoje();
+  const linha = base().prepare('SELECT pontos FROM ganhos_pontos WHERE utilizador_id = ? AND dia = ? AND motivo = ?').get(id, dia, motivo) as { pontos: number } | undefined;
+  const jaTem = linha ? Number(linha.pontos) : 0;
+  const dar = Math.max(0, Math.min(pontos, maxPorDia - jaTem));
+  if (dar <= 0) return 0;
+  base().prepare(`INSERT INTO ganhos_pontos (utilizador_id, dia, motivo, pontos) VALUES (?, ?, ?, ?)
+    ON CONFLICT(utilizador_id, dia, motivo) DO UPDATE SET pontos = pontos + excluded.pontos`).run(id, dia, motivo, dar);
+  base().prepare('UPDATE utilizadores SET pontos = pontos + ? WHERE id = ?').run(dar, id);
+  return dar;
+}
+
+/** Administração: marca uma conta como oficial de um operador (ou tira a marca). */
+export function definirOperador(emailBruto: unknown, operador: unknown): boolean {
+  const email = limparEmail(emailBruto);
+  const nomeOp = String(operador ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+  const r = base().prepare('UPDATE utilizadores SET operador = ? WHERE email = ?').run(nomeOp || null, email);
+  return Number(r.changes) > 0;
+}
+
+/** Administração: suspende uma conta (não publica, nem responde, nem vota) durante alguns dias; 0 levanta a suspensão. */
+export function suspenderConta(emailBruto: unknown, dias: unknown): boolean {
+  const email = limparEmail(emailBruto);
+  const n = Math.max(0, Math.min(3650, Math.floor(Number(dias) || 0)));
+  const ate = n > 0 ? Date.now() + n * 24 * 3600_000 : 0;
+  const r = base().prepare('UPDATE utilizadores SET suspenso_ate = ? WHERE email = ?').run(ate, email);
+  return Number(r.changes) > 0;
 }
 
 export function darPontos(id: string | undefined | null, pontos: number, novaOcorrencia = false) {
