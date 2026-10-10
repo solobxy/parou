@@ -27,7 +27,7 @@ export function base(): DatabaseSync {
       palavra_passe TEXT NOT NULL,
       nome TEXT NOT NULL,
       foto TEXT,
-      pontos INTEGER NOT NULL DEFAULT 50,
+      pontos INTEGER NOT NULL DEFAULT 0,
       ocorrencias INTEGER NOT NULL DEFAULT 0,
       criado INTEGER NOT NULL
     );
@@ -77,8 +77,30 @@ export function base(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_comentarios_reclamacao ON comentarios (reclamacao_id, momento);
   `);
+  migrar(nova);
   db = nova;
   return nova;
+}
+
+/** Alterações à base de dados que se fazem uma só vez (o número fica guardado em PRAGMA user_version). */
+function migrar(b: DatabaseSync) {
+  const versao = Number((b.prepare('PRAGMA user_version').get() as any)?.user_version || 0);
+  if (versao < 1) {
+    // A reputação passa a começar a zero: as contas que já existiam tinham 50 pontos de partida.
+    // Antes de mexer, guarda-se uma cópia do ficheiro (se já tinha contas).
+    try {
+      const n = Number((b.prepare('SELECT COUNT(*) AS n FROM utilizadores').get() as any)?.n || 0);
+      if (n > 0) {
+        fs.mkdirSync(PASTA_COPIAS, { recursive: true });
+        b.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        fs.copyFileSync(FICHEIRO_COMUNIDADE, path.join(PASTA_COPIAS, 'comunidade-antes-da-reputacao-a-zero.db'));
+      }
+    } catch (err: any) {
+      console.warn('[Comunidade] Não foi possível guardar a cópia antes da migração:', err?.message || err);
+    }
+    b.exec('UPDATE utilizadores SET pontos = MAX(0, pontos - 50)');
+    b.exec('PRAGMA user_version = 1');
+  }
 }
 
 /** Executa várias gravações como uma só: ou ficam todas, ou nenhuma. */

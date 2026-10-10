@@ -630,5 +630,4 @@ export const EN: Record<string, string> = {
   'Erro ao submeter reclamação.': 'Could not submit the complaint.',
   'Pioneiro': 'Pioneer',
   'Pioneiro: criou a conta até ao fim de 2026': 'Pioneer: created an account before the end of 2026',
-  'Criaste a conta até ao fim de 2026, quando a PAROU era nova.': 'You created your account before the end of 2026, when PAROU was new.',
 };
