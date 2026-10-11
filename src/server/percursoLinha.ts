@@ -68,6 +68,28 @@ export function percursoDeViagem(tripId: string, paragemId?: string): PercursoLi
   };
 }
 
+/**
+ * Partida em tempo real que o GPS indica mas cujo trip_id não existe no horário (o STCP, por exemplo, usa outro
+ * código de serviço): usa uma viagem da mesma linha que passe nesta paragem e acabe no mesmo destino.
+ */
+export function percursoPorLinha(rotaId: string, destino: string | undefined, paragemId: string): PercursoLinha | null {
+  const db = getDatabase();
+  const candidatas = db.prepare(`
+    SELECT t.trip_id AS id, t.trip_headsign AS hs
+    FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
+    WHERE st.stop_id = ? AND t.route_id = ?
+    LIMIT 600
+  `).all(paragemId, rotaId) as Array<{ id: string; hs: string | null }>;
+  if (!candidatas.length) return null;
+  const alvo = normalizar(destino || '');
+  const hsDe = (c: { hs: string | null }) => normalizar(c.hs || '');
+  let escolhida = alvo ? candidatas.find((c) => hsDe(c) === alvo) : undefined;
+  if (!escolhida && alvo) escolhida = candidatas.find((c) => { const h = hsDe(c); return h && (h.includes(alvo) || alvo.includes(h)); });
+  // Sem destino que bata certo só serve se a linha tem um único sentido nesta paragem (não arriscar o sentido errado)
+  if (!escolhida && new Set(candidatas.map(hsDe)).size === 1) escolhida = candidatas[0];
+  return escolhida ? percursoDeViagem(escolhida.id, paragemId) : null;
+}
+
 /** Percurso de uma linha UNIR: o sentido da AMP, ou o que acaba no destino da partida */
 export function percursoUnir(route: string, paragemId: string, sentido?: string, destino?: string): PercursoLinha | null {
   const db = getDatabase();

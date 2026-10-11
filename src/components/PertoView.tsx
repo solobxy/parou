@@ -645,6 +645,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             operatorName: d.operator_name,
             operatorId: d.feed_id,
             tripId: d.trip_id,
+            routeId: d.route_id,
             stopId: d.stop_id,
             departureTime: d.display_text,
             displayText: d.display_text,
@@ -862,7 +863,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const base = { linha, cor: dep.lineColor as string | undefined, destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name) };
     let url = '';
     if (dep.tripId) {
-      url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}`;
+      url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}${dep.routeId ? `&rota=${encodeURIComponent(dep.routeId)}&dest=${encodeURIComponent(dep.destination || dep.headsign || '')}` : ''}`;
     } else if (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem) {
       url = `/api/transit/percurso?route=${encodeURIComponent(`unir:${dep.unirLinha}`)}&stop=${encodeURIComponent(`unir:${dep.unirParagem}`)}&sentido=${encodeURIComponent(dep.unirSentido || '')}&destino=${encodeURIComponent(dep.destination || '')}`;
     }
