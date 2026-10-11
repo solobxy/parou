@@ -613,16 +613,6 @@ export function getAvailableTransitModes(): { label: string; mode: string }[] {
   ];
 }
 
-// Re-export structured Portuguese Transit Operators & GTFS helpers
-export {
-  PORTUGAL_OPERATORS,
-  getOperatorById,
-  getOperatorsByCity,
-  getOperatorsByRegion,
-  getOperatorsByMode,
-  searchOperators,
-  getGtfsAgenciesCatalog
-} from '../data/operatorsData';
 import { cabecalhosAdmin } from '../utils/admin';
 
 // Re-export External Sources Integration Manager

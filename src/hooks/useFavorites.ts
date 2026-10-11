@@ -30,7 +30,7 @@ export function useFavorites() {
 
   // 2. Login listener & automatic account synchronization with deduplication
   useEffect(() => {
-    let unsubscribeFirestore: (() => void) | null = null;
+    let cancelarSubscricao: (() => void) | null = null;
 
     const unsubscribeAuth = observarSessao(async (user) => {
       setCurrentUser(user);
@@ -42,8 +42,8 @@ export function useFavorites() {
           setFavorites(merged);
 
           // Subscribe to account updates to keep other devices in sync
-          if (unsubscribeFirestore) unsubscribeFirestore();
-          unsubscribeFirestore = subscribeToUserFavorites(user.userId, (updatedList) => {
+          if (cancelarSubscricao) cancelarSubscricao();
+          cancelarSubscricao = subscribeToUserFavorites(user.userId, (updatedList) => {
             setFavorites(updatedList);
           });
         } catch (err) {
@@ -51,9 +51,9 @@ export function useFavorites() {
           refreshFromLocal();
         }
       } else {
-        if (unsubscribeFirestore) {
-          unsubscribeFirestore();
-          unsubscribeFirestore = null;
+        if (cancelarSubscricao) {
+          cancelarSubscricao();
+          cancelarSubscricao = null;
         }
         refreshFromLocal();
       }
@@ -68,7 +68,7 @@ export function useFavorites() {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeFirestore) unsubscribeFirestore();
+      if (cancelarSubscricao) cancelarSubscricao();
       window.removeEventListener('parou_favorites_updated', handleCustomEvent);
     };
   }, [refreshFromLocal]);

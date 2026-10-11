@@ -37,7 +37,7 @@ export interface NearbyStopItem {
     name: string;
     color: string;
     destination: string;
-    frequencyMinutes: number;
+    frequencyMinutes?: number;
   }>;
   nextDepartures: NextDeparture[];
   activeAlerts: CentralAlert[];

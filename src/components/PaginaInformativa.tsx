@@ -17,7 +17,7 @@ function Sobre({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
     <>
       <p className="text-[15.5px] text-[#2B2B2B] leading-relaxed">
         A PAROU mostra-te, num só sítio, o que passa perto de ti — autocarros, metro, comboios e barcos — com a hora prevista de
-        chegada, horários de todas as linhas, greves, avisos de tempo, incêndios e o que mais mexe com as tuas viagens em Portugal.
+        chegada, horários dos principais operadores, greves, avisos de tempo, incêndios e o que mais mexe com as tuas viagens em Portugal.
       </p>
       <div className="rounded-[14px] bg-[#F4F4F2] p-4 flex gap-3">
         <Heart className="w-5 h-5 text-[#FF6B1A] shrink-0 mt-0.5" />
@@ -308,7 +308,7 @@ function ApagarConta() {
       <Secao titulo="O que é apagado">
         <ul className="list-disc pl-5 space-y-1">
           <li>O teu nome e o teu email.</li>
-          <li>A palavra-passe (guardada cifrada).</li>
+          <li>A palavra-passe (só guardamos uma versão irreversível, nunca a palavra-passe em si).</li>
           <li>O avatar, os pontos e as medalhas.</li>
           <li>Os favoritos sincronizados com a conta.</li>
           <li>As sessões iniciadas em todos os dispositivos e os pedidos de recuperação da palavra-passe.</li>

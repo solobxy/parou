@@ -34,13 +34,19 @@ function normalizar(t: string): string {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+// Carris Metropolitana: as viagens do horário estão no feed "cmh" com paragens e linhas "cmh:<id>", e a app (e a API)
+// usam "cm:<id>" (ver linesEngine). Aqui traduz-se de um lado para o outro para o percurso ter as paragens todas.
+const paraViagens = (id: string): string => (id.startsWith('cm:') ? `cmh:${id.slice(3)}` : id);
+const PARAGEM_DA_APP = `CASE WHEN st.stop_id LIKE 'cmh:%' THEN 'cm:' || substr(st.stop_id, 5) ELSE st.stop_id END`;
+const LINHA_DA_APP = `CASE WHEN t.route_id LIKE 'cmh:%' THEN 'cm:' || substr(t.route_id, 5) ELSE t.route_id END`;
+
 /** Percurso de uma viagem (partida com trip_id) */
 export function percursoDeViagem(tripId: string, paragemId?: string): PercursoLinha | null {
   const db = getDatabase();
   const rows = db.prepare(`
-    SELECT st.stop_id AS id, st.stop_sequence AS seq, st.arrival_secs AS chega, st.departure_secs AS parte,
+    SELECT s.stop_id AS id, st.stop_sequence AS seq, st.arrival_secs AS chega, st.departure_secs AS parte,
            s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
-    FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
+    FROM stop_times st JOIN stops s ON s.stop_id = ${PARAGEM_DA_APP}
     WHERE st.trip_id = ? ORDER BY st.stop_sequence
   `).all(tripId) as Array<{ id: string; seq: number; chega: number | null; parte: number | null; nome: string; lat: number; lon: number }>;
   const paragens = rows
@@ -49,7 +55,7 @@ export function percursoDeViagem(tripId: string, paragemId?: string): PercursoLi
   if (paragens.length < 2) return null;
   const info = db.prepare(`
     SELECT t.trip_headsign AS hs, r.route_short_name AS curto, r.route_long_name AS longo, r.route_color AS cor
-    FROM trips t JOIN routes r ON r.route_id = t.route_id WHERE t.trip_id = ?
+    FROM trips t JOIN routes r ON r.route_id = ${LINHA_DA_APP} WHERE t.trip_id = ?
   `).get(tripId) as { hs?: string; curto?: string; longo?: string; cor?: string } | undefined;
   let indice = paragemId ? paragens.findIndex((p) => p.id === paragemId) : -1;
   if (indice < 0 && paragemId) {
@@ -79,7 +85,7 @@ export function percursoPorLinha(rotaId: string, destino: string | undefined, pa
     FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
     WHERE st.stop_id = ? AND t.route_id = ?
     LIMIT 600
-  `).all(paragemId, rotaId) as Array<{ id: string; hs: string | null }>;
+  `).all(paraViagens(paragemId), paraViagens(rotaId)) as Array<{ id: string; hs: string | null }>;
   if (!candidatas.length) return null;
   const alvo = normalizar(destino || '');
   const hsDe = (c: { hs: string | null }) => normalizar(c.hs || '');

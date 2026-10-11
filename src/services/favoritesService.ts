@@ -301,7 +301,6 @@ export async function enrichFavoritesLiveStatus(
         } else {
           statusLevel = 'Atrasos';
           statusDescription = `Alerta ativo: ${matchedAlerts[0].título}`;
-          delayMinutes = 4;
         }
       }
 
