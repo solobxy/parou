@@ -331,8 +331,8 @@ function paginaHub(): string {
   return pagina({
     titulo: L('Linhas e horários de autocarros, metro e comboios em Portugal | PAROU', 'Bus, metro and train lines and timetables in Portugal | PAROU'),
     descricao: L(
-      `Horários de todas as linhas de autocarro, metro, comboio e barco em Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e mais ${outros} operadores. Paragens e tempo real.`,
-      `Timetables for every bus, metro, train and boat line in Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto and ${outros} more operators. Stops and real time.`),
+      `Horários de autocarro, metro, comboio e barco em Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e mais ${outros} operadores. Paragens e tempo real.`,
+      `Bus, metro, train and boat timetables in Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto and ${outros} more operators. Stops and real time.`),
     caminho: '/linhas',
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Linhas e horários', 'Lines and timetables'), url: '/linhas' }],

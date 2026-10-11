@@ -15,7 +15,7 @@
  * - Strict counting: received, valid, discarded, presented
  * - Explicit discard reason tracking
  * - 3-second cache TTL for live vehicle positions
- * - In-memory cache only (no Firestore spam)
+ * - In-memory cache only (sem pedidos repetidos à API)
  */
 
 export interface TmlAgency {

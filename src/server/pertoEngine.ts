@@ -109,14 +109,12 @@ export async function getNearbyTransitData(
           name: l.route_long_name || l.route_short_name,
           color: l.route_color || '#3b82f6',
           destination: '',
-          frequencyMinutes: 10,
         }))
       : nextDeps.map((d) => ({
           code: d.lineCode,
           name: d.lineName,
           color: d.lineColor,
           destination: d.destination,
-          frequencyMinutes: 10,
         }));
 
     return {

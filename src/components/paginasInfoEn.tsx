@@ -11,7 +11,7 @@ export function SobreEn({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
     <>
       <p className="text-[15.5px] text-[#2B2B2B] leading-relaxed">
         PAROU shows you, in one place, what is running near you — buses, metro, trains and boats — with the expected arrival time,
-        timetables for every line, strikes, weather warnings, wildfires and whatever else affects your journeys in Portugal.
+        timetables from the main operators, strikes, weather warnings, wildfires and whatever else affects your journeys in Portugal.
       </p>
       <div className="rounded-[14px] bg-[#F4F4F2] p-4 flex gap-3">
         <Heart className="w-5 h-5 text-[#FF6B1A] shrink-0 mt-0.5" />
@@ -305,7 +305,7 @@ export function ApagarContaEn() {
       <Secao titulo="What is deleted">
         <ul className="list-disc pl-5 space-y-1">
           <li>Your name and your email.</li>
-          <li>Your password (stored encrypted).</li>
+          <li>Your password (we only keep a one-way scrambled version of it, never the password itself).</li>
           <li>Your avatar, points and badges.</li>
           <li>Favourites synced with the account.</li>
           <li>Sessions on all devices and password recovery requests.</li>
@@ -316,7 +316,7 @@ export function ApagarContaEn() {
         <ul className="list-disc pl-5 space-y-1">
           <li>
             Incidents, posts, replies and comments you wrote stay visible to help other people, but as{' '}
-            <strong>“Utilizador PAROU”</strong>, with no link to your account. If you prefer, delete them yourself before deleting
+            <strong>“PAROU user”</strong>, with no link to your account. If you prefer, delete them yourself before deleting
             the account, or ask us by email to remove them.
           </li>
           <li>Technical server logs (IP address and browser type, for security) are deleted automatically after 30 days.</li>

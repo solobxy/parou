@@ -22,7 +22,7 @@ import {
   detectSpamKeywords
 } from '../services/conta';
 
-// "Outro" fica como SERVICO_PUBLICO (é um dos tipos aceites pelas regras do Firestore)
+// "Outro" fica como SERVICO_PUBLICO (é um dos tipos aceites pelo servidor)
 const CATEGORIAS: Array<[OccurrenceType, string]> = [
   ['ACIDENTE', 'Acidente'],
   ['ATRASOS', 'Atrasos'],
@@ -179,7 +179,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         unconfirmedCount: 0,
         confirmedBy: currentUser?.uid ? [currentUser.uid] : [],
         unconfirmedBy: [],
-        // Sem conta não há autor (as regras do Firestore só aceitam o próprio uid)
+        // Sem conta não há autor (o servidor só aceita publicações de quem tem sessão iniciada)
         authorId: currentUser?.uid || undefined,
         authorName: currentUser?.displayName || 'Anónimo',
         isCommunityVerified: false,
