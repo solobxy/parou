@@ -147,4 +147,22 @@ Toca em *EN* no topo e a app muda para inglês. Útil para quem visita Portugal.
 parou.pt`,
     imagens: ['/novidades/ingles-1.jpg'],
   },
+  {
+    id: 'temas',
+    data: '2026-10-11',
+    etiqueta: 'Novidade',
+    titulo: 'Escolhe o teu tema',
+    texto: `🎨 *Escolhe o teu tema*
+
+Toca no ícone da paleta, no topo da app:
+⚪ *Claro*, o de sempre
+🌙 *Escuro*, para descansar a vista à noite
+🟠 *Âmbar*, mais laranja, em vidro
+
+A tua escolha fica guardada.
+
+parou.pt`,
+    imagens: ['/novidades/temas-1.jpg'],
+    comunidade: 'Já podes escolher o tema da app: Claro, Escuro (para a noite) ou Âmbar, mais laranja e em vidro. Toca na paleta, no topo.',
+  },
 ];
