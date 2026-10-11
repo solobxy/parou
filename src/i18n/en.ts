@@ -917,6 +917,8 @@ export const EN: Record<string, string> = {
   'Assim aparece nos comentários': 'How it looks in comments',
   'Criador': 'Creator',
   'Criador da PAROU': 'Creator of PAROU',
+  'Anel rosa': 'Pink ring',
+  'Tens todas as peças desbloqueadas, e uma medalha só tua.': 'You have every item unlocked, plus a medal that is only yours.',
   'Conta de Criador: tens todas as peças desbloqueadas.': 'Creator account: you have every item unlocked.',
   'Uma das peças escolhidas não está disponível para a tua conta.': 'One of the chosen items isn\'t available for your account.',
   'Novidade': 'Update',

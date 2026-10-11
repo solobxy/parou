@@ -77,6 +77,7 @@ export interface UserProfile {
   operador?: string; // conta oficial de um operador (respostas marcadas como oficiais)
   proximaPeca?: { nome: string; falta: number } | null;
   admin?: boolean; // conta de administração (o servidor decide pelo e-mail)
+  distincao?: string; // conta com medalha exclusiva e todas as peças do avatar abertas (código da peça exclusiva)
 }
 
 export interface DistrictData {

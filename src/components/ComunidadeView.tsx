@@ -4,6 +4,7 @@ import { t, LOCALE } from '../i18n';
 import { UserProfile } from '../types';
 import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
+import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { Compositor } from './comunidade/Compositor';
 import { Discussao } from './comunidade/Discussao';
@@ -443,7 +444,8 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
           onFechar={() => setEditorAvatar(false)}
           avatar={currentUser.avatar}
           pontos={pontosAtuais}
-          tudoAberto={Boolean(currentUser.admin)}
+          tudoAberto={temTudoAberto(currentUser)}
+          exclusivas={exclusivasDe(currentUser)}
           onGuardado={() => setEditorAvatar(false)}
         />
       )}
