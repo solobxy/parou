@@ -45,14 +45,20 @@ html[data-tema="escuro"] .leaflet-control-attribution a { color: #F2F2F0 !import
 html[data-tema="escuro"] .leaflet-bar a { background-color: #1E1E21; color: #F2F2F0; border-color: #34343A; }
 html[data-tema="escuro"] .leaflet-bar a:hover { background-color: #2A2A2E; }
 
-/* cores que não podem virar: branco sobre vermelho/verde, e escuro sobre laranja */
-html[data-tema="escuro"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [class~="bg-[#16A34A]"], [class~="bg-[#1F9D55]"], [class~="bg-[#14693A]"]),
-html[data-tema="escuro"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [class~="bg-[#16A34A]"], [class~="bg-[#1F9D55]"], [class~="bg-[#14693A]"]) :is([class~="text-[#FFFFFF]"]) { color: #FFFFFF !important; }
-html[data-tema="escuro"] [class~="bg-[#FF6B1A]"],
-html[data-tema="escuro"] [class~="bg-[#FF6B1A]"] :is([class~="text-[#111111]"], [class~="text-[#FFFFFF]"]) { color: #111111 !important; }
+/* cores que não podem virar: branco sobre vermelho/verde, e escuro sobre laranja.
+   Atenção ao desempenho: todas as regras destes temas acabam numa classe (ou etiqueta) à direita, para o navegador só as
+   testar nos elementos que têm essa classe. Seletores como [class~="…"] ou :is(…) no sujeito obrigam a testá-las em TODOS
+   os elementos de cada vez que o estilo se recalcula (foi isto que fazia o mapa arrastar nos temas). */
+html[data-tema="escuro"] .bg-\[\#D92D20\], html[data-tema="escuro"] .bg-\[\#1F7A3A\], html[data-tema="escuro"] .bg-\[\#16A34A\],
+html[data-tema="escuro"] .bg-\[\#1F9D55\], html[data-tema="escuro"] .bg-\[\#14693A\],
+html[data-tema="escuro"] .bg-\[\#D92D20\] .text-\[\#FFFFFF\], html[data-tema="escuro"] .bg-\[\#1F7A3A\] .text-\[\#FFFFFF\],
+html[data-tema="escuro"] .bg-\[\#16A34A\] .text-\[\#FFFFFF\], html[data-tema="escuro"] .bg-\[\#1F9D55\] .text-\[\#FFFFFF\],
+html[data-tema="escuro"] .bg-\[\#14693A\] .text-\[\#FFFFFF\] { color: #FFFFFF !important; }
+html[data-tema="escuro"] .bg-\[\#FF6B1A\],
+html[data-tema="escuro"] .bg-\[\#FF6B1A\] .text-\[\#111111\], html[data-tema="escuro"] .bg-\[\#FF6B1A\] .text-\[\#FFFFFF\] { color: #111111 !important; }
 /* legenda do mapa (branco com transparência) e o ponto preto de "Info" */
-html[data-tema="escuro"] [class~="bg-white/90"] { background-color: rgba(30,30,33,.9) !important; }
-html[data-tema="escuro"] [class~="bg-[#111111]"][class~="rounded-full"][class~="w-2.5"] { background-color: #F2F2F0 !important; }
+html[data-tema="escuro"] .bg-white\/90 { background-color: rgba(30,30,33,.9) !important; }
+html[data-tema="escuro"] .bg-\[\#111111\].rounded-full.w-2\.5 { background-color: #F2F2F0 !important; }
 /* o palco escuro do editor de avatar continua escuro */
 html[data-tema="escuro"] [data-teste="palco-avatar-fundo"] { background-color: #0A0A0B !important; }
 
@@ -95,7 +101,7 @@ html[data-tema="ambar"] nav.fixed.bottom-0 {
   border-top-color: rgba(255,255,255,.8) !important;
   box-shadow: 0 -4px 16px rgba(190,90,20,.12), inset 0 1px 0 rgba(255,255,255,.7);
 }
-html[data-tema="ambar"] :is([role="dialog"], .tema-menu) {
+html[data-tema="ambar"] [role="dialog"], html[data-tema="ambar"] .tema-menu {
   background-color: rgba(255,249,242,.94) !important;
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   border-color: rgba(255,255,255,.85) !important;
@@ -103,28 +109,30 @@ html[data-tema="ambar"] :is([role="dialog"], .tema-menu) {
 }
 
 /* cartões em vidro: ligeiramente translúcidos, com realce na aresta de cima e sombra quente (sem desfocar, para as listas continuarem leves) */
-html[data-tema="ambar"] [class~="bg-[#FFFFFF]"]:is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-2xl"]):not([role="dialog"]):not([class*="absolute"]):not([class*="fixed"]) {
+html[data-tema="ambar"] .bg-\[\#FFFFFF\]:is(.rounded-\[14px\], .rounded-\[16px\], .rounded-\[18px\], .rounded-\[20px\], .rounded-2xl, .sm\:rounded-\[16px\]):not([role="dialog"]):not(.absolute):not(.fixed) {
   background-color: rgba(255,250,244,.84);
 }
-html[data-tema="ambar"] :is([class~="bg-[#FFFFFF]"], [class~="bg-[#F4F4F2]"]):is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-[24px]"], [class*="rounded-2xl"], [class*="rounded-3xl"]):not([role="dialog"]) {
+html[data-tema="ambar"] .bg-\[\#FFFFFF\]:is(.rounded-\[14px\], .rounded-\[16px\], .rounded-\[18px\], .rounded-\[20px\], .rounded-\[24px\], .rounded-2xl, .sm\:rounded-\[16px\], .rounded-3xl):not([role="dialog"]),
+html[data-tema="ambar"] .bg-\[\#F4F4F2\]:is(.rounded-\[14px\], .rounded-\[16px\], .rounded-\[18px\], .rounded-\[20px\], .rounded-\[24px\], .rounded-2xl, .sm\:rounded-\[16px\], .rounded-3xl):not([role="dialog"]) {
   box-shadow: 0 6px 16px rgba(190,90,20,.10), inset 0 1px 0 rgba(255,255,255,.85);
 }
-html[data-tema="ambar"] [class~="bg-[#FFFFFF]"][class~="border-[#E6E6E3]"]:is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-[24px]"], [class*="rounded-2xl"], [class*="rounded-3xl"]) {
+html[data-tema="ambar"] .bg-\[\#FFFFFF\].border-\[\#E6E6E3\]:is(.rounded-\[14px\], .rounded-\[16px\], .rounded-\[18px\], .rounded-\[20px\], .rounded-\[24px\], .rounded-2xl, .sm\:rounded-\[16px\], .rounded-3xl) {
   border-color: rgba(255,255,255,.8) !important;
 }
 
 /* laranja em força: botões com degradé e brilho */
-html[data-tema="ambar"] :is(button, a)[class~="bg-[#FF6B1A]"] {
+html[data-tema="ambar"] button.bg-\[\#FF6B1A\], html[data-tema="ambar"] a.bg-\[\#FF6B1A\] {
   background-image: linear-gradient(135deg, #FF9A52 0%, #FF6B1A 52%, #F2530A 100%);
   box-shadow: 0 8px 20px rgba(255,107,26,.38), inset 0 1px 0 rgba(255,255,255,.55);
 }
-html[data-tema="ambar"] [class~="bg-[#FF6B1A]"],
-html[data-tema="ambar"] [class~="bg-[#FF6B1A]"] :is([class~="text-[#111111]"], [class~="text-[#FFFFFF]"]) { color: #1F0F05 !important; }
-html[data-tema="ambar"] [class~="bg-[#111111]"] { color: #FFF4E8; }
-html[data-tema="ambar"] :is([class~="bg-[#D92D20]"], [class~="bg-[#1F7A3A]"], [class~="bg-[#16A34A]"], [class~="bg-[#1F9D55]"], [class~="bg-[#14693A]"]) { color: #FFFFFF !important; }
+html[data-tema="ambar"] .bg-\[\#FF6B1A\],
+html[data-tema="ambar"] .bg-\[\#FF6B1A\] .text-\[\#111111\], html[data-tema="ambar"] .bg-\[\#FF6B1A\] .text-\[\#FFFFFF\] { color: #1F0F05 !important; }
+html[data-tema="ambar"] .bg-\[\#111111\] { color: #FFF4E8; }
+html[data-tema="ambar"] .bg-\[\#D92D20\], html[data-tema="ambar"] .bg-\[\#1F7A3A\], html[data-tema="ambar"] .bg-\[\#16A34A\],
+html[data-tema="ambar"] .bg-\[\#1F9D55\], html[data-tema="ambar"] .bg-\[\#14693A\] { color: #FFFFFF !important; }
 
 /* mapa: papel quente, laranja a destacar */
-html[data-tema="ambar"] [class~="bg-white/90"] { background-color: rgba(255,249,242,.82) !important; }
+html[data-tema="ambar"] .bg-white\/90 { background-color: rgba(255,249,242,.82) !important; }
 html[data-tema="ambar"] .leaflet-container { background-color: #FFE3C8 !important; }
 html[data-tema="ambar"] .leaflet-tile-pane {
   filter: grayscale(0.6) sepia(0.5) saturate(1.6) hue-rotate(-10deg) brightness(1.04) contrast(0.94);

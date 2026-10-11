@@ -87,13 +87,17 @@ const ESCURO: Tema = {
   },
   // Botões e etiquetas pretos passam a claros; cartões e faixas pretas (como o do tempo) ficam escuros mas elevados.
   especiais: (() => {
-    const PRETOS = ['111111', '1F1F1F', '2B2B2B', '000000'].map((c) => `.bg-\\[\\#${c}\\]`).join(',');
-    const PEQUENOS = 'button,a,span,label,summary,[role="tab"],[role="radio"],[role="switch"],[role="button"]';
-    const GRANDES = 'div,section,article,li,p,header,aside,nav,footer,main,ul,ol,figure,table,tr,td';
+    // Desempenho: o sujeito de cada regra (o que está mais à direita) tem de ser uma classe, para o navegador só a testar nos
+    // elementos que a têm. Com :is(…) à frente, a regra era testada em todos os elementos a cada recálculo de estilo.
+    const PRETOS = ['111111', '1F1F1F', '2B2B2B', '000000'].map((c) => `.bg-\\[\\#${c}\\]`);
+    const PEQUENOS = ':is(button,a,span,label,summary,[role="tab"],[role="radio"],[role="switch"],[role="button"])';
+    const GRANDES = ':is(div,section,article,li,p,header,aside,nav,footer,main,ul,ol,figure,table,tr,td)';
+    const T = 'html[data-tema="escuro"] ';
+    const lista = (f: (p: string) => string) => PRETOS.map(f).join(',');
     return `
-html[data-tema="escuro"] :is(${GRANDES}):is(${PRETOS}){background-color:#26262B;border-color:#34343A}
-html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}){background-color:#F2F2F0}
-html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}),html[data-tema="escuro"] :is(${PEQUENOS}):is(${PRETOS}) :is(.text-\\[\\#FFFFFF\\],.text-white){color:#111111!important}
+${lista((p) => `${T}${p}${GRANDES}`)}{background-color:#26262B;border-color:#34343A}
+${lista((p) => `${T}${p}${PEQUENOS}`)}{background-color:#F2F2F0}
+${lista((p) => `${T}${p}${PEQUENOS}`)},${lista((p) => `${T}${p}${PEQUENOS} .text-\\[\\#FFFFFF\\],${T}${p}${PEQUENOS} .text-white`)}{color:#111111!important}
 `;
   })(),
 };
