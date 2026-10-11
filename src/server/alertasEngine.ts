@@ -398,6 +398,19 @@ function proximosFeriados(distrito: DistritoIpma): Feriado[] {
     .map(({ dt, ...x }) => ({ ...x, data: dt.toISODate()!, diaSemana: dias[dt.weekday - 1] }));
 }
 
+/** Feriados nacionais nos próximos `dias` dias (0 = hoje), para a Comunidade avisar na véspera. */
+export function feriadosNacionaisProximos(dias = 3): Feriado[] {
+  const hoje = DateTime.now().setZone(ZONA).startOf('day');
+  const nomesDias = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'];
+  const distrito = { idRegiao: 1, nome: '' } as unknown as DistritoIpma;
+  return [...feriadosDoAno(hoje.year, distrito), ...feriadosDoAno(hoje.year + 1, distrito)]
+    .filter((x) => x.ambito === 'nacional')
+    .map((x) => ({ ...x, emDias: Math.round(x.dt.startOf('day').diff(hoje, 'days').days) }))
+    .filter((x) => x.emDias >= 0 && x.emDias <= dias)
+    .sort((a, b) => a.emDias - b.emDias)
+    .map(({ dt, ...x }) => ({ ...x, data: dt.toISODate()!, diaSemana: nomesDias[dt.weekday - 1] }));
+}
+
 // ---------------------------------------------------------------------------------
 // Perturbações e greves anunciadas pelos operadores
 // ---------------------------------------------------------------------------------

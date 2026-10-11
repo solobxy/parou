@@ -11,8 +11,8 @@ import { Conta, ErroConta, avatarDaLinha, contaEAdmin, contaPioneira, ganharPont
 import { pareceSpam } from './conteudo';
 import { avatarOuPadrao, ConfigAvatar } from '../../utils/avatarCatalogo';
 
-export const TIPOS_CONVERSA = ['queixa', 'pergunta', 'elogio', 'conversa', 'novidade'] as const;
-/** O que as pessoas podem escolher ao publicar ('novidade' só sai da conta do Criador, por si só) */
+export const TIPOS_CONVERSA = ['queixa', 'pergunta', 'elogio', 'conversa', 'novidade', 'aviso'] as const;
+/** O que as pessoas podem escolher ao publicar ('novidade' e 'aviso' só saem da conta do Criador, por si sós) */
 const TIPOS_CRIAVEIS = ['queixa', 'pergunta', 'elogio', 'conversa'] as const;
 export const MOTIVOS_DENUNCIA = ['spam', 'insulto', 'dados-pessoais', 'falso', 'outro'] as const;
 const DENUNCIAS_PARA_ESCONDER = 3;
@@ -142,12 +142,12 @@ function distanciaKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return 12742 * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-/** Imagens de uma publicação: só caminhos da pasta /novidades/ (são ficheiros da própria PAROU) */
+/** Imagens de uma publicação: só caminhos das pastas /novidades/ e /avisos/ (são ficheiros da própria PAROU) */
 function imagensDe(bruto: unknown): string[] {
   if (!bruto) return [];
   try {
     const lista = JSON.parse(String(bruto));
-    return Array.isArray(lista) ? lista.filter((c) => typeof c === 'string' && /^\/novidades\/[a-z0-9._-]+\.(jpg|png|webp)$/i.test(c)).slice(0, 4) : [];
+    return Array.isArray(lista) ? lista.filter((c) => typeof c === 'string' && /^\/(novidades|avisos)\/[a-z0-9._-]+\.(jpg|png|webp)$/i.test(c)).slice(0, 4) : [];
   } catch { return []; }
 }
 

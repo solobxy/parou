@@ -8,7 +8,7 @@ import { AutorConversa, TipoConversa } from '../../services/comunidade';
 import { tempoRelativo } from '../../utils/tempo';
 
 export const ROTULO_TIPO: Record<TipoConversa, string> = {
-  queixa: 'Queixa', pergunta: 'Pergunta', elogio: 'Elogio', conversa: 'Conversa', novidade: 'Novidade',
+  queixa: 'Queixa', pergunta: 'Pergunta', elogio: 'Elogio', conversa: 'Conversa', novidade: 'Novidade', aviso: 'Aviso',
 };
 const COR_TIPO: Record<TipoConversa, string> = {
   queixa: 'bg-[#FDECEA] text-[#9F1D14]',
@@ -16,6 +16,7 @@ const COR_TIPO: Record<TipoConversa, string> = {
   elogio: 'bg-[#E6F6EC] text-[#14693A]',
   conversa: 'bg-[#F4F4F2] text-[#4A4A4A]',
   novidade: 'bg-[#FF6B1A] text-[#111111]',
+  aviso: 'bg-[#D92D20] text-[#FFFFFF]',
 };
 
 export const EtiquetaTipo: React.FC<{ tipo: TipoConversa }> = ({ tipo }) => (

@@ -12,6 +12,7 @@ const DICA_TIPO: Record<TipoConversa, string> = {
   elogio: 'Algo correu bem',
   conversa: 'Falar de transportes',
   novidade: 'Novidades da PAROU',
+  aviso: 'Avisos da PAROU',
 };
 
 interface CompositorProps {
