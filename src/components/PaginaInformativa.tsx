@@ -98,13 +98,19 @@ function Privacidade() {
           (<em>parou_sessao</em>, 30 dias) para não teres de entrar de cada vez. O email nunca é mostrado a outras pessoas.
         </p>
         <p>
-          <strong>Ocorrências e comentários que publicas.</strong> São públicos (título, descrição, local, hora e o nome que
-          escolheres mostrar), porque o objetivo é avisar outras pessoas.
+          <strong>Ocorrências e comentários que publicas.</strong> São públicos (título, descrição, local, hora, a foto, se
+          juntares uma, e o nome que escolheres mostrar), porque o objetivo é avisar outras pessoas. A foto é opcional e só a
+          enviamos se a escolheres tu; não incluas pessoas reconhecíveis nem matrículas.
         </p>
         <p>
           <strong>Dados técnicos.</strong> Como em qualquer site, o servidor recebe o endereço IP e o tipo de browser para entregar
           as páginas e proteger o serviço contra abusos. Não os usamos para te identificar e não os guardamos para além do
           necessário (no máximo 30 dias nos registos do servidor).
+        </p>
+        <p>
+          <strong>Relatórios de erro.</strong> Se a app falhar, envia-nos o texto técnico do erro, a página onde aconteceu e o tipo de
+          browser ou telemóvel, para o corrigirmos. Não leva o teu nome, email nem a tua posição, e fica nos registos do servidor
+          pelo mesmo prazo (30 dias no máximo).
         </p>
         <p>
           <strong>Contagem anónima de utilizadores.</strong> Para sabermos quantas pessoas usam a PAROU (e se ela está a fazer falta),
@@ -185,9 +191,16 @@ function Termos() {
       </Secao>
       <Secao titulo="O que publicas">
         <p>
-          As ocorrências e comentários que publicas são públicos e da tua responsabilidade. Não publiques informação falsa, ofensiva,
-          dados pessoais de outras pessoas, publicidade ou conteúdo ilegal. Podemos ocultar ou apagar conteúdo que viole estas regras
-          e, em caso de abuso repetido, suspender a conta. A comunidade pode assinalar conteúdo inadequado.
+          As ocorrências, publicações, respostas e comentários que publicas são públicos e da tua responsabilidade. Não publiques
+          informação falsa, insultos, assédio ou ameaças, discurso de ódio ou discriminação, conteúdo sexual ou violento, fotos de
+          pessoas reconhecíveis ou matrículas, dados pessoais de outras pessoas, publicidade ou spam, nem conteúdo ilegal. Não te
+          faças passar por outra pessoa, operador ou entidade.
+        </p>
+        <p>
+          Qualquer pessoa pode <strong>denunciar</strong> uma publicação, resposta ou ocorrência (no menu de cada uma)
+          e <strong>bloquear</strong> outro utilizador para deixar de ver o que ele escreve. Analisamos as denúncias e ocultamos ou
+          apagamos o conteúdo que viole estas regras e, em caso de abuso repetido, suspendemos a conta. Para denunciar de outra
+          forma, escreve para <a className="underline font-semibold" href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.
         </p>
       </Secao>
       <Secao titulo="Medalha Pioneiro">

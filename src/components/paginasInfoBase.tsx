@@ -7,7 +7,7 @@ import { Trash2 } from 'lucide-react';
 export const CONTACTO = 'contacto@parou.pt';
 export const TELEFONE = '913 488 258';
 export const TELEFONE_LINK = '+351913488258';
-export const ATUALIZADO = '10 de outubro de 2026';
+export const ATUALIZADO = '11 de outubro de 2026';
 
 export function Secao({ titulo, children, id }: { titulo: string; children: React.ReactNode; id?: string }) {
   return (

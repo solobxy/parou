@@ -4,7 +4,7 @@ import { Mail, Heart, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide
 import type { PaginaInfo } from './PaginaInformativa';
 import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 
-const ATUALIZADO_EN = '10 October 2026';
+const ATUALIZADO_EN = '11 October 2026';
 
 export function SobreEn({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
   return (
@@ -93,13 +93,19 @@ export function PrivacidadeEn() {
           not have to sign in every time. Your email is never shown to other people.
         </p>
         <p>
-          <strong>Incidents and comments you post.</strong> They are public (title, description, place, time and the name you choose
-          to show), because the purpose is to warn other people.
+          <strong>Incidents and comments you post.</strong> They are public (title, description, place, time, the photo if you add
+          one, and the name you choose to show), because the purpose is to warn other people. The photo is optional and is only
+          sent if you choose it; please do not include recognisable people or number plates.
         </p>
         <p>
           <strong>Technical data.</strong> As on any website, the server receives the IP address and the browser type in order to
           deliver the pages and protect the service from abuse. We do not use them to identify you and do not keep them longer than
           necessary (30 days at most in the server logs).
+        </p>
+        <p>
+          <strong>Error reports.</strong> If the app crashes, it sends us the technical error text, the page where it happened and the
+          browser or phone type, so we can fix it. It does not include your name, email or location, and it stays in the server logs
+          for the same period (30 days at most).
         </p>
         <p>
           <strong>Anonymous user count.</strong> To know how many people use PAROU (and whether it is needed), we count app opens
@@ -181,9 +187,16 @@ export function TermosEn() {
       </Secao>
       <Secao titulo="What you post">
         <p>
-          The incidents and comments you post are public and your responsibility. Do not post false or offensive information,
-          other people's personal data, advertising or illegal content. We may hide or delete content that breaks these rules and,
-          in case of repeated abuse, suspend the account. The community can flag inappropriate content.
+          The incidents, posts, replies and comments you post are public and your responsibility. Do not post false information,
+          insults, harassment or threats, hate speech or discrimination, sexual or violent content, photos of recognisable people
+          or number plates, other people's personal data, advertising or spam, or illegal content. Do not pretend to be another
+          person, operator or organisation.
+        </p>
+        <p>
+          Anyone can <strong>report</strong> a post, reply or incident (in the menu of each one) and <strong>block</strong>{' '}
+          another user to stop seeing what they write. We review reports and hide or delete content that breaks these rules and,
+          in case of repeated abuse, suspend the account. To report in another way, write to{' '}
+          <a className="underline font-semibold" href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.
         </p>
       </Secao>
       <Secao titulo="Pioneer badge">
