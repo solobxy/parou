@@ -197,6 +197,46 @@ export function resumoEstatisticas(agora = Date.now()) {
   };
 }
 
+/** Contas registadas e o que fazem na Comunidade (só números; nunca nomes nem emails). */
+export function resumoDeContas(agora = Date.now()) {
+  const b = bd();
+  const um = (sql: string, ...p: any[]): any => b.prepare(sql).get(...p) || {};
+  const hoje = diaDe(agora);
+  const desde30 = somarDias(hoje, -29);
+  const limite30 = agora - 31 * 24 * 3600_000;
+  const criadas = new Map<string, number>();
+  for (const r of b.prepare('SELECT criado FROM utilizadores WHERE criado >= ?').all(limite30) as any[]) {
+    const dia = diaDe(Number(r.criado));
+    criadas.set(dia, (criadas.get(dia) || 0) + 1);
+  }
+  const serie = Array.from({ length: 30 }, (_, i) => { const dia = somarDias(desde30, i); return { dia, novas: criadas.get(dia) || 0 }; });
+  const soma = (dias: number) => serie.slice(-dias).reduce((a, x) => a + x.novas, 0);
+  const comSessao = (ms: number) => Number(um('SELECT COUNT(DISTINCT utilizador_id) AS c FROM sessoes WHERE renovada >= ? AND expira > ?', agora - ms, agora).c);
+  const ms7 = 7 * 24 * 3600_000, ms30 = 30 * 24 * 3600_000;
+  const autores = (ms: number) => Number(um(
+    `SELECT COUNT(*) AS c FROM (SELECT autor_id FROM publicacoes WHERE criado >= ? AND autor_id IS NOT NULL UNION SELECT autor_id FROM respostas WHERE criado >= ? AND autor_id IS NOT NULL)`,
+    agora - ms, agora - ms).c);
+  const primeira = um('SELECT MIN(criado) AS m FROM utilizadores').m;
+  return {
+    total: Number(um('SELECT COUNT(*) AS c FROM utilizadores').c),
+    primeiraConta: primeira ? diaDe(Number(primeira)) : null,
+    novasHoje: soma(1),
+    novasUltimos7Dias: soma(7),
+    novasUltimos30Dias: soma(30),
+    comSessaoNasUltimas24Horas: comSessao(24 * 3600_000),
+    comSessaoNosUltimos7Dias: comSessao(ms7),
+    serieDiaria30Dias: serie,
+    comunidade: {
+      publicacoes: Number(um("SELECT COUNT(*) AS c FROM publicacoes WHERE estado = 'visivel'").c),
+      publicacoesUltimos7Dias: Number(um("SELECT COUNT(*) AS c FROM publicacoes WHERE estado = 'visivel' AND criado >= ?", agora - ms7).c),
+      respostas: Number(um("SELECT COUNT(*) AS c FROM respostas WHERE estado = 'visivel'").c),
+      respostasUltimos7Dias: Number(um("SELECT COUNT(*) AS c FROM respostas WHERE estado = 'visivel' AND criado >= ?", agora - ms7).c),
+      pessoasQueEscreveramNosUltimos30Dias: autores(ms30),
+      votos: Number(um('SELECT COUNT(*) AS c FROM votos_comunidade').c),
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Rotas
 // ---------------------------------------------------------------------------------------------

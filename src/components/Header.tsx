@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Users,
   MessageCircle,
+  Activity,
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -36,6 +37,7 @@ interface HeaderProps {
   onOpenUserProfileModal?: () => void;
   onOpenAdminModal?: () => void;
   onOpenWhatsApp?: () => void;
+  onOpenEstatisticas?: () => void;
   pendingModerationCount?: number;
   onOpenNotificationModal?: () => void;
   isNotificationActive?: boolean;
@@ -58,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUserProfileModal,
   onOpenAdminModal,
   onOpenWhatsApp,
+  onOpenEstatisticas,
   pendingModerationCount,
   onOpenNotificationModal,
   isNotificationActive,
@@ -330,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>}
                   </div>
 
-                  {(onOpenPublicSourcesModal || onOpenAdminModal || (onOpenWhatsApp && painelWhatsApp)) && (
+                  {(onOpenPublicSourcesModal || onOpenAdminModal || ((onOpenWhatsApp || onOpenEstatisticas) && painelWhatsApp)) && (
                     <div className="py-1">
                       {onOpenPublicSourcesModal && (
                         <button
@@ -349,6 +352,20 @@ export const Header: React.FC<HeaderProps> = ({
                               {publicReportsCount}
                             </span>
                           )}
+                        </button>
+                      )}
+
+                      {onOpenEstatisticas && painelWhatsApp && (
+                        <button
+                          onClick={() => {
+                            onOpenEstatisticas();
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#111111] hover:bg-[#F4F4F2] transition-colors cursor-pointer min-h-[44px]"
+                          data-teste="menu-estatisticas"
+                        >
+                          <Activity className="w-4 h-4 stroke-[2]" />
+                          <span>Estatísticas</span>
                         </button>
                       )}
 
