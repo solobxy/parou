@@ -1858,11 +1858,27 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   .filter((s) => s.id === selectedStop.id || metrosEntre(s, selectedStop) <= 30)
                   .sort((x, y) => String(x.operatorName || '').localeCompare(String(y.operatorName || '')) || String(x.id).localeCompare(String(y.id)));
                 if (grupo.length < 2 || (linhaAberta && mapaExpandido)) return null;
+                // Etiqueta de cada poste. Se dois ficam iguais (mesmo operador e sem sentido), distingue-os
+                // pela distância e, em último caso, por um número, para nunca haver dois botões "STCP" iguais.
+                const baseEtiqueta = (s: typeof grupo[number]) => {
+                  const sentido = s.direction && !s.arrivalsOnly ? ` · ${formatTransitName(s.direction.split(' · ')[0])}` : '';
+                  return `${s.operatorName || 'Paragem'}${sentido}`;
+                };
+                const contagem = new Map<string, number>();
+                grupo.forEach((s) => contagem.set(baseEtiqueta(s), (contagem.get(baseEtiqueta(s)) || 0) + 1));
+                const vistas = new Map<string, number>();
+                const etiquetas = new Map<string, string>();
+                grupo.forEach((s) => {
+                  const b = baseEtiqueta(s);
+                  if ((contagem.get(b) || 0) < 2) { etiquetas.set(s.id, b); return; }
+                  const n = (vistas.get(b) || 0) + 1;
+                  vistas.set(b, n);
+                  etiquetas.set(s.id, `${b} · ${t('poste')} ${n}`);
+                });
                 return (
                   <div className="mt-2.5 -mx-3 px-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-teste="paragens-mesmo-sitio">
                     {grupo.map((s) => {
                       const ativa = s.id === selectedStop.id;
-                      const sentido = s.direction && !s.arrivalsOnly ? ` · ${formatTransitName(s.direction.split(' · ')[0])}` : '';
                       return (
                         <button
                           key={s.id}
@@ -1872,7 +1888,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                             ativa ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#E6E6E3] text-[#111111] active:bg-[#F4F4F2]'
                           }`}
                         >
-                          {(s.operatorName || 'Paragem')}{sentido}
+                          {etiquetas.get(s.id)}
                         </button>
                       );
                     })}
