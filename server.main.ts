@@ -22,7 +22,7 @@ import {
 } from './src/server/transitAggregatorEngine';
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
-import { registarRotasComunidade, importarOcorrenciasPublicas } from './src/server/comunidade/rotas';
+import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite } from './src/server/limites';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
@@ -284,6 +284,17 @@ import {
   ingestCarrisMetropolitana
 } from './src/server/ingestionEngine';
 
+// Recolhe as fontes oficiais, põe as ocorrências na base da comunidade e fecha as que já não existem.
+// Corre sozinha (ao arrancar e de 5 em 5 minutos) e também pelo botão da administração.
+async function sincronizarFontesOficiais() {
+  const { result, occurrences } = await runAllPublicSourcesIngestion();
+  const { added, updated } = importarOcorrenciasPublicas(occurrences);
+  const fontesOk = ((result as any)?.details || []).filter((d: any) => d?.status === 'success').map((d: any) => String(d.sourceName));
+  const { resolvidas, apagadas } = resolverOcorrenciasPublicasAusentes(occurrences.map((o: any) => String(o?.externalId || o?.id || '')), fontesOk);
+  if (added || resolvidas || apagadas) console.log(`[Fontes oficiais] ${added} novas, ${updated} atualizadas, ${resolvidas} resolvidas, ${apagadas} limpas`);
+  return { result, occurrences, added, updated };
+}
+
 // List all registered public sources with audited health status, real URLs, timestamps & errors
 app.get('/api/public-sources', (req: Request, res: Response) => {
   return res.json({
@@ -298,12 +309,11 @@ app.post('/api/public-sources/sync', async (req: Request, res: Response) => {
   try {
     console.log('[Ingestion Engine] A iniciar sincronização auditada de fontes públicas...');
     const startTime = Date.now();
-    const { result, occurrences } = await runAllPublicSourcesIngestion();
+    // As ocorrências das fontes oficiais entram na base da comunidade aqui, no servidor
+    const { result, occurrences, added, updated } = await sincronizarFontesOficiais();
     const durationMs = Date.now() - startTime;
 
     console.log(`[Ingestion Engine] Concluído em ${durationMs}ms. ${occurrences.length} ocorrências reais.`);
-    // As ocorrências das fontes oficiais entram na base da comunidade aqui, no servidor
-    const { added, updated } = importarOcorrenciasPublicas(occurrences);
     return res.json({
       success: true,
       result,
@@ -1404,7 +1414,7 @@ function startScheduledPolling() {
   setTimeout(async () => {
     try {
       console.log('[Polling Engine] Probing inicial de fontes públicas em curso...');
-      await runAllPublicSourcesIngestion();
+      await sincronizarFontesOficiais();
       console.log('[Catalog Engine] Probing inicial do catálogo nacional de transportes...');
       await probeAllCatalogEntries();
       console.log('[Central Alerts] Probing inicial do Centro de Alertas...');
@@ -1439,7 +1449,7 @@ function startScheduledPolling() {
   setInterval(async () => {
     try {
       console.log('[Polling Engine 5 min] Sincronização periódica geral das fontes...');
-      await runAllPublicSourcesIngestion();
+      await sincronizarFontesOficiais();
     } catch (err) {
       console.warn('[Polling Engine 5 min] Aviso:', err);
     }
