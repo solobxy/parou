@@ -131,6 +131,50 @@ const BarraH: React.FC<{ nome: string; valor: number; total: number }> = ({ nome
   </li>
 );
 
+/** Tabela única: linhas = o que se conta; colunas = dia, semana, mês, ano e total. */
+const Resumo: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
+  const colunas = [
+    { nome: 'Dia', sub: 'hoje' },
+    { nome: 'Semana', sub: '7 dias' },
+    { nome: 'Mês', sub: '30 dias' },
+    { nome: 'Ano', sub: '365 dias' },
+    { nome: 'Total', sub: d.desdeSempre.desde ? `desde ${diaCurto(d.desdeSempre.desde)}` : 'sempre' },
+  ];
+  const linhas: Array<{ nome: string; valores: Array<number | null>; forte?: boolean }> = [
+    { nome: 'Pessoas', forte: true, valores: [d.hoje.pessoas, d.ultimos7Dias.pessoas, d.ultimos30Dias.pessoas, d.ultimos365Dias.pessoas, d.desdeSempre.pessoas] },
+    { nome: 'Pessoas novas', valores: [d.hoje.novas, d.ultimos7Dias.novas, d.ultimos30Dias.novas, d.ultimos365Dias.novas, d.desdeSempre.pessoas] },
+    { nome: 'Aberturas', valores: [d.hoje.aberturas, d.ultimos7Dias.aberturas, d.ultimos30Dias.aberturas, d.ultimos365Dias.aberturas, d.desdeSempre.aberturas] },
+    { nome: 'Contas novas', valores: [d.contas.novasHoje, d.contas.novasUltimos7Dias, d.contas.novasUltimos30Dias, d.contas.novasUltimos365Dias, d.contas.total] },
+  ];
+  return (
+    <div className="overflow-x-auto -mx-1 px-1">
+      <table className="w-full border-collapse text-left tabular-nums" data-teste="tabela-periodos">
+        <thead>
+          <tr>
+            <th scope="col" className="sr-only">O que se conta</th>
+            {colunas.map((c) => (
+              <th key={c.nome} scope="col" className="pb-2 pl-1 text-right align-bottom font-normal">
+                <span className="block text-[13px] font-bold text-[#111111] leading-tight">{c.nome}</span>
+                <span className="block text-[11.5px] text-[#6B6B6B] leading-tight whitespace-nowrap">{c.sub}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => (
+            <tr key={l.nome} className="border-t border-[#E6E6E3]">
+              <th scope="row" className="py-2.5 pr-1 text-[13px] font-semibold text-[#111111] leading-tight">{l.nome}</th>
+              {l.valores.map((v, i) => (
+                <td key={colunas[i].nome} className={`py-2.5 pl-1 text-right font-condensada font-bold ${l.forte ? 'text-[22px] sm:text-[26px] text-[#111111]' : 'text-[17px] sm:text-[20px] text-[#4A4A4A]'}`}>{num(v)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
   const origens = Object.entries(d.porOrigemUltimos30Dias);
   const totalOrigens = origens.reduce((a, [, v]) => a + v, 0);
@@ -156,12 +200,12 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <Valor rotulo="Últimos 7 dias" valor={num(d.ultimos7Dias.pessoas)} sub={`${num(d.ultimos7Dias.novas)} novas`} />
-        <Valor rotulo="Últimos 30 dias" valor={num(d.ultimos30Dias.pessoas)} sub={`${num(d.ultimos30Dias.novas)} novas`} />
-        <Valor rotulo="Desde sempre" valor={num(d.desdeSempre.pessoas)} sub={d.desdeSempre.desde ? `desde ${diaCurto(d.desdeSempre.desde)}` : undefined} />
-        <Valor rotulo="Contas criadas" valor={num(c.total)} sub={`${num(c.novasUltimos7Dias)} nos últimos 7 dias`} />
-      </div>
+      <Cartao
+        titulo="Dia, semana, mês, ano e total"
+        nota="Cada pessoa conta uma só vez em cada período (a semana são os últimos 7 dias, o mês os últimos 30 e o ano os últimos 365). Em ‘Total’ entram todas desde o início."
+      >
+        <Resumo d={d} />
+      </Cartao>
 
       <Cartao titulo="Pessoas por dia" nota="Cada pessoa conta uma vez por dia, mesmo que abra a app muitas vezes. Toca numa barra para ver o dia.">
         <Barras
@@ -193,11 +237,9 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
       </Cartao>
 
       <Cartao titulo="Contas" nota={c.primeiraConta ? `A primeira conta foi criada a ${diaCurto(c.primeiraConta)}.` : undefined}>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Valor rotulo="Total" valor={num(c.total)} />
-          <Valor rotulo="Novas hoje" valor={num(c.novasHoje)} />
-          <Valor rotulo="Novas em 30 dias" valor={num(c.novasUltimos30Dias)} />
-          <Valor rotulo="Entraram nos últimos 7 dias" valor={num(c.comSessaoNosUltimos7Dias)} sub={`${num(c.comSessaoNasUltimas24Horas)} nas últimas 24 h`} />
+        <div className="grid grid-cols-2 gap-2.5">
+          <Valor rotulo="Contas no total" valor={num(c.total)} />
+          <Valor rotulo="Entraram em 7 dias" valor={num(c.comSessaoNosUltimos7Dias)} sub={`${num(c.comSessaoNasUltimas24Horas)} nas últimas 24 h`} />
         </div>
         <div className="mt-4">
           <Barras unidade="contas novas" singular="conta nova" dados={c.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.novas }))} />

@@ -176,6 +176,7 @@ export function resumoEstatisticas(agora = Date.now()) {
     ontem: doDia(ontem),
     ultimos7Dias: periodo(7),
     ultimos30Dias: periodo(30),
+    ultimos365Dias: periodo(365),
     desdeSempre: { pessoas: Number(sempre.pessoas), aberturas: Number(sempre.aberturas), desde: sempre.desde || null },
     fidelidade: {
       novasNosUltimos14DiasSemHoje: Number(coorte.total),
@@ -223,6 +224,7 @@ export function resumoDeContas(agora = Date.now()) {
     novasHoje: soma(1),
     novasUltimos7Dias: soma(7),
     novasUltimos30Dias: soma(30),
+    novasUltimos365Dias: Number(um('SELECT COUNT(*) AS c FROM utilizadores WHERE criado >= ?', agora - 365 * 24 * 3600_000).c),
     comSessaoNasUltimas24Horas: comSessao(24 * 3600_000),
     comSessaoNosUltimos7Dias: comSessao(ms7),
     serieDiaria30Dias: serie,
