@@ -131,47 +131,40 @@ const BarraH: React.FC<{ nome: string; valor: number; total: number }> = ({ nome
   </li>
 );
 
-/** Tabela única: linhas = o que se conta; colunas = dia, semana, mês, ano e total. */
+/** Tabela única: linhas = dia, semana, mês, ano e total; colunas = o que se conta. */
 const Resumo: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
-  const colunas = [
-    { nome: 'Dia', sub: 'hoje' },
-    { nome: 'Semana', sub: '7 dias' },
-    { nome: 'Mês', sub: '30 dias' },
-    { nome: 'Ano', sub: '365 dias' },
-    { nome: 'Total', sub: d.desdeSempre.desde ? `desde ${diaCurto(d.desdeSempre.desde)}` : 'sempre' },
+  const linhas: Array<{ nome: string; sub: string; valores: Array<number | null>; forte?: boolean }> = [
+    { nome: 'Dia', sub: 'hoje', valores: [d.hoje.pessoas, d.hoje.novas, d.hoje.aberturas, d.contas.novasHoje] },
+    { nome: 'Semana', sub: 'últimos 7 dias', valores: [d.ultimos7Dias.pessoas, d.ultimos7Dias.novas, d.ultimos7Dias.aberturas, d.contas.novasUltimos7Dias] },
+    { nome: 'Mês', sub: 'últimos 30 dias', valores: [d.ultimos30Dias.pessoas, d.ultimos30Dias.novas, d.ultimos30Dias.aberturas, d.contas.novasUltimos30Dias] },
+    { nome: 'Ano', sub: 'últimos 365 dias', valores: [d.ultimos365Dias.pessoas, d.ultimos365Dias.novas, d.ultimos365Dias.aberturas, d.contas.novasUltimos365Dias] },
+    { nome: 'Total', sub: d.desdeSempre.desde ? `desde ${diaCurto(d.desdeSempre.desde)}` : 'desde o início', forte: true, valores: [d.desdeSempre.pessoas, d.desdeSempre.pessoas, d.desdeSempre.aberturas, d.contas.total] },
   ];
-  const linhas: Array<{ nome: string; valores: Array<number | null>; forte?: boolean }> = [
-    { nome: 'Pessoas', forte: true, valores: [d.hoje.pessoas, d.ultimos7Dias.pessoas, d.ultimos30Dias.pessoas, d.ultimos365Dias.pessoas, d.desdeSempre.pessoas] },
-    { nome: 'Pessoas novas', valores: [d.hoje.novas, d.ultimos7Dias.novas, d.ultimos30Dias.novas, d.ultimos365Dias.novas, d.desdeSempre.pessoas] },
-    { nome: 'Aberturas', valores: [d.hoje.aberturas, d.ultimos7Dias.aberturas, d.ultimos30Dias.aberturas, d.ultimos365Dias.aberturas, d.desdeSempre.aberturas] },
-    { nome: 'Contas novas', valores: [d.contas.novasHoje, d.contas.novasUltimos7Dias, d.contas.novasUltimos30Dias, d.contas.novasUltimos365Dias, d.contas.total] },
-  ];
+  const colunas = ['Pessoas', 'Novas', 'Aberturas', 'Contas novas'];
   return (
-    <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full border-collapse text-left tabular-nums" data-teste="tabela-periodos">
-        <thead>
-          <tr>
-            <th scope="col" className="sr-only">O que se conta</th>
-            {colunas.map((c) => (
-              <th key={c.nome} scope="col" className="pb-2 pl-1 text-right align-bottom font-normal">
-                <span className="block text-[13px] font-bold text-[#111111] leading-tight">{c.nome}</span>
-                <span className="block text-[11.5px] text-[#6B6B6B] leading-tight whitespace-nowrap">{c.sub}</span>
-              </th>
+    <table className="w-full border-collapse text-left tabular-nums" data-teste="tabela-periodos">
+      <thead>
+        <tr>
+          <th scope="col" className="sr-only">Período</th>
+          {colunas.map((c) => (
+            <th key={c} scope="col" className="pb-2 pl-1 text-right align-bottom text-[12px] font-bold leading-[1.1] text-[#6B6B6B]">{c}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {linhas.map((l) => (
+          <tr key={l.nome} className={`border-t border-[#E6E6E3] ${l.forte ? 'bg-[#F4F4F2]' : ''}`}>
+            <th scope="row" className="py-2.5 pl-2 pr-1 align-middle">
+              <span className="block text-[15px] font-bold text-[#111111] leading-tight">{l.nome}</span>
+              <span className="block text-[11.5px] font-normal text-[#6B6B6B] leading-tight">{l.sub}</span>
+            </th>
+            {l.valores.map((v, i) => (
+              <td key={colunas[i]} className={`py-2.5 pl-1 pr-1 text-right align-middle font-condensada font-bold ${i === 0 ? 'text-[24px] text-[#111111]' : 'text-[19px] text-[#4A4A4A]'}`}>{num(v)}</td>
             ))}
           </tr>
-        </thead>
-        <tbody>
-          {linhas.map((l) => (
-            <tr key={l.nome} className="border-t border-[#E6E6E3]">
-              <th scope="row" className="py-2.5 pr-1 text-[13px] font-semibold text-[#111111] leading-tight">{l.nome}</th>
-              {l.valores.map((v, i) => (
-                <td key={colunas[i].nome} className={`py-2.5 pl-1 text-right font-condensada font-bold ${l.forte ? 'text-[22px] sm:text-[26px] text-[#111111]' : 'text-[17px] sm:text-[20px] text-[#4A4A4A]'}`}>{num(v)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 };
 
@@ -202,7 +195,7 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
 
       <Cartao
         titulo="Dia, semana, mês, ano e total"
-        nota="Cada pessoa conta uma só vez em cada período (a semana são os últimos 7 dias, o mês os últimos 30 e o ano os últimos 365). Em ‘Total’ entram todas desde o início."
+        nota="Cada pessoa conta uma só vez em cada período. ‘Novas’ são as que apareceram pela primeira vez nesse período; ‘Aberturas’ são as vezes que a app foi aberta; ‘Contas novas’ são as contas criadas (no Total, todas as que existem)."
       >
         <Resumo d={d} />
       </Cartao>
