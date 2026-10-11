@@ -217,6 +217,17 @@ const ConviteAvisos: React.FC<{ distrito: string; onLigados?: (p: NotificationPr
   );
 };
 
+/** Texto pequeno a cores: o laranja puro não tem contraste suficiente sobre branco, por isso usa-se uma classe (que os temas também adaptam). */
+function classeDoRotulo(cor: string): string {
+  switch (cor) {
+    case '#FF6B1A': return 'text-[#C2410C]';
+    case '#FACC15': return 'text-[#A16207]';
+    case '#111111': return 'text-[#6B6B6B]';
+    case '#D92D20': return 'text-[#D92D20]';
+    default: return '';
+  }
+}
+
 // Cache ao nível do módulo: ao voltar ao separador a página aparece logo
 let ultimaResposta: RespostaAlertas | null = null;
 
@@ -377,7 +388,7 @@ function CartaoIncendio({ f, novo }: { f: IncidentePC; novo: boolean }) {
       <div className="w-1 shrink-0" style={{ backgroundColor: cor }} />
       <div className="p-3.5 min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[0.08em] flex items-center gap-1" style={{ color: cor }}>
+          <span className={`text-[11px] font-bold uppercase tracking-[0.08em] flex items-center gap-1 ${classeDoRotulo(cor)}`} style={classeDoRotulo(cor) ? undefined : { color: cor }}>
             <Flame className="w-3.5 h-3.5 stroke-[2.25]" />
             {t(f.estado)}
             {f.importante && <span className="text-[#D92D20]"> · {t('importante')}</span>}
@@ -935,7 +946,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                     <div className="w-1 shrink-0" style={{ backgroundColor: d.cor }} />
                     <div className="p-3.5 min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: d.cor === '#FACC15' ? '#A16207' : d.cor === '#111111' ? '#6B6B6B' : d.cor }}>
+                        <span className={`text-[11px] font-bold uppercase tracking-[0.08em] ${classeDoRotulo(d.cor)}`} style={classeDoRotulo(d.cor) ? undefined : { color: d.cor }}>
                           {d.etiqueta}
                         </span>
                         <span className="flex items-center gap-1.5 shrink-0">

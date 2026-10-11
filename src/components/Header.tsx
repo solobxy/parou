@@ -122,7 +122,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center text-left focus:outline-none rounded-[8px] min-h-[44px] cursor-pointer text-[#111111]"
             aria-label="PAROU Início"
           >
-            <Logo size={28} />
+            <Logo size={28} className="max-[419px]:hidden" />
+            <Logo size={22} className="min-[420px]:hidden" />
           </button>
         </div>
 
@@ -416,7 +417,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-0.5 min-[420px]:gap-1.5 shrink-0">
           {/* Mobile search toggle — apenas no Mapa */}
           {activeTab === 'mapa' && (
             <button
@@ -431,7 +432,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Idioma: PT ⇄ EN (mostra a língua para onde muda) */}
           <button
             onClick={() => mudarIdioma(idioma === 'en' ? 'pt' : 'en')}
-            className="w-11 h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
+            className="w-10 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
             title={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
             aria-label={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
             lang={idioma === 'en' ? 'pt-PT' : 'en'}
@@ -450,7 +451,7 @@ export const Header: React.FC<HeaderProps> = ({
           {onOpenNotificationModal && (
             <button
               onClick={onOpenNotificationModal}
-              className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
+              className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[40px] min-w-[40px] min-[420px]:min-h-[44px] min-[420px]:min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
               title={t('Notificações')}
               aria-label={t('Notificações')}
             >
