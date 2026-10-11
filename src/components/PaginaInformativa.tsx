@@ -1,10 +1,10 @@
 import React from 'react';
 import { t, idioma } from '../i18n';
-import { CONTACTO, TELEFONE, TELEFONE_LINK, ATUALIZADO, Secao, PreferenciaContagem } from './paginasInfoBase';
-import { SobreEn, PrivacidadeEn, TermosEn, ContactarEn } from './paginasInfoEn';
-import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide-react';
+import { CONTACTO, TELEFONE, TELEFONE_LINK, ATUALIZADO, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
+import { SobreEn, PrivacidadeEn, TermosEn, ContactarEn, ApagarContaEn } from './paginasInfoEn';
+import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle, Trash2 } from 'lucide-react';
 
-export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar';
+export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar' | 'apagar-conta';
 
 interface Props {
   pagina: PaginaInfo;
@@ -148,7 +148,7 @@ function Privacidade() {
           <strong>apagar a conta</strong> e os dados associados: entra na app, abre o teu perfil (toca no teu nome, no canto
           superior direito) e escolhe <strong>Apagar conta</strong>. Também o podes pedir por email para{' '}
           <a className="underline font-semibold" href={`mailto:${CONTACTO}?subject=Apagar%20conta%20PAROU`}>{CONTACTO}</a>; respondemos
-          em até 30 dias. Podes ainda apresentar queixa à Comissão Nacional de Proteção de Dados (www.cnpd.pt).
+          em até 30 dias. Passo a passo e o que é apagado em <a className="underline font-semibold" href="/apagar-conta">Apagar a conta</a>. Podes ainda apresentar queixa à Comissão Nacional de Proteção de Dados (www.cnpd.pt).
         </p>
       </Secao>
       <Secao titulo="Crianças">
@@ -260,11 +260,78 @@ function Contactar() {
   );
 }
 
+function ApagarConta() {
+  const botao = 'flex items-center gap-3 min-h-[56px] px-4 py-2 rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] active:bg-[#F4F4F2]';
+  return (
+    <>
+      <p className="text-[13px] text-[#6B6B6B]">Última atualização: {ATUALIZADO}</p>
+      <p>
+        Aqui explicamos como apagar a tua conta da <strong>PAROU</strong> (a app PAROU para Android e o site parou.pt) e os dados
+        que ficam ligados a ela. Não precisas de conta para usar a PAROU: se nunca criaste uma, não há nada a apagar.
+      </p>
+      <ApagarAqui />
+      <Secao titulo="Como apagar a conta">
+        <p><strong>1. Na app ou no site (imediato).</strong></p>
+        <ol className="list-decimal pl-5 space-y-1">
+          <li>Entra na tua conta da PAROU.</li>
+          <li>Toca no teu nome, no canto superior direito, para abrir o teu perfil.</li>
+          <li>Desce até ao fim e toca em <strong>Apagar conta</strong>.</li>
+          <li>Escreve a tua palavra-passe e confirma em <strong>Sim, apagar a conta</strong>.</li>
+        </ol>
+        <p>A conta e os dados ligados a ela são apagados logo ali.</p>
+        <p><strong>2. Por email</strong>, se já não tens a app ou te esqueceste da palavra-passe.</p>
+        <a href={`mailto:${CONTACTO}?subject=Apagar%20conta%20PAROU&body=Quero%20apagar%20a%20minha%20conta%20da%20PAROU.%20O%20email%20da%20conta%20%C3%A9%3A%20`} className={botao}>
+          <Mail className="w-5 h-5 text-[#111111] shrink-0" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-[12px] text-[#6B6B6B]">Pedir por email</span>
+            <span className="text-[15px] font-semibold text-[#111111] break-all">{CONTACTO}</span>
+          </span>
+        </a>
+        <p>
+          Escreve do email com que criaste a conta (ou diz-nos qual é). Confirmamos que és tu e apagamos a conta em até 30 dias,
+          normalmente em muito menos.
+        </p>
+      </Secao>
+      <Secao titulo="O que é apagado">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>O teu nome e o teu email.</li>
+          <li>A palavra-passe (guardada cifrada).</li>
+          <li>O avatar, os pontos e as medalhas.</li>
+          <li>Os favoritos sincronizados com a conta.</li>
+          <li>As sessões iniciadas em todos os dispositivos e os pedidos de recuperação da palavra-passe.</li>
+          <li>Os teus votos, denúncias e a lista de pessoas que bloqueaste.</li>
+        </ul>
+      </Secao>
+      <Secao titulo="O que fica">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            As ocorrências, publicações, respostas e comentários que escreveste continuam visíveis para ajudar outras pessoas, mas
+            como <strong>“Utilizador PAROU”</strong>, sem qualquer ligação à tua conta. Se preferires, apaga-os tu antes de apagares
+            a conta, ou pede-nos por email que os removamos.
+          </li>
+          <li>
+            Os registos técnicos do servidor (endereço IP e tipo de browser, para segurança) apagam-se sozinhos ao fim de 30 dias.
+          </li>
+          <li>A contagem anónima de utilizadores não está ligada à tua conta.</li>
+        </ul>
+        <p>Depois de apagada, a conta não pode ser recuperada. Podes criar uma nova quando quiseres.</p>
+      </Secao>
+      <Secao titulo="Mais informação">
+        <p>
+          Lê a <a className="underline font-semibold" href="/privacidade">política de privacidade</a> para saberes que dados a PAROU
+          usa e quais são os teus direitos, ou <a className="underline font-semibold" href="/contactar">fala connosco</a>.
+        </p>
+      </Secao>
+    </>
+  );
+}
+
 const TITULOS: Record<PaginaInfo, { titulo: string; icone: React.ElementType }> = {
   sobre: { titulo: 'Sobre a PAROU', icone: Database },
   privacidade: { titulo: 'Política de privacidade', icone: ShieldCheck },
   termos: { titulo: 'Termos de utilização', icone: FileText },
   contactar: { titulo: 'Contactar', icone: Mail },
+  'apagar-conta': { titulo: 'Apagar a conta PAROU', icone: Trash2 },
 };
 
 export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }) => {
@@ -276,8 +343,8 @@ export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }
       </button>
       <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#111111]">{titulo}</h1>
       {idioma === 'en'
-        ? (pagina === 'sobre' ? <SobreEn onAbrir={onAbrir} /> : pagina === 'privacidade' ? <PrivacidadeEn /> : pagina === 'contactar' ? <ContactarEn /> : <TermosEn />)
-        : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : <Termos />)}
+        ? (pagina === 'sobre' ? <SobreEn onAbrir={onAbrir} /> : pagina === 'privacidade' ? <PrivacidadeEn /> : pagina === 'contactar' ? <ContactarEn /> : pagina === 'apagar-conta' ? <ApagarContaEn /> : <TermosEn />)
+        : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : pagina === 'apagar-conta' ? <ApagarConta /> : <Termos />)}
     </article>
   );
 };

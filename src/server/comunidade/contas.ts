@@ -225,6 +225,15 @@ export function apagarConta(id: string) {
         base().prepare(`UPDATE ${tabela} SET dados = ?, autor_id = NULL WHERE id = ?`).run(JSON.stringify(d), l.id);
       }
     }
+    // Comentários nas reclamações: o nome e o identificador ficam só em "dados", por isso também se limpam
+    const comentarios = base().prepare(`SELECT id, dados FROM comentarios WHERE json_extract(dados, '$.authorId') = ?`).all(id) as Array<{ id: string; dados: string }>;
+    for (const c of comentarios) {
+      let d: any = {};
+      try { d = JSON.parse(c.dados); } catch {}
+      delete d.authorId;
+      d.authorName = 'Utilizador PAROU';
+      base().prepare('UPDATE comentarios SET dados = ? WHERE id = ?').run(JSON.stringify(d), c.id);
+    }
     base().prepare('DELETE FROM utilizadores WHERE id = ?').run(id); // sessões, favoritos e pedidos vão atrás
   });
 }
