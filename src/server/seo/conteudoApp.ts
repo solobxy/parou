@@ -25,7 +25,7 @@ const p = (t: string) => `<p style="margin:10px 0 0">${t}</p>`;
 function paginaInicial(): string {
   return `<section id="parou-seo" style="${ESTILO}">
 <h1 style="font-size:28px;line-height:1.15;margin:0">PAROU — autocarros, metro e comboios perto de ti, em tempo real</h1>
-${p('A PAROU mostra-te o que passa perto de ti, agora: autocarros da Carris Metropolitana, Carris, STCP e de outros operadores, metro de Lisboa e do Porto, comboios da CP e barcos. Tem o tempo real quando o operador o disponibiliza e os horários oficiais de todas as linhas. É gratuita, sem anúncios e sem fins lucrativos.')}
+${p('A PAROU mostra-te o que passa perto de ti, agora: autocarros da Carris Metropolitana, Carris, STCP e de outros operadores, metro de Lisboa e do Porto, comboios da CP e barcos. Tem o tempo real quando o operador o disponibiliza e os horários oficiais dos principais operadores. É gratuita, sem anúncios e sem fins lucrativos.')}
 <h2 style="font-size:20px;margin:28px 0 0">Horários e tempo real por operador</h2>
 ${lista([...OPERADORES, ['/linhas', 'Todos os operadores, linhas e horários']])}
 <h2 style="font-size:20px;margin:28px 0 0">Greves, mau tempo e incêndios</h2>

@@ -826,7 +826,7 @@ async function paginaGreves(): Promise<string> {
     corpo += `<h2>${L('Nas notícias', 'In the news')}</h2><ul class="lista">${noticias.map((g) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`).join('')}</ul>`;
   }
   corpo += `<h2>${L('Serviços mínimos e alternativas', 'Minimum services and alternatives')}</h2><p>${L(
-    'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (Carris Metropolitana, STCP, Metro do Porto e outros) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários de todas as linhas</a> para planear alternativas.',
+    'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (Carris Metropolitana, STCP, Metro do Porto e outros) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários das linhas</a> para planear alternativas.',
     'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (Carris Metropolitana, STCP, Metro do Porto and others) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables for every line</a> to plan alternatives.')}</p>`;
   return pagina({
     titulo: L('Greves de transportes hoje: CP, Metro, Carris e mais | PAROU', 'Transport strikes today: CP, Metro, Carris and more | PAROU'),

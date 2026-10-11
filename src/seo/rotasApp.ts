@@ -3,7 +3,7 @@
 
 export interface Meta { titulo: string; descricao: string; canonico: string; indexar: boolean }
 
-const DESCRICAO_INICIO = 'Vê o que passa perto de ti em tempo real: autocarros da Carris Metropolitana, Carris e STCP, metro, comboios da CP e barcos. Horários de todas as linhas, greves e alertas. Grátis e sem anúncios.';
+const DESCRICAO_INICIO = 'Vê o que passa perto de ti em tempo real: autocarros da Carris Metropolitana, Carris e STCP, metro, comboios da CP e barcos. Horários dos principais operadores, greves e alertas. Grátis e sem anúncios.';
 
 export const ROTAS: Record<string, Meta> = {
   '/': { titulo: 'PAROU — Autocarros, metro e comboios perto de ti em tempo real', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
@@ -18,7 +18,7 @@ export const ROTAS: Record<string, Meta> = {
   '/catalogo': { titulo: 'Operadores de transportes públicos em Portugal | PAROU', descricao: 'Todos os operadores de autocarro, metro, comboio e barco com horários na PAROU, por região.', canonico: '/catalogo', indexar: true },
   '/cobertura': { titulo: 'Cobertura de horários e dados de transportes | PAROU', descricao: 'Que operadores e linhas de transportes públicos a PAROU cobre em Portugal e de onde vêm os dados.', canonico: '/cobertura', indexar: true },
   '/coverage': { titulo: 'Cobertura de horários e dados de transportes | PAROU', descricao: 'Que operadores e linhas de transportes públicos a PAROU cobre em Portugal.', canonico: '/cobertura', indexar: true },
-  '/sobre': { titulo: 'Sobre a PAROU — transportes em tempo real, grátis', descricao: 'A PAROU é uma app gratuita e sem fins lucrativos com os transportes perto de ti em tempo real, horários de todas as linhas, greves e alertas em Portugal.', canonico: '/sobre', indexar: true },
+  '/sobre': { titulo: 'Sobre a PAROU — transportes em tempo real, grátis', descricao: 'A PAROU é uma app gratuita e sem fins lucrativos com os transportes perto de ti em tempo real, horários dos principais operadores, greves e alertas em Portugal.', canonico: '/sobre', indexar: true },
   '/privacidade': { titulo: 'Política de privacidade | PAROU', descricao: 'Que dados a PAROU usa, para quê e quais são os teus direitos (RGPD).', canonico: '/privacidade', indexar: true },
   '/termos': { titulo: 'Termos de utilização | PAROU', descricao: 'Termos de utilização da PAROU, serviço gratuito de informação sobre transportes públicos em Portugal.', canonico: '/termos', indexar: true },
   '/apagar-conta': { titulo: 'Apagar a conta PAROU | Como pedir o apagamento dos dados', descricao: 'Como apagar a tua conta da PAROU e os dados associados: na app, aqui ou por email. O que é apagado e o que fica.', canonico: '/apagar-conta', indexar: true },
