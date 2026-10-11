@@ -830,6 +830,8 @@ export default function App() {
                   handleFilterChange('linha', lineCode);
                   handleTabSelect('horarios');
                 }}
+                onAbrirFavoritos={() => handleTabSelect('favoritos')}
+                totalFavoritos={favoritesTotalCount}
               />
             </div>
           ) : activeNavTab === 'horarios' ? (
@@ -846,6 +848,7 @@ export default function App() {
           ) : activeNavTab === 'favoritos' ? (
             <div className="w-full mx-auto py-2">
               <FavoritosView
+                onVoltar={() => handleTabSelect('perto')}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
                 onNavigateToPertoWithDestination={(dest) => {
                   setPertoInitialDestination(dest);
@@ -1040,6 +1043,8 @@ export default function App() {
                   handleFilterChange('linha', lineCode);
                   handleTabSelect('horarios');
                 }}
+                onAbrirFavoritos={() => handleTabSelect('favoritos')}
+                totalFavoritos={favoritesTotalCount}
               />
             </div>
           )}
@@ -1062,6 +1067,7 @@ export default function App() {
           {(activeMobileView === 'favoritos' || activeNavTab === 'favoritos') && (
             <div className="space-y-3.5">
               <FavoritosView
+                onVoltar={() => handleTabSelect('perto')}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
                 onNavigateToPertoWithDestination={(dest) => {
                   setPertoInitialDestination(dest);

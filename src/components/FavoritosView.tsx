@@ -6,7 +6,8 @@ import {
   Trash2, 
   Plus, 
   Radio, 
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { useFavorites } from '../hooks/useFavorites';
 import { FavoriteItem, FavoriteCategory } from '../types/favorites';
@@ -22,11 +23,14 @@ interface FavoritosViewProps {
   onNavigateToPertoWithDestination?: (dest: { title: string; lat: number; lon: number }) => void;
   onNavigateToHorariosLine?: (lineCode: string, operatorName?: string) => void;
   onNavigateToMap?: () => void;
+  /** Os Favoritos vivem dentro do Perto: este botão volta lá */
+  onVoltar?: () => void;
 }
 
 export const FavoritosView: React.FC<FavoritosViewProps> = ({
   onNavigateToPertoWithDestination,
   onNavigateToHorariosLine,
+  onVoltar,
 }) => {
   const {
     filteredFavorites,
@@ -119,6 +123,17 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto py-2 px-1 sm:px-0">
+      {onVoltar && (
+        <button
+          type="button"
+          onClick={onVoltar}
+          data-teste="voltar-ao-perto"
+          className="-ml-1 inline-flex items-center gap-1.5 h-11 px-2 rounded-[10px] text-[14px] font-semibold text-[#111111] hover:bg-[#F4F4F2] cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
+          {t('Perto')}
+        </button>
+      )}
       {/* Header */}
       <div className="flex flex-row items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div className="min-w-0">

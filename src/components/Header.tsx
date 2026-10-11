@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => mq.removeEventListener?.('change', mudar);
   }, []);
 
-  const isMoreTabActive = ['favoritos', 'reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab) || (activeTab === 'comunidade' && !ecraLargo);
+  const isMoreTabActive = ['reports', 'catalogo', 'reclamacoes', 'coverage'].includes(activeTab) || (activeTab === 'comunidade' && !ecraLargo);
 
   const getMoreTabLabel = () => t((() => {
     switch (activeTab) {
@@ -130,6 +130,34 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="hidden md:flex items-center gap-1 flex-1 justify-center min-w-0">
           <nav className="flex items-center gap-1 shrink-0">
             <button
+              onClick={() => onTabChange('perto')}
+              aria-label={t('Perto')}
+              title={t('Perto')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+                activeTab === 'perto' || activeTab === 'favoritos'
+                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
+                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
+              }`}
+            >
+              <Compass className="w-4 h-4 stroke-[2]" />
+              <span className="hidden lg:inline">{t('Perto')}</span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('horarios')}
+              aria-label={t('Horários')}
+              title={t('Horários')}
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
+                activeTab === 'horarios'
+                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
+                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
+              }`}
+            >
+              <Clock className="w-4 h-4 stroke-[2]" />
+              <span className="hidden lg:inline">{t('Horários')}</span>
+            </button>
+
+            <button
               onClick={() => onTabChange('mapa')}
               aria-label={t('Alertas')}
               title={t('Alertas')}
@@ -158,34 +186,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => onTabChange('perto')}
-              aria-label={t('Perto')}
-              title={t('Perto')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
-                activeTab === 'perto'
-                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
-                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
-              }`}
-            >
-              <Compass className="w-4 h-4 stroke-[2]" />
-              <span className="hidden lg:inline">{t('Perto')}</span>
-            </button>
-
-            <button
-              onClick={() => onTabChange('horarios')}
-              aria-label={t('Horários')}
-              title={t('Horários')}
-              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
-                activeTab === 'horarios'
-                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
-                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
-              }`}
-            >
-              <Clock className="w-4 h-4 stroke-[2]" />
-              <span className="hidden lg:inline">{t('Horários')}</span>
-            </button>
-
-            <button
               onClick={() => onTabChange('comunidade')}
               className={`hidden lg:flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
                 activeTab === 'comunidade'
@@ -196,23 +196,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Users className="w-4 h-4 stroke-[2]" />
               <span>{t('Comunidade')}</span>
-            </button>
-
-            <button
-              onClick={() => onTabChange('favoritos')}
-              className={`hidden xl:flex items-center gap-1.5 px-2 lg:px-3 py-1.5 text-sm font-medium rounded-[8px] transition-colors min-h-[44px] cursor-pointer ${
-                activeTab === 'favoritos'
-                  ? 'bg-[#F4F4F2] text-[#111111] font-semibold'
-                  : 'text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2]'
-              }`}
-            >
-              <Star className="w-4 h-4 stroke-[2]" />
-              <span>{t('Favoritos')}</span>
-              {favoritesCount > 0 && (
-                <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
-                  ({favoritesCount})
-                </span>
-              )}
             </button>
 
             {admin && <button
@@ -252,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
                         onTabChange('favoritos');
                         setIsMoreMenuOpen(false);
                       }}
-                      className={`xl:hidden w-full flex items-center justify-between px-3 py-2 text-sm transition-colors cursor-pointer min-h-[44px] ${
+                      className={`w-full flex items-center justify-between px-3 py-2 text-sm transition-colors cursor-pointer min-h-[44px] ${
                         activeTab === 'favoritos' ? 'font-semibold text-[#111111] bg-[#F4F4F2]' : 'text-[#111111] hover:bg-[#F4F4F2]'
                       }`}
                     >
