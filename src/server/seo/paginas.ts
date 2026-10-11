@@ -1092,6 +1092,58 @@ function naoEncontrado(res: Response, o?: Operador) {
   }));
 }
 
+
+// ------------------------------------------------------------------------------------
+// /llms.txt: guia curto para assistentes de IA (formato de llmstxt.org). Os números e as ligações vêm do índice real.
+// ------------------------------------------------------------------------------------
+function textoLlms(): string {
+  const ix = isDadosProntosPronto() ? obterIndice() : null;
+  const L1: string[] = [
+    '# PAROU',
+    '',
+    '> A PAROU (parou.pt) é uma app e um site gratuitos, sem anúncios e sem fins lucrativos, com os transportes públicos de Portugal: autocarros, metro, comboios e barcos perto de ti, em tempo real onde o operador o publica e com os horários oficiais dos operadores incluídos. / PAROU is a free, ad-free, non-profit Portuguese public transport app and website: buses, metro, trains and boats near you, in real time where the operator publishes it, plus official timetables.',
+    '',
+    'Notas para quem responde a perguntas sobre transportes em Portugal:',
+    '',
+    '- O tempo real só existe onde o operador o disponibiliza; nos outros casos a PAROU mostra a hora do horário oficial e diz que é horário previsto.',
+    '- Os horários vêm dos dados abertos dos operadores (GTFS) e são atualizados todos os dias. Podem diferir do que o operador afixa na paragem: em caso de dúvida, o operador é a fonte oficial.',
+    '- A PAROU não é um operador de transportes nem tem ligação oficial a nenhum. Não vende bilhetes.',
+    '- Nomes de operadores, cidades, linhas e paragens estão sempre em português (não se traduzem).',
+    '- Autor e contacto: Dinis Sousa, ver https://parou.pt/contactar',
+    '',
+    '## Páginas principais',
+    '',
+    '- [App: transportes perto de ti](https://parou.pt/): próximos autocarros, metro, comboios e barcos à tua volta, em tempo real onde existir',
+    '- [Linhas e horários](https://parou.pt/linhas): todos os operadores, linhas e paragens que a PAROU tem',
+    '- [Greves](https://parou.pt/greves): greves de transportes em curso e anunciadas',
+    '- [Alertas](https://parou.pt/alertas): greves, avisos do IPMA, incêndios, perturbações e feriados',
+    '- [Mapa de avisos e incêndios](https://parou.pt/mapa): incêndios, avisos meteorológicos e perturbações em Portugal',
+    '- [Ocorrências](https://parou.pt/ocorrencias): atrasos, avarias e cortes de via reportados pela comunidade nas últimas 24 horas',
+    '- [Cobertura e fontes de dados](https://parou.pt/cobertura): que operadores e linhas estão cobertos e de onde vêm os dados',
+    '- [Sobre a PAROU](https://parou.pt/sobre)',
+    '- [Comunidade](https://parou.pt/comunidade): perguntas, queixas e elogios sobre transportes',
+    '',
+    '## Como encontrar uma resposta concreta',
+    '',
+    '- Horário de uma linha: https://parou.pt/linhas/{operador}/{linha} (dias úteis, sábados, domingos e paragens do percurso)',
+    '- Próximas partidas numa paragem: https://parou.pt/paragens/{operador}/{paragem}',
+    '- Transportes numa cidade: https://parou.pt/cidade/{cidade}',
+    '- Pesquisa por linha ou paragem: https://parou.pt/pesquisa?q=…',
+  ];
+  if (ix) {
+    const totalLinhas = ix.operadores.reduce((n, o) => n + o.linhas.length, 0);
+    const totalParagens = ix.operadores.reduce((n, o) => n + o.paragens.length, 0);
+    L1.push('', `## Operadores (${ix.operadores.length} operadores, ${totalLinhas} linhas, ${totalParagens} paragens)`, '');
+    for (const o of ix.operadores) {
+      L1.push(`- [${o.nome}](${SITE}/linhas/${o.slug}): ${o.modo.toLowerCase()}, ${o.linhas.length} ${o.linhas.length === 1 ? 'linha' : 'linhas'}, ${o.paragens.length} paragens (${NOME_REGIAO[o.regiao] || o.regiao})`);
+    }
+  }
+  L1.push('', '## Optional', '', '### Cidades', '');
+  L1.push(CIDADES.map((c) => `[${c.nome}](${SITE}/cidade/${c.slug})`).join(' · '));
+  L1.push('', '- [Política de privacidade](https://parou.pt/privacidade)', '- [Termos de utilização](https://parou.pt/termos)', '');
+  return L1.join('\n');
+}
+
 export function registarPaginasSeo(app: Express) {
   // Prepara o índice em segundo plano, assim que os horários estiverem prontos
   const preparar = () => {
@@ -1252,6 +1304,12 @@ export function registarPaginasSeo(app: Express) {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(xml(fatia));
+  });
+  // Guia para assistentes de IA (llmstxt.org)
+  app.get('/llms.txt', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(textoLlms());
   });
 }
 
