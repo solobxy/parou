@@ -37,7 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
       try {
         const enviado = await pedirRecuperacao(email.trim());
         if (enviado) setAviso('Se existir uma conta com este email, enviámos um link para criares uma palavra-passe nova. Vê também o lixo eletrónico.');
-        else setErrorMsg('A recuperação por email ainda não está ativa. Escreve para diniscash@gmail.com e ajudamos.');
+        else setErrorMsg('A recuperação por email ainda não está ativa. Escreve para contacto@parou.pt e ajudamos.');
       } catch (err: any) {
         setErrorMsg(err?.message || 'Não foi possível concluir. Tenta outra vez.');
       } finally {

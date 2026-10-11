@@ -11,7 +11,7 @@ interface Props {
   onAbrir: (p: PaginaInfo) => void;
 }
 
-const CONTACTO = 'diniscash@gmail.com';
+const CONTACTO = 'contacto@parou.pt';
 const TELEFONE = '913 488 258';
 const TELEFONE_LINK = '+351913488258';
 const ATUALIZADO = '10 de outubro de 2026';

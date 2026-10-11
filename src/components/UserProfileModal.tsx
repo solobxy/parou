@@ -83,7 +83,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setAApagar('confirmar');
     setErroApagar(r === 'palavra-errada'
       ? 'A palavra-passe não está certa.'
-      : 'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.');
+      : 'Não foi possível apagar agora. Tenta outra vez ou escreve para contacto@parou.pt.');
   };
 
   const handleLogout = async () => {

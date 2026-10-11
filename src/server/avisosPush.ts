@@ -22,7 +22,7 @@ import { ipDe } from './limites';
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const FICH_VAPID = path.join(PASTA, 'vapid.json');
 const FICH_DB = path.join(PASTA, 'push.db');
-const ASSUNTO = 'mailto:diniscash@gmail.com';
+const ASSUNTO = 'mailto:contacto@parou.pt';
 const INTERVALO_MS = 4 * 60_000;
 const MAX_POR_DIA = 8;
 

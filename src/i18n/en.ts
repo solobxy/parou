@@ -326,7 +326,7 @@ export const EN: Record<string, string> = {
   'A palavra-passe é demasiado longa.': 'The password is too long.',
   'A palavra-passe atual não está certa.': 'The current password is not correct.',
   'A palavra-passe não está certa.': 'The password is not correct.',
-  'A recuperação por email ainda não está ativa. Escreve para diniscash@gmail.com e ajudamos.': 'Email recovery isn\'t active yet. Write to diniscash@gmail.com and we\'ll help.',
+  'A recuperação por email ainda não está ativa. Escreve para contacto@parou.pt e ajudamos.': 'Email recovery isn\'t active yet. Write to contacto@parou.pt and we\'ll help.',
   'Não foi possível concluir. Tenta outra vez.': 'We couldn\'t complete that. Try again.',
   'Se existir uma conta com este email, enviámos um link para criares uma palavra-passe nova. Vê também o lixo eletrónico.': 'If an account exists with this email, we\'ve sent a link to create a new password. Check your spam folder too.',
   'Escreve um email válido.': 'Enter a valid email.',
@@ -347,7 +347,7 @@ export const EN: Record<string, string> = {
   'Não foi possível identificar o dispositivo.': 'We could not identify this device.',
   'Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste continuam visíveis, sem ligação à conta. Isto não se pode desfazer.': 'Deleting the account removes your profile, points and synced favourites. Incidents you published stay visible, with no link to the account. This cannot be undone.',
   'Escreve a tua palavra-passe para confirmar': 'Enter your password to confirm',
-  'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.': 'We couldn\'t delete it right now. Try again or write to diniscash@gmail.com.',
+  'Não foi possível apagar agora. Tenta outra vez ou escreve para contacto@parou.pt.': 'We couldn\'t delete it right now. Try again or write to contacto@parou.pt.',
 
   // Alertas (tempo, feriados, incêndios)
   'Céu limpo': 'Clear sky',
