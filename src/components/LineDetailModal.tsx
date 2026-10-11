@@ -15,7 +15,7 @@ import {
   fetchStopDepartures,
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
-import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 
 interface LineDetailModalProps {
@@ -257,7 +257,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                               <LineChip number={dep.line_code} color={dep.color} />
                                               <div className="min-w-0">
                                                 <div className="text-[#111111] font-medium truncate">
-                                                  {formatTransitName(dep.destination || t('Destino'))}
+                                                  {destinoLegivel(dep.destination, line?.name) || t('Destino')}
                                                 </div>
                                                 <div className="text-[11px] text-[#6B6B6B] truncate">
                                                   {formatTransitName(stop.name)}

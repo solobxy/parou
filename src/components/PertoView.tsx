@@ -49,7 +49,7 @@ import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { InputPesquisa } from './InputPesquisa';
 import { Logo } from './Logo';
-import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 
@@ -1734,7 +1734,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         const parsed = parseDepartureTime(dep);
                         const lineCode = dep.lineCode || dep.route_short_name || stop.lines?.[0]?.code || '—';
                         const lineColor = dep.lineColor || stop.lines?.[0]?.color;
-                        const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
+                        const destination = destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name || stop.lines?.[0]?.name) || 'Destino';
 
                         return (
                           <div key={dIdx} className="py-2 flex items-center justify-between gap-3">
@@ -2030,7 +2030,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     )}
                     {sorted.map((dep: any, dIdx: number) => {
                       const parsed = parseDepartureTime(dep);
-                      const destination = formatTransitName(dep.destination || dep.headsign || 'Destino');
+                      const destination = destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name) || 'Destino';
                       const podeAbrir = Boolean(dep.tripId || (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem));
                       return (
                         <div

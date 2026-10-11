@@ -2,7 +2,7 @@ import React from 'react';
 import { Star, Radio, MapPin } from 'lucide-react';
 import { ApiLineItem } from '../services/transitApi';
 import { LineChip } from './LineChip';
-import { formatTransitName, sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
+import { formatTransitName, sortDepartures, parseDepartureTime, destinoGenerico } from '../utils/transitFormatter';
 import { t } from '../i18n';
 
 interface LineCardProps {
@@ -28,10 +28,13 @@ export const LineCard: React.FC<LineCardProps> = ({
   // não os da linha em geral — senão "Cordoaria" aparecia com a hora do outro sentido)
   const proxima = line.departures && line.departures.length > 0 ? sortDepartures(line.departures)[0] : undefined;
   const destinoProxima = proxima && proxima.state !== 'Sem dados' ? (proxima as any).destination : undefined;
-  const rawDest = destinoProxima
-    ? formatTransitName(destinoProxima)
-    : line.destinations && line.destinations.length > 0
-      ? line.destinations.map(d => formatTransitName(d)).join(' ⇄ ')
+  // "Destino"/"Destino terminal" não diz nada ao passageiro: nesse caso usa-se o nome da linha
+  const destinoUtil = destinoProxima && !destinoGenerico(destinoProxima) ? destinoProxima : undefined;
+  const destinosUteis = (line.destinations || []).filter(d => !destinoGenerico(d));
+  const rawDest = destinoUtil
+    ? formatTransitName(destinoUtil)
+    : destinosUteis.length > 0
+      ? destinosUteis.map(d => formatTransitName(d)).join(' ⇄ ')
       : formatTransitName(line.name || 'Destino');
   const paragemProxima: string | undefined = (proxima as any)?.stop_name || line.nearest_stop?.name;
 
