@@ -32,8 +32,7 @@ import { NotificationModal } from './components/NotificationModal';
 import { NotificationToast } from './components/NotificationToast';
 import { PublicSourcesModal } from './components/PublicSourcesModal';
 import { MobileNav, MobileTab } from './components/MobileNav';
-import { LiveSyncBar } from './components/LiveSyncBar';
-import { ExpandedFiltersBar } from './components/ExpandedFiltersBar';
+import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { MobileFilterModal } from './components/MobileFilterModal';
 import { FavoritosView } from './components/FavoritosView';
 import { NotFoundView } from './components/NotFoundView';
@@ -806,32 +805,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6'}`}>
-        {/* Bloco de "Tempo Real", ocorrências, filtros e reportar ocorrência — visível EXCLUSIVAMENTE na aba Mapa */}
+        {/* Separador Alertas: convite para seguir o canal de WhatsApp (no lugar das antigas caixas "Tempo real" e filtros) */}
         {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
-          <>
-            <LiveSyncBar
-              lastUpdated={lastUpdated}
-              totalAlertsCount={totalAlertsCount}
-              severeCount={severeCount}
-              districtsWithAlertsCount={districtsWithAlertsCount}
-              verifiedCount={verifiedCount}
-              isSyncing={isSyncing}
-              publicCount={publicReportsCount}
-              onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
-              isOffline={isOffline}
-              offlineCount={offlineCount}
-            />
-
-            <ExpandedFiltersBar
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              onResetFilters={handleResetFilters}
-              reportsCount={matchingReportsCount}
-              transitCount={matchingTransitCount}
-              activeView={activeNavTab}
-              onViewChange={handleTabSelect}
-            />
-          </>
+          <BotaoWhatsApp variante="cartao" className="mb-3 sm:mb-4" />
         )}
 
         {isNotFound ? (
