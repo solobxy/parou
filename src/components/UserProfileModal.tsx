@@ -22,6 +22,7 @@ import { MedalhaPioneiro } from './MedalhaPioneiro';
 import { SeloCriador } from './SeloCriador';
 import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
+import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { listarBloqueados, desbloquear } from '../services/comunidade';
 
@@ -356,7 +357,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         onFechar={() => setEditorAvatar(false)}
         avatar={user.avatar}
         pontos={user.reputationPoints}
-        tudoAberto={Boolean(user.admin)}
+        tudoAberto={temTudoAberto(user)}
+        exclusivas={exclusivasDe(user)}
         onGuardado={() => setEditorAvatar(false)}
       />
     </div>

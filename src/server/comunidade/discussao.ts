@@ -7,7 +7,7 @@
 //  - quem apaga a conta fica como "Utilizador PAROU" e o texto mantém-se (como nas ocorrências).
 import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
-import { Conta, ErroConta, avatarDaLinha, contaEAdmin, contaPioneira, ganharPontos } from './contas';
+import { Conta, ErroConta, avatarDaLinha, contaEAdmin, contaPioneira, ganharPontos, medalhaPorDefeito } from './contas';
 import { pareceSpam } from './conteudo';
 import { avatarOuPadrao, ConfigAvatar } from '../../utils/avatarCatalogo';
 
@@ -96,7 +96,7 @@ function autorDe(l: any): AutorPublico {
   const criador = contaEAdmin({ email: String(l.u_email || '') });
   return {
     nome: String(l.u_nome),
-    avatar: avatarDaLinha(l.u_avatar, criador),
+    avatar: avatarDaLinha(l.u_avatar, medalhaPorDefeito({ id: String(l.u_id), email: String(l.u_email || '') })),
     pioneiro: contaPioneira(Number(l.u_criado)),
     ...(criador ? { criador: true } : {}),
     pontos: Number(l.u_pontos) || 0,

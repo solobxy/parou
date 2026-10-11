@@ -16,7 +16,8 @@ export interface ItemAvatar {
   rep?: number; // reputação mínima para usar a peça
   hex?: string; // só nas cores
   cor?: string; // só nas personagens: cor que lhes assenta bem (a app sugere-a ao escolher)
-  exclusivo?: boolean; // reservada à conta de Criador (nunca se ganha com reputação)
+  exclusivo?: boolean; // reservada a uma conta (nunca se ganha com reputação)
+  so?: string; // de quem é a peça exclusiva: 'criador' (por defeito) ou o código de uma distinção ligada à conta
 }
 
 export interface CategoriaAvatar {
@@ -160,6 +161,7 @@ export const CATEGORIAS_AVATAR: CategoriaAvatar[] = [
       { id: 'diamante', nome: 'Diamante', rep: 200 },
       { id: 'ouro', nome: 'Medalha de ouro', rep: 200 },
       { id: 'criador', nome: 'Criador da PAROU', exclusivo: true },
+      { id: 'anel', nome: 'Anel rosa', exclusivo: true, so: 'mafalda' },
     ],
   },
 ];
@@ -179,11 +181,26 @@ export function avatarOuPadrao(entrada: unknown): ConfigAvatar {
   return saida;
 }
 
+/** Peças exclusivas que uma conta pode usar: as do Criador (administração) e as da distinção ligada à conta. */
+export function exclusivasDe(conta: { admin?: boolean; distincao?: string } | null | undefined): string[] {
+  const lista: string[] = [];
+  if (conta?.admin) lista.push('criador');
+  if (conta?.distincao) lista.push(conta.distincao);
+  return lista;
+}
+
+/** Contas com todas as peças abertas: o Criador e quem tem uma distinção. */
+export const temTudoAberto = (conta: { admin?: boolean; distincao?: string } | null | undefined): boolean => exclusivasDe(conta).length > 0;
+
+/** A peça pode ser usada por quem tem estas exclusivas? (as não exclusivas são de todos, a reputação conta à parte) */
+export const pecaPermitida = (item: ItemAvatar, exclusivas: string[]): boolean => !item.exclusivo || exclusivas.includes(item.so || 'criador');
+
 /**
  * Confirma uma escolha de avatar: as peças indicadas têm de existir e a reputação tem de chegar.
  * Categorias em falta ficam com o valor padrão (versões antigas da app não conhecem as novas).
+ * `tudoAberto`: conta com todas as peças abertas (sem reputação); `exclusivas`: as peças exclusivas que pode usar.
  */
-export function validarAvatar(entrada: unknown, reputacao: number, tudoAberto = false): { ok: true; config: ConfigAvatar } | { ok: false; erro: string } {
+export function validarAvatar(entrada: unknown, reputacao: number, tudoAberto = false, exclusivas: string[] = tudoAberto ? ['criador'] : []): { ok: true; config: ConfigAvatar } | { ok: false; erro: string } {
   if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) return { ok: false, erro: 'Avatar inválido.' };
   const config = { ...AVATAR_PADRAO };
   for (const cat of CATEGORIAS_AVATAR) {
@@ -192,7 +209,7 @@ export function validarAvatar(entrada: unknown, reputacao: number, tudoAberto = 
     if (typeof v !== 'string') return { ok: false, erro: 'Avatar inválido.' };
     const item = cat.itens.find((i) => i.id === v);
     if (!item) return { ok: false, erro: 'Avatar inválido.' };
-    if (item.exclusivo && !tudoAberto) return { ok: false, erro: 'Uma das peças escolhidas não está disponível para a tua conta.' };
+    if (!pecaPermitida(item, exclusivas)) return { ok: false, erro: 'Uma das peças escolhidas não está disponível para a tua conta.' };
     if (!tudoAberto && (item.rep || 0) > reputacao) return { ok: false, erro: 'Ainda não tens reputação para uma das peças escolhidas.' };
     config[cat.id] = v;
   }

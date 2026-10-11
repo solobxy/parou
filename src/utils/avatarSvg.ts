@@ -974,6 +974,23 @@ function medalha(k: Ctx, id: string): string {
         P(dHex(37), degrade(k, '#FF8A3D', '#E5530A')) + P(dHex(30), '#111111') +
         `<path d="${letraP}" fill="#FF6B1A" fill-rule="evenodd"/>` + brilhoM('M27 28 L37 17', 3.6);
     }
+    case 'anel': {
+      // Anel rosa com uma pedra lapidada: exclusivo de uma conta. O aro tem furo (fill-rule evenodd) para se ver o fundo lá dentro.
+      const furo = 'M50 43.5 A18.5 18.5 0 1 0 50 80.5 A18.5 18.5 0 1 0 50 43.5 Z';
+      const aro = `M50 33 A29 29 0 1 1 50 91 A29 29 0 1 1 50 33 Z ${furo}`;
+      const pedra = 'M38 9 L62 9 L75 21 L50 41 L25 21 Z';
+      const brilho4 = (cx: number, cy: number, r: number) => `M${f(cx)} ${f(cy - r)} L${f(cx + r * 0.28)} ${f(cy - r * 0.28)} L${f(cx + r)} ${f(cy)} L${f(cx + r * 0.28)} ${f(cy + r * 0.28)} L${f(cx)} ${f(cy + r)} L${f(cx - r * 0.28)} ${f(cy + r * 0.28)} L${f(cx - r)} ${f(cy)} L${f(cx - r * 0.28)} ${f(cy - r * 0.28)} Z`;
+      return aroMedalha(`<path fill-rule="evenodd" d="${aro}"/><path d="${pedra}"/>`) +
+        `<path fill-rule="evenodd" d="${aro}" fill="${degrade(k, '#FFB3D1', '#DB3D82')}"/>` +
+        // volume do aro: linha mais escura por dentro e brilho em cima à esquerda
+        L(furo, 2.2, '#B72A66', so(0.5)) +
+        L('M27.7 53.9 A23.75 23.75 0 0 1 38.8 41', 4.2, '#FFFFFF', so(0.7)) +
+        // a pedra: faces claras em cima e mais fortes por baixo, como uma lapidação brilhante
+        P('M25 21 L38 9 L50 21 Z', '#FFD6E8') + P('M38 9 L62 9 L50 21 Z', '#FFF2F8') + P('M62 9 L75 21 L50 21 Z', '#FFB4D3') +
+        P('M25 21 L50 21 L50 41 Z', '#FF86B8') + P('M50 21 L75 21 L50 41 Z', '#E8428C') +
+        L('M25 21 L75 21 M38 9 L50 21 L62 9 M50 21 L50 41', 1.3, '#FFFFFF', so(0.75)) +
+        P(brilho4(44, 15, 4.4), '#FFFFFF');
+    }
     default:
       return `<circle cx="50" cy="50" r="30" fill="none" stroke="#B8B8B2" stroke-width="5" stroke-dasharray="7 9" stroke-linecap="round"/>`;
   }

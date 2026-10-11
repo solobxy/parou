@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Lock, Check, Undo2, Shuffle } from 'lucide-react';
 import { t } from '../i18n';
 import { Folha } from './Folha';
-import { CATEGORIAS_AVATAR, CategoriaId, ConfigAvatar, avatarOuPadrao } from '../utils/avatarCatalogo';
+import { CATEGORIAS_AVATAR, CategoriaId, ConfigAvatar, avatarOuPadrao, pecaPermitida } from '../utils/avatarCatalogo';
 import { urlDoAvatar, VistaAvatar } from '../utils/avatarSvg';
 import { Avatar } from './Avatar';
 import { guardarAvatar } from '../services/comunidade';
@@ -21,19 +21,22 @@ interface AvatarEditorProps {
   onFechar: () => void;
   avatar?: Partial<ConfigAvatar> | null;
   pontos: number;
-  /** Conta de Criador: tudo desbloqueado, incluindo a medalha exclusiva */
+  /** Conta de Criador ou com distinção: todas as peças desbloqueadas */
   tudoAberto?: boolean;
+  /** Peças exclusivas que esta conta pode usar ('criador', ou o código da sua distinção) */
+  exclusivas?: string[];
   /** Quando a pessoa guarda (a app atualiza o perfil sozinha) */
   onGuardado?: (avatar: ConfigAvatar) => void;
 }
 
-export const AvatarEditor: React.FC<AvatarEditorProps> = ({ aberta, onFechar, avatar, pontos, tudoAberto, onGuardado }) => {
+export const AvatarEditor: React.FC<AvatarEditorProps> = ({ aberta, onFechar, avatar, pontos, tudoAberto, exclusivas, onGuardado }) => {
   if (!aberta) return null;
-  return <Conteudo onFechar={onFechar} avatar={avatar} pontos={pontos} tudoAberto={tudoAberto} onGuardado={onGuardado} />;
+  return <Conteudo onFechar={onFechar} avatar={avatar} pontos={pontos} tudoAberto={tudoAberto} exclusivas={exclusivas} onGuardado={onGuardado} />;
 };
 
-const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avatar, pontos: pontosReais, tudoAberto, onGuardado }) => {
-  // Na conta de Criador nada fica bloqueado (os pontos mostrados continuam a ser os verdadeiros)
+const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avatar, pontos: pontosReais, tudoAberto, exclusivas: exclusivasDaConta, onGuardado }) => {
+  // Na conta de Criador (e nas com distinção) nada fica bloqueado (os pontos mostrados continuam a ser os verdadeiros)
+  const exclusivas = exclusivasDaConta ?? (tudoAberto ? ['criador'] : []);
   const pontos = tudoAberto ? 1_000_000 : pontosReais;
   const inicial = useMemo(() => avatarOuPadrao(avatar), [avatar]);
   const [cfg, setCfg] = useState<ConfigAvatar>(inicial);
@@ -44,7 +47,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
   const temporizadorAviso = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const categoria = CATEGORIAS_AVATAR.find((c) => c.id === aba)!;
-  const itensVisiveis = categoria.itens.filter((i) => !i.exclusivo || tudoAberto);
+  const itensVisiveis = categoria.itens.filter((i) => pecaPermitida(i, exclusivas));
   const alterado = JSON.stringify(cfg) !== JSON.stringify(inicial);
 
   // Próxima peça por abrir (a mais barata)
@@ -91,7 +94,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
   const aoAcaso = () => {
     const novo: ConfigAvatar = { ...cfg };
     for (const c of CATEGORIAS_AVATAR) {
-      const livres = c.itens.filter((i) => (i.rep || 0) <= pontos && (!i.exclusivo || tudoAberto));
+      const livres = c.itens.filter((i) => (i.rep || 0) <= pontos && pecaPermitida(i, exclusivas));
       novo[c.id] = livres[Math.floor(Math.random() * livres.length)].id;
     }
     setHistorico((h) => [...h.slice(-20), cfg]);
@@ -189,7 +192,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
             </div>
             <p className="text-[12.5px] text-[#4A4A4A] leading-snug mt-2">
               {tudoAberto
-                ? t('Conta de Criador: tens todas as peças desbloqueadas.')
+                ? (exclusivas.includes('criador') ? t('Conta de Criador: tens todas as peças desbloqueadas.') : t('Tens todas as peças desbloqueadas, e uma medalha só tua.'))
                 : proxima
                 ? t('Faltam {n} pontos para desbloquear: {nome}.', { n: proxima.rep - pontos, nome: t(proxima.nome) })
                 : t('Já tens todas as peças desbloqueadas. Vêm aí mais.')}

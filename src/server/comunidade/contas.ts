@@ -3,7 +3,7 @@
 // A sessão é um número aleatório num cookie; no servidor guarda-se só o resumo dele.
 import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
-import { avatarOuPadrao, validarAvatar, ConfigAvatar, proximaPeca } from '../../utils/avatarCatalogo';
+import { avatarOuPadrao, validarAvatar, ConfigAvatar, proximaPeca, CATEGORIAS_AVATAR, exclusivasDe } from '../../utils/avatarCatalogo';
 
 export const VALIDADE_SESSAO_MS = 30 * 24 * 3600_000;
 const RENOVAR_APOS_MS = 24 * 3600_000;
@@ -36,6 +36,7 @@ export interface PerfilApp {
   operador?: string;
   proximaPeca: { nome: string; falta: number } | null;
   admin?: boolean;
+  distincao?: string; // conta com uma medalha exclusiva e todas as peças abertas (código da peça exclusiva)
 }
 
 /** Medalha "Pioneiro": todas as contas criadas até ao fim de 2026 (31/12 às 23:59, hora de Lisboa; em dezembro Lisboa = UTC). */
@@ -57,7 +58,34 @@ export function contaEAdmin(c: { email: string }): boolean {
   return lista.length > 0 && lista.includes(String(c.email || '').toLowerCase());
 }
 
+// Distinções (tabela `distincoes`, escrita só no servidor): pouquíssimas linhas, por isso ficam em memória uns segundos
+let cacheDistincoes: { ate: number; mapa: Map<string, string> } | null = null;
+export function distincaoDe(id: string | null | undefined): string | undefined {
+  if (!id) return undefined;
+  if (!cacheDistincoes || cacheDistincoes.ate < Date.now()) {
+    const mapa = new Map<string, string>();
+    try {
+      for (const l of base().prepare('SELECT utilizador_id, codigo FROM distincoes').all() as Array<{ utilizador_id: string; codigo: string }>) mapa.set(l.utilizador_id, l.codigo);
+    } catch { /* a tabela ainda não existe: ninguém tem distinção */ }
+    cacheDistincoes = { ate: Date.now() + 30_000, mapa };
+  }
+  return cacheDistincoes.mapa.get(id);
+}
+
+/** Medalha que a conta leva por defeito (até escolher outra, ou "sem medalha", no editor): a do Criador ou a da sua distinção. */
+export function medalhaPorDefeito(c: { id?: string | null; email?: string | null }): string | undefined {
+  if (contaEAdmin({ email: String(c.email || '') })) return 'criador';
+  const codigo = distincaoDe(c.id);
+  return codigo ? CATEGORIAS_AVATAR.find((cat) => cat.id === 'medalha')?.itens.find((i) => i.exclusivo && i.so === codigo)?.id : undefined;
+}
+
+/** Peças exclusivas que esta conta pode usar (as do Criador e as da sua distinção). */
+export function exclusivasDaConta(c: { id: string; email: string }): string[] {
+  return exclusivasDe({ admin: contaEAdmin(c), distincao: distincaoDe(c.id) });
+}
+
 export function perfilDaConta(c: Conta): PerfilApp {
+  const distincao = distincaoDe(c.id);
   return {
     userId: c.id,
     uid: c.id,
@@ -72,7 +100,8 @@ export function perfilDaConta(c: Conta): PerfilApp {
     avatar: c.avatar,
     ...(c.operador ? { operador: c.operador } : {}),
     ...(contaEAdmin(c) ? { admin: true } : {}),
-    proximaPeca: contaEAdmin(c) ? null : proximaPeca(c.pontos),
+    ...(distincao ? { distincao } : {}),
+    proximaPeca: contaEAdmin(c) || distincao ? null : proximaPeca(c.pontos),
   };
 }
 
@@ -131,12 +160,12 @@ function limparNome(txt: unknown, email: string): string {
 }
 
 // ------------------------------- contas -------------------------------
-export function avatarDaLinha(texto: unknown, criador = false): ConfigAvatar {
+export function avatarDaLinha(texto: unknown, medalhaPadrao?: string): ConfigAvatar {
   let bruto: any = null;
   if (typeof texto === 'string' && texto) { try { bruto = JSON.parse(texto); } catch { bruto = null; } }
   const cfg = avatarOuPadrao(bruto);
-  // O Criador leva a sua medalha por defeito (até escolher outra, ou "sem medalha", no editor)
-  if (criador && !(bruto && typeof bruto === 'object' && bruto.medalha !== undefined)) cfg.medalha = 'criador';
+  // Quem tem uma medalha própria (o Criador, uma distinção) leva-a por defeito, até escolher outra ou "sem medalha" no editor
+  if (medalhaPadrao && !(bruto && typeof bruto === 'object' && bruto.medalha !== undefined)) cfg.medalha = medalhaPadrao;
   return cfg;
 }
 
@@ -145,7 +174,7 @@ function lerConta(linha: any): Conta | null {
   return {
     id: linha.id, email: linha.email, nome: linha.nome, foto: linha.foto || null,
     pontos: Number(linha.pontos), ocorrencias: Number(linha.ocorrencias), criado: Number(linha.criado),
-    avatar: avatarDaLinha(linha.avatar, contaEAdmin(linha)), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
+    avatar: avatarDaLinha(linha.avatar, medalhaPorDefeito(linha)), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
   };
 }
 
@@ -242,7 +271,8 @@ export function apagarConta(id: string) {
 export function mudarAvatar(id: string, entrada: unknown): ConfigAvatar {
   const c = contaPorId(id);
   if (!c) throw new ErroConta('sem_sessao', 'Entra na tua conta.', 401);
-  const r = validarAvatar(entrada, c.pontos, contaEAdmin(c));
+  const exclusivas = exclusivasDaConta(c);
+  const r = validarAvatar(entrada, c.pontos, exclusivas.length > 0, exclusivas);
   if (!r.ok) throw new ErroConta('avatar', r.erro, 400);
   base().prepare('UPDATE utilizadores SET avatar = ? WHERE id = ?').run(JSON.stringify(r.config), id);
   return r.config;

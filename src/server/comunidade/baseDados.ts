@@ -145,6 +145,12 @@ export function base(): DatabaseSync {
       pontos INTEGER NOT NULL,
       PRIMARY KEY (utilizador_id, dia, motivo)
     );
+    -- Distinções ligadas a uma conta (uma medalha exclusiva e todas as peças do avatar abertas). Só se escrevem no servidor,
+    -- nunca pela app; o código é o da peça exclusiva (ver avatarCatalogo: campo "so").
+    CREATE TABLE IF NOT EXISTS distincoes (
+      utilizador_id TEXT PRIMARY KEY REFERENCES utilizadores(id) ON DELETE CASCADE,
+      codigo TEXT NOT NULL
+    );
   `);
   migrar(nova);
   db = nova;
