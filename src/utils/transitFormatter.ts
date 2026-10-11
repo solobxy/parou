@@ -44,10 +44,10 @@ export function formatTransitName(raw?: string | null): string {
   if (!text) return '';
 
   // Insere espaço a seguir ao ponto se seguido imediatamente por letra (ex.: "AV.ALIADOS" -> "AV. ALIADOS", "S.PEDRO" -> "S. PEDRO")
-  text = text.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])\.([A-Za-zÀ-ÖØ-öø-ÿ])/g, '$1. $2');
+  text = text.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])\.(?=[A-Za-zÀ-ÖØ-öø-ÿ])/g, '$1. ');
 
   // Normaliza hífen colado a letras (ex.: "CORDOARIA-S.PEDRO" -> "CORDOARIA - S. PEDRO")
-  text = text.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])-([A-Za-zÀ-ÖØ-öø-ÿ])/g, '$1 - $2');
+  text = text.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])-(?=[A-Za-zÀ-ÖØ-öø-ÿ])/g, '$1 - ');
 
   const words = text.split(/\s+/);
   return words.map((word, idx) => {
