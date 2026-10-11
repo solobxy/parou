@@ -8,7 +8,7 @@ export async function enviarEmail(para: string, assunto: string, texto: string):
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [para], subject: assunto, text: texto }),
+      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [para], subject: assunto, text: texto, reply_to: process.env.MAIL_REPLY_TO || 'contacto@parou.pt' }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!r.ok) console.warn('[Email] O serviço recusou o envio:', r.status, (await r.text()).slice(0, 200));
