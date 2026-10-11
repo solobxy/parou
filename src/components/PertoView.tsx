@@ -1394,7 +1394,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <button
               onClick={() => setMapaExpandido((v) => !v)}
               className="flex items-center justify-center w-full h-6 cursor-pointer"
-              aria-label={mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa'}
+              aria-label={t(mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa')}
             >
               <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
             </button>
@@ -1418,7 +1418,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           <button
             onClick={() => setMapaExpandido((v) => !v)}
             className="flex items-center justify-center w-full h-6 cursor-pointer"
-            aria-label={mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa'}
+            aria-label={t(mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa')}
           >
             <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
           </button>
@@ -1908,7 +1908,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <button
                     onClick={() => setMapaExpandido((v) => !v)}
                     className="lg:hidden shrink-0 w-10 h-10 -mr-1.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
-                    aria-label={mapaExpandido ? 'Aumentar a lista de paragens' : 'Encolher a lista e ver o mapa'}
+                    aria-label={t(mapaExpandido ? 'Aumentar a lista de paragens' : 'Encolher a lista e ver o mapa')}
                     aria-expanded={!mapaExpandido}
                     data-teste="encolher-percurso"
                   >

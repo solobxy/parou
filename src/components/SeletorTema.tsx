@@ -38,7 +38,7 @@ export const SeletorTema: React.FC = () => {
         aria-expanded={aberto}
         aria-label={t('Escolher tema')}
         title={t('Tema')}
-        className="w-10 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] transition-colors cursor-pointer"
+        className="w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] transition-colors cursor-pointer"
         data-teste="botao-tema"
       >
         <Palette className="w-5 h-5 stroke-[2]" aria-hidden="true" />
