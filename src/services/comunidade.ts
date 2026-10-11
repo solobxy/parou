@@ -5,9 +5,9 @@ import { ConfigAvatar } from '../utils/avatarCatalogo';
 
 export { ErroServidor };
 
-export type TipoConversa = 'queixa' | 'pergunta' | 'elogio' | 'conversa' | 'novidade';
+export type TipoConversa = 'queixa' | 'pergunta' | 'elogio' | 'conversa' | 'novidade' | 'aviso';
 /** Para filtrar a lista */
-export const TIPOS_CONVERSA: TipoConversa[] = ['queixa', 'pergunta', 'elogio', 'conversa', 'novidade'];
+export const TIPOS_CONVERSA: TipoConversa[] = ['queixa', 'pergunta', 'elogio', 'conversa', 'novidade', 'aviso'];
 /** O que se pode escolher ao publicar (as novidades da PAROU saem sozinhas, da conta do Criador) */
 export const TIPOS_ESCOLHIVEIS: TipoConversa[] = ['queixa', 'pergunta', 'elogio', 'conversa'];
 export type MotivoDenuncia = 'spam' | 'insulto' | 'dados-pessoais' | 'falso' | 'outro';

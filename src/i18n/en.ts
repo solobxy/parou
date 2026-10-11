@@ -443,6 +443,8 @@ export const EN: Record<string, string> = {
   'Avaria': 'Breakdown',
   'Corte': 'Closure',
   'Aviso': 'Notice',
+  'Avisos': 'Notices',
+  'Avisos da PAROU': 'PAROU notices',
   'Novo horário': 'New timetable',
   'Desvio': 'Detour',
   'Paragem fechada': 'Stop closed',

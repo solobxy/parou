@@ -38,6 +38,15 @@ export function horaEmLisboa(agora = new Date()): number {
   return Number(new Intl.DateTimeFormat('pt-PT', { hour: 'numeric', hour12: false, timeZone: 'Europe/Lisbon' }).format(agora)) % 24;
 }
 
+/** Conta do Criador (a primeira de PAROU_ADMIN_EMAILS que existe e é administradora); as publicações automáticas saem por ela. */
+export function contaDoCriador(): { id: string; email: string } | undefined {
+  const emails = String(process.env.PAROU_ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const b = base();
+  return emails
+    .map((e) => b.prepare('SELECT id, email FROM utilizadores WHERE email = ? COLLATE NOCASE').get(e) as { id: string; email: string } | undefined)
+    .find((c) => c && contaEAdmin(c));
+}
+
 /** Devolve quantas publicações criou (0 ou 1 por passagem). Não faz nada se ainda não existir a conta do Criador. */
 export function publicarNovidadesDaApp(agoraMs = Date.now()): number {
   const emails = String(process.env.PAROU_ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -54,9 +63,7 @@ export function publicarNovidadesDaApp(agoraMs = Date.now()): number {
   const ultima = Number((b.prepare('SELECT MAX(criado) AS m FROM novidades_publicadas').get() as { m: number | null })?.m || 0);
   if (agoraMs - ultima < INTERVALO_ENTRE_POSTS_MS) return 0;
 
-  const criador = emails
-    .map((e) => b.prepare('SELECT id, email FROM utilizadores WHERE email = ? COLLATE NOCASE').get(e) as { id: string; email: string } | undefined)
-    .find((c) => c && contaEAdmin(c));
+  const criador = contaDoCriador();
   if (!criador) return 0;
 
   const id = `pub-${agoraMs.toString(36)}-${crypto.randomBytes(5).toString('hex')}`;
