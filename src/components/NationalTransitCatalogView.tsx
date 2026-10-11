@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { t } from '../i18n';
 import {
   Search,
   CheckCircle2,
@@ -86,10 +87,10 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E6E6E3] pb-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-            Catálogo de Operadores
+            {t('Catálogo de Operadores')}
           </h1>
           <p className="text-xs text-[#6B6B6B] mt-0.5">
-            Operadores e fontes oficiais em Portugal.
+            {t('Operadores e fontes oficiais em Portugal.')}
           </p>
         </div>
 
@@ -110,7 +111,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
             type="text"
             value={filters.searchQuery}
             onChange={(e) => setFilters((prev) => ({ ...prev, searchQuery: e.target.value }))}
-            placeholder="Pesquisar operador ou município..."
+            placeholder={t('Pesquisar operador ou município...')}
             className="w-full pl-9 pr-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
           />
         </div>
@@ -137,11 +138,11 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
         {isLoading ? (
           <div className="p-8 text-center text-xs text-[#6B6B6B] flex items-center justify-center gap-2">
             <RefreshCw className="w-5 h-5 animate-spin text-[#111111]" />
-            <span>A carregar catálogo...</span>
+            <span>{t('A carregar catálogo...')}</span>
           </div>
         ) : filteredEntries.length === 0 ? (
           <div className="p-8 text-center text-sm text-[#6B6B6B]">
-            Nenhum operador encontrado.
+            {t('Nenhum operador encontrado.')}
           </div>
         ) : (
           filteredEntries.map((op) => {
@@ -172,7 +173,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${ativo ? 'text-[#1F7A3A]' : 'text-[#6B6B6B]'}`}>
                       <span className={`w-2 h-2 rounded-full ${ativo ? 'bg-[#1F9D55]' : 'bg-[#B5B5B0]'}`} />
-                      {ativo ? 'Ativo' : op.sync_status === 'Pendente' ? 'Brevemente' : 'Sem dados'}
+                      {t(ativo ? 'Ativo' : op.sync_status === 'Pendente' ? 'Brevemente' : 'Sem dados')}
                     </span>
                     <ChevronRight className={`w-4 h-4 text-[#6B6B6B] stroke-[2] transition-transform ${aberto ? 'rotate-90' : ''}`} />
                   </div>
@@ -181,10 +182,10 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                 {aberto && (
                   <div className="px-3.5 pb-3.5 -mt-1 space-y-2.5">
                     <div className="grid grid-cols-2 gap-2 text-xs text-[#6B6B6B] bg-[#F4F4F2] rounded-[8px] p-3">
-                      <div>Região: <strong className="text-[#111111]">{op.region}</strong></div>
-                      <div>Fonte: <strong className="text-[#111111]">{op.source_type}</strong></div>
-                      <div>Transportes: <strong className="text-[#111111]">{op.transport_modes.join(', ')}</strong></div>
-                      <div>Horários: <strong className="text-[#111111]">{ativo ? 'disponíveis na PAROU' : 'brevemente'}</strong></div>
+                      <div>{t('Região')}: <strong className="text-[#111111]">{op.region}</strong></div>
+                      <div>{t('Fonte')}: <strong className="text-[#111111]">{op.source_type}</strong></div>
+                      <div>{t('Transportes')}: <strong className="text-[#111111]">{op.transport_modes.map((m) => t(m)).join(', ')}</strong></div>
+                      <div>{t('Horários')}: <strong className="text-[#111111]">{t(ativo ? 'disponíveis na PAROU' : 'brevemente')}</strong></div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {onSelectOperatorForReports && (
@@ -192,7 +193,7 @@ export const NationalTransitCatalogView: React.FC<NationalTransitCatalogViewProp
                           onClick={() => onSelectOperatorForReports(op.short_name || op.official_name)}
                           className="px-3 h-9 bg-[#111111] text-[#FFFFFF] rounded-[8px] text-xs font-semibold cursor-pointer"
                         >
-                          Ver ocorrências deste operador
+                          {t('Ver ocorrências deste operador')}
                         </button>
                       )}
                       {eAdmin() && <button

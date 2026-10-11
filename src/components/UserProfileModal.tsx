@@ -126,9 +126,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             data-teste="avatar-perfil"
           >
             <Avatar config={user.avatar} tamanho={56} />
-            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#111111] text-[#FFFFFF] border-2 border-[#FFFFFF] flex items-center justify-center" aria-hidden="true">
-              <Pencil className="w-3 h-3 stroke-[2.5]" />
-            </span>
           </button>
 
           <div className="flex-1 min-w-0">

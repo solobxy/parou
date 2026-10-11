@@ -57,7 +57,7 @@ export class ProtecaoErros extends React.Component<{ children: React.ReactNode }
           <img src="/icon-192.png" alt="" width={56} height={56} style={{ borderRadius: 14, margin: '0 auto 16px' }} />
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111111', margin: 0 }}>{t('Algo correu mal')}</h1>
           <p style={{ fontSize: 14, color: '#6B6B6B', marginTop: 8, lineHeight: 1.45 }}>
-            Já fomos avisados. Recarrega a página para continuar — os teus favoritos estão guardados.
+            {t('Já fomos avisados. Recarrega a página para continuar — os teus favoritos estão guardados.')}
           </p>
           <button
             onClick={() => { try { location.reload(); } catch {} }}

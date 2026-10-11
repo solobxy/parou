@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../i18n';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { Occurrence } from '../types';
 import { quandoAconteceu } from '../utils/quando';
@@ -21,13 +22,13 @@ export const RecentOccurrencesFeed: React.FC<RecentOccurrencesFeedProps> = ({
       {/* Header */}
       <div className="p-3.5 bg-[#F4F4F2] border-b border-[#E6E6E3] flex items-center justify-between">
         <h3 className="text-sm font-bold text-[#111111]">
-          Ocorrências recentes
+          {t('Ocorrências recentes')}
         </h3>
         <button
           onClick={onViewAll}
           className="text-xs font-semibold text-[#111111] hover:underline cursor-pointer min-h-[32px] flex items-center"
         >
-          Ver todas
+          {t('Ver todas')}
         </button>
       </div>
 
@@ -35,7 +36,7 @@ export const RecentOccurrencesFeed: React.FC<RecentOccurrencesFeedProps> = ({
       <div className="divide-y divide-[#E6E6E3]">
         {visible.length === 0 ? (
           <div className="p-4 text-center text-xs text-[#6B6B6B]">
-            Sem ocorrências recentes no momento.
+            {t('Sem ocorrências recentes no momento.')}
           </div>
         ) : (
           visible.slice(0, 10).map((item) => {
