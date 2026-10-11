@@ -58,15 +58,16 @@ html[data-tema="escuro"] [data-teste="palco-avatar-fundo"] { background-color: #
 
 /* =========================================================================================== ÂMBAR */
 html[data-tema="ambar"] { color-scheme: light; background-color: #FFE3C8; }
-html[data-tema="ambar"] body {
-  background-color: #FFE3C8;
+html[data-tema="ambar"] body { background-color: transparent; color: #2A170B; }
+/* O degradé vive numa camada fixa só dele (não repinta ao deslizar), por baixo de tudo */
+html[data-tema="ambar"]::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image:
     radial-gradient(900px 620px at 100% -8%, rgba(255,150,70,.55), transparent 62%),
     radial-gradient(760px 560px at -12% 18%, rgba(255,196,140,.75), transparent 60%),
     radial-gradient(900px 700px at 70% 105%, rgba(255,120,40,.32), transparent 62%),
     linear-gradient(180deg, #FFF3E6 0%, #FFE6CF 55%, #FFD9B8 100%);
-  background-attachment: fixed;
-  color: #2A170B;
+  transform: translateZ(0);
 }
 html[data-tema="ambar"] #root { background-color: transparent; color: #2A170B; }
 html[data-tema="ambar"] .app-raiz.app-raiz,
@@ -83,22 +84,22 @@ html[data-tema="ambar"] .parou-esqueleto { background: linear-gradient(90deg, rg
 
 /* vidro: cabeçalho, barra de baixo, janelas e menus desfocam o que passa por trás */
 html[data-tema="ambar"] header.sticky {
-  background-color: rgba(255,247,238,.64) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
+  background-color: rgba(255,247,238,.78) !important;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-bottom-color: rgba(255,255,255,.75) !important;
-  box-shadow: 0 8px 30px rgba(190,90,20,.10), inset 0 -1px 0 rgba(190,100,40,.10);
+  box-shadow: 0 4px 14px rgba(190,90,20,.10), inset 0 -1px 0 rgba(190,100,40,.10);
 }
 html[data-tema="ambar"] nav.fixed.bottom-0 {
-  background-color: rgba(255,247,238,.7) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(1.7); backdrop-filter: blur(24px) saturate(1.7);
+  background-color: rgba(255,247,238,.82) !important;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-top-color: rgba(255,255,255,.8) !important;
-  box-shadow: 0 -10px 40px rgba(190,90,20,.14), inset 0 1px 0 rgba(255,255,255,.7);
+  box-shadow: 0 -4px 16px rgba(190,90,20,.12), inset 0 1px 0 rgba(255,255,255,.7);
 }
 html[data-tema="ambar"] :is([role="dialog"], .tema-menu) {
   background-color: rgba(255,249,242,.94) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(1.7); backdrop-filter: blur(26px) saturate(1.7);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   border-color: rgba(255,255,255,.85) !important;
-  box-shadow: 0 24px 60px rgba(160,70,10,.22), inset 0 1px 0 rgba(255,255,255,.9);
+  box-shadow: 0 16px 36px rgba(160,70,10,.22), inset 0 1px 0 rgba(255,255,255,.9);
 }
 
 /* cartões em vidro: ligeiramente translúcidos, com realce na aresta de cima e sombra quente (sem desfocar, para as listas continuarem leves) */
@@ -106,7 +107,7 @@ html[data-tema="ambar"] [class~="bg-[#FFFFFF]"]:is([class*="rounded-[14px]"], [c
   background-color: rgba(255,250,244,.84);
 }
 html[data-tema="ambar"] :is([class~="bg-[#FFFFFF]"], [class~="bg-[#F4F4F2]"]):is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-[24px]"], [class*="rounded-2xl"], [class*="rounded-3xl"]):not([role="dialog"]) {
-  box-shadow: 0 10px 28px rgba(190,90,20,.10), inset 0 1px 0 rgba(255,255,255,.85);
+  box-shadow: 0 6px 16px rgba(190,90,20,.10), inset 0 1px 0 rgba(255,255,255,.85);
 }
 html[data-tema="ambar"] [class~="bg-[#FFFFFF]"][class~="border-[#E6E6E3]"]:is([class*="rounded-[14px]"], [class*="rounded-[16px]"], [class*="rounded-[18px]"], [class*="rounded-[20px]"], [class*="rounded-[24px]"], [class*="rounded-2xl"], [class*="rounded-3xl"]) {
   border-color: rgba(255,255,255,.8) !important;
