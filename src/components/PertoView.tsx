@@ -57,6 +57,9 @@ interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
   initialDestination?: { title: string; lat: number; lon: number } | null;
   onClearInitialDestination?: () => void;
+  /** Abre os Favoritos (que vivem dentro do Perto) */
+  onAbrirFavoritos?: () => void;
+  totalFavoritos?: number;
 }
 
 // Normalize transport mode
@@ -206,8 +209,23 @@ let ultimoSeguir = true;
 export const PertoView: React.FC<PertoViewProps> = ({
   initialDestination,
   onClearInitialDestination,
+  onAbrirFavoritos,
+  totalFavoritos = 0,
 }) => {
   const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, motivoBloqueio } = useUserLocation();
+  const botaoFavoritos = onAbrirFavoritos ? (
+    <button
+      type="button"
+      onClick={onAbrirFavoritos}
+      data-teste="abrir-favoritos"
+      aria-label={totalFavoritos > 0 ? `${t('Favoritos')} (${totalFavoritos})` : t('Favoritos')}
+      className="shrink-0 inline-flex items-center justify-center gap-1.5 h-10 min-w-[44px] px-3 rounded-full bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[13px] font-bold text-[#111111] cursor-pointer"
+    >
+      <Star className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
+      <span className="hidden min-[400px]:inline lg:inline">{t('Favoritos')}</span>
+      {totalFavoritos > 0 && <span className="font-condensada text-[14px] tabular-nums text-[#6B6B6B]">{totalFavoritos}</span>}
+    </button>
+  ) : null;
   // Passos para desbloquear (aparecem quando "Ativar localização" não chega)
   const [ajudaLocalizacao, setAjudaLocalizacao] = useState<boolean>(false);
   const eIphone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '');
@@ -1400,22 +1418,25 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </h2>
               <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{subtitulo}</p>
             </div>
-            {localizacaoPronta && (userCoords?.isManual ? (
-              <button
-                onClick={() => activateLocation(true)}
-                className="shrink-0 h-8 px-3 rounded-full bg-[#111111] text-[#FFFFFF] text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> {t('Usar GPS')}
-              </button>
-            ) : (
-              <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#F4F4F2] text-[11px] font-bold uppercase tracking-wide text-[#111111]">
-                <span className="relative flex w-2 h-2">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-60 animate-ping" />
-                  <span className="relative inline-flex w-2 h-2 rounded-full bg-[#16A34A]" />
+            <div className="shrink-0 flex items-center gap-2">
+              {botaoFavoritos}
+              {localizacaoPronta && (userCoords?.isManual ? (
+                <button
+                  onClick={() => activateLocation(true)}
+                  className="shrink-0 h-8 px-3 rounded-full bg-[#111111] text-[#FFFFFF] text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> {t('Usar GPS')}
+                </button>
+              ) : (
+                <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#F4F4F2] text-[11px] font-bold uppercase tracking-wide text-[#111111]">
+                  <span className="relative flex w-2 h-2">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-60 animate-ping" />
+                    <span className="relative inline-flex w-2 h-2 rounded-full bg-[#16A34A]" />
+                  </span>
+                  {t('Ao vivo')}
                 </span>
-                {t('Ao vivo')}
-              </span>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1423,11 +1444,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
         <div className="hidden lg:flex flex-col p-4 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-3">
           <div className="flex items-center justify-between">
             <Logo />
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
+              {botaoFavoritos}
+              <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${gpsStatus === 'active' ? 'bg-[#16A34A]' : 'bg-[#6B6B6B]'}`} />
               <span className="text-xs text-[#6B6B6B] font-medium">
                 {gpsStatus === 'active' ? (userCoords?.isManual ? 'Local escolhido' : 'GPS ativo') : gpsStatus === 'requesting' ? 'A localizar…' : 'Localização desligada'}
               </span>
+            </div>
             </div>
           </div>
 
