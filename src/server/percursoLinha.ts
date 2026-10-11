@@ -87,7 +87,10 @@ export function percursoPorLinha(rotaId: string, destino: string | undefined, pa
   if (!escolhida && alvo) escolhida = candidatas.find((c) => { const h = hsDe(c); return h && (h.includes(alvo) || alvo.includes(h)); });
   // Sem destino que bata certo só serve se a linha tem um único sentido nesta paragem (não arriscar o sentido errado)
   if (!escolhida && new Set(candidatas.map(hsDe)).size === 1) escolhida = candidatas[0];
-  return escolhida ? percursoDeViagem(escolhida.id, paragemId) : null;
+  const percurso = escolhida ? percursoDeViagem(escolhida.id, paragemId) : null;
+  // As horas são de outra viagem da mesma linha: não se mostram (só o caminho e as paragens)
+  if (percurso) percurso.paragens = percurso.paragens.map(({ hora: _hora, ...resto }) => resto);
+  return percurso;
 }
 
 /** Percurso de uma linha UNIR: o sentido da AMP, ou o que acaba no destino da partida */
