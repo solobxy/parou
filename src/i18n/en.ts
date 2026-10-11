@@ -958,6 +958,7 @@ export const EN: Record<string, string> = {
   'A pé até {p}': 'Walk to {p}',
   'paragem': 'stop',
   'paragens': 'stops',
+  'poste': 'stand',
   'Horários programados da AMP; podem mudar com o trânsito.': 'Scheduled times from AMP; they may change with traffic.',
   'Horários programados; podem mudar com o trânsito.': 'Scheduled times; they may change with traffic.',
   'autocarro': 'bus',
