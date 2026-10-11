@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../i18n';
 import { WifiOff, Wifi } from 'lucide-react';
 
 /**
@@ -40,7 +41,7 @@ export const AvisoSemRede: React.FC = () => {
     >
       <div className={`flex items-center gap-2 rounded-full px-4 h-10 text-[13px] font-semibold shadow-lg ${semRede ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#1F7A3A] text-[#FFFFFF]'}`}>
         {semRede ? <WifiOff className="w-4 h-4 shrink-0" /> : <Wifi className="w-4 h-4 shrink-0" />}
-        <span className="truncate">{semRede ? 'Sem internet · a mostrar a última informação' : 'Ligação de volta'}</span>
+        <span className="truncate">{semRede ? t('Sem internet · a mostrar a última informação') : t('Ligação de volta')}</span>
       </div>
     </div>
   );

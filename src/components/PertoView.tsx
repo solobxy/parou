@@ -68,6 +68,17 @@ const SVG_BUS = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" str
 const SVG_COMBOIO = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/></svg>';
 const SVG_BARCO = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10.2V14"/><path d="M12 2v3"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M19.4 20A11.6 11.6 0 0 0 21 14l-8.2-3.6a2 2 0 0 0-1.6 0L3 14a11.6 11.6 0 0 0 2.8 7.8"/><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>';
 const SVG_METRO = '<span style="font:800 14px/1 Barlow, system-ui, sans-serif;color:#fff;letter-spacing:-.02em">M</span>';
+/** "A carregar horários… 3/12" → traduz a frase e deixa o contador */
+function traduzirCarregamento(msg: string): string {
+  const m = /^(A carregar horários…)\s*(.*)$/.exec(msg);
+  return m ? `${t(m[1])}${m[2] ? ' ' + m[2] : ''}` : t(msg);
+}
+/** Etiquetas dos percursos que vêm do servidor ("Direto", "2 transbordos", "A pé") */
+function traduzirBadge(label: string): string {
+  const m = /^(\d+) transbordos?$/.exec(label);
+  return m ? tn(+m[1], '{n} transbordo', '{n} transbordos') : t(label);
+}
+
 export const ESTILO_MODO: Record<'Autocarro' | 'Metro' | 'Comboio' | 'Barco', { cor: string; plural: string; simbolo: string }> = {
   Autocarro: { cor: '#111111', plural: 'Autocarros', simbolo: SVG_BUS },
   Metro: { cor: '#D92D20', plural: 'Metros', simbolo: SVG_METRO },
@@ -1175,7 +1186,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const subtitulo = !localizacaoPronta
     ? (gpsStatus === 'requesting' ? t('A obter a tua localização…') : t('À espera da tua localização'))
     : isDbLoading && filteredStops.length === 0
-      ? t(dbLoadingMessage || 'A carregar horários…')
+      ? traduzirCarregamento(dbLoadingMessage || 'A carregar horários…')
       : userCoords?.isManual
         ? t('Perto de {local}', { local: userCoords.locationLabel || t('local escolhido') })
         : `${tn(filteredStops.length, '{n} paragem até {d}', '{n} paragens até {d}', { d: raioTexto })}${
@@ -1271,8 +1282,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <MapPinOff className="w-5 h-5 stroke-[2.25]" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-[16.5px] font-bold text-[#111111] leading-tight">{titulo}</h3>
-              <p className="mt-0.5 text-[12.5px] text-[#6B6B6B] leading-snug">{texto}</p>
+              <h3 className="text-[16.5px] font-bold text-[#111111] leading-tight">{t(titulo)}</h3>
+              <p className="mt-0.5 text-[12.5px] text-[#6B6B6B] leading-snug">{t(texto)}</p>
             </div>
           </div>
 
@@ -1299,7 +1310,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
           {ajudaLocalizacao && (
             <ol className="mt-2.5 text-left text-[12.5px] text-[#111111] leading-snug space-y-1 bg-[#F4F4F2] rounded-[12px] p-3 list-decimal pl-7">
-              {passos.map((p) => <li key={p}>{p}</li>)}
+              {passos.map((p) => <li key={p}>{t(p)}</li>)}
             </ol>
           )}
 
@@ -1338,16 +1349,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </span>
         </div>
         <h3 className="mt-3 text-[18px] font-bold text-[#111111] leading-tight">
-          {aPedir ? 'A localizar…' : bloqueada ? 'Localização bloqueada' : semSinal ? 'Sem sinal de GPS' : 'Vê o que passa perto de ti'}
+          {t(aPedir ? 'A localizar…' : bloqueada ? 'Localização bloqueada' : semSinal ? 'Sem sinal de GPS' : 'Vê o que passa perto de ti')}
         </h3>
         <p className="mt-1.5 text-[13px] text-[#6B6B6B] leading-snug">
-          {aPedir
+          {t(aPedir
             ? 'Se o telemóvel perguntar, toca em Permitir.'
             : bloqueada
               ? 'Toca no cadeado (ou no ⓘ) ao lado do endereço, permite a Localização e volta a tentar.'
               : semSinal
                 ? 'Não conseguimos obter a tua posição. Confirma que a localização do telemóvel está ligada.'
-                : 'Ativa a localização para veres as paragens à tua volta e quando chega o próximo autocarro, metro ou comboio, em tempo real.'}
+                : 'Ativa a localização para veres as paragens à tua volta e quando chega o próximo autocarro, metro ou comboio, em tempo real.')}
         </p>
         {!aPedir && (
           <button
@@ -1356,7 +1367,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             className="mt-4 w-full h-12 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform cursor-pointer"
           >
             <LocateFixed className="w-[18px] h-[18px] stroke-[2.25]" />
-            {bloqueada || semSinal ? 'Tentar outra vez' : 'Ativar localização'}
+            {t(bloqueada || semSinal ? 'Tentar outra vez' : 'Ativar localização')}
           </button>
         )}
         <button
@@ -1449,7 +1460,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${gpsStatus === 'active' ? 'bg-[#16A34A]' : 'bg-[#6B6B6B]'}`} />
               <span className="text-xs text-[#6B6B6B] font-medium">
-                {gpsStatus === 'active' ? (userCoords?.isManual ? 'Local escolhido' : 'GPS ativo') : gpsStatus === 'requesting' ? 'A localizar…' : 'Localização desligada'}
+                {t(gpsStatus === 'active' ? (userCoords?.isManual ? 'Local escolhido' : 'GPS ativo') : gpsStatus === 'requesting' ? 'A localizar…' : 'Localização desligada')}
               </span>
             </div>
             </div>
@@ -1562,10 +1573,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         <span className="font-condensada text-xl font-bold text-[#111111] tabular-nums">
                           {route.totalDurationMinutes} min
                         </span>
-                        <span className="text-xs text-[#6B6B6B]">· Chegada ~{route.arrivalTime}</span>
+                        <span className="text-xs text-[#6B6B6B]">· {t('Chegada')} ~{route.arrivalTime}</span>
                       </div>
                       <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide">
-                        {route.badgeLabel}
+                        {traduzirBadge(route.badgeLabel)}
                       </span>
                     </div>
                     <div className="text-xs text-[#6B6B6B] mb-1.5">
@@ -1609,13 +1620,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               : <span className="shrink-0 mt-px"><LineChip number={leg.lineCode || '—'} color={leg.lineColor} /></span>}
                             <span className={leg.mode === 'WALK' ? 'text-[#6B6B6B]' : ''}>
                               {leg.mode === 'WALK'
-                                ? `A pé até ${paraOnde} · ${leg.durationMinutes} min`
-                                : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? 'paragem' : 'paragens'}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
+                                ? `${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min`
+                                : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? t('paragem') : t('paragens')}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
                             </span>
                           </li>
                           );
                         })}
-                        <li className="text-[11px] text-[#6B6B6B]">Horários programados{route.realtimeLabel === 'Horário da AMP' ? ' da AMP' : ''}; podem mudar com o trânsito.</li>
+                        <li className="text-[11px] text-[#6B6B6B]">{route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
                       </ol>
                       </>
                     )}
@@ -1648,7 +1659,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ) : isDbLoading && filteredStops.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2]" />
-              <span>{dbLoadingMessage || 'A carregar horários…'}</span>
+              <span>{traduzirCarregamento(dbLoadingMessage || 'A carregar horários…')}</span>
             </div>
           ) : isLoadingNearby && filteredStops.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
@@ -1787,7 +1798,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </div>
             ) : (
             <div className="p-8 text-center text-sm text-[#6B6B6B]">
-              {isDbLoading ? (dbLoadingMessage || 'A carregar horários…') : 'Sem paragens nesta área.'}
+              {isDbLoading ? traduzirCarregamento(dbLoadingMessage || 'A carregar horários…') : t('Sem paragens nesta área.')}
             </div>
             )
           )}

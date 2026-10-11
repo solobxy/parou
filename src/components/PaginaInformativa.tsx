@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { t } from '../i18n';
-import { lerPreferenciaContagem, mudarPreferenciaContagem } from '../services/estatisticas';
+import React from 'react';
+import { t, idioma } from '../i18n';
+import { CONTACTO, TELEFONE, TELEFONE_LINK, ATUALIZADO, Secao, PreferenciaContagem } from './paginasInfoBase';
+import { SobreEn, PrivacidadeEn, TermosEn, ContactarEn } from './paginasInfoEn';
 import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide-react';
 
 export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar';
@@ -9,20 +10,6 @@ interface Props {
   pagina: PaginaInfo;
   onVoltar: () => void;
   onAbrir: (p: PaginaInfo) => void;
-}
-
-const CONTACTO = 'contacto@parou.pt';
-const TELEFONE = '913 488 258';
-const TELEFONE_LINK = '+351913488258';
-const ATUALIZADO = '10 de outubro de 2026';
-
-function Secao({ titulo, children, id }: { titulo: string; children: React.ReactNode; id?: string }) {
-  return (
-    <section id={id} className="space-y-2 scroll-mt-20">
-      <h2 className="text-[17px] font-bold text-[#111111] leading-snug">{titulo}</h2>
-      <div className="text-[14.5px] text-[#2B2B2B] leading-relaxed space-y-2">{children}</div>
-    </section>
-  );
 }
 
 function Sobre({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
@@ -69,30 +56,6 @@ function Sobre({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
         </button>
       </div>
     </>
-  );
-}
-
-/** Interruptor da contagem anónima de utilizadores (página de Privacidade). */
-function PreferenciaContagem() {
-  const [contar, setContar] = useState<boolean | null>(null);
-  const [aGuardar, setAGuardar] = useState(false);
-  useEffect(() => { void lerPreferenciaContagem().then(setContar); }, []);
-  if (contar === null) return null;
-  const mudar = async () => {
-    setAGuardar(true);
-    const ok = await mudarPreferenciaContagem(!contar);
-    if (ok) setContar(!contar);
-    setAGuardar(false);
-  };
-  return (
-    <button
-      onClick={mudar}
-      disabled={aGuardar}
-      data-teste="preferencia-contagem"
-      className="mt-1 h-10 px-4 rounded-[10px] border border-[#E6E6E3] bg-[#F4F4F2] text-[13.5px] font-semibold text-[#111111] cursor-pointer disabled:opacity-60"
-    >
-      {contar ? t('Não contar as minhas visitas') : t('Voltar a contar as minhas visitas')}
-    </button>
   );
 }
 
@@ -305,14 +268,16 @@ const TITULOS: Record<PaginaInfo, { titulo: string; icone: React.ElementType }> 
 };
 
 export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }) => {
-  const { titulo } = TITULOS[pagina];
+  const titulo = t(TITULOS[pagina].titulo);
   return (
     <article className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 pb-10 space-y-5 text-[14.5px] text-[#2B2B2B] leading-relaxed">
       <button onClick={onVoltar} className="inline-flex items-center gap-1.5 h-9 pr-3 text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">
-        <ArrowLeft className="w-4 h-4" /> Voltar
+        <ArrowLeft className="w-4 h-4" /> {t('Voltar')}
       </button>
       <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#111111]">{titulo}</h1>
-      {pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : <Termos />}
+      {idioma === 'en'
+        ? (pagina === 'sobre' ? <SobreEn onAbrir={onAbrir} /> : pagina === 'privacidade' ? <PrivacidadeEn /> : pagina === 'contactar' ? <ContactarEn /> : <TermosEn />)
+        : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : <Termos />)}
     </article>
   );
 };

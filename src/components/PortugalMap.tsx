@@ -557,8 +557,8 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
           <div style="font-size:14px;font-weight:700;color:#111111;line-height:1.25">${escaparHtml(p.titulo)}</div>
           ${p.subtitulo ? `<div style="font-size:12.5px;color:#4B4B4B;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
-          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início'}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>até</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
-          <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">Fonte: ${ligacao}</div>
+          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${t(p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início')}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>${t('até')}</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
+          <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">${t('Fonte')}: ${ligacao}</div>
         </div>`,
         { closeButton: true, autoPanPadding: [24, 24] },
       );

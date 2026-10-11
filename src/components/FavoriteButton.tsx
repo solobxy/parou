@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t } from '../i18n';
 import { Star } from 'lucide-react';
 import { FavoriteItem } from '../types/favorites';
 import { toggleFavorite, isItemFavorited } from '../services/favoritesService';
@@ -40,8 +41,8 @@ export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={isFav ? `Remover ${item.title} dos favoritos` : `Adicionar ${item.title} aos favoritos`}
-      title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+      aria-label={isFav ? t('Remover {x} dos favoritos', { x: item.title }) : t('Adicionar {x} aos favoritos', { x: item.title })}
+      title={isFav ? t('Remover dos favoritos') : t('Adicionar aos favoritos')}
       className={`inline-flex items-center justify-center rounded-[6px] min-h-[36px] min-w-[36px] p-1.5 transition-colors cursor-pointer ${
         isFav
           ? 'text-[#111111] bg-[#F4F4F2]'

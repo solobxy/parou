@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t } from '../i18n';
 import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
@@ -95,7 +96,7 @@ export const ClusterDetailModal: React.FC<ClusterDetailModalProps> = ({
         <div className="flex-1 overflow-y-auto divide-y divide-[#E6E6E3] bg-[#FFFFFF]">
           {filteredOccurrences.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#6B6B6B]">
-              Sem ocorrências para este filtro.
+              {t('Sem ocorrências para este filtro.')}
             </div>
           ) : (
             filteredOccurrences.map((occ) => {
