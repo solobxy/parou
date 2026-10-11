@@ -165,4 +165,19 @@ parou.pt`,
     imagens: ['/novidades/temas-1.jpg'],
     comunidade: 'Já podes escolher o tema da app: Claro, Escuro (para a noite) ou Âmbar, mais laranja e em vidro. Toca na paleta, no topo.',
   },
+  {
+    id: 'recuperar-palavra-passe',
+    data: '2026-10-11',
+    etiqueta: 'Novidade',
+    titulo: 'Recupera a palavra-passe por email',
+    texto: `🔑 *Esqueceste-te da palavra-passe?*
+
+Já podes recuperá-la por email: toca em _"Esqueci-me da palavra-passe"_, abre o link que recebes e escolhe uma nova. O link vale 1 hora.
+
+Dúvidas? contacto@parou.pt
+
+parou.pt`,
+    imagens: ['/novidades/recuperar-1.jpg'],
+    comunidade: 'Esqueceste-te da palavra-passe? Já podes recuperá-la por email: toca em "Esqueci-me da palavra-passe" ao entrar e abre o link que recebes.',
+  },
 ];
