@@ -1618,7 +1618,7 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 // ==========================================
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
-import { percursoDeViagem, percursoUnir } from './src/server/percursoLinha';
+import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
 import { DebugEngine } from './src/server/debugEngine';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)
@@ -1637,7 +1637,7 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
 });
 
 // Percurso de uma linha (paragens por ordem, com coordenadas e horas) para desenhar no mapa:
-//   ?trip=<trip_id>&stop=<paragem de onde parte>            (linhas com horários na base)
+//   ?trip=<trip_id>&stop=<paragem de onde parte>[&rota=<route_id>&dest=<destino>]   (linhas com horários na base; rota e destino servem se o trip_id do tempo real não existir no horário)
 //   ?route=<linha UNIR>&stop=<paragem>&sentido=<n>&destino=<texto>   (UNIR)
 app.get('/api/transit/percurso', (req: Request, res: Response) => {
   try {
@@ -1645,8 +1645,9 @@ app.get('/api/transit/percurso', (req: Request, res: Response) => {
     const stop = txt(req.query.stop);
     const trip = txt(req.query.trip);
     const route = txt(req.query.route);
+    const rota = txt(req.query.rota);
     const percurso = trip
-      ? percursoDeViagem(trip, stop || undefined)
+      ? (percursoDeViagem(trip, stop || undefined) || (rota && stop ? percursoPorLinha(rota, txt(req.query.dest) || undefined, stop) : null))
       : route && stop
         ? percursoUnir(route, stop, txt(req.query.sentido) || undefined, txt(req.query.destino) || undefined)
         : null;
