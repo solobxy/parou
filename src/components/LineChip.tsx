@@ -7,19 +7,29 @@ interface LineChipProps {
   className?: string;
 }
 
-// Function to calculate relative luminance and pick high contrast text color (#111111 vs #FFFFFF)
-function getContrastColor(hexColor?: string): string {
-  if (!hexColor) return '#111111';
-  const clean = hexColor.replace(/^#/, '');
-  if (clean.length !== 6 && clean.length !== 3) return '#111111';
-  
-  const r = parseInt(clean.length === 3 ? clean[0] + clean[0] : clean.substring(0, 2), 16);
-  const g = parseInt(clean.length === 3 ? clean[1] + clean[1] : clean.substring(2, 4), 16);
-  const b = parseInt(clean.length === 3 ? clean[2] + clean[2] : clean.substring(4, 6), 16);
+// Cor do texto do número da linha: a do operador, se se ler bem (contraste mínimo 4,5:1, WCAG AA);
+// senão, a melhor entre branco e quase-preto sobre a cor da linha.
+function lerRgb(hex?: string): [number, number, number] | null {
+  const clean = String(hex || '').replace(/^#/, '');
+  if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(clean)) return null;
+  const c = clean.length === 3 ? clean.split('').map((x) => x + x).join('') : clean;
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+function luminancia([r, g, b]: [number, number, number]): number {
+  const f = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+const razao = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
-  // YIQ luminance formula
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 135 ? '#111111' : '#FFFFFF';
+function getContrastColor(hexColor?: string, pedida?: string): string {
+  const fundo = lerRgb(hexColor);
+  if (!fundo) return pedida || '#111111';
+  const lf = luminancia(fundo);
+  const dada = lerRgb(pedida);
+  if (pedida && dada && razao(luminancia(dada), lf) >= 4.5) return pedida;
+  const branco = razao(1, lf);
+  const escuro = razao(luminancia([17, 17, 17]), lf);
+  return branco >= 4.5 || branco >= escuro ? '#FFFFFF' : '#111111';
 }
 
 /**
@@ -33,7 +43,7 @@ export const LineChip: React.FC<LineChipProps> = ({
   className = '',
 }) => {
   const bgColor = color ? (color.startsWith('#') ? color : `#${color}`) : '#F4F4F2';
-  const resolvedTextColor = textColor || (color ? getContrastColor(bgColor) : '#111111');
+  const resolvedTextColor = color ? getContrastColor(bgColor, textColor) : (textColor || '#111111');
   const borderStyle = !color || color.toLowerCase() === '#ffffff' ? '1px solid #E6E6E3' : 'none';
 
   return (
