@@ -23,6 +23,7 @@ import {
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas } from './src/server/comunidade/rotas';
+import { dentroDoLimite } from './src/server/limites';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
@@ -108,9 +109,9 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
 const RESUMO_ADMIN = String(process.env.PAROU_ADMIN_HASH || '').trim().toLowerCase();
 const ROTAS_ADMIN: Array<[string, RegExp]> = [
-  ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+|diagnostico-unir\/paragens)\/?$/],
+  ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+)\/?$/],
   ['GET', /^\/api\/(estatisticas\/resumo|transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
-  ['GET', /^\/(debug\/.*|diagnostico-unir)\/?$/],
+  ['GET', /^\/(debug\/.*)\/?$/],
 ];
 function pedidoDeAdmin(req: Request): boolean {
   const dada = String(req.headers['x-parou-admin'] || req.query.chave || '');
@@ -1459,37 +1460,8 @@ app.get('/robots.txt', (req: Request, res: Response) => {
   res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /debug/\nDisallow: /pesquisa\nDisallow: /_estado\nDisallow: /*?reportId=\n\nSitemap: https://parou.pt/sitemap.xml\n`);
 });
 
-// Diagnóstico da UNIR: os servidores da AMP não aceitam ligações do nosso servidor (fora de
-// Portugal). Esta página testa, a partir do telemóvel de quem a abre (em Portugal), que formas
-// tem o browser de ler os dados da AMP (CORS, JSONP, imagens do mapa) e envia o resultado.
-app.get('/diagnostico-unir', (_req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('X-Robots-Tag', 'noindex');
-  res.setHeader('Cache-Control', 'no-store');
-  res.send(`<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Diagnóstico UNIR | PAROU</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}li{margin:8px 0}.ok{color:#1F7A3A;font-weight:700}.mau{color:#D92D20;font-weight:700}code{font-size:12px;word-break:break-all}</style></head><body>
-<h1>Diagnóstico UNIR (4)</h1><p>Deixa esta página aberta até aparecer <b>Concluído</b> (menos de 1 minuto). O resultado é enviado automaticamente para a PAROU.</p><ol id="r"></ol>
-<script>
-const r=document.getElementById('r');
-function linha(t,ok,extra){const li=document.createElement('li');li.innerHTML=t+': <span class="'+(ok?'ok':'mau')+'">'+(ok?'OK':'FALHOU')+'</span>'+(extra?'<br><code>'+String(extra).replace(/</g,'&lt;').slice(0,160)+'</code>':'');r.appendChild(li);}
-const rel={versao:4,quando:new Date().toISOString(),ua:navigator.userAgent,horarios:{}};
-async function ler(u,ms){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||12000);try{const x=await fetch(u,{signal:c.signal});const tx=await x.text();return {ok:true,status:x.status,texto:tx};}catch(e){return {ok:false,erro:String(e)};}finally{clearTimeout(t);}}
-(async()=>{
-  const hoje=new Date();const d=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0')+'-'+String(hoje.getDate()).padStart(2,'0');
-  const ids=['smf:869','869','7090','vng:255','255','1217','smf%3A869','SMF869','smf_869'];
-  let algum=false;
-  for(const id of ids){const u='https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+d+'&id='+id;const x=await ler(u);const bom=x.ok&&x.status===200&&!/inv.lido|erro/i.test(x.texto.slice(0,200))&&x.texto.length>60;
-    rel.horarios[id]=x.ok?{status:x.status,tam:x.texto.length,texto:x.texto.slice(0,bom?60000:400)}:{erro:x.erro};if(bom)algum=true;
-    linha('Partidas com o código '+decodeURIComponent(id),bom,x.ok?x.texto.slice(0,120):x.erro);}
-  // Outros formatos de data
-  if(!algum){for(const dia of [d.replace(/-/g,''),d.split('-').reverse().join('-')]){const x=await ler('https://paragens.amp.pt/acarto2/get_horarios_prg?dia='+dia+'&id=smf:869');rel.horarios['data_'+dia]=x.ok?{status:x.status,texto:x.texto.slice(0,3000)}:{erro:x.erro};}}
-  try{const x=await fetch('/api/diagnostico-unir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rel)});linha('Resultado enviado à PAROU',x.ok);}catch(e){linha('Resultado enviado à PAROU',false,String(e));}
-  const li=document.createElement('li');li.innerHTML='<b>Concluído.</b> Podes fechar a página e avisar o Claude.';r.appendChild(li);
-})();
-</script></body></html>`);
-});
-
-// Relatórios enviados pela página de diagnóstico (sem dados pessoais). Guarda só os 12 mais recentes.
+// Relatórios automáticos do planeador quando uma ligação UNIR falha (só linhas e códigos de paragens, sem dados pessoais).
+// Guarda só os 12 mais recentes.
 function guardarDiagnostico(prefixo: string, txt: string) {
   const pasta = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
   fs.mkdirSync(pasta, { recursive: true });
@@ -1500,21 +1472,10 @@ function guardarDiagnostico(prefixo: string, txt: string) {
 }
 app.post('/api/diagnostico-unir', (req: Request, res: Response) => {
   try {
+    if (!dentroDoLimite('diag-unir', 60, 3600_000)) return res.status(429).json({ ok: false });
     const txt = JSON.stringify(req.body || {}).slice(0, 50_000);
     guardarDiagnostico('diag-unir', txt);
     console.log(`[Diag UNIR] relatório recebido (${txt.length} bytes)`);
-    res.json({ ok: true });
-  } catch {
-    res.status(500).json({ ok: false });
-  }
-});
-app.post('/api/diagnostico-unir/paragens', (req: Request, res: Response) => {
-  try {
-    const f = Array.isArray(req.body?.features) ? req.body.features : [];
-    if (!f.length) return res.status(400).json({ ok: false });
-    const txt = JSON.stringify({ quando: req.body.quando, features: f });
-    guardarDiagnostico('diag-unir-paragens', txt);
-    console.log(`[Diag UNIR] ${f.length} paragens recebidas (${txt.length} bytes)`);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ ok: false });

@@ -19,29 +19,9 @@ import {
 import { iniciarCopiasDeSeguranca } from './baseDados';
 import { iniciarNovidadesAutomaticas } from './novidades';
 import { emailAtivo, enviarEmail } from './email';
+import { dentroDoLimite, ipDe } from '../limites';
 
 const COOKIE = 'parou_sessao';
-
-// ---------- limites por endereço (travam robôs e tentativas de adivinhar palavras-passe) ----------
-const registos = new Map<string, number[]>();
-/** true = pode continuar; false = passou do limite. Conta sempre este pedido. */
-function dentroDoLimite(chave: string, max: number, janelaMs: number): boolean {
-  const agora = Date.now();
-  const lista = (registos.get(chave) || []).filter((t) => agora - t < janelaMs);
-  lista.push(agora);
-  registos.set(chave, lista);
-  return lista.length <= max;
-}
-setInterval(() => {
-  const agora = Date.now();
-  for (const [k, v] of registos) if (!v.some((t) => agora - t < 24 * 3600_000)) registos.delete(k);
-}, 10 * 60_000).unref?.();
-
-function ipDe(req: Request): string {
-  const remoto = req.socket.remoteAddress || '';
-  const local = remoto === '127.0.0.1' || remoto === '::1' || remoto === '::ffff:127.0.0.1';
-  return (local ? String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() : '') || remoto;
-}
 
 function lerCookie(req: Request, nome: string): string | null {
   for (const parte of (req.headers.cookie || '').split(';')) {
@@ -81,7 +61,13 @@ function semLimite(res: Response) {
 }
 
 export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Request) => boolean; avisosCanal?: () => Promise<unknown[]> }) {
-  const { eAdmin, avisosCanal } = opcoes;
+  const { eAdmin: chaveAdmin, avisosCanal } = opcoes;
+  // Administração = quem tem a chave de administração OU entrou com a conta do Criador (PAROU_ADMIN_EMAILS)
+  const eAdmin = (req: Request, res: Response): boolean => {
+    if (chaveAdmin(req)) return true;
+    const conta = contaDoPedido(req, res);
+    return !!conta && contaEAdmin(conta);
+  };
   setInterval(limparSessoesExpiradas, 3600_000).unref?.();
   setTimeout(limparSessoesExpiradas, 30_000);
   iniciarCopiasDeSeguranca();
@@ -229,7 +215,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   // ============================== OCORRÊNCIAS ==============================
   app.get('/api/comunidade/ocorrencias', (req, res) => {
     try {
-      const admin = eAdmin(req);
+      const admin = eAdmin(req, res);
       const etag = `"o${admin ? 'a' : 'p'}${versaoConteudo()}"`;
       if (req.headers['if-none-match'] === etag) return res.status(304).end();
       res.setHeader('ETag', etag);
@@ -240,7 +226,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
 
   app.get('/api/comunidade/ocorrencias/:id', (req, res) => {
     try {
-      const o = obterOcorrencia(req.params.id, eAdmin(req));
+      const o = obterOcorrencia(req.params.id, eAdmin(req, res));
       if (!o) return res.status(404).json({ erro: 'Ocorrência não encontrada.', codigo: 'nao_existe' });
       res.json({ ocorrencia: o });
     } catch (err) { erro(res, err); }
@@ -274,7 +260,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   app.patch('/api/comunidade/ocorrencias/:id', (req, res) => {
     try {
       const conta = contaDoPedido(req, res);
-      mudarEstadoOcorrencia(req.params.id, req.body?.status, { admin: eAdmin(req), contaId: conta?.id }, !!req.body?.zerarDenuncias);
+      mudarEstadoOcorrencia(req.params.id, req.body?.status, { admin: eAdmin(req, res), contaId: conta?.id }, !!req.body?.zerarDenuncias);
       res.json({ ok: true });
     } catch (err) { erro(res, err); }
   });
@@ -282,7 +268,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   app.delete('/api/comunidade/ocorrencias/:id', (req, res) => {
     try {
       const conta = contaDoPedido(req, res);
-      apagarOcorrencia(req.params.id, { admin: eAdmin(req), contaId: conta?.id });
+      apagarOcorrencia(req.params.id, { admin: eAdmin(req, res), contaId: conta?.id });
       res.json({ ok: true });
     } catch (err) { erro(res, err); }
   });
@@ -290,7 +276,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   // ============================== RECLAMAÇÕES ==============================
   app.get('/api/comunidade/reclamacoes', (req, res) => {
     try {
-      const admin = eAdmin(req);
+      const admin = eAdmin(req, res);
       const etag = `"r${admin ? 'a' : 'p'}${versaoConteudo()}"`;
       if (req.headers['if-none-match'] === etag) return res.status(304).end();
       res.setHeader('ETag', etag);
@@ -326,7 +312,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
 
   app.patch('/api/comunidade/reclamacoes/:id', (req, res) => {
     try {
-      if (!eAdmin(req)) return res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+      if (!eAdmin(req, res)) return res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
       mudarEstadoReclamacao(req.params.id, req.body?.status, !!req.body?.zerarDenuncias);
       res.json({ ok: true });
     } catch (err) { erro(res, err); }
@@ -335,7 +321,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   app.delete('/api/comunidade/reclamacoes/:id', (req, res) => {
     try {
       const conta = contaDoPedido(req, res);
-      apagarReclamacao(req.params.id, { admin: eAdmin(req), contaId: conta?.id });
+      apagarReclamacao(req.params.id, { admin: eAdmin(req, res), contaId: conta?.id });
       res.json({ ok: true });
     } catch (err) { erro(res, err); }
   });
@@ -356,14 +342,14 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   app.get('/api/comunidade/conversas', (req, res) => {
     try {
       if (!dentroDoLimite(`ler-conversas:${ipDe(req)}`, 240, 60_000)) return semLimite(res);
-      res.json(listarConversas(contaDoPedido(req, res), eAdmin(req), (req.query || {}) as any));
+      res.json(listarConversas(contaDoPedido(req, res), eAdmin(req, res), (req.query || {}) as any));
     } catch (err) { erro(res, err); }
   });
 
   app.get('/api/comunidade/conversas/:id', (req, res) => {
     try {
       if (!dentroDoLimite(`ler-conversas:${ipDe(req)}`, 240, 60_000)) return semLimite(res);
-      const c = obterConversa(contaDoPedido(req, res), eAdmin(req), req.params.id);
+      const c = obterConversa(contaDoPedido(req, res), eAdmin(req, res), req.params.id);
       if (!c) return res.status(404).json({ erro: 'Publicação não encontrada.', codigo: 'nao_existe' });
       res.json(c);
     } catch (err) { erro(res, err); }
@@ -423,22 +409,21 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
 
   app.delete('/api/comunidade/conteudo/:id', (req, res) => {
     try {
-      apagarConteudo(contaDoPedido(req, res), eAdmin(req), req.params.id);
+      apagarConteudo(contaDoPedido(req, res), eAdmin(req, res), req.params.id);
       res.json({ ok: true });
     } catch (err) { erro(res, err); }
   });
 
   // ---------- administração (só com a chave de administração) ----------
   const soAdmin = (req: Request, res: Response): boolean => {
-    if (eAdmin(req)) return true;
+    if (eAdmin(req, res)) return true;
     res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
     return false;
   };
   // Avisos que valem um post no canal do WhatsApp (greves, mau tempo grave, incêndios importantes…).
   // Abre com a chave de administração ou com a conta do Criador.
   app.get('/api/comunidade/admin/avisos-canal', async (req, res) => {
-    const conta = eAdmin(req) ? null : contaDoPedido(req, res);
-    if (!eAdmin(req) && !(conta && contaEAdmin(conta))) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    if (!eAdmin(req, res)) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
     try {
       res.setHeader('Cache-Control', 'no-store');
       res.json({ itens: avisosCanal ? await avisosCanal() : [] });
@@ -446,8 +431,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   });
   // Estatísticas de utilizadores (pessoas que abrem a app + contas criadas). Chave de administração ou conta do Criador.
   app.get('/api/comunidade/admin/estatisticas', (req, res) => {
-    const conta = eAdmin(req) ? null : contaDoPedido(req, res);
-    if (!eAdmin(req) && !(conta && contaEAdmin(conta))) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    if (!eAdmin(req, res)) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
     try {
       res.setHeader('Cache-Control', 'no-store');
       res.json({ ...resumoEstatisticas(), contas: resumoDeContas() });
