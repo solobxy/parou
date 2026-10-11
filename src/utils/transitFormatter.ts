@@ -16,6 +16,24 @@ const LOWERCASE_WORDS = new Set([
   'por', 'pra', 'para', 'com'
 ]);
 
+/** O operador (ex.: Carris Lisboa) por vezes só envia "Destino" ou "Destino terminal" em vez do destino verdadeiro */
+const DESTINO_GENERICO = /^\s*destino(\s+terminal)?\s*$/i;
+export function destinoGenerico(destino?: string | null): boolean {
+  return DESTINO_GENERICO.test(String(destino || ''));
+}
+
+/**
+ * Destino a mostrar. Se o operador só deu um texto genérico ("Destino"), usa o nome da linha,
+ * que diz de onde a onde vai (ex.: "Martim Moniz - Campo Ourique"). Devolve '' se não houver nada útil.
+ */
+export function destinoLegivel(destino?: string | null, nomeLinha?: string | null): string {
+  const d = String(destino || '').trim();
+  if (d && !destinoGenerico(d)) return formatTransitName(d);
+  const n = String(nomeLinha || '').trim();
+  if (n && !destinoGenerico(n)) return formatTransitName(n);
+  return d ? formatTransitName(d) : '';
+}
+
 /**
  * Converte nomes em maiúsculas (ex.: "AV.ALIADOS", "CORDOARIA-S.PEDRO DA COVA")
  * para Title Case ("Av. Aliados", "Cordoaria - S. Pedro da Cova"), mantendo siglas como CP, IC, STCP.
