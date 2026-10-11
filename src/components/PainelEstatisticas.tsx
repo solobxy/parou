@@ -84,14 +84,14 @@ const Valor: React.FC<{ rotulo: string; valor: string; sub?: string }> = ({ rotu
 );
 
 /** Barras por dia. Toca numa barra para ver o dia. */
-const Barras: React.FC<{ dados: Array<{ dia: string; valor: number; extra?: string }>; unidade: string }> = ({ dados, unidade }) => {
+const Barras: React.FC<{ dados: Array<{ dia: string; valor: number; extra?: string }>; unidade: string; singular: string }> = ({ dados, unidade, singular }) => {
   const [escolhido, setEscolhido] = useState(dados.length - 1);
   const maximo = useMemo(() => Math.max(1, ...dados.map((d) => d.valor)), [dados]);
   const d = dados[Math.min(escolhido, dados.length - 1)];
   return (
     <div>
       <p className="text-[14px] text-[#111111] min-h-[22px]" aria-live="polite">
-        <b className="font-semibold">{diaCurto(d.dia)}</b>: {num(d.valor)} {d.valor === 1 ? unidade.replace(/s$/, '') : unidade}{d.extra ? ` · ${d.extra}` : ''}
+        <b className="font-semibold">{diaCurto(d.dia)}</b>: {num(d.valor)} {d.valor === 1 ? singular : unidade}{d.extra ? ` · ${d.extra}` : ''}
       </p>
       <div className="mt-2 h-[112px] flex items-end gap-[3px]" role="group" aria-label={`${unidade} por dia, últimos 30 dias`}>
         {dados.map((x, i) => (
@@ -99,7 +99,7 @@ const Barras: React.FC<{ dados: Array<{ dia: string; valor: number; extra?: stri
             key={x.dia}
             type="button"
             onClick={() => setEscolhido(i)}
-            aria-label={`${diaCurto(x.dia)}: ${x.valor} ${unidade}`}
+            aria-label={`${diaCurto(x.dia)}: ${x.valor} ${x.valor === 1 ? singular : unidade}`}
             aria-pressed={i === escolhido}
             className="flex-1 min-w-0 h-full flex items-end cursor-pointer rounded-[3px] focus-visible:outline-2"
           >
@@ -166,6 +166,7 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
       <Cartao titulo="Pessoas por dia" nota="Cada pessoa conta uma vez por dia, mesmo que abra a app muitas vezes. Toca numa barra para ver o dia.">
         <Barras
           unidade="pessoas"
+          singular="pessoa"
           dados={d.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.pessoas, extra: `${num(x.novas)} ${x.novas === 1 ? 'nova' : 'novas'} · ${num(x.aberturas)} aberturas` }))}
         />
       </Cartao>
@@ -199,7 +200,7 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
           <Valor rotulo="Entraram nos últimos 7 dias" valor={num(c.comSessaoNosUltimos7Dias)} sub={`${num(c.comSessaoNasUltimas24Horas)} nas últimas 24 h`} />
         </div>
         <div className="mt-4">
-          <Barras unidade="contas novas" dados={c.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.novas }))} />
+          <Barras unidade="contas novas" singular="conta nova" dados={c.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.novas }))} />
         </div>
       </Cartao>
 
