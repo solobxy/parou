@@ -96,7 +96,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 }) => {
   // Camadas visíveis (chips por cima do mapa)
   const [camadasOcultas, setCamadasOcultas] = useState<Set<GrupoCamada>>(new Set());
-  const pontosMarkersRef = useRef<L.Marker[]>([]);
+  // Marcadores individuais ficam em cache (criam-se uma vez; ao mudar o zoom só entram e saem do mapa)
+  // e as bolhas com o número refazem-se: são poucas.
+  const cachePontosRef = useRef<Map<string, L.Marker>>(new Map());
+  const bolhasRef = useRef<L.Marker[]>([]);
   const euMarcadorRef = useRef<L.Marker | null>(null);
   const [aLocalizar, setALocalizar] = useState(false);
   const [erroLocalizar, setErroLocalizar] = useState<string | null>(null);
@@ -124,6 +127,14 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     infoCount: number;
     dominantSeverity: SeverityLevel;
   } | null>(null);
+
+  // Os pais passam funções novas a cada desenho: guardá-las aqui evita refazer todos os marcadores sem necessidade
+  const onSelectDistrictRef = useRef(onSelectDistrict);
+  onSelectDistrictRef.current = onSelectDistrict;
+  const onSelectOccurrenceRef = useRef(onSelectOccurrence);
+  onSelectOccurrenceRef.current = onSelectOccurrence;
+  // Só interessa saber se o mapa está perto ou longe (limite dos 8,2): não refazer tudo a cada nível de zoom
+  const zoomPerto = currentZoom >= 8.2;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -224,6 +235,8 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
+      // Não pede mosaicos a meio do zoom (só quando pára): menos pedidos e menos trabalho enquanto se mexe
+      updateWhenZooming: false,
     }).addTo(map);
 
     // O filtro dos mosaicos (cinzento neutro; mais escuro ou quente nos outros temas) vem do CSS: .leaflet-tile-pane em index.css e temas.css
@@ -255,8 +268,10 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
       districtMarkersRef.current = [];
       occurrenceMarkersRef.current.forEach((m) => m.remove());
       occurrenceMarkersRef.current = [];
-      pontosMarkersRef.current.forEach((m) => m.remove());
-      pontosMarkersRef.current = [];
+      bolhasRef.current.forEach((m) => m.remove());
+      bolhasRef.current = [];
+      cachePontosRef.current.forEach((m) => m.remove());
+      cachePontosRef.current.clear();
       map.remove();
       mapRef.current = null;
     };
@@ -345,7 +360,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     occurrenceMarkersRef.current.forEach((m) => m.remove());
     occurrenceMarkersRef.current = [];
 
-    const isZoomedIn = currentZoom >= 8.2;
+    const isZoomedIn = zoomPerto;
     const showDistricts = activeViewMode === 'distritos' && !isZoomedIn;
 
     // 1. Marcadores de Distrito (em zoom afastado ou modo distritos)
@@ -388,7 +403,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
         const marker = L.marker([stats.lat, stats.lon], { icon }).addTo(mapRef.current!);
         marker.on('click', () => {
-          onSelectDistrict(stats.name);
+          onSelectDistrictRef.current(stats.name);
           mapRef.current?.flyTo([stats.lat, stats.lon], 9);
 
           if (stats.occurrences.length > 0) {
@@ -446,22 +461,28 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
         const marker = L.marker([occLat, occLon], { icon }).addTo(mapRef.current!);
         marker.on('click', () => {
-          if (onSelectOccurrence) {
-            onSelectOccurrence(occ);
-          }
+          onSelectOccurrenceRef.current?.(occ);
         });
 
         occurrenceMarkersRef.current.push(marker);
       });
     }
-  }, [occurrences, districtStats, currentZoom, activeViewMode, selectedDistrict, onSelectDistrict, onSelectOccurrence, camadasOcultas]);
+  }, [occurrences, districtStats, zoomPerto, activeViewMode, selectedDistrict, camadasOcultas]);
 
   // Pontos atuais (incêndios, avisos, perturbações) com símbolo e janela de detalhe
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    pontosMarkersRef.current.forEach((m) => m.remove());
-    pontosMarkersRef.current = [];
+    const cache = cachePontosRef.current;
+
+    // As bolhas refazem-se sempre (são poucas); os marcadores individuais ficam em cache
+    bolhasRef.current.forEach((m) => m.remove());
+    bolhasRef.current = [];
+    // A chave do cache é o conteúdo do ponto: se algo mudar, é outro marcador (e o antigo sai)
+    const chavePonto = (p: PontoMapa) => [p.tipo, p.cor, p.gravidade, p.lat, p.lon, p.titulo, p.subtitulo, p.fonte, p.url || '', p.inicio || '', p.fim || ''].join('|');
+    const chavesAtuais = new Set(pontos.map(chavePonto));
+    cache.forEach((m, chave) => { if (!chavesAtuais.has(chave)) { m.remove(); cache.delete(chave); } });
+
     const visiveis = pontos
       .filter((p) => !camadasOcultas.has(grupoDoPonto(p.tipo)) && Number.isFinite(p.lat) && Number.isFinite(p.lon))
       // Os mais graves por cima
@@ -473,20 +494,34 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
     const ZOOM_SEM_AGRUPAR = 13;
     type Grupo = { pontos: PontoMapa[]; x: number; y: number };
     const grupos: Grupo[] = [];
+    // Grelha de células do tamanho do raio: só se compara com os vizinhos (antes comparava com todos)
+    const celulas = new Map<string, Grupo[]>();
     for (const p of visiveis) {
       if (currentZoom < ZOOM_SEM_AGRUPAR) {
         const pt = map.project([p.lat, p.lon], currentZoom);
-        const perto = grupos.find((g) => Math.hypot(g.x - pt.x, g.y - pt.y) < RAIO_PX);
+        const cx = Math.floor(pt.x / RAIO_PX), cy = Math.floor(pt.y / RAIO_PX);
+        let perto: Grupo | undefined;
+        for (let dx = -1; dx <= 1 && !perto; dx++) {
+          for (let dy = -1; dy <= 1 && !perto; dy++) {
+            const lista = celulas.get(`${cx + dx}:${cy + dy}`);
+            if (lista) perto = lista.find((g) => Math.hypot(g.x - pt.x, g.y - pt.y) < RAIO_PX);
+          }
+        }
         if (perto) {
           perto.pontos.push(p);
           continue;
         }
-        grupos.push({ pontos: [p], x: pt.x, y: pt.y });
+        const novoGrupo: Grupo = { pontos: [p], x: pt.x, y: pt.y };
+        grupos.push(novoGrupo);
+        const chaveCelula = `${cx}:${cy}`;
+        const existente = celulas.get(chaveCelula);
+        if (existente) existente.push(novoGrupo); else celulas.set(chaveCelula, [novoGrupo]);
       } else {
         grupos.push({ pontos: [p], x: 0, y: 0 });
       }
     }
 
+    const individuais = new Set<string>();
     for (const g of grupos) {
       if (g.pontos.length > 1) {
         const n = g.pontos.length;
@@ -528,42 +563,52 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
             map.setView(limites.getCenter(), Math.min(zoomAtual + 2, 14));
           }
         });
-        pontosMarkersRef.current.push(bolha);
+        bolhasRef.current.push(bolha);
         continue;
       }
+
       const p = g.pontos[0];
-      const claro = p.cor === '#EAB308' || p.cor === '#F59E0B';
-      const traco = claro ? '#111111' : '#FFFFFF';
-      const pulsar = p.tipo === 'incendio' && p.gravidade === 'Grave';
-      const tamanho = p.gravidade === 'Grave' ? 34 : 30;
-      const icon = L.divIcon({
-        className: 'parou-ponto-mapa',
-        html: `
-          <div style="position:relative;width:${tamanho}px;height:${tamanho}px;display:flex;align-items:center;justify-content:center;cursor:pointer">
-            ${pulsar ? `<div class="animate-ping" style="position:absolute;inset:0;border-radius:9999px;background:${p.cor};opacity:.35"></div>` : ''}
-            <div style="position:relative;width:${tamanho}px;height:${tamanho}px;border-radius:9999px;background:${p.cor};border:2px solid #FFFFFF;box-shadow:0 3px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="${tamanho - 14}" height="${tamanho - 14}" viewBox="0 0 24 24" fill="none" stroke="${traco}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">${SVG_ICONES[p.tipo] || SVG_ICONES.protecao_civil}</svg>
-            </div>
-          </div>`,
-        iconSize: [tamanho, tamanho],
-        iconAnchor: [tamanho / 2, tamanho / 2],
-        popupAnchor: [0, -tamanho / 2],
-      });
-      const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: p.gravidade === 'Grave' ? 1000 : 500 }).addTo(map);
-      const ligacao = p.url
-        ? `<a href="${escaparHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:#111111;font-weight:600;text-decoration:underline">${escaparHtml(p.fonte)}</a>`
-        : escaparHtml(p.fonte);
-      marker.bindPopup(
-        `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
+      const chave = chavePonto(p);
+      individuais.add(chave);
+      let marcador = cache.get(chave);
+      if (!marcador) {
+        const claro = p.cor === '#EAB308' || p.cor === '#F59E0B';
+        const traco = claro ? '#111111' : '#FFFFFF';
+        const pulsar = p.tipo === 'incendio' && p.gravidade === 'Grave';
+        const tamanho = p.gravidade === 'Grave' ? 34 : 30;
+        const icon = L.divIcon({
+          className: 'parou-ponto-mapa',
+          html: `
+            <div style="position:relative;width:${tamanho}px;height:${tamanho}px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+              ${pulsar ? `<div class="animate-ping" style="position:absolute;inset:0;border-radius:9999px;background:${p.cor};opacity:.35"></div>` : ''}
+              <div style="position:relative;width:${tamanho}px;height:${tamanho}px;border-radius:9999px;background:${p.cor};border:2px solid #FFFFFF;box-shadow:0 3px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="${tamanho - 14}" height="${tamanho - 14}" viewBox="0 0 24 24" fill="none" stroke="${traco}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">${SVG_ICONES[p.tipo] || SVG_ICONES.protecao_civil}</svg>
+              </div>
+            </div>`,
+          iconSize: [tamanho, tamanho],
+          iconAnchor: [tamanho / 2, tamanho / 2],
+          popupAnchor: [0, -tamanho / 2],
+        });
+        const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: p.gravidade === 'Grave' ? 1000 : 500 });
+        marcador = marker;
+        // A janela só se monta quando alguém toca no ponto (antes montava-se uma por ponto, a cada zoom)
+        marker.bindPopup(() => {
+          const ligacao = p.url
+            ? `<a href="${escaparHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:#111111;font-weight:600;text-decoration:underline">${escaparHtml(p.fonte)}</a>`
+            : escaparHtml(p.fonte);
+          return `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
           <div style="font-size:14px;font-weight:700;color:#111111;line-height:1.25">${escaparHtml(p.titulo)}</div>
           ${p.subtitulo ? `<div style="font-size:12.5px;color:#4B4B4B;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
           ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${t(p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início')}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>${t('até')}</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
           <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">${t('Fonte')}: ${ligacao}</div>
-        </div>`,
-        { closeButton: true, autoPanPadding: [24, 24] },
-      );
-      pontosMarkersRef.current.push(marker);
+        </div>`;
+        }, { closeButton: true, autoPanPadding: [24, 24] });
+        cache.set(chave, marker);
+      }
+      if (!map.hasLayer(marcador)) marcador.addTo(map);
     }
+    // Os que passaram para uma bolha, ou foram escondidos pelas camadas, saem do mapa (ficam guardados)
+    cache.forEach((m, chave) => { if (!individuais.has(chave) && map.hasLayer(m)) m.remove(); });
   }, [pontos, camadasOcultas, currentZoom]);
 
   // Atribuição do Fogos.pt junto ao mapa quando há incêndios
@@ -712,7 +757,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           )}
 
           {/* Quick Legend at Bottom-Left */}
-          <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">
+          <div className="absolute bottom-3 left-3 z-10 bg-white/90 border border-[#E6E6E3] rounded-[6px] px-2.5 py-1.5 flex items-center gap-3 text-[11px] shadow-sm select-none pointer-events-none">
             <div className="flex items-center gap-1 font-condensada font-semibold text-[#111111]">
               <div className="w-2.5 h-2.5 rounded-full bg-[#D92D20]"></div>
               <span>{t('Grave')}</span>

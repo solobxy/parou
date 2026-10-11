@@ -134,6 +134,13 @@ h1, h2, h3, h4 {
   }
 }
 
+/* Mapa: enquanto se arrasta ou se faz zoom, os pontos que pulsam param (menos trabalho por imagem nos telemóveis fracos) */
+.leaflet-dragging .animate-ping,
+.leaflet-touching .animate-ping,
+.leaflet-zoom-anim .animate-ping {
+  animation-play-state: paused;
+}
+
 /* Letra condensada da marca, com alternativas parecidas enquanto a Barlow ainda não chegou
    (sem isto o browser mostrava letra com serifas nos primeiros segundos) */
 @layer utilities {
