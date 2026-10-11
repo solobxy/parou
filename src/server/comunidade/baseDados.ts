@@ -8,7 +8,6 @@ import path from 'path';
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 export const FICHEIRO_COMUNIDADE = path.join(PASTA, 'comunidade.db');
 const PASTA_COPIAS = path.join(PASTA, 'copias');
-const COPIAS_A_GUARDAR = 14;
 
 let db: DatabaseSync | null = null;
 
@@ -202,23 +201,77 @@ export function emTransacao<T>(f: () => T): T {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Cópias de segurança: de 6 em 6 horas fica uma cópia completa do dia (guardam-se as últimas 14).
+// Cópias de segurança: de 6 em 6 horas, uma cópia completa e consistente de cada base de dados
+// de pessoas (contas e comunidade, cópia dos favoritos de cada telemóvel, subscrições de avisos).
+// Guardam-se todas as dos últimos 2 dias e, para trás, a última de cada dia até 30 dias.
+// A pasta copias/ultima tem sempre o conjunto mais recente, já verificado: é essa que o GitHub
+// vai buscar todas as noites (cifrada) para existir também fora do servidor.
 // ---------------------------------------------------------------------------------------------
-function fazerCopia() {
+const BASES_A_COPIAR = [
+  { nome: 'comunidade', ficheiro: FICHEIRO_COMUNIDADE },
+  { nome: 'utilizadores', ficheiro: path.join(PASTA, 'utilizadores.db') },
+  { nome: 'push', ficheiro: path.join(PASTA, 'push.db') },
+];
+const DIAS_DE_COPIAS = 30;
+
+function copiarBase(origem: DatabaseSync | null, ficheiro: string, destino: string): boolean {
+  const temporario = `${destino}.novo`;
+  try { fs.rmSync(temporario, { force: true }); } catch {}
+  let propria: DatabaseSync | null = null;
   try {
-    fs.mkdirSync(PASTA_COPIAS, { recursive: true });
-    const hoje = new Date().toISOString().slice(0, 10);
-    const destino = path.join(PASTA_COPIAS, `comunidade-${hoje}.db`);
-    const temporario = `${destino}.novo`;
-    try { fs.rmSync(temporario, { force: true }); } catch {}
-    base().exec(`VACUUM INTO '${temporario.replace(/'/g, "''")}'`);
-    fs.renameSync(temporario, destino);
-    const antigas = fs.readdirSync(PASTA_COPIAS).filter((f) => /^comunidade-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort();
-    for (const f of antigas.slice(0, Math.max(0, antigas.length - COPIAS_A_GUARDAR))) {
-      try { fs.rmSync(path.join(PASTA_COPIAS, f), { force: true }); } catch {}
+    const bd = origem || (fs.existsSync(ficheiro) ? (propria = new DatabaseSync(ficheiro)) : null);
+    if (!bd) return false;
+    bd.exec('PRAGMA busy_timeout = 5000;');
+    bd.exec(`VACUUM INTO '${temporario.replace(/'/g, "''")}'`);
+  } finally { try { propria?.close(); } catch {} }
+  // Confirma que a cópia abre e está íntegra antes de a aceitar
+  const teste = new DatabaseSync(temporario);
+  try {
+    const r = (teste.prepare('PRAGMA integrity_check').get() as any)?.integrity_check;
+    if (r !== 'ok') throw new Error(`cópia com problemas: ${r}`);
+  } finally { teste.close(); }
+  fs.renameSync(temporario, destino);
+  return true;
+}
+
+function limparCopiasAntigas(nome: string) {
+  const re = new RegExp(`^${nome}-(\\d{4}-\\d{2}-\\d{2})(?:T\\d{2})?\\.db$`);
+  const todas = fs.readdirSync(PASTA_COPIAS).filter((f) => re.test(f)).sort();
+  const dias = [...new Set(todas.map((f) => f.match(re)![1]))].sort();
+  const recentes = new Set(dias.slice(-2));
+  const limite = new Date(Date.now() - DIAS_DE_COPIAS * 86400_000).toISOString().slice(0, 10);
+  const ultimaDoDia = new Map<string, string>();
+  for (const f of todas) ultimaDoDia.set(f.match(re)![1], f);
+  for (const f of todas) {
+    const dia = f.match(re)![1];
+    const manter = dia >= limite && (recentes.has(dia) || ultimaDoDia.get(dia) === f);
+    if (!manter) { try { fs.rmSync(path.join(PASTA_COPIAS, f), { force: true }); } catch {} }
+  }
+}
+
+export function fazerCopia() {
+  try {
+    fs.mkdirSync(path.join(PASTA_COPIAS, 'ultima'), { recursive: true });
+    const agora = new Date();
+    const carimbo = agora.toISOString().slice(0, 13); // 2026-10-11T01
+    const resumo: string[] = [`quando=${agora.toISOString()}`];
+    for (const b of BASES_A_COPIAR) {
+      try {
+        const destino = path.join(PASTA_COPIAS, `${b.nome}-${carimbo}.db`);
+        if (!copiarBase(b.nome === 'comunidade' ? base() : null, b.ficheiro, destino)) { resumo.push(`${b.nome}=sem_ficheiro`); continue; }
+        fs.copyFileSync(destino, path.join(PASTA_COPIAS, 'ultima', `${b.nome}.db.novo`));
+        fs.renameSync(path.join(PASTA_COPIAS, 'ultima', `${b.nome}.db.novo`), path.join(PASTA_COPIAS, 'ultima', `${b.nome}.db`));
+        resumo.push(`${b.nome}=ok(${fs.statSync(destino).size}b)`);
+        limparCopiasAntigas(b.nome);
+      } catch (err: any) {
+        resumo.push(`${b.nome}=ERRO`);
+        console.warn(`[Cópias] Erro na cópia de ${b.nome}:`, err?.message || err);
+      }
     }
+    fs.writeFileSync(path.join(PASTA_COPIAS, 'ultima', 'INFO.txt'), resumo.join('\n') + '\n');
+    console.log(`[Cópias] ${resumo.join(' ')}`);
   } catch (err: any) {
-    console.warn('[Comunidade] Erro ao fazer a cópia de segurança:', err?.message || err);
+    console.warn('[Cópias] Erro ao fazer a cópia de segurança:', err?.message || err);
   }
 }
 

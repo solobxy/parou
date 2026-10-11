@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { dentroDoLimite, ipDe } from './limites';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const FICHEIRO = path.join(PASTA, 'utilizadores.db');
@@ -108,6 +109,8 @@ export function registarRotasDadosUtilizador(app: Express) {
   app.post('/api/dados-utilizador', (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
     try {
+      // Travão contra robôs a encher o disco (muitas pessoas partilham o mesmo IP nas redes móveis, por isso é largo)
+      if (!dentroDoLimite(`dados-escrita:${ipDe(req)}`, 600, 10 * 60_000)) return res.status(429).json({ erro: 'Demasiados pedidos.' });
       const id = idDoTelemovel(req, res);
       const corpo = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const dados = limpar(corpo?.dados);
@@ -117,6 +120,7 @@ export function registarRotasDadosUtilizador(app: Express) {
       const atual = base().prepare('SELECT atualizado FROM dados_utilizador WHERE id = ?').get(id) as
         | { atualizado: number }
         | undefined;
+      if (!atual && !dentroDoLimite(`dados-novo:${ipDe(req)}`, 300, 24 * 3600_000)) return res.status(429).json({ erro: 'Demasiados pedidos.' });
       if (atual && atual.atualizado > atualizado) {
         return res.json({ guardado: false, motivo: 'há uma cópia mais recente' });
       }

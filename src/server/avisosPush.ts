@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { DateTime } from 'luxon';
 import { candidatosPush, type CandidatoPush } from './alertasEngine';
+import { ipDe } from './limites';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const FICH_VAPID = path.join(PASTA, 'vapid.json');
@@ -375,7 +376,7 @@ function limpeza() {
 // -------------------------------------------------------------------------------------
 const pedidosPorIp = new Map<string, { n: number; desde: number }>();
 function limitar(req: Request, max: number): boolean {
-  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const ip = ipDe(req);
   const agora = Date.now();
   const c = pedidosPorIp.get(ip);
   if (!c || agora - c.desde > 3600_000) {
