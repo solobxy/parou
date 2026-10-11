@@ -14,7 +14,7 @@ import {
   versaoConteudo, identificarVotante, listarOcorrencias, obterOcorrencia, criarOcorrencia, votarOcorrencia,
   denunciarOcorrencia, mudarEstadoOcorrencia, apagarOcorrencia, importarOcorrenciasPublicas, listarReclamacoes,
   criarReclamacao, votarReclamacao, denunciarReclamacao, mudarEstadoReclamacao, apagarReclamacao, listarComentarios,
-  criarComentario,
+  criarComentario, resolverOcorrenciasPublicasAusentes,
 } from './conteudo';
 import { iniciarCopiasDeSeguranca } from './baseDados';
 import { iniciarNovidadesAutomaticas } from './novidades';
@@ -455,4 +455,4 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
   });
 }
 
-export { importarOcorrenciasPublicas };
+export { importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes };

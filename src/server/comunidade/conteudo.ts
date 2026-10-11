@@ -498,3 +498,36 @@ export function criarComentario(reclamacaoId: string, texto: unknown, nomeAnonim
   });
   return id;
 }
+
+/**
+ * Fecha as ocorrências oficiais que a fonte já não mostra (ficam "Resolvida") e limpa as que estão
+ * resolvidas há mais de 2 dias. Só mexe nas fontes que responderam bem nesta volta: se uma fonte
+ * falhar, as suas ocorrências ficam como estão.
+ */
+export function resolverOcorrenciasPublicasAusentes(vistos: string[], fontesOk: string[]): { resolvidas: number; apagadas: number } {
+  const presentes = new Set(vistos.filter(Boolean));
+  const fontes = new Set(fontesOk);
+  let resolvidas = 0, apagadas = 0;
+  if (!fontes.size) return { resolvidas, apagadas };
+  const agora = Date.now();
+  emTransacao(() => {
+    const linhas = base().prepare('SELECT id, dados, id_externo FROM ocorrencias WHERE id_externo IS NOT NULL AND autor_id IS NULL').all() as Array<{ id: string; dados: string; id_externo: string }>;
+    for (const l of linhas) {
+      let d: any;
+      try { d = JSON.parse(l.dados); } catch { continue; }
+      if (!fontes.has(String(d.sourceName))) continue;
+      if (presentes.has(l.id_externo)) continue;
+      if (d.status === 'Resolvida') {
+        if (agora - (Number(d.updatedAt) || agora) > 2 * 24 * 3600_000) { base().prepare('DELETE FROM ocorrencias WHERE id = ?').run(l.id); apagadas++; }
+        continue;
+      }
+      if (d.status === 'Ocultada') continue; // decisão da administração: não mexer
+      d.status = 'Resolvida';
+      d.updatedAt = agora;
+      base().prepare('UPDATE ocorrencias SET dados = ? WHERE id = ?').run(JSON.stringify(d), l.id);
+      resolvidas++;
+    }
+  });
+  if (resolvidas || apagadas) mudou();
+  return { resolvidas, apagadas };
+}
