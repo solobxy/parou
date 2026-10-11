@@ -13,6 +13,7 @@ export interface EstatisticasAdmin {
   ontem: DiaPessoas;
   ultimos7Dias: Periodo;
   ultimos30Dias: Periodo;
+  ultimos365Dias: Periodo;
   desdeSempre: { pessoas: number; aberturas: number; desde: string | null };
   fidelidade: {
     novasNosUltimos14DiasSemHoje: number;
@@ -37,6 +38,7 @@ export interface EstatisticasAdmin {
     novasHoje: number;
     novasUltimos7Dias: number;
     novasUltimos30Dias: number;
+    novasUltimos365Dias: number;
     comSessaoNasUltimas24Horas: number;
     comSessaoNosUltimos7Dias: number;
     serieDiaria30Dias: Array<{ dia: string; novas: number }>;
