@@ -8,6 +8,7 @@ import { html } from './texto';
 const SITE = 'https://parou.pt';
 
 import { metaDaRota } from '../../seo/rotasApp';
+import { conteudoDaRota } from './conteudoApp';
 
 let modelo: { ficheiro: string; mtime: number; html: string } | null = null;
 function lerModelo(distPath: string): string {
@@ -43,5 +44,6 @@ export function paginaDaApp(distPath: string, caminho: string): { status: number
   const verifB = (process.env.BING_SITE_VERIFICATION || '').trim();
   if (verifG) doc = trocarMeta(doc, 'name', 'google-site-verification', verifG);
   if (verifB) doc = trocarMeta(doc, 'name', 'msvalidate.01', verifB);
+  doc = doc.replace('<!--PAROU_SEO-->', () => conteudoDaRota(caminho, m, existe));
   return { status: existe ? 200 : 404, html: doc };
 }
