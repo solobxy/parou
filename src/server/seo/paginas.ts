@@ -339,21 +339,25 @@ function paginaHub(): string {
   });
 }
 
+// Operadores com tempo real na PAROU (Carris Metropolitana, STCP e Metro de Lisboa); nos outros só há o horário oficial
+const COM_TEMPO_REAL = new Set(['carris-metropolitana', 'stcp', 'metro-de-lisboa']);
+
 function paginaOperador(op: Operador): string {
   const plural = pluralModo(op.modo);
-  const corpo = `<h1>${L(`Horários ${html(op.nome)} — todas as linhas`, `${html(op.nome)} timetables — all lines`)}</h1>
+  const tr = COM_TEMPO_REAL.has(op.slug);
+  const corpo = `<h1>${L(`Horários ${html(op.nome)}: linhas e paragens`, `${html(op.nome)} timetables: lines and stops`)}</h1>
 <p class="sub">${L(
-    `${html(op.nome)} tem ${nLinhas(op.linhas.length)} e ${num(op.paragens.length)} paragens na PAROU. Escolhe uma linha para ver o horário de dias úteis, sábados e domingos e todas as paragens do percurso — ou abre a app para ver os próximos ${plural} em tempo real.`,
-    `${html(op.nome)} has ${nLinhas(op.linhas.length)} and ${num(op.paragens.length)} stops on PAROU. Pick a line to see the weekday, Saturday and Sunday timetable and every stop on the route — or open the app to see the next ${plural} in real time.`)}</p>
+    `${html(op.nome)} tem ${nLinhas(op.linhas.length)} e ${num(op.paragens.length)} paragens na PAROU. Escolhe uma linha para ver o horário de dias úteis, sábados e domingos e todas as paragens do percurso${tr ? ' — ou abre a app para ver os próximos ' + plural + ' em tempo real' : ''}.`,
+    `${html(op.nome)} has ${nLinhas(op.linhas.length)} and ${num(op.paragens.length)} stops on PAROU. Pick a line to see the weekday, Saturday and Sunday timetable and every stop on the route${tr ? ' — or open the app to see the next ' + plural + ' in real time' : ''}.`)}</p>
 <p><a class="btn laranja" href="/">${L(`Ver ${plural} perto de mim`, `See ${plural} near me`)}</a> <a class="btn claro" href="/paragens/${op.slug}">${L('Todas as paragens', 'All stops')}</a></p>
 <h2>${L(`Linhas ${html(op.nome)}`, `${html(op.nome)} lines`)}</h2>
 <ul class="lista">${op.linhas.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>
 <p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`)}</p>`;
   return pagina({
-    titulo: L(`Horários ${op.nome}: todas as linhas e paragens | PAROU`, `${op.nome} timetables: all lines and stops | PAROU`),
+    titulo: L(`Horários ${op.nome}${tr ? ' e tempo real' : ''}: linhas e paragens | PAROU`, `${op.nome} timetables${tr ? ' and real time' : ''}: lines and stops | PAROU`),
     descricao: L(
-      `Horários de todas as ${op.linhas.length} linhas ${op.nome} (${op.modo.toLowerCase()}): partidas de dias úteis, sábados e domingos, percurso e paragens. Próximos ${plural} em tempo real na PAROU.`,
-      `Timetables for all ${op.linhas.length} ${op.nome} lines (${nomeModo(op.modo).toLowerCase()}): weekday, Saturday and Sunday departures, route and stops. Next ${plural} in real time on PAROU.`),
+      `Horários das ${op.linhas.length} linhas ${op.nome} (${op.modo.toLowerCase()}): partidas de dias úteis, sábados e domingos, percurso e paragens${tr ? `, com os próximos ${plural} em tempo real` : ' e próximas partidas em cada paragem'}.`,
+      `Timetables for the ${op.linhas.length} ${op.nome} lines (${nomeModo(op.modo).toLowerCase()}): weekday, Saturday and Sunday departures, route and stops${tr ? `, with the next ${plural} in real time` : ' and next departures at every stop'}.`),
     caminho: `/linhas/${op.slug}`,
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Linhas', 'Lines'), url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }],
@@ -826,12 +830,12 @@ async function paginaGreves(): Promise<string> {
     corpo += `<h2>${L('Nas notícias', 'In the news')}</h2><ul class="lista">${noticias.map((g) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`).join('')}</ul>`;
   }
   corpo += `<h2>${L('Serviços mínimos e alternativas', 'Minimum services and alternatives')}</h2><p>${L(
-    'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (Carris Metropolitana, STCP, Metro do Porto e outros) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários das linhas</a> para planear alternativas.',
-    'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (Carris Metropolitana, STCP, Metro do Porto and others) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables for every line</a> to plan alternatives.')}</p>`;
+    'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (como a Carris Metropolitana, a STCP e o Metro de Lisboa) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários das linhas</a> para planear alternativas.',
+    'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (such as Carris Metropolitana, STCP and Metro de Lisboa) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables</a> to plan alternatives.')}</p>`;
   return pagina({
-    titulo: L('Greves de transportes hoje: CP, Metro, Carris e mais | PAROU', 'Transport strikes today: CP, Metro, Carris and more | PAROU'),
+    titulo: L('Greves de transportes hoje: metro, CP, Carris e STCP | PAROU', 'Transport strikes today: metro, CP, Carris and STCP | PAROU'),
     descricao: L(
-      'Há greve hoje? Greves anunciadas na CP, Metro de Lisboa, Metro do Porto, Carris, STCP, Fertagus e outros transportes, com datas, serviços mínimos e notícias. Atualizado sempre.',
+      'Há greve hoje? Greves anunciadas no metro de Lisboa e do Porto, na CP e nos comboios, na Carris, na STCP, na Fertagus e noutros transportes, com datas, serviços mínimos e notícias. Atualizado sempre.',
       'Is there a strike today? Strikes announced at CP, Metro de Lisboa, Metro do Porto, Carris, STCP, Fertagus and other transport, with dates, minimum services and news. Always up to date.'),
     caminho: '/greves',
     corpo,
@@ -994,7 +998,7 @@ function paginaCidade(c: (typeof CIDADES)[number]): string {
   corpo += `<h2>${L('Perguntas frequentes', 'Frequently asked questions')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}
 <h2>${L('Outras cidades', 'Other cities')}</h2><p>${CIDADES.filter((o) => o.slug !== c.slug).map((o) => `<a href="/cidade/${o.slug}">${html(o.nome)}</a>`).join(' · ')}</p>`;
   return pagina({
-    titulo: L(`Autocarros e transportes ${emC}: horários e tempo real | PAROU`, `Buses and public transport ${emC}: timetables and real time | PAROU`),
+    titulo: L(`Autocarros e transportes ${emC}: horários e paragens | PAROU`, `Buses and public transport ${emC}: timetables and stops | PAROU`),
     descricao: L(
       `Horários dos transportes públicos ${emC}${porOperador.length ? ` (${nomesOps.slice(0, 3).join(', ')})` : ''}: próximos autocarros, paragens perto de ti, greves e alertas. Grátis e sem anúncios.`,
       `Public transport timetables ${emC}${porOperador.length ? ` (${nomesOps.slice(0, 3).join(', ')})` : ''}: next buses, stops near you, strikes and alerts. Free and ad-free.`),
