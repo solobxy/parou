@@ -180,4 +180,20 @@ parou.pt`,
     imagens: ['/novidades/recuperar-1.jpg'],
     comunidade: 'Esqueceste-te da palavra-passe? Já podes recuperá-la por email: toca em "Esqueci-me da palavra-passe" ao entrar e abre o link que recebes.',
   },
+  {
+    id: 'conforto',
+    data: '2026-10-11',
+    etiqueta: 'Novidade',
+    titulo: 'Mais rápida no telemóvel',
+    texto: `📱 *Mais rápida no telemóvel*
+
+Três detalhes que poupam toques:
+↩️ O gesto de voltar do telemóvel fecha a janela que tens aberta, sem procurares o X
+⭐ Em Horários, as tuas linhas favoritas vêm primeiro
+🔔 Em Alertas, tens o botão para te juntares a este canal
+
+parou.pt`,
+    imagens: ['/novidades/conforto-1.jpg'],
+    comunidade: 'Mais três detalhes no telemóvel: o gesto de voltar fecha a janela que tens aberta, em Horários as tuas linhas favoritas vêm primeiro e, em Alertas, já tens o botão para te juntares ao canal de WhatsApp.',
+  },
 ];
