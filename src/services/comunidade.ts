@@ -173,3 +173,7 @@ export interface ItemModeracao {
 }
 export const filaDeModeracao = async (): Promise<ItemModeracao[]> => (await pedido<{ itens: ItemModeracao[] }>('GET', '/api/comunidade/admin/fila')).itens;
 export const moderar = (alvoId: string, acao: 'restaurar' | 'esconder' | 'apagar') => pedido('POST', '/api/comunidade/admin/moderar', { alvoId, acao });
+export async function suspenderAutor(email: string, dias: number): Promise<void> {
+  const r = await pedido<{ ok: boolean }>('POST', '/api/comunidade/admin/suspender', { email, dias });
+  if (!r.ok) throw new Error('Não encontrei essa conta.');
+}

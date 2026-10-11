@@ -60,6 +60,7 @@ import {
   fetchReportById, createReport, voteOccurrence, updateReport, getVoterId,
 } from './services/conta';
 import { eAdmin } from './utils/admin';
+import { filaDeModeracao } from './services/comunidade';
 import { iniciarCopiaDados } from './services/copiaDados';
 import { iniciarContagem } from './services/estatisticas';
 import { usePontosMapa } from './hooks/usePontosMapa';
@@ -208,6 +209,7 @@ export default function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [isEstatisticasOpen, setIsEstatisticasOpen] = useState(false);
+  const [conversasPorRever, setConversasPorRever] = useState(0);
   const [isPublicSourcesModalOpen, setIsPublicSourcesModalOpen] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
 
@@ -434,8 +436,21 @@ export default function App() {
     const complaintsFlagged = complaintsList.filter(
       (c) => (c.reportsCount && c.reportsCount > 0) || c.status === 'Em análise'
     ).length;
-    return reportsFlagged + complaintsFlagged;
-  }, [allReportsList, complaintsList]);
+    return reportsFlagged + complaintsFlagged + conversasPorRever;
+  }, [allReportsList, complaintsList, conversasPorRever]);
+
+  // Administração: quantas conversas da Comunidade esperam decisão (atualiza de 3 em 3 minutos)
+  const souAdmin = eAdmin() || Boolean(currentUserProfile?.admin);
+  useEffect(() => {
+    if (!souAdmin) { setConversasPorRever(0); return; }
+    let ativo = true;
+    const ler = () => {
+      filaDeModeracao().then((l) => { if (ativo) setConversasPorRever(l.filter((i) => i.estado !== 'oculta' || i.denuncias > 0).length); }).catch(() => {});
+    };
+    ler();
+    const t = setInterval(ler, 3 * 60_000);
+    return () => { ativo = false; clearInterval(t); };
+  }, [souAdmin]);
 
   // User personal reports for profile history
   const userPersonalReports = useMemo(() => {
@@ -1252,6 +1267,8 @@ export default function App() {
         onOpenReportModal={() => setIsReportModalOpen(true)}
         onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
         onOpenEstatisticas={() => { setIsUserProfileModalOpen(false); setIsEstatisticasOpen(true); }}
+        onOpenModeracao={() => { setIsUserProfileModalOpen(false); setIsAdminModalOpen(true); }}
+        pendentesModeracao={pendingModerationCount}
       /></React.Suspense>}
 
       {isWhatsAppOpen && <React.Suspense fallback={null}><PainelWhatsApp aberta={isWhatsAppOpen} onFechar={() => setIsWhatsAppOpen(false)} /></React.Suspense>}
@@ -1262,6 +1279,7 @@ export default function App() {
         onClose={() => setIsAdminModalOpen(false)}
         reports={allReportsList}
         complaints={complaintsList}
+        onContagemConversas={setConversasPorRever}
       /></React.Suspense>}
 
       <NotificationModal
