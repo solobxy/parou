@@ -8,7 +8,8 @@ import {
   ChevronRight,
   Pencil,
   UserX,
-  MessageCircle
+  MessageCircle,
+  Activity
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
@@ -30,6 +31,7 @@ interface UserProfileModalProps {
   onSelectOccurrence: (occ: Occurrence) => void;
   onOpenReportModal: () => void;
   onOpenWhatsApp?: () => void;
+  onOpenEstatisticas?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -40,6 +42,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onSelectOccurrence,
   onOpenReportModal,
   onOpenWhatsApp,
+  onOpenEstatisticas,
 }) => {
   const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
   const [erroApagar, setErroApagar] = React.useState<string>('');
@@ -255,6 +258,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         <BotaoWhatsApp variante="cartao" className="mt-3" />
+
+        {onOpenEstatisticas && (eAdmin() || user?.admin) && (
+          <button
+            type="button"
+            onClick={onOpenEstatisticas}
+            className="mt-3 w-full h-11 flex items-center justify-center gap-2 rounded-[10px] bg-[#FF6B1A] text-[#111111] text-[14px] font-bold cursor-pointer"
+            data-teste="abrir-estatisticas"
+          >
+            <Activity className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
+            <span>Estatísticas (admin)</span>
+          </button>
+        )}
 
         {onOpenWhatsApp && (eAdmin() || user?.admin) && (
           <button

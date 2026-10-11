@@ -80,6 +80,7 @@ const ReclamacoesView = React.lazy(() => import('./components/ReclamacoesView').
 const ComunidadeView = React.lazy(() => import('./components/ComunidadeView').then((m) => ({ default: m.ComunidadeView })));
 const AdminModerationModal = React.lazy(() => import('./components/AdminModerationModal').then((m) => ({ default: m.AdminModerationModal })));
 const PainelWhatsApp = React.lazy(() => import('./components/PainelWhatsApp').then((m) => ({ default: m.PainelWhatsApp })));
+const PainelEstatisticas = React.lazy(() => import('./components/PainelEstatisticas').then((m) => ({ default: m.PainelEstatisticas })));
 
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
@@ -206,6 +207,7 @@ export default function App() {
   }, []);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
+  const [isEstatisticasOpen, setIsEstatisticasOpen] = useState(false);
   const [isPublicSourcesModalOpen, setIsPublicSourcesModalOpen] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
 
@@ -736,6 +738,7 @@ export default function App() {
         onOpenUserProfileModal={() => setIsUserProfileModalOpen(true)}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
+        onOpenEstatisticas={() => setIsEstatisticasOpen(true)}
         pendingModerationCount={pendingModerationCount}
         onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
         publicReportsCount={publicReportsCount}
@@ -1242,9 +1245,11 @@ export default function App() {
         onSelectOccurrence={handleSelectOccurrence}
         onOpenReportModal={() => setIsReportModalOpen(true)}
         onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
+        onOpenEstatisticas={() => { setIsUserProfileModalOpen(false); setIsEstatisticasOpen(true); }}
       /></React.Suspense>}
 
       {isWhatsAppOpen && <React.Suspense fallback={null}><PainelWhatsApp aberta={isWhatsAppOpen} onFechar={() => setIsWhatsAppOpen(false)} /></React.Suspense>}
+      {isEstatisticasOpen && <React.Suspense fallback={null}><PainelEstatisticas aberta={isEstatisticasOpen} onFechar={() => setIsEstatisticasOpen(false)} /></React.Suspense>}
 
       {isAdminModalOpen && <React.Suspense fallback={null}><AdminModerationModal
         isOpen={isAdminModalOpen}

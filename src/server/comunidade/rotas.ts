@@ -1,4 +1,5 @@
 // Rotas da comunidade: contas, favoritos na conta, ocorrências e reclamações.
+import { resumoEstatisticas, resumoDeContas } from '../estatisticas';
 import type { Express, Request, Response, NextFunction } from 'express';
 import {
   Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, terminarSessao, apagarConta, confirmarPalavra,
@@ -441,6 +442,15 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     try {
       res.setHeader('Cache-Control', 'no-store');
       res.json({ itens: avisosCanal ? await avisosCanal() : [] });
+    } catch (err) { erro(res, err); }
+  });
+  // Estatísticas de utilizadores (pessoas que abrem a app + contas criadas). Chave de administração ou conta do Criador.
+  app.get('/api/comunidade/admin/estatisticas', (req, res) => {
+    const conta = eAdmin(req) ? null : contaDoPedido(req, res);
+    if (!eAdmin(req) && !(conta && contaEAdmin(conta))) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ...resumoEstatisticas(), contas: resumoDeContas() });
     } catch (err) { erro(res, err); }
   });
   app.get('/api/comunidade/admin/fila', (req, res) => {
