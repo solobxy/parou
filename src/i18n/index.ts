@@ -17,6 +17,12 @@ function lerIdioma(): Idioma {
 }
 
 export const idioma: Idioma = typeof window === 'undefined' ? 'pt' : lerIdioma();
+
+// O servidor também fala inglês nas páginas que desenha (cidades, linhas, greves…): diz-lhe o idioma por cookie.
+function guardarCookie(i: Idioma) {
+  try { document.cookie = `${CHAVE}=${i};path=/;max-age=31536000;samesite=lax`; } catch {}
+}
+if (typeof document !== 'undefined') guardarCookie(idioma);
 if (typeof document !== 'undefined') document.documentElement.lang = idioma === 'en' ? 'en' : 'pt-PT';
 
 /** Traduz um texto (escrito em português). Variáveis: t('{n} paragens', { n: 3 }) */
@@ -33,6 +39,7 @@ export function tn(n: number, um: string, varios: string, vars?: Record<string, 
 
 export function mudarIdioma(novo: Idioma): void {
   try { localStorage.setItem(CHAVE, novo); } catch {}
+  guardarCookie(novo);
   const url = new URL(window.location.href);
   url.searchParams.delete('lang');
   window.location.replace(url.toString());
