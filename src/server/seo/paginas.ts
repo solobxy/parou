@@ -246,8 +246,8 @@ const MODO_PLURAL: Record<string, string> = { Autocarro: 'autocarros', Metro: 'm
 const NOME_MODO_EN: Record<string, string> = { Autocarro: 'Bus', Metro: 'Metro', Comboio: 'Train', Barco: 'Boat', 'Elétrico': 'Tram' };
 const MODO_PLURAL_EN: Record<string, string> = { Autocarro: 'buses', Metro: 'metro trains', Comboio: 'trains', Barco: 'boats', 'Elétrico': 'trams' };
 const NOME_REGIAO_EN: Record<string, string> = {
-  Lisboa: 'Lisbon and Setúbal (Lisbon Metropolitan Area)',
-  Porto: 'Porto (Porto Metropolitan Area)',
+  Lisboa: 'Lisboa e Setúbal (Área Metropolitana de Lisboa)',
+  Porto: 'Porto (Área Metropolitana do Porto)',
   Minho: 'Braga, Guimarães, Barcelos and Famalicão',
   Coimbra: 'Coimbra',
   Algarve: 'Algarve',
@@ -318,7 +318,7 @@ function paginaHub(): string {
   let corpo = `<h1>${L('Linhas e horários de transportes públicos em Portugal', 'Public transport lines and timetables in Portugal')}</h1>
 <p class="sub">${L(
     `Horários de ${num(totalLinhas)} linhas de autocarro, metro, comboio e barco e ${num(totalParagens)} paragens de ${ix.operadores.length} operadores — Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e muitos mais. Escolhe o operador, a linha ou pesquisa uma paragem.`,
-    `Timetables for ${num(totalLinhas)} bus, metro, train and boat lines and ${num(totalParagens)} stops from ${ix.operadores.length} operators — Carris Metropolitana, Carris, Lisbon Metro, CP, STCP, Porto Metro and many more. Pick an operator or a line, or search for a stop.`)}</p>
+    `Timetables for ${num(totalLinhas)} bus, metro, train and boat lines and ${num(totalParagens)} stops from ${ix.operadores.length} operators — Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto and many more. Pick an operator or a line, or search for a stop.`)}</p>
 <form class="pesquisa" action="/pesquisa" method="get" role="search"><input name="q" type="search" placeholder="${L('Linha ou paragem (ex.: 801, Marquês de Pombal)', 'Line or stop (e.g. 801, Marquês de Pombal)')}" aria-label="${L('Pesquisar linha ou paragem', 'Search for a line or stop')}" required minlength="2"><button class="btn" type="submit">${L('Pesquisar', 'Search')}</button></form>
 <div class="aviso">${L('Queres saber quando passa o próximo? <a href="/"><b>Abre a PAROU</b></a> e vê os transportes à tua volta em tempo real.', 'Want to know when the next one comes? <a href="/"><b>Open PAROU</b></a> and see the transport around you in real time.')}</div>
 <h2>${L('Por cidade', 'By city')}</h2><p>${CIDADES.slice(0, 24).map((c) => `<a href="/cidade/${c.slug}">${html(c.nome)}</a>`).join(' · ')} · <a href="/cidades">${L('todas', 'all')}</a></p>`;
@@ -332,7 +332,7 @@ function paginaHub(): string {
     titulo: L('Linhas e horários de autocarros, metro e comboios em Portugal | PAROU', 'Bus, metro and train lines and timetables in Portugal | PAROU'),
     descricao: L(
       `Horários de todas as linhas de autocarro, metro, comboio e barco em Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e mais ${outros} operadores. Paragens e tempo real.`,
-      `Timetables for every bus, metro, train and boat line in Portugal: Carris Metropolitana, Carris, Lisbon Metro, CP, STCP, Porto Metro and ${outros} more operators. Stops and real time.`),
+      `Timetables for every bus, metro, train and boat line in Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto and ${outros} more operators. Stops and real time.`),
     caminho: '/linhas',
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Linhas e horários', 'Lines and timetables'), url: '/linhas' }],
@@ -580,7 +580,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
   let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
 <p class="sub">${L(
     `${html(nome)} da ${html(op.nome)} (rede de ${modo === 'Barco' ? 'barcos' : 'autocarros'} da Área Metropolitana do Porto): percurso com as ${nParagens} paragens de cada sentido e horário de hoje.`,
-    `${html(nome)} of ${html(op.nome)} (${modo === 'Barco' ? 'boat' : 'bus'} network of the Porto Metropolitan Area): route with all ${nParagens} stops in each direction and today's timetable.`)}</p>
+    `${html(nome)} of ${html(op.nome)} (${modo === 'Barco' ? 'boat' : 'bus'} network of the Área Metropolitana do Porto): route with all ${nParagens} stops in each direction and today's timetable.`)}</p>
 <p><a class="btn laranja" href="/transportes?linha=${encodeURIComponent(l.routeId)}">${L('Ver na app', 'See in the app')}</a></p>`;
   for (const s of sentidos) {
     const primeira = s.paragens[0];
@@ -600,7 +600,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
   }
   corpo += `<p class="nota">${L(
     `Percurso e paragens publicados pela AMP – Área Metropolitana do Porto (atualizados a ${html(dataBase())}). Os horários podem mudar em feriados, greves ou obras; confirma na <a href="/">app PAROU</a> ou junto da UNIR.`,
-    `Route and stops published by AMP – Porto Metropolitan Area (updated ${html(dataBase())}). Timetables can change on holidays, strikes or roadworks; check the <a href="/">PAROU app</a> or UNIR.`)}</p>`;
+    `Route and stops published by AMP – Área Metropolitana do Porto (updated ${html(dataBase())}). Timetables can change on holidays, strikes or roadworks; check the <a href="/">PAROU app</a> or UNIR.`)}</p>`;
   return pagina({
     titulo: cortar(L(`${nome} ${op.nome}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: timetable and stops${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
     descricao: L(
@@ -741,7 +741,7 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   corpo += g.feedId === UNIR
     ? `<p class="nota">${L(
         `Paragens e linhas publicadas pela AMP – Área Metropolitana do Porto (atualizadas a ${html(dataBase())}); horários pedidos à AMP no momento.`,
-        `Stops and lines published by AMP – Porto Metropolitan Area (updated ${html(dataBase())}); timetables requested from AMP on the spot.`)}</p>`
+        `Stops and lines published by AMP – Área Metropolitana do Porto (updated ${html(dataBase())}); timetables requested from AMP on the spot.`)}</p>`
     : `<p class="nota">${L(`Horários oficiais da ${html(op.nome)} (atualizados a ${html(dataBase())}).`, `Official timetables from ${html(op.nome)} (updated ${html(dataBase())}).`)}</p>`;
   const tituloLinhas = codigos.length ? ` — ${codigos.slice(0, 4).join(', ')}` : '';
   return pagina({
@@ -809,7 +809,7 @@ async function paginaGreves(): Promise<string> {
   let corpo = `<h1>${L('Greves nos transportes hoje e próximas greves', 'Transport strikes today and upcoming strikes')}</h1>
 <p class="sub">${L(
     `Greves anunciadas na CP, Metro de Lisboa, Metro do Porto, Carris, Carris Metropolitana, STCP, Fertagus, Transtejo/Soflusa e outros transportes em Portugal. Atualizado ${html(agora.toFormat("d 'de' LLLL 'às' HH:mm"))}.`,
-    `Strikes announced at CP, Lisbon Metro, Porto Metro, Carris, Carris Metropolitana, STCP, Fertagus, Transtejo/Soflusa and other transport in Portugal. Updated ${html(agora.toFormat("d LLLL 'at' HH:mm"))}.`)}</p>
+    `Strikes announced at CP, Metro de Lisboa, Metro do Porto, Carris, Carris Metropolitana, STCP, Fertagus, Transtejo/Soflusa and other transport in Portugal. Updated ${html(agora.toFormat("d LLLL 'at' HH:mm"))}.`)}</p>
 <div class="aviso">${L(
     'Recebe as greves no telemóvel, mesmo com a app fechada: abre os <a href="/alertas"><b>Alertas da PAROU</b></a> e liga os avisos.',
     'Get strikes on your phone, even with the app closed: open <a href="/alertas"><b>PAROU Alerts</b></a> and turn notifications on.')}</div>`;
@@ -827,12 +827,12 @@ async function paginaGreves(): Promise<string> {
   }
   corpo += `<h2>${L('Serviços mínimos e alternativas', 'Minimum services and alternatives')}</h2><p>${L(
     'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (Carris Metropolitana, STCP, Metro do Porto e outros) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários de todas as linhas</a> para planear alternativas.',
-    'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (Carris Metropolitana, STCP, Porto Metro and others) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables for every line</a> to plan alternatives.')}</p>`;
+    'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (Carris Metropolitana, STCP, Metro do Porto and others) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables for every line</a> to plan alternatives.')}</p>`;
   return pagina({
     titulo: L('Greves de transportes hoje: CP, Metro, Carris e mais | PAROU', 'Transport strikes today: CP, Metro, Carris and more | PAROU'),
     descricao: L(
       'Há greve hoje? Greves anunciadas na CP, Metro de Lisboa, Metro do Porto, Carris, STCP, Fertagus e outros transportes, com datas, serviços mínimos e notícias. Atualizado sempre.',
-      'Is there a strike today? Strikes announced at CP, Lisbon Metro, Porto Metro, Carris, STCP, Fertagus and other transport, with dates, minimum services and news. Always up to date.'),
+      'Is there a strike today? Strikes announced at CP, Metro de Lisboa, Metro do Porto, Carris, STCP, Fertagus and other transport, with dates, minimum services and news. Always up to date.'),
     caminho: '/greves',
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Greves', 'Strikes'), url: '/greves' }],
@@ -1018,7 +1018,7 @@ function paginaCidades(): string {
     titulo: L('Transportes públicos por cidade em Portugal: horários | PAROU', 'Public transport by city in Portugal: timetables | PAROU'),
     descricao: L(
       'Horários de autocarros, metro e comboios em Lisboa, Porto, Braga, Coimbra, Faro, Maia, Gaia, Sintra e mais cidades de Portugal. Próximos transportes em tempo real.',
-      'Bus, metro and train timetables in Lisbon, Porto, Braga, Coimbra, Faro, Maia, Gaia, Sintra and more cities in Portugal. Next departures in real time.'),
+      'Bus, metro and train timetables in Lisboa, Porto, Braga, Coimbra, Faro, Maia, Gaia, Sintra and more cities in Portugal. Next departures in real time.'),
     caminho: '/cidades',
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Cidades', 'Cities'), url: '/cidades' }],
