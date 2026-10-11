@@ -524,6 +524,35 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           </section>
         )}
 
+        {/* Favoritos */}
+        {!aPesquisar && favoriteLines.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-[#111111]">
+                {t('Favoritas')}
+              </h2>
+              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
+                {favoriteLines.length}
+              </span>
+            </div>
+
+            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {favoriteLines.map((line) => (
+                <LineCard
+                  key={line.id}
+                  line={line}
+                  onClick={() => abrirLinha(line.id)}
+                  isFavorite={true}
+                  onToggleFavorite={(e, id) => {
+                    e.stopPropagation();
+                    toggleFavoriteLine(id);
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Sem localização: convite para ativar + as linhas que estavam perto da última vez */}
         {!aPesquisar && !userCoords && (
           <section className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-start gap-3" data-teste="horarios-sem-localizacao">
@@ -644,35 +673,6 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 </div>
               </div>
             )}
-          </section>
-        )}
-
-        {/* Favoritos */}
-        {!aPesquisar && favoriteLines.length > 0 && (
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-semibold text-[#111111]">
-                {t('Favoritas')}
-              </h2>
-              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
-                {favoriteLines.length}
-              </span>
-            </div>
-
-            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
-              {favoriteLines.map((line) => (
-                <LineCard
-                  key={line.id}
-                  line={line}
-                  onClick={() => abrirLinha(line.id)}
-                  isFavorite={true}
-                  onToggleFavorite={(e, id) => {
-                    e.stopPropagation();
-                    toggleFavoriteLine(id);
-                  }}
-                />
-              ))}
-            </div>
           </section>
         )}
 

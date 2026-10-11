@@ -1,4 +1,5 @@
 import React from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   Compass, 
@@ -39,6 +40,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
   matchingTransitCount,
   onApply,
 }) => {
+  useVoltarFecha(isOpen, onClose);
   if (!isOpen) return null;
 
   const concelhosList = getAvailableConcelhos(

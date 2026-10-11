@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   MapPin, 
@@ -22,6 +23,7 @@ export const ClusterDetailModal: React.FC<ClusterDetailModalProps> = ({
 }) => {
   const [severityFilter, setSeverityFilter] = useState<'Todas' | SeverityLevel>('Todas');
 
+  useVoltarFecha(!!cluster, onClose);
   if (!cluster) return null;
 
   const filteredOccurrences = cluster.occurrences.filter((occ) => {

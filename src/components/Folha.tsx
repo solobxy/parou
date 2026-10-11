@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { t } from '../i18n';
+import { useVoltarFecha } from '../utils/janelas';
 
 interface FolhaProps {
   aberta: boolean;
@@ -20,6 +21,7 @@ const FOCAVEIS = 'a[href], button:not([disabled]), textarea:not([disabled]), inp
  * de onde veio quando fecha.
  */
 export const Folha: React.FC<FolhaProps> = ({ aberta, titulo, onFechar, children, rodape, largura = 'normal' }) => {
+  useVoltarFecha(aberta, onFechar);
   const caixa = useRef<HTMLDivElement>(null);
   const aoFechar = useRef(onFechar);
   aoFechar.current = onFechar;

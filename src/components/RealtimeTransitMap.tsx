@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   Navigation, 
   RefreshCw, 
@@ -53,6 +54,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
   const [lastRefreshed, setLastRefreshed] = useState<string>('a carregar...');
   const [selectedVehicle, setSelectedVehicle] = useState<TmlLiveVehicle | null>(null);
   const [showDiagnosticModal, setShowDiagnosticModal] = useState<boolean>(false);
+  useVoltarFecha(showDiagnosticModal, () => setShowDiagnosticModal(false));
   const [diagnosticTab, setDiagnosticTab] = useState<'global' | 'unir'>('global');
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [selectedDistrictName, setSelectedDistrictName] = useState<string | null>(null);

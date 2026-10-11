@@ -25,6 +25,7 @@ import { FiltersPanel } from './components/FiltersPanel';
 import { RecentOccurrencesFeed } from './components/RecentOccurrencesFeed';
 import { ReportsView } from './components/ReportsView';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
+import { fecharJanelas, navegarHistorico } from './utils/janelas';
 import { ReportDetailPage } from './components/ReportDetailPage';
 import { PertoView } from './components/PertoView';
 import { NotificationModal } from './components/NotificationModal';
@@ -111,7 +112,8 @@ export default function App() {
     setPaginaInfo(p);
     setIsNotFound(false);
     setSelectedOccurrence(null);
-    try { if (window.location.pathname !== `/${p}`) window.history.pushState({ pagina: p }, '', `/${p}`); } catch {}
+    fecharJanelas();
+    try { if (window.location.pathname !== `/${p}`) navegarHistorico({ pagina: p }, `/${p}`); } catch {}
     aplicarMetaRota(`/${p}`);
     window.scrollTo(0, 0);
   }, []);
@@ -469,11 +471,18 @@ export default function App() {
     );
   }, [allReportsList, selectedOccurrence]);
 
+  // Momento em que o detalhe foi fechado (o endereço ainda pode demorar uns milissegundos a mudar)
+  const fechouDetalheEm = useRef(0);
+  const selecionadaRef = useRef<Occurrence | null>(null);
+  selecionadaRef.current = selectedOccurrence;
+  const ocorrenciasRef = useRef<Occurrence[]>([]);
+  ocorrenciasRef.current = allReportsList;
+
   // Deep linking: restore selected report from URL query parameter ?reportId=...
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const reportIdParam = params.get('reportId');
-    if (reportIdParam && allReportsList.length > 0 && !selectedOccurrence) {
+    if (reportIdParam && allReportsList.length > 0 && !selectedOccurrence && Date.now() - fechouDetalheEm.current > 2000) {
       const found = allReportsList.find((r) => r.id === reportIdParam);
       if (found) {
         setSelectedOccurrence(found);
@@ -501,28 +510,42 @@ export default function App() {
   }, [allReportsList, selectedOccurrence]);
 
   // Selection handler updating the URL for sharable links
-  const handleSelectOccurrence = (occ: Occurrence) => {
+  const abrirDetalhe = (occ: Occurrence, fecharAbertas: boolean) => {
+    if (fecharAbertas) fecharJanelas(); // uma janela aberta por cima fecha-se; a ocorrência ocupa o lugar dela
     setSelectedOccurrence(occ);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('reportId', occ.id);
-      window.history.pushState(null, '', url.toString());
+      navegarHistorico({ parouDetalhe: true }, url.toString());
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
       // safe fallback
     }
   };
 
-  const handleBackFromReportDetail = () => {
+  const handleSelectOccurrence = (occ: Occurrence) => abrirDetalhe(occ, true);
+
+  // Fecha o detalhe de uma ocorrência. Se ele foi aberto aqui dentro, volta uma entrada atrás no histórico
+  // (assim o "voltar" do telemóvel não o reabre); se veio de uma ligação direta, só limpa o endereço.
+  const fecharDetalhe = useCallback(() => {
+    fechouDetalheEm.current = Date.now();
     setSelectedOccurrence(null);
     try {
+      const st = window.history.state as { parouDetalhe?: boolean; parou?: number } | null;
+      if (st && st.parouDetalhe && !st.parou) {
+        window.history.back();
+        return;
+      }
       const url = new URL(window.location.href);
-      url.searchParams.delete('reportId');
-      window.history.pushState(null, '', url.pathname + (url.search ? url.search : ''));
+      if (url.searchParams.has('reportId')) {
+        url.searchParams.delete('reportId');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      }
     } catch {
       // safe fallback
     }
-  };
+  }, []);
+  const handleBackFromReportDetail = fecharDetalhe;
 
   // Handle new report submission
   const handleAddNewReport = async (newReport: Occurrence) => {
@@ -535,8 +558,8 @@ export default function App() {
       };
       setLastUpdated(new Date());
       setIsSyncing(false);
-      // Show newly created report detail page
-      handleSelectOccurrence(savedReport);
+      // Show newly created report detail page (a janela de reportar fica aberta a mostrar a confirmação)
+      abrirDetalhe(savedReport, false);
     } catch (err) {
       setIsSyncing(false);
       console.error('Error saving report:', err);
@@ -577,6 +600,10 @@ export default function App() {
 
   // Sync tab navigation and update canonical clean URL & Document Title
   const handleTabSelect = useCallback((tab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage') => {
+    // Ao mudar de separador fecha-se tudo o que estava aberto por cima (janelas e o detalhe de uma ocorrência)
+    fecharJanelas();
+    fechouDetalheEm.current = Date.now();
+    setSelectedOccurrence(null);
     setIsNotFound(false);
     setPaginaInfo(null);
     setActiveNavTab(tab);
@@ -605,9 +632,9 @@ export default function App() {
     };
     const newPath = pathMap[tab] || '/';
     try {
-      if (typeof window !== 'undefined' && window.location.pathname !== newPath) {
+      if (typeof window !== 'undefined' && (window.location.pathname !== newPath || window.location.search.includes('reportId='))) {
         const estavaNaComunidade = window.location.pathname.startsWith('/comunidade');
-        window.history.pushState({ tab }, '', newPath);
+        navegarHistorico({ tab }, newPath);
         // Já estava numa conversa da comunidade: avisa a vista para voltar à lista
         if (tab === 'comunidade' && estavaNaComunidade) window.dispatchEvent(new PopStateEvent('popstate'));
       }
@@ -730,6 +757,15 @@ export default function App() {
     resolveRouteFromPath();
     const handlePopState = () => {
       resolveRouteFromPath();
+      // O detalhe de uma ocorrência acompanha o endereço (?reportId=…): o "voltar" fecha-o e o "avançar" reabre-o
+      const id = new URLSearchParams(window.location.search).get('reportId');
+      if (!id) {
+        if (selecionadaRef.current) setSelectedOccurrence(null);
+      } else if (selecionadaRef.current?.id !== id) {
+        const achada = ocorrenciasRef.current.find((r) => r.id === id);
+        if (achada) setSelectedOccurrence(achada);
+        else fetchReportById(id).then((rep) => { if (rep) setSelectedOccurrence(rep); }).catch(() => {});
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
