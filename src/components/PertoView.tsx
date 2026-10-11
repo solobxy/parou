@@ -859,7 +859,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const abrirLinha = (dep: any) => {
     const pedido = ++pedidoLinhaRef.current;
     const linha = String(dep.lineCode || dep.route_short_name || '');
-    const base = { linha, cor: dep.lineColor as string | undefined, destino: formatTransitName(dep.destination || dep.headsign || '') };
+    const base = { linha, cor: dep.lineColor as string | undefined, destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name) };
     let url = '';
     if (dep.tripId) {
       url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}`;
