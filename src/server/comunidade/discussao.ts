@@ -468,7 +468,7 @@ export function moderar(alvoId: unknown, acao: unknown): void {
   if (!alvo) throw new ErroConta('nao_existe', 'Não encontrado.', 404);
   const t = alvo.tabela;
   if (acao === 'restaurar') base().prepare(`UPDATE ${t} SET estado = 'visivel', revisto = 1, denuncias = 0 WHERE id = ?`).run(alvoId);
-  else if (acao === 'esconder') base().prepare(`UPDATE ${t} SET estado = 'oculta' WHERE id = ?`).run(alvoId);
+  else if (acao === 'esconder') base().prepare(`UPDATE ${t} SET estado = 'oculta', revisto = 1 WHERE id = ?`).run(alvoId); // decidido: sai da fila
   else if (acao === 'apagar') apagarConteudo(null, true, alvoId);
   else throw new ErroConta('acao', 'Ação inválida.');
   if (acao === 'restaurar') base().prepare('DELETE FROM denuncias_comunidade WHERE alvo_id = ?').run(alvoId);

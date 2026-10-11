@@ -366,7 +366,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </button>
                       )}
 
-                      {onOpenAdminModal && admin && (
+                      {onOpenAdminModal && painelWhatsApp && (
                         <button
                           onClick={() => {
                             onOpenAdminModal();
