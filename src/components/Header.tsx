@@ -422,7 +422,7 @@ export const Header: React.FC<HeaderProps> = ({
           {activeTab === 'mapa' && (
             <button
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-              className="lg:hidden p-2 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
+              className="lg:hidden p-2 max-[359px]:p-1.5 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] max-[359px]:min-w-[36px] flex items-center justify-center transition-colors cursor-pointer"
               aria-label={t('Abrir pesquisa')}
             >
               <Search className="w-5 h-5 stroke-[2]" />
@@ -432,7 +432,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Idioma: PT ⇄ EN (mostra a língua para onde muda) */}
           <button
             onClick={() => mudarIdioma(idioma === 'en' ? 'pt' : 'en')}
-            className="w-10 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
+            className="w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
             title={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
             aria-label={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
             lang={idioma === 'en' ? 'pt-PT' : 'en'}
@@ -451,7 +451,7 @@ export const Header: React.FC<HeaderProps> = ({
           {onOpenNotificationModal && (
             <button
               onClick={onOpenNotificationModal}
-              className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[40px] min-w-[40px] min-[420px]:min-h-[44px] min-[420px]:min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
+              className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[40px] min-w-[40px] max-[359px]:min-w-[36px] max-[359px]:p-1.5 min-[420px]:min-h-[44px] min-[420px]:min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
               title={t('Notificações')}
               aria-label={t('Notificações')}
             >
@@ -467,7 +467,7 @@ export const Header: React.FC<HeaderProps> = ({
           {currentUser ? (
             <button
               onClick={onOpenUserProfileModal}
-              className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
+              className="w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
               title={`${t('A tua conta')} (${currentUser.displayName})`}
               aria-label={t('A tua conta: {nome}', { nome: currentUser.displayName })}
               data-teste="botao-conta"
@@ -485,7 +485,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={onOpenLoginModal}
-              className="w-11 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
+              className="w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
               title={t('Entrar ou criar conta')}
               aria-label={t('Entrar ou criar conta')}
               data-teste="botao-entrar"
