@@ -1,4 +1,5 @@
 import React from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   MapPin, 
@@ -57,6 +58,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [bloqueadosAbertos, setBloqueadosAbertos] = React.useState(false);
   const [erroBloqueados, setErroBloqueados] = React.useState('');
 
+  useVoltarFecha(isOpen && !!user, onClose);
   if (!isOpen || !user) return null;
 
   const alternarBloqueados = async () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import {
   X,
   Star,
@@ -32,6 +33,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
   isFavorite,
   onToggleFavorite,
 }) => {
+  useVoltarFecha(true, onClose);
   const [line, setLine] = useState<ApiLineDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

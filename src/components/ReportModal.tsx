@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   AlertTriangle, 
@@ -197,6 +198,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
   };
 
+  useVoltarFecha(isOpen, onClose);
   if (!isOpen) return null;
 
   return (

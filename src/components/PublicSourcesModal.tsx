@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   RefreshCw, 
@@ -36,6 +37,7 @@ export const PublicSourcesModal: React.FC<PublicSourcesModalProps> = ({
     }
   }, [isOpen]);
 
+  useVoltarFecha(isOpen, onClose);
   if (!isOpen) return null;
 
   const publicOccurrences = allOccurrences.filter((o) => o.isPublicSource);

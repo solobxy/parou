@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, AlertCircle, Loader2 } from 'lucide-react';
+import { useVoltarFecha } from '../utils/janelas';
 import { loginWithEmail, registerWithEmail, pedirRecuperacao, redefinirPalavraPasse } from '../services/conta';
 import { t } from '../i18n';
 
@@ -22,6 +23,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  useVoltarFecha(isOpen, onClose);
   if (!isOpen) return null;
 
   const mudarModo = (m: Modo) => { setMode(m); setErrorMsg(''); setAviso(''); };

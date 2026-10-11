@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   Plus, 
   Search, 
@@ -48,6 +49,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  useVoltarFecha(isModalOpen, () => setIsModalOpen(false));
   const [expandedCommentsId, setExpandedCommentsId] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [activeComments, setActiveComments] = useState<Record<string, ComplaintComment[]>>({});

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
   Bell, 
@@ -59,6 +60,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     }
   }, [isOpen]);
 
+  useVoltarFecha(isOpen, onClose);
   if (!isOpen) return null;
 
   const handleToggleEnabled = async () => {
