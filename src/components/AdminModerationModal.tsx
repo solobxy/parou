@@ -149,7 +149,7 @@ export const AdminModerationModal: React.FC<AdminModerationModalProps> = ({ isOp
           ))}
         </div>
 
-        <p role="status" aria-live="polite" className={`min-h-[20px] text-[13.5px] font-semibold ${aviso ? 'text-[#111111]' : 'text-transparent'}`}>{aviso || '.'}</p>
+        <p role="status" aria-live="polite" className="min-h-[20px] text-[13.5px] font-semibold text-[#111111]">{aviso}</p>
 
         {/* ---------------- Conversas ---------------- */}
         {fila === 'conversas' && (
