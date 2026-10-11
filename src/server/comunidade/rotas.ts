@@ -18,7 +18,7 @@ import {
 } from './conteudo';
 import { iniciarCopiasDeSeguranca } from './baseDados';
 import { iniciarNovidadesAutomaticas } from './novidades';
-import { emailAtivo, enviarEmail } from './email';
+import { emailAtivo, enviarEmail, htmlDoEmail } from './email';
 import { dentroDoLimite, ipDe } from '../limites';
 
 const COOKIE = 'parou_sessao';
@@ -171,10 +171,18 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       const pedido = criarPedidoRecuperacao(email);
       if (pedido) {
         const base = (process.env.PUBLIC_URL || 'https://parou.pt').replace(/\/$/, '');
+        const ligacao = `${base}/?redefinir=${pedido.token}`;
         await enviarEmail(
           pedido.conta.email,
           'Recuperar a palavra-passe da PAROU',
-          `Olá ${pedido.conta.nome},\n\nPediste para recuperar a palavra-passe. Abre este link (vale 1 hora):\n${base}/?redefinir=${pedido.token}\n\nSe não foste tu, ignora este email: a tua conta continua segura.\n\nPAROU.PT`,
+          `Olá ${pedido.conta.nome},\n\nPediste para recuperar a palavra-passe. Abre este link (vale 1 hora):\n${ligacao}\n\nSe não foste tu, ignora este email: a tua conta continua segura.\n\nPAROU.PT`,
+          htmlDoEmail({
+            previa: 'Escolhe uma nova palavra-passe. O link vale 1 hora.',
+            titulo: 'Recuperar a palavra-passe',
+            paragrafos: [`Olá ${pedido.conta.nome},`, 'Pediste para recuperar a palavra-passe da tua conta PAROU. Toca no botão para escolheres uma nova.'],
+            botao: { texto: 'Escolher nova palavra-passe', url: ligacao },
+            notas: ['O link vale 1 hora.', 'Se não foste tu, ignora este email: a tua conta continua segura.'],
+          }),
         );
       }
       // Responde sempre o mesmo, haja conta ou não (não revela quem tem conta)
