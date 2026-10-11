@@ -170,7 +170,7 @@ function rodape(): string {
   const principais = (ix?.operadores || []).slice(0, 14).map((o) => `<a href="/linhas/${o.slug}">${html(o.nome)}</a>`).join('');
   return `<footer class="rodape"><div class="in">
 <div class="marca" style="font-size:20px">${LOGO_SVG}PAROU</div>
-<nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables')}</a><a href="/cidades">${L('Cidades', 'Cities')}</a><a href="/greves">${L('Greves', 'Strikes')}</a><a href="/alertas">${L('Alertas', 'Alerts')}</a><a href="/mapa">${L('Mapa', 'Map')}</a><a href="/sobre">${L('Sobre', 'About')}</a><a href="/privacidade">${L('Privacidade', 'Privacy')}</a><a href="/termos">${L('Termos', 'Terms')}</a><a href="/contactar">${L('Contactar', 'Contact')}</a></nav>
+<nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables')}</a><a href="/cidades">${L('Cidades', 'Cities')}</a><a href="/greves">${L('Greves', 'Strikes')}</a><a href="/alertas">${L('Alertas', 'Alerts')}</a><a href="/mapa">${L('Mapa', 'Map')}</a><a href="/sobre">${L('Sobre', 'About')}</a><a href="/privacidade">${L('Privacidade', 'Privacy')}</a><a href="/termos">${L('Termos', 'Terms')}</a><a href="/apagar-conta">${L('Apagar conta', 'Delete account')}</a><a href="/contactar">${L('Contactar', 'Contact')}</a></nav>
 <nav aria-label="${L('Operadores', 'Operators')}">${principais}</nav>
 <p class="nota">${L('Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.', 'Free and non-profit. Official timetables published by the operators (GTFS) and by IMT; they can change without notice — if in doubt, check with the operator.')}</p>
 <p style="margin:12px 0 0"><button type="button" class="idioma" lang="${emIngles() ? 'pt' : 'en'}" onclick="parouIdioma('${emIngles() ? 'pt' : 'en'}')">${emIngles() ? 'Português' : 'English'}</button></p>
@@ -1039,6 +1039,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
   { loc: '/sobre', freq: 'monthly', pri: '0.4' },
   { loc: '/privacidade', freq: 'yearly', pri: '0.2' },
   { loc: '/termos', freq: 'yearly', pri: '0.2' },
+  { loc: '/apagar-conta', freq: 'yearly', pri: '0.1' },
   { loc: '/contactar', freq: 'yearly', pri: '0.3' },
 ];
 

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Mail, Heart, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide-react';
 import type { PaginaInfo } from './PaginaInformativa';
-import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem } from './paginasInfoBase';
+import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 
 const ATUALIZADO_EN = '10 October 2026';
 
@@ -144,7 +144,7 @@ export function PrivacidadeEn() {
           <strong>delete your account</strong> and the data linked to it: sign in to the app, open your profile (tap your name, in
           the top right corner) and choose <strong>Delete account</strong>. You can also ask by email at{' '}
           <a className="underline font-semibold" href={`mailto:${CONTACTO}?subject=Delete%20PAROU%20account`}>{CONTACTO}</a>; we reply
-          within 30 days. You can also lodge a complaint with the Portuguese data protection authority, the Comissão Nacional de
+          within 30 days. Step by step and what is deleted: <a className="underline font-semibold" href="/apagar-conta">Delete your account</a>. You can also lodge a complaint with the Portuguese data protection authority, the Comissão Nacional de
           Proteção de Dados (www.cnpd.pt).
         </p>
       </Secao>
@@ -252,6 +252,70 @@ export function ContactarEn() {
       <Secao titulo="What you can write to me about">
         <p>Mistakes in timetables or stops, missing lines, suggestions for improvement, press and partnerships, operator data, requests about your data (GDPR), or simply a word of help.</p>
         <p>For privacy questions or to delete your account, see also the <a className="underline font-semibold" href="/privacidade">privacy policy</a>.</p>
+      </Secao>
+    </>
+  );
+}
+
+export function ApagarContaEn() {
+  const botao = 'flex items-center gap-3 min-h-[56px] px-4 py-2 rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] active:bg-[#F4F4F2]';
+  return (
+    <>
+      <p className="text-[13px] text-[#6B6B6B]">Last updated: {ATUALIZADO_EN}</p>
+      <p>
+        This page explains how to delete your <strong>PAROU</strong> account (the PAROU Android app and the parou.pt website) and
+        the data linked to it. You do not need an account to use PAROU: if you never created one, there is nothing to delete.
+      </p>
+      <ApagarAqui />
+      <Secao titulo="How to delete your account">
+        <p><strong>1. In the app or on the website (immediate).</strong></p>
+        <ol className="list-decimal pl-5 space-y-1">
+          <li>Sign in to your PAROU account.</li>
+          <li>Tap your name, in the top right corner, to open your profile.</li>
+          <li>Scroll to the bottom and tap <strong>Delete account</strong>.</li>
+          <li>Enter your password and confirm with <strong>Yes, delete the account</strong>.</li>
+        </ol>
+        <p>The account and the data linked to it are deleted right away.</p>
+        <p><strong>2. By email</strong>, if you no longer have the app or forgot your password.</p>
+        <a href={`mailto:${CONTACTO}?subject=Delete%20PAROU%20account&body=I%20want%20to%20delete%20my%20PAROU%20account.%20The%20account%20email%20is%3A%20`} className={botao}>
+          <Mail className="w-5 h-5 text-[#111111] shrink-0" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-[12px] text-[#6B6B6B]">Ask by email</span>
+            <span className="text-[15px] font-semibold text-[#111111] break-all">{CONTACTO}</span>
+          </span>
+        </a>
+        <p>
+          Write from the email you used to create the account (or tell us which one it is). We confirm it is you and delete the
+          account within 30 days, usually much sooner.
+        </p>
+      </Secao>
+      <Secao titulo="What is deleted">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Your name and your email.</li>
+          <li>Your password (stored encrypted).</li>
+          <li>Your avatar, points and badges.</li>
+          <li>Favourites synced with the account.</li>
+          <li>Sessions on all devices and password recovery requests.</li>
+          <li>Your votes, reports and the list of people you blocked.</li>
+        </ul>
+      </Secao>
+      <Secao titulo="What stays">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            Incidents, posts, replies and comments you wrote stay visible to help other people, but as{' '}
+            <strong>“Utilizador PAROU”</strong>, with no link to your account. If you prefer, delete them yourself before deleting
+            the account, or ask us by email to remove them.
+          </li>
+          <li>Technical server logs (IP address and browser type, for security) are deleted automatically after 30 days.</li>
+          <li>The anonymous user count is not linked to your account.</li>
+        </ul>
+        <p>Once deleted, the account cannot be recovered. You can create a new one whenever you like.</p>
+      </Secao>
+      <Secao titulo="More information">
+        <p>
+          Read the <a className="underline font-semibold" href="/privacidade">privacy policy</a> to see what data PAROU uses and what
+          your rights are, or <a className="underline font-semibold" href="/contactar">contact us</a>.
+        </p>
       </Secao>
     </>
   );
