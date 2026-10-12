@@ -129,7 +129,7 @@ async function buscarCopia(tentativa = 0): Promise<void> {
 export function iniciarCopiaDados() {
   if (iniciado || typeof window === 'undefined') return;
   iniciado = true;
-  // Pede ao browser para não apagar os dados desta app quando falta espaço
-  try { (navigator as any).storage?.persist?.().catch?.(() => {}); } catch {}
+  // Nunca se chama navigator.storage.persist(): em alguns navegadores (Firefox, por exemplo) isso faz
+  // aparecer "Este site quer armazenar dados persistentes" a cada abertura. Os favoritos já têm cópia no servidor.
   buscarCopia();
 }

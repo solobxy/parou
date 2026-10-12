@@ -6,6 +6,7 @@ import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
 import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
+import { BotaoInstalarPagina } from './InstalarApp';
 import { Compositor } from './comunidade/Compositor';
 import { Discussao } from './comunidade/Discussao';
 import { AcoesConteudo, AlvoAcoes } from './comunidade/AcoesConteudo';
@@ -249,6 +250,8 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
             <h1 className="text-[26px] sm:text-[30px] leading-tight font-bold text-[#111111] font-condensada tracking-tight">{t('Comunidade')}</h1>
             <p className="text-[14.5px] text-[#4A4A4A] mt-0.5">{t('Perguntas, queixas e elogios sobre os transportes. Sem anúncios.')}</p>
           </header>
+
+          <BotaoInstalarPagina />
 
           {/* Escrever */}
           <div className="rounded-[16px] bg-[#FFFFFF] border border-[#E6E6E3] p-2.5 flex items-center gap-2.5">
