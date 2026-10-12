@@ -215,4 +215,20 @@ parou.pt`,
     imagens: ['/novidades/stcp-tempo-real-1.jpg'],
     comunidade: 'No Porto, os autocarros da STCP passam a aparecer na PAROU com os dados oficiais da STCP: próximas chegadas atualizadas a cada poucos segundos e a posição de cada autocarro no mapa. Um obrigado à STCP por ter partilhado os dados.',
   },
+  {
+    id: 'varios-destinos',
+    data: '2026-10-12',
+    etiqueta: 'Novidade',
+    titulo: 'Rota com vários destinos',
+    texto: `🗺️ *Vários destinos na mesma viagem*
+
+Vais a casa de um amigo e depois a outro sítio? Agora a rota pode ter até 5 destinos:
+➕ Escolhe o primeiro destino e toca em "Destino" para juntar os seguintes
+⏱️ Diz quanto tempo ficas em cada sítio e as horas seguintes ajustam-se
+🥇 Cada troço mostra as opções da mais rápida à mais simples
+
+parou.pt`,
+    imagens: ['/novidades/varios-destinos-1.jpg'],
+    comunidade: 'Já podes planear uma viagem com vários destinos (até 5): escolhe o primeiro destino e toca em "+ Destino" para juntar os seguintes. Cada troço mostra as opções da mais rápida à mais simples, e podes indicar quanto tempo ficas em cada sítio para as horas seguintes se ajustarem.',
+  },
 ];

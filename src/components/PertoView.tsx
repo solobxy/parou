@@ -693,7 +693,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const iniciarViagem = () => {
     if (!selectedDestination) return;
     const escolhida = Math.max(0, calculatedRoutes.findIndex((r) => r.id === selectedRoute?.id));
-    setViagemSemente(calculatedRoutes.length ? { opcoes: calculatedRoutes, escolhida, partida: partidaRotasRef.current } : null);
+    // Aproveita o percurso já calculado, se for recente (senão o 1.º destino é calculado de novo, com as horas de agora)
+    const recente = Date.now() - partidaRotasRef.current < 3 * 60_000;
+    setViagemSemente(calculatedRoutes.length && recente ? { opcoes: calculatedRoutes, escolhida, partida: partidaRotasRef.current } : null);
     setSelectedRoute(null);
     setDestinosViagem([{ uid: novoUid(), dest: selectedDestination, permanencia: 0 }]);
     pedirOutroDestino();
