@@ -89,27 +89,32 @@ function precisaDePermissao(): boolean {
  */
 export async function ligarBussola(): Promise<boolean> {
   if (!bussolaSuportada()) return false;
-  try {
-    if (precisaDePermissao()) {
-      try { if (localStorage.getItem(CHAVE_NEGADA) === '1') return false; } catch {}
+  // Ouvir não custa nada e não pede nada: no iPhone os eventos só começam depois da licença,
+  // no Chrome (que também tem requestPermission) chegam logo
+  comecar();
+  if (precisaDePermissao()) {
+    try {
+      try { if (localStorage.getItem(CHAVE_NEGADA) === '1') return rumo !== null; } catch {}
       const r = await (window as any).DeviceOrientationEvent.requestPermission();
       if (r !== 'granted') {
         try { localStorage.setItem(CHAVE_NEGADA, '1'); } catch {}
         return false;
       }
+    } catch {
+      return rumo !== null; // sem toque da pessoa, o iPhone recusa: tenta-se no próximo toque
     }
-  } catch {
-    return false; // sem toque da pessoa, o iPhone recusa: tenta-se no próximo toque
+    comecar();
   }
-  comecar();
   return true;
 }
 
-/** Avisa quando o rumo muda (null = sem bússola). Liga sozinha onde não é preciso pedir licença (Android). */
+/** Avisa quando o rumo muda (null = sem bússola). Liga logo a ouvir (só o iPhone precisa de licença, pedida num toque). */
 export function observarRumo(cb: Ouvinte): () => void {
   ouvintes.add(cb);
-  if (bussolaSuportada() && !precisaDePermissao()) comecar();
-  else if (aOuvir) cb(rumo);
+  // Antes só ligava quando o browser NÃO tinha requestPermission; o Chrome passou a ter essa função
+  // e o cone deixou de aparecer. Agora liga sempre: onde falta licença (iPhone) simplesmente não chegam eventos.
+  if (bussolaSuportada()) comecar();
+  if (rumo !== null) cb(rumo);
   return () => { ouvintes.delete(cb); };
 }
 
