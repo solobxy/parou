@@ -222,6 +222,11 @@ h1, h2, h3, h4 {
   border: 1px solid #E6E6E3 !important;
 }
 
+/* texto da janela dos pontos do mapa (cores por tema em temas.css) */
+.pp-t, .pp-d, .pp-a { color: #111111; }
+.pp-s { color: #4B4B4B; }
+.pp-f { color: #6B6B6B; }
+
 .leaflet-tooltip {
   background: #111111 !important;
   color: #FFFFFF !important;

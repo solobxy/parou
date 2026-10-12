@@ -594,13 +594,13 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         // A janela só se monta quando alguém toca no ponto (antes montava-se uma por ponto, a cada zoom)
         marker.bindPopup(() => {
           const ligacao = p.url
-            ? `<a href="${escaparHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:#111111;font-weight:600;text-decoration:underline">${escaparHtml(p.fonte)}</a>`
+            ? `<a href="${escaparHtml(p.url)}" target="_blank" rel="noopener noreferrer" class="pp-a" style="font-weight:600;text-decoration:underline">${escaparHtml(p.fonte)}</a>`
             : escaparHtml(p.fonte);
           return `<div style="font-family:Barlow,system-ui,sans-serif;min-width:200px;max-width:260px">
-          <div style="font-size:14px;font-weight:700;color:#111111;line-height:1.25">${escaparHtml(p.titulo)}</div>
-          ${p.subtitulo ? `<div style="font-size:12.5px;color:#4B4B4B;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
-          ${p.inicio && formatarQuando(p.inicio) ? `<div style="font-size:12px;color:#111111;margin-top:6px"><strong>${t(p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início')}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>${t('até')}</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
-          <div style="font-size:11.5px;color:#6B6B6B;margin-top:6px">${t('Fonte')}: ${ligacao}</div>
+          <div class="pp-t" style="font-size:14px;font-weight:700;line-height:1.25">${escaparHtml(p.titulo)}</div>
+          ${p.subtitulo ? `<div class="pp-s" style="font-size:12.5px;margin-top:4px;line-height:1.35">${escaparHtml(p.subtitulo)}</div>` : ''}
+          ${p.inicio && formatarQuando(p.inicio) ? `<div class="pp-d" style="font-size:12px;margin-top:6px"><strong>${t(p.tipo === 'aviso_tempo' ? 'Desde' : p.tipo === 'sismo' ? 'Hora' : 'Início')}:</strong> ${escaparHtml(formatarQuando(p.inicio))}${p.fim && formatarQuando(p.fim) ? ` · <strong>${t('até')}</strong> ${escaparHtml(formatarQuando(p.fim))}` : ''}</div>` : ''}
+          <div class="pp-f" style="font-size:11.5px;margin-top:6px">${t('Fonte')}: ${ligacao}</div>
         </div>`;
         }, { closeButton: true, autoPanPadding: [24, 24] });
         cache.set(chave, marker);
