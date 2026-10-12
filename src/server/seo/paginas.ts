@@ -94,6 +94,7 @@ form.pesquisa{display:flex;gap:8px;margin:14px 0}form.pesquisa input{flex:1;min-
 .paginas{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}.paginas a,.paginas span{padding:6px 11px;border-radius:9px;background:#F4F4F2;text-decoration:none;font-size:14px}.paginas span{background:#111;color:#fff}
 .aviso{background:#FFF4EC;border:1px solid #FFD9C2;border-radius:14px;padding:12px 14px;margin:12px 0}
 .grelha.estreita{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.resumo.duplo{grid-template-columns:repeat(2,1fr)}@media(min-width:640px){.resumo.duplo{grid-template-columns:repeat(4,1fr)}}
 ul.lista li.fogo{padding:12px 14px}.fogo .l1{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}.fogo .l1 b{font-size:17px;line-height:1.25}
 .fogo .onde{margin-top:2px}.fogo .meta{margin-top:2px;font-size:13px;color:#6B6B6B;font-variant-numeric:tabular-nums}
 .estado{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
@@ -974,7 +975,7 @@ function paginaIncendios(d?: Distrito): string {
       'A PAROU não conseguiu atualizar a lista de incêndios, por isso não é possível dizer se há ou não incêndios ativos. Consulta o <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> e, em caso de emergência, liga 112.',
       'PAROU could not refresh the fire list, so it cannot say whether there are active fires. Check <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> and, in an emergency, call 112.')}</p></div>`;
   } else if (n > 0) {
-    corpo += `<div class="resumo"><div><b>${n}</b><span>${rotuloAtivos(n)}</span></div><div><b>${emCurso}</b><span>${L('em curso', 'ongoing')}</span></div><div><b>${emResolucao}</b><span>${L('em resolução', 'being resolved')}</span></div><div><b>${num(operacionais)}</b><span>${L('operacionais no terreno', 'personnel on site')}</span></div></div>
+    corpo += `<div class="resumo duplo"><div><b>${n}</b><span>${rotuloAtivos(n)}</span></div><div><b>${emCurso}</b><span>${L('em curso', 'ongoing')}</span></div><div><b>${emResolucao}</b><span>${L('em resolução', 'being resolved')}</span></div><div><b>${num(operacionais)}</b><span>${L('operacionais no terreno', 'personnel on site')}</span></div></div>
 <h2>${L('Incêndios ativos agora', 'Active fires now')}</h2><ul class="lista">${fogos.slice(0, 150).map((i) => linhaIncendio(i, !d)).join('')}</ul>${n > 150 ? `<p class="nota">${L(`A mostrar 150 de ${n}. Os restantes estão nas páginas de cada distrito.`, `Showing 150 of ${n}. The rest are on each district's page.`)}</p>` : ''}`;
   } else {
     corpo += `<div class="cartao"><b>${L('Sem incêndios ativos registados.', 'No active fires recorded.')}</b><p class="nota" style="margin:6px 0 0">${L(
@@ -984,7 +985,7 @@ function paginaIncendios(d?: Distrito): string {
 
   corpo += `<h2>${L('Incêndios por distrito', 'Fires by district')}</h2><div class="grelha estreita">${DISTRITOS.filter((x) => x.slug !== d?.slug).map((x) => {
     const k = porDistrito.get(x.slug) || 0;
-    return `<a href="/incendios/${x.slug}"><b>${html(x.nome)}</b><small>${fresco ? (k ? `${k} ${rotuloAtivos(k)}` : L('Sem incêndios ativos', 'No active fires')) : L('Ver incêndios', 'See fires')}</small></a>`;
+    return `<a href="/incendios/${x.slug}"><b>${html(x.nome)}</b><small>${fresco ? (k ? `${k} ${rotuloAtivos(k)}` : L('Nenhum ativo', 'None active')) : L('Ver incêndios', 'See fires')}</small></a>`;
   }).join('')}</div>${d ? `<p><a href="/incendios">${L('Ver os incêndios de todo o país', 'See fires across the country')}</a></p>` : ''}
 <h2>${L('Perguntas frequentes', 'Frequently asked questions')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}
 <p class="nota">${L(
