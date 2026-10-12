@@ -287,7 +287,10 @@ export function getCoverageReport(): CoverageReport {
         progress = progress || 'Importado com sucesso';
       }
     } else {
-      if (f.status === 'ERROR' || lastError) {
+      if (f.status === 'SEM DADOS') {
+        // O operador publicou o ficheiro vazio: não é um erro, só ainda não há dados
+        status = 'SEM DADOS' as any;
+      } else if (f.status === 'ERROR' || lastError) {
         status = 'ERROR';
       } else if (f.status === 'queued' || f.status === 'downloading' || f.status === 'parsing' || f.status === 'A aguardar') {
         status = f.status;
