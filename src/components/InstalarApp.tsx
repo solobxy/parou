@@ -200,6 +200,51 @@ export const BotaoInstalar: React.FC = () => {
   );
 };
 
+/** Botão simples de instalar, dentro da própria página (para quem tem o ecrã muito ampliado e não vê o do topo).
+ *  Não aparece dentro da app instalada. Se o browser não deixar instalar com um toque, mostra os passos por baixo. */
+export const BotaoInstalarPagina: React.FC = () => {
+  const { disponivel, plataforma, instalar } = useInstalarApp();
+  const [verPassos, setVerPassos] = useState(false);
+  const [aEsperar, setAEsperar] = useState(false);
+  if (!disponivel) return null;
+  const tocar = async () => {
+    if (aEsperar) return;
+    if (verPassos) { setVerPassos(false); return; }
+    setAEsperar(true);
+    const r = await instalar();
+    setAEsperar(false);
+    if (r === 'passos') setVerPassos(true);
+  };
+  const instalarAqui = async () => {
+    setVerPassos(false);
+    const r = await instalar({ aqui: true });
+    if (r === 'passos') setVerPassos(true);
+  };
+  return (
+    <div data-teste="instalar-pagina">
+      <button
+        type="button"
+        onClick={() => void tocar()}
+        aria-expanded={verPassos}
+        data-teste="instalar-pagina-botao"
+        className="w-full sm:w-auto min-h-11 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14.5px] font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <Download className={`w-[18px] h-[18px] shrink-0 stroke-[2.4] ${aEsperar ? 'animate-pulse' : ''}`} aria-hidden="true" />
+        <span>{t('Instalar a app')}</span>
+      </button>
+      {verPassos && (
+        <div className="mt-2.5 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] p-3.5" role="region" aria-label={t('Como instalar')}>
+          <div className="flex items-center gap-2.5 mb-2">
+            <img src="/icon-192.png" alt="" className="w-8 h-8 rounded-[8px]" />
+            <div className="text-[13.5px] font-semibold text-[#111111] leading-tight">Instalar a PAROU{plataforma === 'iphone' ? ' no iPhone' : ''}</div>
+          </div>
+          {plataforma === 'iphone' ? <PassosIphone /> : plataforma === 'android' ? <PassosAndroid onAqui={() => void instalarAqui()} /> : <PassosComputador />}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const InstalarApp: React.FC = () => {
   const [fechado, setFechado] = useState<boolean>(() => {
     try { return localStorage.getItem(CHAVE_FECHADO) === '1'; } catch { return false; }
