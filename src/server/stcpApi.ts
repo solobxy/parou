@@ -34,16 +34,54 @@ export function stcpApiConfigurada(): boolean {
   return !!(process.env.STCP_APP_ID && process.env.STCP_API_KEY);
 }
 
-// Se a STCP recusar as credenciais ou pedir para abrandar, não insistimos durante um tempo.
+// Limites da STCP (confirmados por eles): 15 000 pedidos por dia e, para não pesar na API, no máximo um
+// pedido a cada 10 s a cada endpoint de tempo real. Por isso:
+//  - as posições (um só ficheiro para todos os autocarros) pedem-se no máximo de 20 em 20 s (<= 4 320 por dia);
+//  - as chegadas por paragem têm orçamento próprio por hora e por dia (<= 8 500 por dia);
+//  - o resto (horários, verificações) fica com mais de 2 000 pedidos de folga.
+// Quando o orçamento acaba, a PAROU usa a fonte anterior até o período seguinte; nunca fica sem tempo real.
+const MAX_CHEGADAS_HORA = 600;
+const MAX_CHEGADAS_DIA = 8500;
+const orcamento = { dia: '', hora: -1, nDia: 0, nHora: 0, avisouDia: false };
+
+function temOrcamentoChegadas(): boolean {
+  const agora = new Date();
+  const dia = agora.toISOString().slice(0, 10);
+  const hora = agora.getUTCHours();
+  if (orcamento.dia !== dia) { orcamento.dia = dia; orcamento.nDia = 0; orcamento.avisouDia = false; orcamento.hora = -1; }
+  if (orcamento.hora !== hora) { orcamento.hora = hora; orcamento.nHora = 0; }
+  if (orcamento.nDia >= MAX_CHEGADAS_DIA) {
+    if (!orcamento.avisouDia) {
+      orcamento.avisouDia = true;
+      console.warn('[STCP API] orçamento diário de chegadas esgotado; a usar a fonte anterior até amanhã');
+    }
+    return false;
+  }
+  if (orcamento.nHora >= MAX_CHEGADAS_HORA) return false;
+  orcamento.nDia++;
+  orcamento.nHora++;
+  return true;
+}
+
+// Se a STCP recusar as credenciais ou pedir para abrandar, não insistimos durante um tempo
+// (a espera dobra a cada recusa seguida, até 1 hora).
 let pausadoAte = 0;
 let avisouPausa = false;
+let recusasSeguidas = 0;
 
 function pausar(ms: number, motivo: string): void {
-  pausadoAte = Date.now() + ms;
+  recusasSeguidas = Math.min(recusasSeguidas + 1, 6);
+  const espera = Math.min(ms * 2 ** (recusasSeguidas - 1), 60 * 60 * 1000);
+  pausadoAte = Date.now() + espera;
   if (!avisouPausa) {
     avisouPausa = true;
-    console.warn(`[STCP API] ${motivo}; a usar a fonte anterior durante ${Math.round(ms / 1000)} s`);
+    console.warn(`[STCP API] ${motivo}; a usar a fonte anterior durante ${Math.round(espera / 1000)} s`);
   }
+}
+
+function pedidoBemSucedido(): void {
+  avisouPausa = false;
+  recusasSeguidas = 0;
 }
 
 // Linhas da STCP na base (route_id "stcp:107" -> linha "ZC"), para dar nome e cor às chegadas.
@@ -113,6 +151,7 @@ export async function chegadasStcpOficial(codigoParagem: string): Promise<Chegad
   if (!stcpApiConfigurada() || Date.now() < pausadoAte) return null;
   const codigo = codigoParagem.trim();
   if (!/^[A-Za-z0-9._-]{1,16}$/.test(codigo)) return null;
+  if (!temOrcamentoChegadas()) return null;
   try {
     const res = await fetch(`${BASE}/v1/real/tempos/${encodeURIComponent(codigo)}`, {
       headers: {
@@ -133,7 +172,7 @@ export async function chegadasStcpOficial(codigoParagem: string): Promise<Chegad
       return null;
     }
     if (!res.ok) return null; // inclui 404: deixa a fonte anterior tentar
-    avisouPausa = false;
+    pedidoBemSucedido();
     return lerChegadas(await res.json(), infoDasLinhas());
   } catch {
     return null;
@@ -254,14 +293,26 @@ export function lerPosicoes(buf: Uint8Array, mapaLinhas: Map<string, InfoLinha> 
 }
 
 let posicoesCache: { dados: PosicaoStcpOficial[]; quando: number } = { dados: [], quando: 0 };
-const POSICOES_TTL_MS = 10 * 1000;
+const POSICOES_TTL_MS = 20 * 1000; // a STCP pede no máximo um pedido a cada 10 s; 20 s dá folga
 const MAX_POSICOES_BYTES = 5 * 1024 * 1024;
+
+let posicoesEmCurso: Promise<PosicaoStcpOficial[] | null> | null = null;
+let ultimoPedidoPosicoes = 0;
 
 /** Posição de todos os autocarros da STCP. Devolve null se a API não estiver disponível. */
 export async function posicoesStcpOficial(): Promise<PosicaoStcpOficial[] | null> {
   if (!stcpApiConfigurada() || Date.now() < pausadoAte) return null;
   const agora = Date.now();
   if (posicoesCache.dados.length > 0 && agora - posicoesCache.quando < POSICOES_TTL_MS) return posicoesCache.dados;
+  // Pedidos ao mesmo tempo partilham um só; e nunca há dois pedidos com menos de 10 s de intervalo (pedido da STCP)
+  if (posicoesEmCurso) return posicoesEmCurso;
+  if (agora - ultimoPedidoPosicoes < 10_000) return null;
+  ultimoPedidoPosicoes = agora;
+  posicoesEmCurso = pedirPosicoes(agora).finally(() => { posicoesEmCurso = null; });
+  return posicoesEmCurso;
+}
+
+async function pedirPosicoes(agora: number): Promise<PosicaoStcpOficial[] | null> {
   try {
     const res = await fetch(`${BASE}/v1/ficheiros/real/stream/vehiclepositions`, {
       headers: {
@@ -287,7 +338,7 @@ export async function posicoesStcpOficial(): Promise<PosicaoStcpOficial[] | null
     const dados = lerPosicoes(corpo, infoDasLinhas()).filter((p) => p.epoch >= limite);
     // Ficheiro vazio, ilegível ou todo antigo não substitui a fonte anterior
     if (dados.length === 0) return null;
-    avisouPausa = false;
+    pedidoBemSucedido();
     posicoesCache = { dados, quando: agora };
     return dados;
   } catch {
