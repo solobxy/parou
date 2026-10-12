@@ -1056,4 +1056,5 @@ export const EN: Record<string, string> = {
   'Tempo que ficas em {d}': 'Time you stay at {d}',
   'Sem demora': 'No wait',
   'Chegaste ao máximo de {n} destinos.': 'You\'ve reached the maximum of {n} destinations.',
+  'Chegas amanhã às {h}': 'You arrive tomorrow at {h}',
 };

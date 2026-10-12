@@ -51,7 +51,7 @@ import { AvisoPartida } from './AvisoPartida';
 import { InputPesquisa } from './InputPesquisa';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
-import { novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
+import { MAX_DESTINOS, novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
@@ -413,6 +413,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [mapaViagem, setMapaViagem] = useState<MapaViagem | null>(null);
   const viagemLayerRef = useRef<L.LayerGroup | null>(null);
   const emViagem = destinosViagem.length > 0;
+  // A pesquisa de cima (a de sempre) serve para juntar mais um destino à viagem
+  const [adicionandoDestino, setAdicionandoDestino] = useState(false);
+  const tituloEscolhidoRef = useRef('');
 
   // Map & Controls
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -585,6 +588,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
       setSuggestions([]);
       return;
     }
+    // O texto é o do destino que acabou de ser escolhido: não reabre a lista de sugestões
+    if (destinationQuery === tituloEscolhidoRef.current) {
+      setSuggestions([]);
+      return;
+    }
+    tituloEscolhidoRef.current = '';
 
     // Só conta a resposta da última pesquisa (as antigas podem chegar depois e baralhar a lista)
     let atual = true;
@@ -653,6 +662,15 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   const handleSelectDestination = (sug: DestinationSuggestion) => {
+    // Viagem com vários destinos: o que se escolhe junta-se ao fim da lista (até 5)
+    if (emViagem) {
+      setDestinosViagem((lista) => (lista.length >= MAX_DESTINOS ? lista : [...lista, { uid: novoUid(), dest: sug, permanencia: 0 }]));
+      setAdicionandoDestino(false);
+      setDestinationQuery('');
+      setSuggestions([]);
+      setSearchFocused(false);
+      return;
+    }
     // Sem GPS (ou a escolher um local): o local escolhido passa a ser o ponto de partida
     if (!localizacaoPronta || pesquisarLocal) {
       setManualLocation(sug.latitude, sug.longitude, sug.title);
@@ -664,6 +682,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       return;
     }
     setSelectedDestination(sug);
+    tituloEscolhidoRef.current = sug.title;
     setDestinationQuery(sug.title);
     setSuggestions([]);
     setSearchFocused(false);
@@ -677,10 +696,28 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setViagemSemente(calculatedRoutes.length ? { opcoes: calculatedRoutes, escolhida, partida: partidaRotasRef.current } : null);
     setSelectedRoute(null);
     setDestinosViagem([{ uid: novoUid(), dest: selectedDestination, permanencia: 0 }]);
+    pedirOutroDestino();
+  };
+
+  /** Abre a pesquisa de cima, vazia, para escolher mais um destino */
+  const pedirOutroDestino = () => {
+    setDestinationQuery('');
+    setSuggestions([]);
+    setSearchFocused(true);
+    setAdicionandoDestino(true);
+  };
+
+  const cancelarOutroDestino = () => {
+    setAdicionandoDestino(false);
+    setDestinationQuery('');
+    setSuggestions([]);
+    setSearchFocused(false);
   };
 
   const handleClearDestination = () => {
     pedidoRotasRef.current++;
+    tituloEscolhidoRef.current = '';
+    setAdicionandoDestino(false);
     setDestinosViagem([]);
     setViagemSemente(null);
     setMapaViagem(null);
@@ -1086,7 +1123,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapaViagemRef = useRef<MapaViagem | null>(null);
   mapaViagemRef.current = mapaViagem;
   const chaveMapaViagem = mapaViagem
-    ? `${mapaViagem.destinos.map((d) => d.uid).join(',')}|${mapaViagem.rotas.map((r) => r?.id ?? '-').join(',')}|${mapaViagem.foco ?? 'todos'}`
+    ? `${mapaViagem.destinos.map((d) => d.uid).join(',')}|${mapaViagem.rotas.map((r) => (r ? `${r.id}@${r.departureTime}` : '-')).join(',')}|${mapaViagem.foco ?? 'todos'}`
     : '';
   useEffect(() => {
     const map = mapRef.current;
@@ -1561,17 +1598,24 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className={`relative ${emViagem ? 'hidden' : ''}`}>
+          <div className={`relative ${emViagem && !adicionandoDestino ? 'hidden' : ''}`}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2]" />
             <InputPesquisa
+              key={adicionandoDestino ? 'junta' : 'normal'}
+              autoFocus={emViagem}
               valor={destinationQuery}
               onTexto={setDestinationQuery}
-              onLimpar={handleClearDestination}
-              placeholder={localizacaoPronta ? t('Para onde vais?') : t('Procurar um local')}
+              onLimpar={emViagem ? cancelarOutroDestino : handleClearDestination}
+              placeholder={emViagem ? t('Para onde a seguir?') : localizacaoPronta ? t('Para onde vais?') : t('Procurar um local')}
               className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
               classeLimpar="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
               rotuloLimpar={t('Limpar pesquisa')}
             />
+            {emViagem && !destinationQuery && (
+              <button onClick={cancelarOutroDestino} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer" aria-label={t('Cancelar')}>
+                <X className="w-3.5 h-3.5 stroke-[2]" />
+              </button>
+            )}
             {suggestions.length > 0 && !pesquisarLocal && (
               <div className="absolute left-0 right-0 top-full mt-1 z-50">{listaSugestoes(false)}</div>
             )}
@@ -1643,11 +1687,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {emViagem && (
           <RotaVariosDestinos
             origem={{ lat: userCoords?.latitude ?? 38.7253, lon: userCoords?.longitude ?? -9.1500 }}
+            origemNome={userCoords?.isManual ? userCoords.locationLabel : undefined}
             destinos={destinosViagem}
             onMudar={setDestinosViagem}
             onSair={handleClearDestination}
             onMapa={setMapaViagem}
-            abrirAdicionar
+            onAdicionar={pedirOutroDestino}
             inicial={viagemSemente}
           />
         )}
@@ -2162,20 +2207,27 @@ export const PertoView: React.FC<PertoViewProps> = ({
         }`}
       >
         {/* Pesquisa por cima do mapa (telemóvel) */}
-        {localizacaoPronta && !emViagem && (
+        {localizacaoPronta && (!emViagem || adicionandoDestino) && (
           <div className="lg:hidden absolute top-3 left-3 right-[60px] z-20">
             <div className="relative flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
               <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
               <InputPesquisa
+                key={adicionandoDestino ? 'junta' : 'normal'}
+                autoFocus={emViagem}
                 valor={destinationQuery}
                 onTexto={setDestinationQuery}
-                onLimpar={handleClearDestination}
+                onLimpar={emViagem ? cancelarOutroDestino : handleClearDestination}
                 onFocus={() => setSearchFocused(true)}
-                placeholder={t('Para onde vais?')}
+                placeholder={emViagem ? t('Para onde a seguir?') : t('Para onde vais?')}
                 className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
                 classeLimpar="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
                 rotuloLimpar={t('Limpar pesquisa')}
               />
+              {emViagem && !destinationQuery && (
+                <button onClick={cancelarOutroDestino} className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer" aria-label={t('Cancelar')}>
+                  <X className="w-3.5 h-3.5 stroke-[2]" />
+                </button>
+              )}
             </div>
             {searchFocused && suggestions.length > 0 && <div className="mt-1">{listaSugestoes(true)}</div>}
           </div>

@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Clock, MapPin, Plus, RefreshCw, Search, X } from 'lucide-react';
-import { InputPesquisa } from './InputPesquisa';
+import { ArrowLeft, ChevronDown, ChevronUp, Clock, Plus, RefreshCw, X } from 'lucide-react';
 import { OpcaoRota } from './OpcaoRota';
-import { searchDestinations } from '../services/pertoApi';
 import {
-  MAX_DESTINOS, PERMANENCIAS_MIN, calcularTroco, chegadaDe, formatarDuracao, horaDe, novoUid, pontoDoDestino,
-  primeiroTrocoAlterado, textoPermanencia, trocoVazio,
+  MAX_DESTINOS, PERMANENCIAS_MIN, calcularTroco, chegadaDe, formatarDuracao, horaDe, pontoDoDestino,
+  primeiroTrocoAlterado, textoChegada, textoPermanencia, trocoVazio,
   type DestinoViagem, type Ponto, type Troco,
 } from '../services/rotaVarios';
 import { t, tn } from '../i18n';
-import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
+import type { TransitRouteOption } from '../types/perto';
 
 /** O que o mapa desenha: a opção escolhida de cada troço, os destinos numerados e (opcional) o troço em foco */
 export interface MapaViagem {
@@ -21,22 +19,17 @@ export interface MapaViagem {
 interface Props {
   /** Onde se começa (posição atual ou local escolhido) */
   origem: Ponto;
+  /** Nome do ponto de partida (por omissão, "A tua localização") */
+  origemNome?: string;
   destinos: DestinoViagem[];
   onMudar: (destinos: DestinoViagem[]) => void;
   /** Fecha a viagem e volta aos transportes perto */
   onSair: () => void;
   onMapa: (mapa: MapaViagem | null) => void;
-  /** Abre logo a pesquisa para juntar outro destino */
-  abrirAdicionar?: boolean;
+  /** Pede ao ecrã para abrir a pesquisa de mais um destino (a pesquisa é a de cima, a de sempre) */
+  onAdicionar: () => void;
   /** Percursos do 1.º destino já calculados (pela rota simples), para não os pedir outra vez ao abrir */
   inicial?: { opcoes: TransitRouteOption[]; escolhida: number; partida: number } | null;
-}
-
-function metrosEntre(a: Ponto, b: Ponto): number {
-  const R = 6371000, rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
 }
 
 function BotaoIcone({ rotulo, onClick, children }: { rotulo: string; onClick: () => void; children: React.ReactNode }) {
@@ -66,7 +59,7 @@ function LinhaTempo({ marca, traco, children }: { marca?: React.ReactNode; traco
   );
 }
 
-export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, abrirAdicionar = false, inicial = null }: Props) {
+export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSair, onMapa, onAdicionar, inicial = null }: Props) {
   const inicialRef = useRef(inicial);
   const [trocos, setTrocos] = useState<Troco[]>([]);
   const trocosRef = useRef<Troco[]>([]);
@@ -82,10 +75,6 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
   const [foco, setFoco] = useState<number | null>(null);
   const [calculadoEm, setCalculadoEm] = useState<number>(() => Date.now());
 
-  const [aAdicionar, setAAdicionar] = useState<boolean>(abrirAdicionar);
-  const [consulta, setConsulta] = useState('');
-  const [sugestoes, setSugestoes] = useState<DestinationSuggestion[]>([]);
-  const [aviso, setAviso] = useState('');
   const fimRef = useRef<HTMLDivElement | null>(null);
 
   const aplicar = useCallback((lista: Troco[]) => {
@@ -134,6 +123,12 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
     destinosRef.current = destinos;
     const antigo = anteriorRef.current;
     anteriorRef.current = destinos;
+    // Juntou-se um destino ao fim: abre o novo troço e leva-o ao ecrã
+    if (antigo && destinos.length > antigo.length) {
+      setAberto(destinos.length - 1);
+      setFoco(null);
+      setTimeout(() => fimRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 250);
+    }
     // Ao abrir: aproveita o percurso que a rota simples já tinha calculado para o 1.º destino
     const semente = !antigo ? inicialRef.current : null;
     if (semente && semente.opcoes[semente.escolhida]) {
@@ -160,23 +155,6 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
     onMapaRef.current({ rotas, destinos, foco });
   }, [rotas, destinos, foco]);
 
-  // Pesquisa do destino a juntar
-  useEffect(() => {
-    if (!aAdicionar || consulta.trim().length < 2) { setSugestoes([]); return; }
-    let atual = true;
-    const timer = setTimeout(async () => {
-      try {
-        const r = await searchDestinations(consulta, origem.lat, origem.lon);
-        if (atual) setSugestoes(r);
-      } catch {}
-    }, 60);
-    return () => { atual = false; clearTimeout(timer); };
-  }, [consulta, aAdicionar, origem.lat, origem.lon]);
-
-  useEffect(() => {
-    if (aAdicionar) setTimeout(() => fimRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 120);
-  }, [aAdicionar]);
-
   const escolher = (i: number, j: number) => {
     const atual = trocosRef.current[i];
     if (!atual || atual.estado !== 'ok' || !atual.opcoes[j]) return;
@@ -191,22 +169,6 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
   };
 
   const abrirTroco = (i: number) => { setAberto(i); setFoco(i); };
-
-  const adicionar = (sug: DestinationSuggestion) => {
-    const ultimo = destinos[destinos.length - 1];
-    if (ultimo && metrosEntre({ lat: sug.latitude, lon: sug.longitude }, pontoDoDestino(ultimo)) < 40) {
-      setAviso(t('Esse destino é igual ao anterior.'));
-      return;
-    }
-    setAviso('');
-    setAAdicionar(false);
-    setConsulta('');
-    setSugestoes([]);
-    setAberto(destinos.length);
-    setFoco(null);
-    onMudar([...destinos, { uid: novoUid(), dest: sug, permanencia: 0 }]);
-    setTimeout(() => fimRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 200);
-  };
 
   const remover = (i: number) => {
     if (destinos.length <= 1) return;
@@ -242,47 +204,6 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
   const calculados = trocos.filter((x) => x.estado === 'ok').length;
   const falhado = trocos.findIndex((x) => x.estado === 'sem-ligacao' || x.estado === 'erro');
   const desatualizado = Date.now() - calculadoEm > 5 * 60_000;
-
-  const campoPesquisa = (
-    <div className="rounded-[14px] border border-[#111111] bg-[#FFFFFF] p-2.5" data-teste="juntar-destino">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
-        <InputPesquisa
-          autoFocus
-          valor={consulta}
-          onTexto={setConsulta}
-          placeholder={t('Para onde a seguir?')}
-          className="w-full pl-9 pr-3 h-11 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111]"
-        />
-      </div>
-      {aviso && <p className="mt-2 text-[12px] text-[#6B6B6B]" role="status">{aviso}</p>}
-      {sugestoes.length > 0 && (
-        <div className="mt-2 max-h-56 overflow-y-auto rounded-[10px] border border-[#E6E6E3] divide-y divide-[#E6E6E3]">
-          {sugestoes.map((sug, k) => (
-            <button
-              key={`${sug.id}-${k}`}
-              type="button"
-              onClick={() => adicionar(sug)}
-              className="w-full text-left px-3 py-2.5 hover:bg-[#F4F4F2] active:bg-[#F4F4F2] flex items-center gap-2.5 cursor-pointer min-h-[44px]"
-            >
-              <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
-              <span className="min-w-0">
-                <span className="block text-[13px] font-semibold text-[#111111] truncate">{sug.title}</span>
-                {sug.subtitle && <span className="block text-[11px] text-[#6B6B6B] truncate">{sug.subtitle}</span>}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => { setAAdicionar(false); setConsulta(''); setSugestoes([]); setAviso(''); }}
-        className="mt-2 h-9 px-3 text-[13px] font-semibold text-[#6B6B6B] cursor-pointer"
-      >
-        {t('Cancelar')}
-      </button>
-    </div>
-  );
 
   // ---------------------------------------------------------------- troço
   const renderTroco = (i: number) => {
@@ -376,7 +297,7 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
             {todosOk && ultimoTroco?.chegada ? (
               <>
                 <p className="font-condensada text-[22px] leading-none font-bold text-[#111111] tabular-nums">
-                  {t('Chegas às {h}', { h: horaDe(ultimoTroco.chegada) })}
+                  {textoChegada(ultimoTroco.chegada, inicio ?? ultimoTroco.chegada)}
                 </p>
                 <p className="text-[12.5px] text-[#6B6B6B] mt-1.5 leading-snug">
                   {[
@@ -400,13 +321,13 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
           <button
             type="button"
             onClick={atualizar}
-            className={`shrink-0 h-9 px-3 rounded-full text-[12.5px] font-semibold flex items-center gap-1.5 cursor-pointer ${
+            className={`shrink-0 h-10 min-w-10 px-3 max-[379px]:px-0 max-[379px]:justify-center rounded-full text-[12.5px] font-semibold flex items-center gap-1.5 cursor-pointer ${
               desatualizado ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] text-[#111111] border border-[#E6E6E3]'
             }`}
             aria-label={t('Atualizar horários')}
           >
             <RefreshCw className="w-3.5 h-3.5 stroke-[2.25]" />
-            {t('Atualizar')}
+            <span className="max-[379px]:sr-only">{t('Atualizar')}</span>
           </button>
         </div>
         <p className="text-[11.5px] text-[#6B6B6B] mt-2 tabular-nums">
@@ -426,7 +347,7 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
           traco
           marca={<span className="mt-1.5 block w-3.5 h-3.5 rounded-full bg-[#FFFFFF] border-[3px] border-[#111111] shrink-0" />}
         >
-          <p className="text-[14px] font-semibold text-[#111111] leading-tight">{t('A tua localização')}</p>
+          <p className="text-[14px] font-semibold text-[#111111] leading-tight break-words">{origemNome || t('A tua localização')}</p>
           {trocos[0]?.partida ? (
             <p className="text-[12px] text-[#6B6B6B] mt-0.5 tabular-nums">{t('Saída a partir das {h}', { h: horaDe(trocos[0].partida) })}</p>
           ) : null}
@@ -468,7 +389,7 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
                 </div>
                 {chegada ? (
                   <p className="text-[12.5px] text-[#111111] mt-1 tabular-nums">
-                    {t('Chegas às {h}', { h: horaDe(chegada) })}
+                    {textoChegada(chegada, inicio ?? chegada)}
                     {!ultimo && d.permanencia > 0 ? <span className="text-[#6B6B6B]"> · {t('segues às {h}', { h: horaDe(chegada + d.permanencia * 60_000) })}</span> : null}
                   </p>
                 ) : null}
@@ -495,18 +416,16 @@ export function RotaVariosDestinos({ origem, destinos, onMudar, onSair, onMapa, 
       {/* Juntar outro destino */}
       <div className="mt-1" ref={fimRef}>
         {n < MAX_DESTINOS ? (
-          aAdicionar ? campoPesquisa : (
-            <button
-              type="button"
-              onClick={() => { setAAdicionar(true); setAviso(''); }}
-              data-teste="juntar-destino-botao"
-              className="w-full min-h-11 rounded-[12px] border border-dashed border-[#D5D5D0] text-[#111111] text-[13.5px] font-semibold flex items-center justify-center gap-2 px-3 cursor-pointer active:bg-[#F4F4F2] hover:bg-[#F4F4F2]"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              {t('Adicionar destino')}
-              <span className="text-[#6B6B6B] font-medium tabular-nums">{n}/{MAX_DESTINOS}</span>
-            </button>
-          )
+          <button
+            type="button"
+            onClick={onAdicionar}
+            data-teste="juntar-destino-botao"
+            className="w-full min-h-11 rounded-[12px] border border-dashed border-[#D5D5D0] text-[#111111] text-[13.5px] font-semibold flex items-center justify-center gap-2 px-3 cursor-pointer active:bg-[#F4F4F2] hover:bg-[#F4F4F2]"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            {t('Adicionar destino')}
+            <span className="text-[#6B6B6B] font-medium tabular-nums">{n}/{MAX_DESTINOS}</span>
+          </button>
         ) : (
           <p className="text-[12.5px] text-[#6B6B6B] text-center py-2">{t('Chegaste ao máximo de {n} destinos.', { n: MAX_DESTINOS })}</p>
         )}
