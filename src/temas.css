@@ -32,6 +32,9 @@ html[data-tema="escuro"] .leaflet-tile-pane {
 html[data-tema="escuro"] .leaflet-popup-content-wrapper { background: #1E1E21 !important; color: #F2F2F0 !important; border-color: #34343A !important; box-shadow: 0 6px 20px rgba(0,0,0,.5) !important; }
 html[data-tema="escuro"] .leaflet-popup-content { color: #F2F2F0 !important; }
 html[data-tema="escuro"] .leaflet-popup-tip { background: #1E1E21 !important; border-color: #34343A !important; }
+html[data-tema="escuro"] .pp-t, html[data-tema="escuro"] .pp-d, html[data-tema="escuro"] .pp-a { color: #F2F2F0 !important; }
+html[data-tema="escuro"] .pp-s { color: #C9C9CD !important; }
+html[data-tema="escuro"] .pp-f { color: #A9A9AF !important; }
 html[data-tema="escuro"] .leaflet-tooltip { background: #F2F2F0 !important; color: #111111 !important; }
 html[data-tema="escuro"] .leaflet-tooltip-top:before { border-top-color: #F2F2F0 !important; }
 html[data-tema="escuro"] .leaflet-tooltip-bottom:before { border-bottom-color: #F2F2F0 !important; }
@@ -141,6 +144,9 @@ html[data-tema="ambar"] .leaflet-tile-pane {
 html[data-tema="ambar"] .leaflet-popup-content-wrapper { background: rgba(255,249,242,.9) !important; color: #2A170B !important; border-color: rgba(255,255,255,.9) !important; box-shadow: 0 10px 30px rgba(160,70,10,.25) !important; }
 html[data-tema="ambar"] .leaflet-popup-content { color: #2A170B !important; }
 html[data-tema="ambar"] .leaflet-popup-tip { background: rgba(255,249,242,.9) !important; border-color: rgba(255,255,255,.9) !important; }
+html[data-tema="ambar"] .pp-t, html[data-tema="ambar"] .pp-d, html[data-tema="ambar"] .pp-a { color: #2A170B !important; }
+html[data-tema="ambar"] .pp-s { color: #5A3B27 !important; }
+html[data-tema="ambar"] .pp-f { color: #70513C !important; }
 html[data-tema="ambar"] .leaflet-tooltip { background: #2B170A !important; color: #FFF4E8 !important; }
 html[data-tema="ambar"] .leaflet-tooltip-top:before { border-top-color: #2B170A !important; }
 html[data-tema="ambar"] .leaflet-tooltip-bottom:before { border-bottom-color: #2B170A !important; }
