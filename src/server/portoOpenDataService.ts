@@ -9,7 +9,15 @@
  *    (Endpoint: https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000)
  */
 
-import { updateFeedProgress, logFetch } from './db/gtfsDatabase';
+import { updateFeedProgress as atualizarProgresso, logFetch, getFeedById } from './db/gtfsDatabase';
+import { posicoesStcpOficial } from './stcpApi';
+
+// Nota sobre o estado do feed STCP: quem decide se o horário está em vigor ou expirado é o carregamento dos
+// dados; o tempo real só atualiza o texto de progresso e nunca muda esse estado.
+function updateFeedProgress(id: string, estadoAntigo: any, progresso: string, erro?: string): void {
+  const estadoAtual = getFeedById(id)?.status;
+  atualizarProgresso(id, (estadoAtual || estadoAntigo) as any, progresso, erro);
+}
 
 export interface StcpLiveVehicle {
   id: string;
@@ -161,6 +169,28 @@ export async function getStcpLiveVehicles(): Promise<StcpLiveVehicle[]> {
   const now = Date.now();
   if (cachedStcpVehicles.vehicles.length > 0 && now - cachedStcpVehicles.timestamp < VEHICLES_CACHE_TTL_MS) {
     return cachedStcpVehicles.vehicles;
+  }
+
+  // Fonte principal: API oficial da STCP (posições GTFS-Realtime, de 10 em 10 s)
+  const oficiais = await posicoesStcpOficial();
+  if (oficiais && oficiais.length > 0) {
+    const vehicles: StcpLiveVehicle[] = oficiais.map((p) => ({
+      id: p.id,
+      vehicle_id: p.veiculo,
+      line: p.linha,
+      lat: p.lat,
+      lon: p.lon,
+      bearing: p.rumo,
+      speed: p.velocidade,
+      timestamp: p.epoch,
+      operator: 'STCP',
+    }));
+    cachedStcpVehicles = { vehicles, timestamp: now };
+    lastStcpFailTime = 0;
+    try {
+      updateFeedProgress('stcp', 'horário expirado', `OK (${vehicles.length} veículos em direto, API oficial da STCP)`);
+    } catch {}
+    return vehicles;
   }
 
   // If a recent failure occurred, do not hammer or block: return previous cache and retry after 30s
