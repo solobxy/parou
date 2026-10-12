@@ -26,7 +26,7 @@ interface Props {
   /** Fecha a viagem e volta aos transportes perto */
   onSair: () => void;
   onMapa: (mapa: MapaViagem | null) => void;
-  /** Pede ao ecrã para abrir a pesquisa de mais um destino (a pesquisa é a de cima, a de sempre) */
+  /** Abre o ecrã "Adicionar paragens" (para juntar, tirar ou mudar a ordem das paragens) */
   onAdicionar: () => void;
   /** Percursos do 1.º destino já calculados (pela rota simples), para não os pedir outra vez ao abrir */
   inicial?: { opcoes: TransitRouteOption[]; escolhida: number; partida: number } | null;
@@ -211,7 +211,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
     const destino = destinos[i];
     if (!troco || !destino) return null;
     if (troco.estado === 'espera') {
-      return <p className="text-[12.5px] text-[#6B6B6B] py-1.5">{t('Depende do destino anterior.')}</p>;
+      return <p className="text-[12.5px] text-[#6B6B6B] py-1.5">{t('Depende da paragem anterior.')}</p>;
     }
     if (troco.estado === 'a-calcular') {
       return (
@@ -237,11 +237,11 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
           <p className="text-[13.5px] font-semibold text-[#111111]">{t('Sem ligações nas próximas 2 horas')}</p>
           <p className="text-[12.5px] text-[#6B6B6B] mt-1 leading-snug">
             {t('Não encontrámos ligações em transportes daqui para lá (até três transbordos e ~900 m a pé de cada lado).')}
-            {i < n - 1 ? ` ${t('Os destinos seguintes dependem deste.')}` : ''}
+            {i < n - 1 ? ` ${t('As paragens seguintes dependem desta.')}` : ''}
           </p>
           {n > 1 && (
             <button type="button" onClick={() => remover(i)} className="mt-2.5 h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13px] font-semibold cursor-pointer">
-              {t('Tirar este destino')}
+              {t('Tirar esta paragem')}
             </button>
           )}
         </div>
@@ -286,7 +286,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
           <ArrowLeft className="w-4.5 h-4.5 stroke-[2.25]" />
         </button>
         <span className="font-semibold text-[15px] text-[#111111] truncate">
-          {t('Como chegar')} · {tn(n, '{n} destino', '{n} destinos')}
+          {t('Como chegar')} · {tn(n, '{n} paragem', '{n} paragens')}
         </span>
       </div>
 
@@ -302,7 +302,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
                 <p className="text-[12.5px] text-[#6B6B6B] mt-1.5 leading-snug">
                   {[
                     t('Duração total {d}', { d: formatarDuracao(totalMin ?? 0) }),
-                    tn(n, '{n} destino', '{n} destinos'),
+                    tn(n, '{n} paragem', '{n} paragens'),
                     transbordos ? tn(transbordos, '{n} transbordo', '{n} transbordos') : t('Sem transbordos'),
                   ].join(' · ')}
                 </p>
@@ -383,7 +383,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
                       <BotaoIcone rotulo={t('Mover para baixo')} onClick={() => mover(i, 1)}><ChevronDown className="w-[18px] h-[18px] stroke-[2.25]" /></BotaoIcone>
                     )}
                     {n > 1 && (
-                      <BotaoIcone rotulo={t('Tirar este destino')} onClick={() => remover(i)}><X className="w-[18px] h-[18px] stroke-[2.25]" /></BotaoIcone>
+                      <BotaoIcone rotulo={t('Tirar esta paragem')} onClick={() => remover(i)}><X className="w-[18px] h-[18px] stroke-[2.25]" /></BotaoIcone>
                     )}
                   </div>
                 </div>
@@ -423,11 +423,11 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
             className="w-full min-h-11 rounded-[12px] border border-dashed border-[#D5D5D0] text-[#111111] text-[13.5px] font-semibold flex items-center justify-center gap-2 px-3 cursor-pointer active:bg-[#F4F4F2] hover:bg-[#F4F4F2]"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            {t('Adicionar destino')}
+            {t('Adicionar paragem')}
             <span className="text-[#6B6B6B] font-medium tabular-nums">{n}/{MAX_DESTINOS}</span>
           </button>
         ) : (
-          <p className="text-[12.5px] text-[#6B6B6B] text-center py-2">{t('Chegaste ao máximo de {n} destinos.', { n: MAX_DESTINOS })}</p>
+          <p className="text-[12.5px] text-[#6B6B6B] text-center py-2">{t('Chegaste ao máximo de {n} paragens.', { n: MAX_DESTINOS })}</p>
         )}
       </div>
     </div>
