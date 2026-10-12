@@ -63,8 +63,8 @@ const metroStatusCache: { data: any; timestamp: number } = { data: null, timesta
 const VEHICLES_CACHE_TTL_MS = 15 * 1000; // 15 s
 const ARRIVALS_CACHE_TTL_MS = 30 * 1000; // 30 s
 // STCP: chegadas em tempo real por paragem. Fonte principal: API oficial da STCP (stcpApi.ts, atualiza de
-// 10 em 10 s); reserva: https://stcp.pt/api/stops/{código}/realtime
-const STCP_CACHE_TTL_MS = 20 * 1000; // 20 s por paragem
+// 10 em 10 s, com limite de 15 000 pedidos por dia); reserva: https://stcp.pt/api/stops/{código}/realtime
+const STCP_CACHE_TTL_MS = 30 * 1000; // 30 s por paragem (a API oficial tem limite de 15 000 pedidos por dia)
 const stcpArrivalsCache = new Map<string, { data: any[]; timestamp: number }>();
 const stcpPedidosEmCurso = new Map<string, Promise<any[]>>();
 const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
@@ -362,7 +362,7 @@ export class RealtimeEngine {
    * Metro de Lisboa, and CP feature flag.
    */
   /**
-   * Chegadas em tempo real de uma paragem STCP, com cache de 20 s por paragem.
+   * Chegadas em tempo real de uma paragem STCP, com cache de 30 s por paragem.
    * Usa a API oficial da STCP e, se ela não responder, a fonte anterior (stcp.pt).
    * Devolve [] se nenhuma responder em 2,5 s ou se os dados não forem de tempo real.
    */
