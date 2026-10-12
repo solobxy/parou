@@ -5,7 +5,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { todosOsEnderecos, PAGINAS_APP } from './paginas';
+import { todosOsEnderecos, PAGINAS_APP, ENDERECOS_GREVES } from './paginas';
 import { obterIndice } from './indice';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
@@ -64,7 +64,7 @@ async function talvezEnviar(k: string) {
       if (await enviar(k, todosOsEnderecos())) { e.tudo = agora; e.principais = agora; gravarEstado(e); }
     } else if (!e.principais || agora - e.principais > 7 * 24 * 3600_000) {
       const ix = obterIndice();
-      const principais = [...PAGINAS_APP.map((p) => p.loc), ...(ix?.operadores || []).map((o) => `/linhas/${o.slug}`)];
+      const principais = [...PAGINAS_APP.map((p) => p.loc), ...ENDERECOS_GREVES, ...(ix?.operadores || []).map((o) => `/linhas/${o.slug}`)];
       if (await enviar(k, principais)) { e.principais = agora; gravarEstado(e); }
     }
   } finally {

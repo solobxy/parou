@@ -1078,6 +1078,20 @@ function operadorPush(texto: string) {
   return OPERADORES_PUSH.find((o) => o.re.test(t));
 }
 
+/**
+ * Todos os operadores (chaves de OPERADORES_PUSH) mencionados num texto, para ligar uma greve às páginas por operador.
+ * Corrige os cruzamentos óbvios: "Carris Metropolitana" não é a Carris, "Metropolitano do Porto" não é o de Lisboa,
+ * e uma greve na Fertagus não é uma greve da CP só porque fala de comboios.
+ */
+export function operadoresNoTexto(texto: string): string[] {
+  const t = semAcentos(texto);
+  const achados = new Set(OPERADORES_PUSH.filter((o) => o.chave !== 'aviacao' && o.re.test(t)).map((o) => o.chave));
+  if (achados.has('carris-metropolitana')) achados.delete('carris');
+  if (achados.has('metro-porto') && !/metro de lisboa|metropolitano de lisboa/.test(t)) achados.delete('metro-lisboa');
+  if (achados.has('fertagus') && !/\bcp\b|comboios de portugal/.test(t)) achados.delete('cp');
+  return [...achados];
+}
+
 /** Distritos mencionados num texto (já sem acentos) */
 function distritosNoTexto(texto: string, nomes: string[]): string[] {
   const achados = new Set<string>();
@@ -1260,6 +1274,10 @@ export interface GreveResumo {
   fonte: string;
   origem: 'operador' | 'noticia';
   publicada: string | null;
+  /** Operadores a que a greve diz respeito (chaves de OPERADORES_PUSH): para as páginas /greves/<operador> */
+  chaves: string[];
+  /** Greve geral: conta para todos os operadores */
+  geral: boolean;
 }
 
 export async function obterGreves(): Promise<{ atualizado: string; greves: GreveResumo[] }> {
@@ -1278,9 +1296,13 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
     if (!Number.isFinite(fimMs) && Number.isFinite(inicioMs) && agora - inicioMs > 30 * 3600_000) continue;
     if (Number.isFinite(inicioMs) && inicioMs - agora > 45 * 24 * 3600_000) continue;
     const resumo = String(a.descrição || '').replace(/\s+/g, ' ').trim();
+    const tituloOf = String(a.título || 'Greve').replace(/\s+/g, ' ').trim();
+    const chavesOf = operadoresNoTexto(String(a.operador || ''));
     greves.push({
       id: `oficial:${a.id}`,
-      titulo: String(a.título || 'Greve').replace(/\s+/g, ' ').trim(),
+      chaves: chavesOf.length ? chavesOf : operadoresNoTexto(`${tituloOf} ${resumo}`),
+      geral: /greve geral/.test(semAcentos(`${tituloOf} ${resumo}`)),
+      titulo: tituloOf,
       resumo: resumo.length > 300 ? `${resumo.slice(0, 297).trimEnd()}…` : resumo,
       operador: String(a.operador || ''),
       inicio: a.start_datetime ? String(a.start_datetime) : null,
@@ -1302,8 +1324,12 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     const op = operadorPush(n.texto);
+    const chavesNot = operadoresNoTexto(n.titulo);
     greves.push({
       id: `noticia:${n.url}`,
+      // Primeiro pelo título (diz de que greve se trata); só se não disser nada, pelo texto todo
+      chaves: chavesNot.length ? chavesNot : operadoresNoTexto(n.texto).slice(0, 1),
+      geral: /greve geral/.test(semAcentos(n.titulo)),
       titulo: n.titulo,
       resumo: n.resumo || '',
       operador: op?.nome || '',
