@@ -15,7 +15,7 @@ import { getDatabase } from '../db/gtfsDatabase';
 import { html, hora, cortar, slug, nomeBonito } from './texto';
 import { LinesEngine } from '../linesEngine';
 import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../dadosProntos';
-import { obterGreves } from '../alertasEngine';
+import { obterGreves, type GreveResumo } from '../alertasEngine';
 import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
 
 const SITE = 'https://parou.pt';
@@ -93,7 +93,7 @@ details>summary::-webkit-details-marker{display:none}details>summary:after{conte
 form.pesquisa{display:flex;gap:8px;margin:14px 0}form.pesquisa input{flex:1;min-width:0;height:48px;border:1px solid #E6E6E3;border-radius:12px;padding:0 14px;font:inherit;background:#F4F4F2}
 .paginas{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}.paginas a,.paginas span{padding:6px 11px;border-radius:9px;background:#F4F4F2;text-decoration:none;font-size:14px}.paginas span{background:#111;color:#fff}
 .aviso{background:#FFF4EC;border:1px solid #FFD9C2;border-radius:14px;padding:12px 14px;margin:12px 0}
-.grelha.estreita{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.grelha.estreita{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}.grelha.ops{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.grelha a b{overflow-wrap:break-word}
 .resumo.duplo{grid-template-columns:repeat(2,1fr)}@media(min-width:640px){.resumo.duplo{grid-template-columns:repeat(4,1fr)}}
 ul.lista li.fogo{padding:12px 14px}.fogo .l1{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}.fogo .l1 b{font-size:17px;line-height:1.25}
 .fogo .onde{margin-top:2px}.fogo .meta{margin-top:2px;font-size:13px;color:#6B6B6B;font-variant-numeric:tabular-nums}
@@ -813,10 +813,14 @@ function quando(iso: string | null): string {
 }
 
 async function paginaGreves(): Promise<string> {
-  const { greves } = await obterGreves();
+  const { greves } = await grevesPartilhadas();
   const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
   const oficiais = greves.filter((g) => g.origem === 'operador');
   const noticias = greves.filter((g) => g.origem === 'noticia');
+  const grelhaOperadores = `<h2>${L('Greve por operador', 'Strikes by operator')}</h2><div class="grelha ops">${OPERADORES_GREVE.map((x) => {
+    const e = grevesDoOperador(greves, x.chave).estado;
+    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</small></a>`;
+  }).join('')}</div>`;
   let corpo = `<h1>${L('Greves nos transportes hoje e próximas greves', 'Transport strikes today and upcoming strikes')}</h1>
 <p class="sub">${L(
     `Greves anunciadas na CP, Metro de Lisboa, Metro do Porto, Carris, Carris Metropolitana, STCP, Fertagus, Transtejo/Soflusa e outros transportes em Portugal. Atualizado ${html(agora.toFormat("d 'de' LLLL 'às' HH:mm"))}.`,
@@ -825,16 +829,17 @@ async function paginaGreves(): Promise<string> {
     'Recebe as greves no telemóvel, mesmo com a app fechada: abre os <a href="/alertas"><b>Alertas da PAROU</b></a> e liga os avisos.',
     'Get strikes on your phone, even with the app closed: open <a href="/alertas"><b>PAROU Alerts</b></a> and turn notifications on.')}</div>`;
   if (emIngles()) corpo += `<p class="nota">Strike notices are published in Portuguese by the operators and the news outlets, so the details below are in Portuguese.</p>`;
+  corpo += grelhaOperadores;
   if (oficiais.length === 0 && noticias.length === 0) {
     corpo += `<div class="cartao"><b>${L('Sem greves anunciadas neste momento.', 'No strikes announced right now.')}</b><p class="nota" style="margin:6px 0 0">${L(
       'Não há greves nos transportes anunciadas pelos operadores nem nas notícias dos últimos dias. Esta página atualiza-se sozinha.',
       'There are no transport strikes announced by the operators or in the news over the last few days. This page updates itself.')}</p></div>`;
   }
   if (oficiais.length) {
-    corpo += `<h2>${L('Anunciadas pelos operadores', 'Announced by the operators')}</h2>${oficiais.map((g) => `<div class="cartao"><b>${html(g.titulo)}</b><p class="nota" style="margin:4px 0">${html(g.operador)}${g.inicio ? ` · ${g.aDecorrer ? L('a decorrer desde', 'ongoing since') : L('começa', 'starts')} ${html(quando(g.inicio))}` : ''}${g.fim ? ` · ${L('até', 'until')} ${html(quando(g.fim))}` : ''}</p>${g.resumo ? `<p style="margin:6px 0 0">${html(g.resumo)}</p>` : ''}${g.url ? `<p class="nota" style="margin:6px 0 0"><a href="${html(g.url)}" rel="nofollow noopener" target="_blank">${L('Ver no site do operador', "See on the operator's website")}</a></p>` : ''}</div>`).join('')}`;
+    corpo += `<h2>${L('Anunciadas pelos operadores', 'Announced by the operators')}</h2>${oficiais.map(cartaoGreve).join('')}`;
   }
   if (noticias.length) {
-    corpo += `<h2>${L('Nas notícias', 'In the news')}</h2><ul class="lista">${noticias.map((g) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`).join('')}</ul>`;
+    corpo += `<h2>${L('Nas notícias', 'In the news')}</h2><ul class="lista">${noticias.map(linhaNoticiaGreve).join('')}</ul>`;
   }
   corpo += `<h2>${L('Serviços mínimos e alternativas', 'Minimum services and alternatives')}</h2><p>${L(
     'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (como a Carris Metropolitana, a STCP e o Metro de Lisboa) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários das linhas</a> para planear alternativas.',
@@ -847,6 +852,301 @@ async function paginaGreves(): Promise<string> {
     caminho: '/greves',
     corpo,
     migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Greves', 'Strikes'), url: '/greves' }],
+  });
+}
+
+// ------------------------------------------------------------------------------------
+// Greves por operador: /greves/metro-de-lisboa, /greves/carris, /greves/cp…
+// Quem procura "greve metro lisboa" quer uma resposta de uma linha (há ou não há) e o que fazer a seguir.
+// A resposta vem das greves anunciadas pelos operadores e das notícias (as mesmas de /greves), nunca é inventada.
+// ------------------------------------------------------------------------------------
+interface AlternativaGreve { slug: string; pt: string; en: string }
+interface OperadorGreve {
+  slug: string; // o mesmo de /linhas/<slug>
+  chave: string; // chave do operador nas greves (OPERADORES_PUSH no alertasEngine)
+  nome: string;
+  de: string; // "do Metro de Lisboa"
+  quem: { pt: string; en: string };
+  alternativas: AlternativaGreve[];
+}
+export const OPERADORES_GREVE: OperadorGreve[] = [
+  {
+    slug: 'metro-de-lisboa', chave: 'metro-lisboa', nome: 'Metro de Lisboa', de: 'do Metro de Lisboa',
+    quem: { pt: 'O Metro de Lisboa tem 4 linhas (Azul, Amarela, Verde e Vermelha) e serve Lisboa, Amadora, Odivelas e Loures.', en: 'Lisbon\'s metro has 4 lines (Blue, Yellow, Green and Red) and serves Lisbon, Amadora, Odivelas and Loures.' },
+    alternativas: [
+      { slug: 'carris', pt: 'Autocarros e elétricos dentro de Lisboa', en: 'Buses and trams inside Lisbon' },
+      { slug: 'carris-metropolitana', pt: 'Autocarros para os concelhos à volta de Lisboa, com tempo real', en: 'Buses to the municipalities around Lisbon, with real time' },
+      { slug: 'cp', pt: 'Comboios urbanos para Sintra, Cascais e Azambuja', en: 'Suburban trains to Sintra, Cascais and Azambuja' },
+      { slug: 'fertagus', pt: 'Comboio entre Lisboa e a margem sul', en: 'Train between Lisbon and the south bank' },
+    ],
+  },
+  {
+    slug: 'metro-do-porto', chave: 'metro-porto', nome: 'Metro do Porto', de: 'do Metro do Porto',
+    quem: { pt: 'O Metro do Porto tem 6 linhas (A, B, C, D, E e F) e liga o Porto a Matosinhos, Maia, Gondomar, Vila Nova de Gaia, Valongo, Vila do Conde e Póvoa de Varzim.', en: 'Porto\'s metro has 6 lines (A, B, C, D, E and F) and links Porto to Matosinhos, Maia, Gondomar, Vila Nova de Gaia, Valongo, Vila do Conde and Póvoa de Varzim.' },
+    alternativas: [
+      { slug: 'stcp', pt: 'Autocarros no Porto e arredores, com tempo real', en: 'Buses in Porto and around, with real time' },
+      { slug: 'unir', pt: 'Autocarros da Área Metropolitana do Porto', en: 'Buses across the Porto metropolitan area' },
+      { slug: 'cp', pt: 'Comboios urbanos do Porto (Braga, Guimarães, Aveiro)', en: 'Porto suburban trains (Braga, Guimarães, Aveiro)' },
+    ],
+  },
+  {
+    slug: 'carris', chave: 'carris', nome: 'Carris', de: 'da Carris',
+    quem: { pt: 'A Carris faz os autocarros, os elétricos e os ascensores da cidade de Lisboa.', en: 'Carris runs Lisbon\'s buses, trams and funiculars.' },
+    alternativas: [
+      { slug: 'metro-de-lisboa', pt: 'Metro, com tempo real', en: 'Metro, with real time' },
+      { slug: 'carris-metropolitana', pt: 'Autocarros metropolitanos que entram em Lisboa, com tempo real', en: 'Metropolitan buses into Lisbon, with real time' },
+      { slug: 'cp', pt: 'Comboios urbanos para Sintra, Cascais e Azambuja', en: 'Suburban trains to Sintra, Cascais and Azambuja' },
+    ],
+  },
+  {
+    slug: 'carris-metropolitana', chave: 'carris-metropolitana', nome: 'Carris Metropolitana', de: 'da Carris Metropolitana',
+    quem: { pt: 'A Carris Metropolitana faz os autocarros da Área Metropolitana de Lisboa, fora da cidade de Lisboa.', en: 'Carris Metropolitana runs the buses of the Lisbon metropolitan area, outside the city of Lisbon.' },
+    alternativas: [
+      { slug: 'metro-de-lisboa', pt: 'Metro, com tempo real', en: 'Metro, with real time' },
+      { slug: 'cp', pt: 'Comboios urbanos para Sintra, Cascais e Azambuja', en: 'Suburban trains to Sintra, Cascais and Azambuja' },
+      { slug: 'fertagus', pt: 'Comboio entre Lisboa e a margem sul', en: 'Train between Lisbon and the south bank' },
+      { slug: 'transtejo-soflusa', pt: 'Barcos entre Lisboa e a margem sul', en: 'Boats between Lisbon and the south bank' },
+    ],
+  },
+  {
+    slug: 'cp', chave: 'cp', nome: 'CP', de: 'da CP (comboios)',
+    quem: { pt: 'A CP – Comboios de Portugal faz os comboios urbanos, regionais, intercidades e alfa pendular.', en: 'CP – Comboios de Portugal runs suburban, regional, intercity and Alfa Pendular trains.' },
+    alternativas: [
+      { slug: 'metro-de-lisboa', pt: 'Em Lisboa: metro, com tempo real', en: 'In Lisbon: metro, with real time' },
+      { slug: 'carris-metropolitana', pt: 'Na área de Lisboa: autocarros, com tempo real', en: 'Around Lisbon: buses, with real time' },
+      { slug: 'fertagus', pt: 'Entre Lisboa e a margem sul: comboio Fertagus', en: 'Between Lisbon and the south bank: Fertagus train' },
+      { slug: 'stcp', pt: 'No Porto: autocarros, com tempo real', en: 'In Porto: buses, with real time' },
+    ],
+  },
+  {
+    slug: 'stcp', chave: 'stcp', nome: 'STCP', de: 'da STCP',
+    quem: { pt: 'A STCP faz os autocarros do Porto e de concelhos vizinhos.', en: 'STCP runs the buses of Porto and neighbouring municipalities.' },
+    alternativas: [
+      { slug: 'metro-do-porto', pt: 'Metro do Porto', en: 'Porto metro' },
+      { slug: 'unir', pt: 'Autocarros da Área Metropolitana do Porto', en: 'Buses across the Porto metropolitan area' },
+      { slug: 'cp', pt: 'Comboios urbanos do Porto', en: 'Porto suburban trains' },
+    ],
+  },
+  {
+    slug: 'fertagus', chave: 'fertagus', nome: 'Fertagus', de: 'da Fertagus',
+    quem: { pt: 'A Fertagus liga Setúbal e Coina a Lisboa (Roma-Areeiro) pela Ponte 25 de Abril.', en: 'Fertagus links Setúbal and Coina to Lisbon (Roma-Areeiro) over the 25 de Abril Bridge.' },
+    alternativas: [
+      { slug: 'carris-metropolitana', pt: 'Autocarros entre a margem sul e Lisboa, com tempo real', en: 'Buses between the south bank and Lisbon, with real time' },
+      { slug: 'transtejo-soflusa', pt: 'Barcos entre a margem sul e Lisboa', en: 'Boats between the south bank and Lisbon' },
+      { slug: 'metro-sul-do-tejo', pt: 'Metro Sul do Tejo (Almada e Seixal)', en: 'Metro Sul do Tejo (Almada and Seixal)' },
+      { slug: 'metro-de-lisboa', pt: 'Metro de Lisboa, com tempo real', en: 'Lisbon metro, with real time' },
+    ],
+  },
+  {
+    slug: 'transtejo-soflusa', chave: 'transtejo', nome: 'Transtejo/Soflusa', de: 'da Transtejo/Soflusa',
+    quem: { pt: 'A Transtejo/Soflusa faz os barcos entre Lisboa e a margem sul do Tejo (Cacilhas, Seixal, Montijo e Barreiro).', en: 'Transtejo/Soflusa runs the boats between Lisbon and the south bank of the Tagus (Cacilhas, Seixal, Montijo and Barreiro).' },
+    alternativas: [
+      { slug: 'fertagus', pt: 'Comboio entre Lisboa e a margem sul', en: 'Train between Lisbon and the south bank' },
+      { slug: 'carris-metropolitana', pt: 'Autocarros entre a margem sul e Lisboa, com tempo real', en: 'Buses between the south bank and Lisbon, with real time' },
+      { slug: 'metro-sul-do-tejo', pt: 'Metro Sul do Tejo (Almada e Seixal)', en: 'Metro Sul do Tejo (Almada and Seixal)' },
+    ],
+  },
+  {
+    slug: 'metro-sul-do-tejo', chave: 'mts', nome: 'Metro Sul do Tejo', de: 'do Metro Sul do Tejo',
+    quem: { pt: 'O Metro Sul do Tejo é o metro de superfície de Almada e do Seixal.', en: 'Metro Sul do Tejo is the light rail of Almada and Seixal.' },
+    alternativas: [
+      { slug: 'carris-metropolitana', pt: 'Autocarros em Almada e no Seixal, com tempo real', en: 'Buses in Almada and Seixal, with real time' },
+      { slug: 'transtejo-soflusa', pt: 'Barcos para Lisboa', en: 'Boats to Lisbon' },
+      { slug: 'fertagus', pt: 'Comboio entre a margem sul e Lisboa', en: 'Train between the south bank and Lisbon' },
+    ],
+  },
+  {
+    slug: 'unir', chave: 'unir', nome: 'UNIR', de: 'da UNIR',
+    quem: { pt: 'A UNIR faz os autocarros da Área Metropolitana do Porto.', en: 'UNIR runs the buses of the Porto metropolitan area.' },
+    alternativas: [
+      { slug: 'metro-do-porto', pt: 'Metro do Porto', en: 'Porto metro' },
+      { slug: 'stcp', pt: 'Autocarros do Porto, com tempo real', en: 'Porto buses, with real time' },
+      { slug: 'cp', pt: 'Comboios urbanos do Porto', en: 'Porto suburban trains' },
+    ],
+  },
+];
+export const ENDERECOS_GREVES = OPERADORES_GREVE.map((o) => `/greves/${o.slug}`);
+/** Outras formas de escrever o endereço (redirecionam para a página certa) */
+const ALIAS_GREVES: Record<string, string> = {
+  comboios: 'cp', 'greve-cp': 'cp', 'comboios-de-portugal': 'cp',
+  'metro-lisboa': 'metro-de-lisboa', 'metropolitano-de-lisboa': 'metro-de-lisboa',
+  'metro-porto': 'metro-do-porto',
+  transtejo: 'transtejo-soflusa', soflusa: 'transtejo-soflusa', ttsl: 'transtejo-soflusa',
+  mts: 'metro-sul-do-tejo',
+};
+
+// As greves vêm de feeds e de avisos de operadores: um pedido de cada vez serve todas as páginas durante 2 minutos
+let grevesMemo: { t: number; v: ReturnType<typeof obterGreves> } | null = null;
+function grevesPartilhadas() {
+  if (!grevesMemo || Date.now() - grevesMemo.t > 120_000) {
+    const m = { t: Date.now(), v: obterGreves() };
+    m.v.catch(() => { if (grevesMemo === m) grevesMemo = null; });
+    grevesMemo = m;
+  }
+  return grevesMemo.v;
+}
+
+type EstadoGreve = 'ativa' | 'anunciada' | 'noticias' | 'nenhuma';
+function grevesDoOperador(greves: GreveResumo[], chave: string) {
+  const minhas = greves.filter((g) => g.geral || g.chaves.includes(chave));
+  const oficiais = minhas.filter((g) => g.origem === 'operador');
+  const ativas = oficiais.filter((g) => g.aDecorrer);
+  const futuras = oficiais.filter((g) => !g.aDecorrer).sort((a, b) => String(a.inicio || '').localeCompare(String(b.inicio || '')));
+  const noticias = minhas.filter((g) => g.origem === 'noticia');
+  const estado: EstadoGreve = ativas.length ? 'ativa' : futuras.length ? 'anunciada' : noticias.length ? 'noticias' : 'nenhuma';
+  return { ativas, futuras, noticias, estado };
+}
+
+const PILULA_GREVE: Record<EstadoGreve, { bg: string; fg: string; pt: string; en: string }> = {
+  ativa: { bg: '#C62828', fg: '#FFFFFF', pt: 'Greve a decorrer', en: 'Strike under way' },
+  anunciada: { bg: '#FF6B1A', fg: '#111111', pt: 'Greve anunciada', en: 'Strike announced' },
+  noticias: { bg: '#FFD27A', fg: '#111111', pt: 'Notícias de greve', en: 'Strike in the news' },
+  nenhuma: { bg: '#1E7A3C', fg: '#FFFFFF', pt: 'Sem greve anunciada', en: 'No strike announced' },
+};
+const pilulaGreve = (e: EstadoGreve) => `<span class="estado" style="background:${PILULA_GREVE[e].bg};color:${PILULA_GREVE[e].fg}">${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</span>`;
+
+function cartaoGreve(g: GreveResumo): string {
+  return `<div class="cartao"><b>${html(g.titulo)}</b><p class="nota" style="margin:4px 0">${[g.operador ? html(g.operador) : '', g.inicio ? `${g.aDecorrer ? L('a decorrer desde', 'ongoing since') : L('começa', 'starts')} ${html(quando(g.inicio))}` : '', g.fim ? `${L('até', 'until')} ${html(quando(g.fim))}` : ''].filter(Boolean).join(' · ')}</p>${g.resumo ? `<p style="margin:6px 0 0">${html(g.resumo)}</p>` : ''}${g.url ? `<p class="nota" style="margin:6px 0 0"><a href="${html(g.url)}" rel="nofollow noopener" target="_blank">${L('Ver no site do operador', "See on the operator's website")}</a></p>` : ''}</div>`;
+}
+const linhaNoticiaGreve = (g: GreveResumo) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`;
+
+async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
+  const { greves } = await grevesPartilhadas();
+  const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
+  const { ativas, futuras, noticias, estado } = grevesDoOperador(greves, o.chave);
+  const ix = obterIndice();
+  // Se o índice ainda não está pronto, mostra na mesma as alternativas (as páginas de linhas respondem sozinhas)
+  const existe = (slug: string) => (ix && ix.operadores.length ? ix.porSlugOperador.has(slug) : true);
+  const primeira = ativas[0] || futuras[0];
+
+  // Resposta curta e direta (texto simples: serve a página, a descrição e o FAQ)
+  const resposta = (() => {
+    if (estado === 'ativa') {
+      return L(
+        `Sim: há uma greve ${o.de} a decorrer («${primeira.titulo}»)${primeira.fim ? `, prevista até ${quando(primeira.fim)}` : ''}.`,
+        `Yes: a strike is under way at ${o.nome} ("${primeira.titulo}")${primeira.fim ? `, expected until ${quando(primeira.fim)}` : ''}.`);
+    }
+    if (estado === 'anunciada') {
+      const mais = futuras.length > 1 ? L(` Há mais ${futuras.length - 1} anunciada${futuras.length > 2 ? 's' : ''} a seguir.`, ` ${futuras.length - 1} more ${futuras.length > 2 ? 'are' : 'is'} announced after that.`) : '';
+      return L(
+        `Há uma greve ${o.de} anunciada para ${quando(primeira.inicio)} («${primeira.titulo}»).${mais}`,
+        `A strike at ${o.nome} is announced for ${quando(primeira.inicio)} ("${primeira.titulo}").${mais}`);
+    }
+    if (estado === 'noticias') {
+      return L(
+        `Ainda não encontrámos um aviso do operador, mas as notícias das últimas 72 horas falam de greve ${o.de}. Confirma no site do operador antes de sair.`,
+        `We have not found a notice from the operator yet, but news from the last 72 hours mentions a strike at ${o.nome}. Check the operator's website before you leave.`);
+    }
+    return L(
+      `Neste momento não há greve ${o.de} anunciada pelo operador nem nas notícias dos últimos dias.`,
+      `Right now there is no strike at ${o.nome} announced by the operator or in the news over the last few days.`);
+  })();
+
+  const alt = o.alternativas.filter((a) => existe(a.slug));
+  const nomeAlt = (slug: string) => OPERADORES_GREVE.find((x) => x.slug === slug)?.nome || ix?.porSlugOperador.get(slug)?.nome || slug;
+  const estadoDe = (slug: string): EstadoGreve => {
+    const x = OPERADORES_GREVE.find((y) => y.slug === slug);
+    return x ? grevesDoOperador(greves, x.chave).estado : 'nenhuma';
+  };
+
+  const perguntas = [
+    { p: L(`Há greve ${o.de} hoje?`, `Is there a strike at ${o.nome} today?`), r: resposta },
+    {
+      p: L(`Quando é a próxima greve ${o.de}?`, `When is the next strike at ${o.nome}?`),
+      r: futuras.length
+        ? L(`A próxima greve anunciada ${o.de} é ${quando(futuras[0].inicio)}. Esta página atualiza-se sozinha quando há novas datas.`, `The next announced strike at ${o.nome} is ${quando(futuras[0].inicio)}. This page updates itself when new dates are announced.`)
+        : ativas.length
+          ? L('Há uma greve a decorrer e ainda não foi anunciada outra. Esta página atualiza-se sozinha quando houver novas datas.', 'A strike is under way and no other has been announced yet. This page updates itself when new dates appear.')
+          : L('Neste momento não há nenhuma data anunciada. A lei exige pré-aviso (nos transportes públicos são, por regra, 10 dias úteis), por isso uma greve costuma ser conhecida com antecedência. Esta página atualiza-se sozinha.', 'No date has been announced right now. The law requires advance notice (for public transport it is, as a rule, 10 working days), so a strike is usually known well ahead. This page updates itself.'),
+    },
+    {
+      p: L(`Há serviços mínimos na greve ${o.de}?`, `Are there minimum services in a strike at ${o.nome}?`),
+      r: L(
+        'Nos transportes públicos de passageiros a lei prevê serviços mínimos, definidos por acordo ou, na falta dele, por um tribunal arbitral. O operador costuma publicar o horário dos serviços mínimos no seu site nos dias antes da greve. Quando o aviso do operador inclui esse resumo, aparece nesta página.',
+        'For public passenger transport the law provides for minimum services, set by agreement or, failing that, by an arbitration court. The operator usually publishes the minimum-service timetable on its website in the days before the strike. When the operator notice includes that summary, it appears on this page.'),
+    },
+    {
+      p: L(`O que fazer em dia de greve ${o.de}?`, `What to do on a strike day at ${o.nome}?`),
+      r: L(
+        `Sai com mais tempo e confirma na PAROU o que está mesmo a circular: nos operadores com tempo real (Carris Metropolitana, STCP e Metro de Lisboa) vês os veículos que estão a andar, nos outros vês o horário oficial.${alt.length ? ` Alternativas: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Confirma se também não têm greve.` : ''}`,
+        `Leave with extra time and check on PAROU what is really running: for operators with real time (Carris Metropolitana, STCP and Metro de Lisboa) you see the vehicles that are moving, for the others you see the official timetable.${alt.length ? ` Alternatives: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Check they are not on strike too.` : ''}`),
+    },
+    {
+      p: L(`Como recebo os avisos de greve ${o.de}?`, `How do I get strike alerts for ${o.nome}?`),
+      r: L(
+        'Abre os Alertas da PAROU e liga os avisos: recebes as greves no telemóvel, mesmo com a app fechada. É grátis e sem anúncios.',
+        'Open PAROU Alerts and turn notifications on: you get strikes on your phone, even with the app closed. It is free and ad-free.'),
+    },
+  ];
+
+  let corpo = `<h1>${L(`Greve ${html(o.de)} hoje`, `${html(o.nome)} strike today`)}</h1>
+<p>${pilulaGreve(estado)}</p>
+<p class="sub">${html(resposta)} ${L('Atualizado', 'Updated')} ${html(agora.toFormat(emIngles() ? "d LLLL 'at' HH:mm" : "d 'de' LLLL 'às' HH:mm"))}.</p>
+<p><a class="btn laranja" href="/">${L('Ver o que circula perto de mim', "See what's running near me")}</a> <a class="btn claro" href="/linhas/${o.slug}">${L(`Linhas e horários`, 'Lines and timetables')}</a></p>`;
+  if (emIngles()) corpo += `<p class="nota">Strike notices are published in Portuguese by the operators and the news outlets, so the details below are in Portuguese.</p>`;
+
+  if (ativas.length || futuras.length) {
+    corpo += `<h2>${L('Greves anunciadas pelo operador', 'Strikes announced by the operator')}</h2>${[...ativas, ...futuras].map(cartaoGreve).join('')}`;
+  }
+  if (noticias.length) {
+    corpo += `<h2>${L('Nas notícias', 'In the news')}</h2><ul class="lista">${noticias.map(linhaNoticiaGreve).join('')}</ul>`;
+  }
+  if (estado === 'nenhuma') {
+    corpo += `<div class="cartao"><b>${L('Sem greve anunciada.', 'No strike announced.')}</b><p class="nota" style="margin:6px 0 0">${L(
+      'Esta página atualiza-se sozinha: se for anunciada uma greve, aparece aqui com as datas.',
+      'This page updates itself: if a strike is announced, it appears here with the dates.')}</p></div>`;
+  }
+  corpo += `<div class="aviso">${L(
+    'Recebe as greves no telemóvel, mesmo com a app fechada: abre os <a href="/alertas"><b>Alertas da PAROU</b></a> e liga os avisos.',
+    'Get strikes on your phone, even with the app closed: open <a href="/alertas"><b>PAROU Alerts</b></a> and turn notifications on.')}</div>`;
+
+  if (alt.length) {
+    corpo += `<h2>${L(`Alternativas em dia de greve ${html(o.de)}`, `Alternatives on a strike day at ${html(o.nome)}`)}</h2>
+<p>${html(L(o.quem.pt, o.quem.en))} ${L('Em dia de greve, estas são as opções:', 'On a strike day, these are your options:')}</p>
+<ul class="lista">${alt.map((a) => {
+      const e = estadoDe(a.slug);
+      const aviso = e === 'ativa' || e === 'anunciada' ? L('também com greve', 'also on strike') : COM_TEMPO_REAL.has(a.slug) ? L('tempo real', 'real time') : L('horários', 'timetables');
+      return `<li><a href="/linhas/${a.slug}"><span class="t">${html(nomeAlt(a.slug))}<small>${html(L(a.pt, a.en))}</small></span><span class="dir">${aviso}</span></a></li>`;
+    }).join('')}</ul>
+<p class="nota">${L('Antes de sair, confirma se a alternativa não tem também greve.', 'Before you leave, check the alternative is not on strike too.')}</p>`;
+  }
+
+  if (!alt.length) corpo += `<p>${html(L(o.quem.pt, o.quem.en))}</p>`;
+  corpo += `<h2>${L('Perguntas frequentes', 'Frequently asked questions')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}`;
+
+  corpo += `<h2>${L('Greves noutros operadores', 'Strikes at other operators')}</h2><div class="grelha ops">${OPERADORES_GREVE.filter((x) => x.slug !== o.slug).map((x) => {
+    const e = grevesDoOperador(greves, x.chave).estado;
+    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</small></a>`;
+  }).join('')}</div><p><a href="/greves">${L('Ver todas as greves', 'See all strikes')}</a></p>
+<p class="nota">${L(
+    'Fonte: avisos publicados pelos operadores e notícias dos últimos dias. A PAROU é gratuita, sem anúncios e sem fins lucrativos; confirma sempre no site do operador.',
+    'Source: notices published by the operators and news from the last few days. PAROU is free, ad-free and non-profit; always check with the operator.')}</p>`;
+
+  const titulo = estado === 'ativa'
+    ? L(`Greve ${o.de} hoje: a decorrer | PAROU`, `${o.nome} strike today: under way | PAROU`)
+    : estado === 'anunciada'
+      ? L(`Greve ${o.de} anunciada: datas e alternativas | PAROU`, `${o.nome} strike announced: dates and alternatives | PAROU`)
+      : L(`Greve ${o.de}: há greve hoje? | PAROU`, `${o.nome} strike: is there a strike today? | PAROU`);
+  const curta = estado === 'ativa'
+    ? L(`Sim: há greve ${o.de} a decorrer.`, `Yes: a strike is under way at ${o.nome}.`)
+    : estado === 'anunciada'
+      ? L(`Há greve ${o.de} anunciada para ${quando(primeira.inicio)}.`, `A strike at ${o.nome} is announced for ${quando(primeira.inicio)}.`)
+      : estado === 'noticias'
+        ? L(`Há notícias de greve ${o.de}, ainda sem aviso do operador.`, `There is news of a strike at ${o.nome}, with no operator notice yet.`)
+        : L(`Neste momento não há greve ${o.de} anunciada.`, `Right now there is no strike announced at ${o.nome}.`);
+  const descricao = L(
+    `${curta} Datas, serviços mínimos, notícias e alternativas em dia de greve, sempre atualizado.`,
+    `${curta} Dates, minimum services, news and alternatives for a strike day, always up to date.`);
+  return pagina({
+    titulo,
+    descricao: cortar(descricao, 220),
+    caminho: `/greves/${o.slug}`,
+    corpo,
+    migalhas: [{ nome: L('Início', 'Home'), url: '/' }, { nome: L('Greves', 'Strikes'), url: '/greves' }, { nome: o.nome, url: `/greves/${o.slug}` }],
+    jsonld: [{
+      '@context': 'https://schema.org', '@type': 'FAQPage',
+      mainEntity: perguntas.map((q) => ({ '@type': 'Question', name: q.p, acceptedAnswer: { '@type': 'Answer', text: q.r } })),
+    }],
   });
 }
 
@@ -1233,7 +1533,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
 
 export function todosOsEnderecos(): string[] {
   const ix = obterIndice();
-  const out = [...PAGINAS_APP.map((p) => p.loc), ...DISTRITOS.map((d) => `/incendios/${d.slug}`), ...CIDADES.map((c) => `/cidade/${c.slug}`)];
+  const out = [...PAGINAS_APP.map((p) => p.loc), ...ENDERECOS_GREVES, ...DISTRITOS.map((d) => `/incendios/${d.slug}`), ...CIDADES.map((c) => `/cidade/${c.slug}`)];
   if (!ix) return out;
   for (const o of ix.operadores) {
     out.push(`/linhas/${o.slug}`, `/paragens/${o.slug}`);
@@ -1317,6 +1617,7 @@ function textoLlms(): string {
     '- Horário de uma linha: https://parou.pt/linhas/{operador}/{linha} (dias úteis, sábados, domingos e paragens do percurso)',
     '- Próximas partidas numa paragem: https://parou.pt/paragens/{operador}/{paragem}',
     '- Transportes numa cidade: https://parou.pt/cidade/{cidade}',
+    '- Greve de um operador (há greve hoje, próximas datas, alternativas): https://parou.pt/greves/{operador} (por exemplo /greves/metro-de-lisboa, /greves/carris, /greves/cp)',
     '- Incêndios ativos num distrito: https://parou.pt/incendios/{distrito} (por exemplo /incendios/porto)',
     '- Pesquisa por linha ou paragem: https://parou.pt/pesquisa?q=…',
   ];
@@ -1433,6 +1734,36 @@ export function registarPaginasSeo(app: Express) {
     }
   });
 
+  // Greves por operador (metro de Lisboa, Carris, CP…)
+  app.get('/greves/:operador', comIdioma, async (req, res) => {
+    const pedido = String(req.params.operador || '').toLowerCase();
+    const destino = ALIAS_GREVES[pedido];
+    if (destino) return void res.redirect(301, `/greves/${destino}`);
+    const o = OPERADORES_GREVE.find((x) => x.slug === pedido);
+    if (!o) {
+      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Vary', 'Cookie');
+      return void res.send(pagina({
+        titulo: L('Página não encontrada | PAROU', 'Page not found | PAROU'),
+        descricao: L('Este operador não existe ou mudou de sítio.', 'This operator does not exist or has moved.'),
+        caminho: '/greves',
+        indexar: false,
+        corpo: `<h1>${L('Página não encontrada', 'Page not found')}</h1><p>${L('Não há uma página de greves para este operador.', 'There is no strikes page for this operator.')}</p><p><a class="btn" href="/greves">${L('Ver todas as greves', 'See all strikes')}</a></p>`,
+      }));
+    }
+    const chaveG = chaveIdioma(`greves:${o.slug}`);
+    const c = cache.get(chaveG);
+    if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 300);
+    try {
+      const v = await paginaGrevesOperador(o);
+      cache.set(chaveG, { t: Date.now(), ttl: 5 * 60_000, v });
+      enviar(res, v, 300);
+    } catch (err: any) {
+      console.warn('[SEO] Greves por operador falhou:', err?.message || err);
+      res.status(500).send('Erro');
+    }
+  });
+
   // Incêndios ativos: lista nacional e por distrito (dados do Fogos.pt, renovados a cada minuto)
   app.get('/incendios', comIdioma, (_req, res) => enviar(res, emCache('incendios', 60_000, () => paginaIncendios()), 60));
   app.get('/incendios/:distrito', comIdioma, (req, res) => {
@@ -1483,6 +1814,7 @@ export function registarPaginasSeo(app: Express) {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(xml([
       ...PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/incendios', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri })),
+      ...OPERADORES_GREVE.map((o) => ({ loc: `/greves/${o.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.8' })),
       ...DISTRITOS.map((d) => ({ loc: `/incendios/${d.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.6' })),
       ...CIDADES.map((c) => ({ loc: `/cidade/${c.slug}`, freq: 'weekly', pri: '0.8' })),
     ]));
@@ -1525,4 +1857,8 @@ export function registarPaginasSeo(app: Express) {
 }
 
 // Para os testes locais
-export const _paginas = { paginaHub, paginaOperador, paginaLinha, paginaParagem, paginaGreves, paginaPesquisa, paginaListaParagens, paginaIncendios };
+/** Só para testes: fixa as greves que as páginas usam (sem ir buscar à rede) */
+function semearGreves(greves: GreveResumo[]) {
+  grevesMemo = { t: Date.now() + 365 * 24 * 3600_000, v: Promise.resolve({ atualizado: new Date().toISOString(), greves }) };
+}
+export const _paginas = { paginaHub, paginaOperador, paginaLinha, paginaParagem, paginaGreves, paginaGrevesOperador, paginaPesquisa, paginaListaParagens, paginaIncendios, semearGreves };
