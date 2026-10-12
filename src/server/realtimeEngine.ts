@@ -1,6 +1,7 @@
 import { UnifiedStop } from './stopsEngine';
 import { DateTime } from 'luxon';
 import { getStcpLiveVehicles } from './portoOpenDataService';
+import { chegadasStcpOficial } from './stcpApi';
 import { registerCacheClearCallback } from './db/gtfsDatabase';
 
 registerCacheClearCallback(() => RealtimeEngine.clearCaches());
@@ -61,11 +62,23 @@ const metroStatusCache: { data: any; timestamp: number } = { data: null, timesta
 // TTLs in Milliseconds strictly according to Rule 4
 const VEHICLES_CACHE_TTL_MS = 15 * 1000; // 15 s
 const ARRIVALS_CACHE_TTL_MS = 30 * 1000; // 30 s
-// STCP: chegadas em tempo real por paragem (https://stcp.pt/api/stops/{código}/realtime)
-const STCP_CACHE_TTL_MS = 30 * 1000; // 30 s por paragem
+// STCP: chegadas em tempo real por paragem. Fonte principal: API oficial da STCP (stcpApi.ts, atualiza de
+// 10 em 10 s); reserva: https://stcp.pt/api/stops/{código}/realtime
+const STCP_CACHE_TTL_MS = 20 * 1000; // 20 s por paragem
 const stcpArrivalsCache = new Map<string, { data: any[]; timestamp: number }>();
+const stcpPedidosEmCurso = new Map<string, Promise<any[]>>();
 const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
 const MAX_STALE_AGE_SECS = 120;          // Data older than 2 min (120 s) ignored
+
+/** Texto que explica de onde vem a hora em tempo real da STCP */
+function motivoStcp(atrasoSegundos: number, porGps: boolean): string {
+  if (atrasoSegundos > 90) {
+    return porGps
+      ? `Atraso de ${Math.round(atrasoSegundos / 60)} min transmitido por GPS do autocarro`
+      : `Atraso de ${Math.round(atrasoSegundos / 60)} min indicado pela STCP`;
+  }
+  return porGps ? 'Hora estimada em direto pelo GPS do autocarro (STCP)' : 'Hora estimada pela STCP';
+}
 
 export class RealtimeEngine {
   public static clearCaches(): void {
@@ -349,8 +362,9 @@ export class RealtimeEngine {
    * Metro de Lisboa, and CP feature flag.
    */
   /**
-   * Chegadas em tempo real de uma paragem STCP (GPS dos autocarros), com cache de 30 s.
-   * Devolve [] se a STCP não responder em 2,5 s ou se os dados não forem de tempo real.
+   * Chegadas em tempo real de uma paragem STCP, com cache de 20 s por paragem.
+   * Usa a API oficial da STCP e, se ela não responder, a fonte anterior (stcp.pt).
+   * Devolve [] se nenhuma responder em 2,5 s ou se os dados não forem de tempo real.
    */
   public static async getStcpArrivals(stopId: string): Promise<any[]> {
     const code = stopId.replace(/^stcp:/, '').trim();
@@ -358,24 +372,51 @@ export class RealtimeEngine {
     const now = Date.now();
     const cached = stcpArrivalsCache.get(code);
     if (cached && now - cached.timestamp < STCP_CACHE_TTL_MS) return cached.data;
-    try {
-      const res = await fetch(`https://stcp.pt/api/stops/${encodeURIComponent(code)}/realtime`, {
-        headers: { 'User-Agent': 'PAROU.PT/2.0 (+https://parou.pt)', Accept: 'application/json' },
-        signal: AbortSignal.timeout(2500),
-      });
-      if (!res.ok) {
-        stcpArrivalsCache.set(code, { data: [], timestamp: now });
-        return [];
+    // Vários pedidos à mesma paragem ao mesmo tempo partilham uma só ida à STCP
+    const emCurso = stcpPedidosEmCurso.get(code);
+    if (emCurso) return emCurso;
+    const pedido = (async (): Promise<any[]> => {
+      try {
+        const oficial = await chegadasStcpOficial(code);
+        if (oficial) {
+          // Mesmo formato da fonte anterior, com a hora exata (epoch) em vez de minutos
+          const data = oficial.map((c) => ({
+            epoch: c.epoch,
+            route_short_name: c.linha,
+            route_id: c.routeId,
+            route_long_name: c.longa,
+            route_color: c.cor,
+            trip_headsign: c.destino,
+            trip_id: c.tripId ? `stcp:${c.tripId}` : '',
+            delay_minutes: c.atrasoS / 60,
+            status: c.cancelada ? 'CANCELLED' : '',
+            com_gps: c.comGps,
+          }));
+          stcpArrivalsCache.set(code, { data, timestamp: Date.now() });
+          return data;
+        }
+        const res = await fetch(`https://stcp.pt/api/stops/${encodeURIComponent(code)}/realtime`, {
+          headers: { 'User-Agent': 'PAROU.PT/2.0 (+https://parou.pt)', Accept: 'application/json' },
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!res.ok) {
+          stcpArrivalsCache.set(code, { data: [], timestamp: Date.now() });
+          return [];
+        }
+        const json: any = await res.json();
+        const data = json?.data_source === 'realtime' && Array.isArray(json?.arrivals) ? json.arrivals : [];
+        stcpArrivalsCache.set(code, { data, timestamp: Date.now() });
+        return data;
+      } catch {
+        const fallback = cached?.data || [];
+        stcpArrivalsCache.set(code, { data: fallback, timestamp: Date.now() });
+        return fallback;
+      } finally {
+        stcpPedidosEmCurso.delete(code);
       }
-      const json: any = await res.json();
-      const data = json?.data_source === 'realtime' && Array.isArray(json?.arrivals) ? json.arrivals : [];
-      stcpArrivalsCache.set(code, { data, timestamp: now });
-      return data;
-    } catch {
-      const fallback = cached?.data || [];
-      stcpArrivalsCache.set(code, { data: fallback, timestamp: now });
-      return fallback;
-    }
+    })();
+    stcpPedidosEmCurso.set(code, pedido);
+    return pedido;
   }
 
   public static async mergeRealtimeData(
@@ -390,35 +431,45 @@ export class RealtimeEngine {
 
     // STCP em tempo real: cada chegada com GPS substitui a partida programada da mesma linha
     // mais próxima (até 6 min); as que não têm correspondência entram como partidas novas.
-    const stcpTempoReal = new Map<LiveDeparture, { estEpoch: number; vehicleId?: string; cancelada: boolean }>();
+    const stcpTempoReal = new Map<LiveDeparture, { estEpoch: number; vehicleId?: string; cancelada: boolean; porGps: boolean }>();
     const stcpNovas: LiveDeparture[] = [];
     const paragensStcp = (stop.member_stop_ids || []).filter((id) => id.startsWith('stcp:')).slice(0, 3);
     for (const sid of paragensStcp) {
       const chegadas = await this.getStcpArrivals(sid);
       for (const a of chegadas) {
-        const mins = Number(a?.arrival_minutes);
-        if (!Number.isFinite(mins) || mins < 0 || mins > 180) continue;
+        // API oficial: hora exata (epoch); fonte anterior: minutos até à chegada
+        const estEpoch = Number.isFinite(Number(a?.epoch))
+          ? Math.round(Number(a.epoch))
+          : nowEpochSecs + Math.round(Number(a?.arrival_minutes) * 60);
+        const mins = (estEpoch - nowEpochSecs) / 60;
+        if (!Number.isFinite(mins) || mins < -0.5 || mins > 180) continue;
         const linha = String(a.route_short_name || '').trim();
         if (!linha) continue;
-        const estEpoch = nowEpochSecs + Math.round(mins * 60);
+        const porGps = a.com_gps !== false;
         const atrasoMin = Number(a.delay_minutes);
         const progEpoch = Number.isFinite(atrasoMin) ? estEpoch - Math.round(atrasoMin * 60) : estEpoch;
         const cancelada = /CANCEL/i.test(String(a.status || ''));
-        let melhor: LiveDeparture | null = null;
+        // Mesma viagem (identificador igual, quando os horários são os oficiais) ou, senão, a partida
+        // da mesma linha com a hora mais próxima (até 6 min)
+        let melhor: LiveDeparture | null = a.trip_id
+          ? departures.find((d) => d.feed_id === 'stcp' && d.trip_id === a.trip_id && d.stop_id === sid && !stcpTempoReal.has(d)) || null
+          : null;
         let melhorDif = 6 * 60 + 1;
-        for (const d of departures) {
-          if (d.feed_id !== 'stcp' || stcpTempoReal.has(d)) continue;
-          if (String(d.route_short_name || '').trim().toUpperCase() !== linha.toUpperCase()) continue;
-          const dif = Math.abs(d.dep_epoch_secs - progEpoch);
-          if (dif < melhorDif) { melhor = d; melhorDif = dif; }
+        if (!melhor) {
+          for (const d of departures) {
+            if (d.feed_id !== 'stcp' || stcpTempoReal.has(d)) continue;
+            if (String(d.route_short_name || '').trim().toUpperCase() !== linha.toUpperCase()) continue;
+            const dif = Math.abs(d.dep_epoch_secs - progEpoch);
+            if (dif < melhorDif) { melhor = d; melhorDif = dif; }
+          }
         }
         if (melhor) {
-          stcpTempoReal.set(melhor, { estEpoch, vehicleId: a.vehicle_id || undefined, cancelada });
+          stcpTempoReal.set(melhor, { estEpoch, vehicleId: a.vehicle_id || undefined, cancelada, porGps });
         } else if (!cancelada) {
           const atraso = estEpoch - progEpoch;
           stcpNovas.push({
             trip_id: String(a.trip_id || `stcp-rt:${linha}:${estEpoch}`),
-            route_id: `stcp:${linha}`,
+            route_id: `stcp:${a.route_id || linha}`,
             route_short_name: linha,
             route_long_name: a.route_long_name || '',
             route_type: 3,
@@ -435,7 +486,7 @@ export class RealtimeEngine {
             realtime_time: DateTime.fromSeconds(estEpoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm'),
             realtime_epoch_secs: estEpoch,
             state: 'TEMPO REAL',
-            state_reason: atraso > 90 ? `Atraso de ${Math.round(atraso / 60)} min transmitido por GPS do autocarro` : 'Hora estimada em direto pelo GPS do autocarro (STCP)',
+            state_reason: motivoStcp(atraso, porGps),
             delay_seconds: atraso,
             is_realtime: true,
             is_delayed: atraso > 90,
@@ -521,9 +572,7 @@ export class RealtimeEngine {
           mergedDep.delay_seconds = atraso;
           mergedDep.is_delayed = atraso > 90;
           mergedDep.vehicle_id = rt.vehicleId;
-          mergedDep.state_reason = mergedDep.is_delayed
-            ? `Atraso de ${Math.round(atraso / 60)} min transmitido por GPS do autocarro`
-            : 'Hora estimada em direto pelo GPS do autocarro (STCP)';
+          mergedDep.state_reason = motivoStcp(atraso, rt.porGps);
         }
       }
 
