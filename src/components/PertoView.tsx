@@ -51,6 +51,7 @@ import { AvisoPartida } from './AvisoPartida';
 import { InputPesquisa } from './InputPesquisa';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
+import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
 import { MAX_DESTINOS, novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
@@ -413,8 +414,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [mapaViagem, setMapaViagem] = useState<MapaViagem | null>(null);
   const viagemLayerRef = useRef<L.LayerGroup | null>(null);
   const emViagem = destinosViagem.length > 0;
-  // A pesquisa de cima (a de sempre) serve para juntar mais um destino à viagem
-  const [adicionandoDestino, setAdicionandoDestino] = useState(false);
+  // Ecrã "Adicionar paragens" (o "+" ao lado da pesquisa): escrever as paragens e pôr por ordem
+  const [editor, setEditor] = useState<{ linhas: LinhaEditor[]; ativa: number } | null>(null);
   const tituloEscolhidoRef = useRef('');
 
   // Map & Controls
@@ -662,15 +663,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   const handleSelectDestination = (sug: DestinationSuggestion) => {
-    // Viagem com vários destinos: o que se escolhe junta-se ao fim da lista (até 5)
-    if (emViagem) {
-      setDestinosViagem((lista) => (lista.length >= MAX_DESTINOS ? lista : [...lista, { uid: novoUid(), dest: sug, permanencia: 0 }]));
-      setAdicionandoDestino(false);
-      setDestinationQuery('');
-      setSuggestions([]);
-      setSearchFocused(false);
-      return;
-    }
     // Sem GPS (ou a escolher um local): o local escolhido passa a ser o ponto de partida
     if (!localizacaoPronta || pesquisarLocal) {
       setManualLocation(sug.latitude, sug.longitude, sug.title);
@@ -689,37 +681,68 @@ export const PertoView: React.FC<PertoViewProps> = ({
     calculateRoutesToDestination(sug.latitude, sug.longitude, sug.title);
   };
 
-  /** Passa da rota simples à viagem com vários destinos, a começar pelo que já estava escolhido */
-  const iniciarViagem = () => {
-    if (!selectedDestination) return;
-    const escolhida = Math.max(0, calculatedRoutes.findIndex((r) => r.id === selectedRoute?.id));
-    // Aproveita o percurso já calculado, se for recente (senão o 1.º destino é calculado de novo, com as horas de agora)
-    const recente = Date.now() - partidaRotasRef.current < 3 * 60_000;
-    setViagemSemente(calculatedRoutes.length && recente ? { opcoes: calculatedRoutes, escolhida, partida: partidaRotasRef.current } : null);
-    setSelectedRoute(null);
-    setDestinosViagem([{ uid: novoUid(), dest: selectedDestination, permanencia: 0 }]);
-    pedirOutroDestino();
-  };
+  const linhaDoDestino = (d: DestinationSuggestion, uid = novoUid(), permanencia = 0): LinhaEditor => (
+    { chave: novoUid(), uid, texto: d.title, dest: d, permanencia }
+  );
 
-  /** Abre a pesquisa de cima, vazia, para escolher mais um destino */
-  const pedirOutroDestino = () => {
-    setDestinationQuery('');
-    setSuggestions([]);
-    setSearchFocused(true);
-    setAdicionandoDestino(true);
-  };
-
-  const cancelarOutroDestino = () => {
-    setAdicionandoDestino(false);
-    setDestinationQuery('');
+  /** Abre o ecrã "Adicionar paragens" com o que já há (a viagem, o destino escolhido ou o que se escreveu na pesquisa) */
+  const abrirEditor = () => {
+    let linhas: LinhaEditor[];
+    let ativa: number;
+    if (emViagem) {
+      linhas = destinosViagem.map((d) => linhaDoDestino(d.dest, d.uid, d.permanencia));
+      if (linhas.length < MAX_DESTINOS) linhas.push(linhaVazia());
+      ativa = linhas.length < MAX_DESTINOS || destinosViagem.length < MAX_DESTINOS ? linhas.length - 1 : -1;
+    } else if (selectedDestination) {
+      linhas = [linhaDoDestino(selectedDestination), linhaVazia()];
+      ativa = 1;
+    } else {
+      linhas = [linhaVazia(destinationQuery.trim())];
+      ativa = 0;
+    }
     setSuggestions([]);
     setSearchFocused(false);
+    setEditor({ linhas, ativa });
+  };
+
+  /** "Ver rotas": uma paragem segue pelo caminho de sempre; duas ou mais abrem a viagem com vários destinos */
+  const aplicarEditor = (linhas: LinhaEditor[]) => {
+    setEditor(null);
+    const lista = linhas.filter((l) => l.dest).slice(0, MAX_DESTINOS);
+    if (lista.length === 0) return;
+    setSuggestions([]);
+    setSearchFocused(false);
+    if (lista.length === 1) {
+      const d = lista[0].dest as DestinationSuggestion;
+      tituloEscolhidoRef.current = d.title;
+      setSelectedDestination(d);
+      setDestinationQuery(d.title);
+      calculateRoutesToDestination(d.latitude, d.longitude, d.title);
+      return;
+    }
+    // Aproveita o percurso já calculado do 1.º destino, se for recente (senão calcula-se de novo, com as horas de agora)
+    const recente = Date.now() - partidaRotasRef.current < 3 * 60_000;
+    const mesmoPrimeiro = !emViagem && selectedDestination?.id === lista[0].dest?.id && selectedDestination?.latitude === lista[0].dest?.latitude;
+    if (mesmoPrimeiro && calculatedRoutes.length && recente) {
+      setViagemSemente({ opcoes: calculatedRoutes, escolhida: Math.max(0, calculatedRoutes.findIndex((r) => r.id === selectedRoute?.id)), partida: partidaRotasRef.current });
+    } else {
+      setViagemSemente(null);
+    }
+    pedidoRotasRef.current++;
+    tituloEscolhidoRef.current = '';
+    setIsCalculatingRoutes(false);
+    setCalculatedRoutes([]);
+    setSelectedRoute(null);
+    setRotasCalculadas(false);
+    setSelectedDestination(lista[0].dest);
+    setDestinationQuery('');
+    setDestinosViagem(lista.map((l) => ({ uid: l.uid, dest: l.dest as DestinationSuggestion, permanencia: l.permanencia })));
   };
 
   const handleClearDestination = () => {
     pedidoRotasRef.current++;
     tituloEscolhidoRef.current = '';
-    setAdicionandoDestino(false);
+    setEditor(null);
     setDestinosViagem([]);
     setViagemSemente(null);
     setMapaViagem(null);
@@ -1529,18 +1552,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <div className="min-w-0 flex-1">
                 <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">{t('Como chegar')}</h2>
                 <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">
-                  {destinosViagem.length > 1 ? tn(destinosViagem.length, '{n} destino', '{n} destinos') : t('a {d}', { d: (destinosViagem[0]?.dest ?? selectedDestination)?.title || '' })}
+                  {destinosViagem.length > 1 ? tn(destinosViagem.length, '{n} paragem', '{n} paragens') : t('a {d}', { d: (destinosViagem[0]?.dest ?? selectedDestination)?.title || '' })}
                 </p>
               </div>
-              {!emViagem && calculatedRoutes.length > 0 && (
+              {(emViagem || calculatedRoutes.length > 0) && (
                 <button
-                  onClick={iniciarViagem}
-                  data-teste="juntar-destino-cabecalho"
-                  className="shrink-0 h-10 pl-2.5 pr-3.5 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] text-[13px] font-semibold flex items-center gap-1 cursor-pointer active:bg-[#F4F4F2]"
-                  aria-label={t('Adicionar outro destino a esta viagem')}
+                  onClick={abrirEditor}
+                  data-teste="juntar-paragem-cabecalho"
+                  className="shrink-0 w-11 h-11 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] flex items-center justify-center cursor-pointer active:bg-[#F4F4F2]"
+                  aria-label={t('Adicionar paragens à rota')}
+                  title={t('Adicionar paragens à rota')}
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                  {t('Destino')}
+                  <Plus className="w-5 h-5 stroke-[2.5]" />
                 </button>
               )}
             </div>
@@ -1600,22 +1623,29 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className={`relative ${emViagem && !adicionandoDestino ? 'hidden' : ''}`}>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2]" />
-            <InputPesquisa
-              key={adicionandoDestino ? 'junta' : 'normal'}
-              autoFocus={emViagem}
-              valor={destinationQuery}
-              onTexto={setDestinationQuery}
-              onLimpar={emViagem ? cancelarOutroDestino : handleClearDestination}
-              placeholder={emViagem ? t('Para onde a seguir?') : localizacaoPronta ? t('Para onde vais?') : t('Procurar um local')}
-              className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
-              classeLimpar="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
-              rotuloLimpar={t('Limpar pesquisa')}
-            />
-            {emViagem && !destinationQuery && (
-              <button onClick={cancelarOutroDestino} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer" aria-label={t('Cancelar')}>
-                <X className="w-3.5 h-3.5 stroke-[2]" />
+          <div className={`relative flex items-center gap-2 ${emViagem ? 'hidden' : ''}`}>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2]" />
+              <InputPesquisa
+                valor={destinationQuery}
+                onTexto={setDestinationQuery}
+                onLimpar={handleClearDestination}
+                placeholder={localizacaoPronta ? t('Para onde vais?') : t('Procurar um local')}
+                className="w-full pl-9 pr-8 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[10px] text-sm text-[#111111] placeholder-[#6B6B6B] focus:outline-none focus:border-[#111111] min-h-[44px]"
+                classeLimpar="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1 cursor-pointer"
+                rotuloLimpar={t('Limpar pesquisa')}
+              />
+            </div>
+            {localizacaoPronta && !pesquisarLocal && (
+              <button
+                type="button"
+                onClick={abrirEditor}
+                data-teste="juntar-paragem-pc"
+                className="shrink-0 w-11 h-11 rounded-full bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer hover:bg-[#E6E6E3]"
+                aria-label={t('Adicionar paragens à rota')}
+                title={t('Adicionar paragens à rota')}
+              >
+                <Plus className="w-5 h-5 stroke-[2.5]" />
               </button>
             )}
             {suggestions.length > 0 && !pesquisarLocal && (
@@ -1694,7 +1724,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             onMudar={setDestinosViagem}
             onSair={handleClearDestination}
             onMapa={setMapaViagem}
-            onAdicionar={pedirOutroDestino}
+            onAdicionar={abrirEditor}
             inicial={viagemSemente}
           />
         )}
@@ -1708,13 +1738,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
               <span className="font-semibold text-[15px] text-[#111111] truncate min-w-0 flex-1">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
               <button
-                onClick={iniciarViagem}
-                data-teste="juntar-destino-cabecalho-pc"
-                className="shrink-0 h-9 pl-2.5 pr-3.5 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] text-[13px] font-semibold flex items-center gap-1 cursor-pointer hover:bg-[#F4F4F2]"
-                aria-label={t('Adicionar outro destino a esta viagem')}
+                onClick={abrirEditor}
+                data-teste="juntar-paragem-cabecalho-pc"
+                className="shrink-0 w-9 h-9 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] flex items-center justify-center cursor-pointer hover:bg-[#F4F4F2]"
+                aria-label={t('Adicionar paragens à rota')}
+                title={t('Adicionar paragens à rota')}
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                {t('Destino')}
+                <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
               </button>
             </div>
 
@@ -2208,28 +2238,33 @@ export const PertoView: React.FC<PertoViewProps> = ({
             : mapaExpandido ? (linhaAberta ? 'h-[78%]' : 'h-[68%]') : 'h-[42%] min-h-[230px] max-h-[400px]'
         }`}
       >
-        {/* Pesquisa por cima do mapa (telemóvel) */}
-        {localizacaoPronta && (!emViagem || adicionandoDestino) && (
+        {/* Pesquisa por cima do mapa (telemóvel), com o "+" para juntar paragens à rota */}
+        {localizacaoPronta && !emViagem && (
           <div className="lg:hidden absolute top-3 left-3 right-[60px] z-20">
-            <div className="relative flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
-              <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
-              <InputPesquisa
-                key={adicionandoDestino ? 'junta' : 'normal'}
-                autoFocus={emViagem}
-                valor={destinationQuery}
-                onTexto={setDestinationQuery}
-                onLimpar={emViagem ? cancelarOutroDestino : handleClearDestination}
-                onFocus={() => setSearchFocused(true)}
-                placeholder={emViagem ? t('Para onde a seguir?') : t('Para onde vais?')}
-                className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
-                classeLimpar="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
-                rotuloLimpar={t('Limpar pesquisa')}
-              />
-              {emViagem && !destinationQuery && (
-                <button onClick={cancelarOutroDestino} className="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer" aria-label={t('Cancelar')}>
-                  <X className="w-3.5 h-3.5 stroke-[2]" />
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0 flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
+                <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />
+                <InputPesquisa
+                  valor={destinationQuery}
+                  onTexto={setDestinationQuery}
+                  onLimpar={handleClearDestination}
+                  onFocus={() => setSearchFocused(true)}
+                  placeholder={t('Para onde vais?')}
+                  className="w-full pl-9 pr-8 bg-transparent text-[14px] text-[#111111] placeholder-[#6B6B6B] focus:outline-none h-11"
+                  classeLimpar="absolute right-2 text-[#6B6B6B] hover:text-[#111111] p-1.5 cursor-pointer"
+                  rotuloLimpar={t('Limpar pesquisa')}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={abrirEditor}
+                data-teste="juntar-paragem"
+                className="shrink-0 w-11 h-11 rounded-full bg-[#FFFFFF] text-[#111111] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer active:bg-[#F4F4F2]"
+                aria-label={t('Adicionar paragens à rota')}
+                title={t('Adicionar paragens à rota')}
+              >
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+              </button>
             </div>
             {searchFocused && suggestions.length > 0 && <div className="mt-1">{listaSugestoes(true)}</div>}
           </div>
@@ -2296,6 +2331,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
         )}
       </main>
 
+      {editor && (
+        <EditorParagens
+          origem={{ lat: userCoords?.latitude ?? 38.7253, lon: userCoords?.longitude ?? -9.1500 }}
+          origemNome={userCoords?.isManual ? userCoords.locationLabel : undefined}
+          linhas={editor.linhas}
+          ativaInicial={editor.ativa}
+          onFechar={() => setEditor(null)}
+          onConfirmar={aplicarEditor}
+        />
+      )}
     </div>
   );
 };

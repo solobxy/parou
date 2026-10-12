@@ -220,15 +220,16 @@ parou.pt`,
     data: '2026-10-12',
     etiqueta: 'Novidade',
     titulo: 'Rota com vários destinos',
-    texto: `🗺️ *Vários destinos na mesma viagem*
+    texto: `🗺️ *Várias paragens na mesma viagem*
 
-Vais a casa de um amigo e depois a outro sítio? Agora a rota pode ter até 5 destinos:
-➕ Escolhe o primeiro destino e toca em "Destino" para juntar os seguintes
+Vais a casa de um amigo e depois a outro sítio? Agora a rota pode ter até 5 paragens:
+➕ Toca no "+" ao lado da pesquisa e escreve cada paragem
+↕️ Arrasta para mudar a ordem
 ⏱️ Diz quanto tempo ficas em cada sítio e as horas seguintes ajustam-se
 🥇 Cada troço mostra as opções da mais rápida à mais simples
 
 parou.pt`,
     imagens: ['/novidades/varios-destinos-1.jpg'],
-    comunidade: 'Já podes planear uma viagem com vários destinos (até 5): escolhe o primeiro destino e toca em "+ Destino" para juntar os seguintes. Cada troço mostra as opções da mais rápida à mais simples, e podes indicar quanto tempo ficas em cada sítio para as horas seguintes se ajustarem.',
+    comunidade: 'Já podes planear uma viagem com várias paragens (até 5): toca no "+" ao lado da pesquisa e escreve cada paragem. Arrasta para mudar a ordem. Cada troço mostra as opções da mais rápida à mais simples, e podes indicar quanto tempo ficas em cada sítio para as horas seguintes se ajustarem.',
   },
 ];
