@@ -359,7 +359,7 @@ function paginaOperador(op: Operador): string {
 <p><a class="btn laranja" href="/">${L(`Ver ${plural} perto de mim`, `See ${plural} near me`)}</a> <a class="btn claro" href="/paragens/${op.slug}">${L('Todas as paragens', 'All stops')}</a></p>
 <h2>${L(`Linhas ${html(op.nome)}`, `${html(op.nome)} lines`)}</h2>
 <ul class="lista">${op.linhas.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>
-<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`)}</p>`;
+<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`)}${op.slug === 'stcp' ? ` ${L('Tempo real: dados abertos da STCP (licença CC BY 4.0).', 'Real time: STCP open data (CC BY 4.0 licence).')}` : ''}</p>`;
   return pagina({
     titulo: L(`Horários ${op.nome}${tr ? ' e tempo real' : ''}: linhas e paragens | PAROU`, `${op.nome} timetables${tr ? ' and real time' : ''}: lines and stops | PAROU`),
     descricao: L(
