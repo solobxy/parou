@@ -13,8 +13,10 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
-import type { TransitRouteOption, RouteLeg } from '../types/perto';
-import { indicePronto, procurar } from './planeadorIndice';
+import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir } from '../types/perto';
+import { indicePronto, procurar, paragensProximas, type Indice, type Jornada } from './planeadorIndice';
+
+export type { CandidatoUnir };
 
 const ZONA = 'Europe/Lisbon';
 const RAIO_A_PE = 900; // metros até às paragens de partida e chegada
@@ -26,6 +28,9 @@ const RAIO_TRANSBORDO = 300;
 const MARGEM_TRANSBORDO = 2 * 60;
 const M_POR_MIN = 75; // ~4,5 km/h
 const DESVIO_RUAS = 1.3; // a pé não se anda em linha reta
+const RAIO_LONGE = 1500; // alcance a pé, só quando não há nada mais perto
+const RAIO_TRANSBORDO_UNIR = 330; // metros a pé entre a paragem onde se sai e a paragem da UNIR onde se entra
+const MIN_ESPERA_UNIR = 10; // espera média (min) por uma UNIR, só para escolher entre candidatas
 
 type Modo = NonNullable<RouteLeg['transportMode']>;
 
@@ -34,14 +39,6 @@ interface Linha { short: string; long: string; tipo: number; cor: string; feed: 
 interface Perna {
   trip: string; route: string; feed: string; destinoViagem: string;
   de: string; para: string; parte: number; chega: number; paragens: number; sa?: number; sb?: number;
-}
-
-export interface CandidatoUnir {
-  linha: string; nome: string; cor: string; sentido: number; paragens: number;
-  origem: { codigo: string; nome: string; metros: number; minutos: number };
-  destino: { codigo: string; nome: string; metros: number; minutos: number };
-  anteriores?: Array<{ codigo: string; passos: number }>;
-  pontos?: Array<{ lat: number; lon: number; nome?: string }>;
 }
 
 function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -105,6 +102,18 @@ function modoDaLinha(l: Linha | undefined, modoFeed: string | undefined): Modo {
   }
 }
 
+/** As viagens de transporte (com horas) de um percurso do motor em memória */
+function pernasDeJornada(ix: Indice, j: Jornada): Perna[] {
+  return j.rides.map((r) => {
+    const pd = ix.padroes[r.pat], nS = pd.stops.length, o = r.t * nS;
+    return {
+      trip: pd.tripId[r.t], route: pd.route, feed: pd.feedSaida, destinoViagem: String(pd.headsign[r.t] || '').trim(),
+      de: ix.stopId[pd.stops[r.b]], para: ix.stopId[pd.stops[r.a]], parte: pd.dep[o + r.b], chega: pd.arr[o + r.a] || pd.dep[o + r.b],
+      paragens: r.a - r.b, sa: pd.seq[o + r.b], sb: pd.seq[o + r.a],
+    };
+  });
+}
+
 /** Os troços a pé ligam o ponto de partida/chegada às paragens de embarque e desembarque */
 export function ligarTrocosAPe(legs: RouteLeg[], origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): void {
   let atual: { lat: number; lon: number } = origem;
@@ -120,9 +129,22 @@ export function ligarTrocosAPe(legs: RouteLeg[], origem: { lat: number; lon: num
   });
 }
 
+export interface RespostaPlano {
+  routes: TransitRouteOption[];
+  unir: CandidatoUnir[];
+  /** Viagem normal + UNIR (o destino só tem paragens da UNIR, ou a UNIR é preciso para lá chegar) */
+  hibridas?: HibridaUnir[];
+  /** UNIR primeiro, depois o resto (a origem só tem paragens da UNIR) */
+  pontes?: PonteUnir[];
+  originCoords: { lat: number; lon: number };
+  destCoords: { lat: number; lon: number };
+  destName: string;
+}
+
 export async function planearViagem(
   oLat: number, oLon: number, dLat: number, dLon: number, destNome: string, agora: Date = new Date(),
-): Promise<{ routes: TransitRouteOption[]; unir: CandidatoUnir[]; originCoords: { lat: number; lon: number }; destCoords: { lat: number; lon: number }; destName: string }> {
+  extras: { ponte?: boolean } = {},
+): Promise<RespostaPlano> {
   const db = getDatabase();
   const feeds = new Map(getAllFeeds().map((f: any) => [f.id, f]));
   const nomeOperador = (feed: string) => String(feeds.get(feed)?.operator_name || feed.toUpperCase());
@@ -150,13 +172,19 @@ export async function planearViagem(
   // A UNIR não tem horários na base (vêm da AMP pelo telemóvel). A Carris Metropolitana tem: as
   // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
   const semViagens = new Set<string>(['unir']);
-  const O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
-  const D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
+  let O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
+  let D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
   const porId = new Map<string, Paragem>();
-  O.forEach((p) => porId.set(`o:${p.id}`, p));
-  D.forEach((p) => porId.set(`d:${p.id}`, p));
-  const minO = new Map(O.map((p) => [p.id, p.minutos]));
-  const minD = new Map(D.map((p) => [p.id, p.minutos]));
+  let minO = new Map(O.map((p) => [p.id, p.minutos]));
+  let minD = new Map(D.map((p) => [p.id, p.minutos]));
+  const registarParagens = () => {
+    porId.clear();
+    O.forEach((p) => porId.set(`o:${p.id}`, p));
+    D.forEach((p) => porId.set(`d:${p.id}`, p));
+    minO = new Map(O.map((p) => [p.id, p.minutos]));
+    minD = new Map(D.map((p) => [p.id, p.minutos]));
+  };
+  registarParagens();
 
   // Dias de serviço: hoje e, de madrugada, as viagens de ontem depois da meia-noite (24:xx)
   const dias: Array<{ desvio: number; ativo: (feed: string) => Set<string> }> = [
@@ -206,6 +234,7 @@ export async function planearViagem(
     } as RouteLeg;
   };
 
+  const executar = () => {
   if (O.length && D.length) {
     const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : [p.id]));
     const idsO = comCmh(O), idsD = comCmh(D);
@@ -223,14 +252,7 @@ export async function planearViagem(
           if (!origens.length || !destinos.size) continue;
           const jornadas = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 2500 });
           for (const j of jornadas) {
-            const pernas: Perna[] = j.rides.map((r) => {
-              const pd = ix.padroes[r.pat], nS = pd.stops.length, o = r.t * nS;
-              return {
-                trip: pd.tripId[r.t], route: pd.route, feed: pd.feedSaida, destinoViagem: String(pd.headsign[r.t] || '').trim(),
-                de: ix.stopId[pd.stops[r.b]], para: ix.stopId[pd.stops[r.a]], parte: pd.dep[o + r.b], chega: pd.arr[o + r.a] || pd.dep[o + r.b],
-                paragens: r.a - r.b, sa: pd.seq[o + r.b], sb: pd.seq[o + r.a],
-              };
-            });
+            const pernas: Perna[] = pernasDeJornada(ix, j);
             const primeira = pernas[0], ultima = pernas[pernas.length - 1];
             const andarO = minO.get(primeira.de) || 1, andarD = minD.get(ultima.para) || 1;
             const legs: RouteLeg[] = [
@@ -415,6 +437,19 @@ export async function planearViagem(
       }
     }
   }
+  };
+  executar();
+  // Sem nada em transporte a menos de ~900 m a pé de cada lado: tenta com mais caminhada (até ~1,5 km),
+  // como faz o Google Maps ("801 e depois 19 min a pé"). As paragens e os minutos a pé ficam à vista.
+  if (!opcoes.some((o) => o.id !== 'a-pe')) {
+    const O2 = paragensPerto(oLat, oLon, RAIO_LONGE, MAX_PARAGENS, semViagens);
+    const D2 = paragensPerto(dLat, dLon, RAIO_LONGE, MAX_PARAGENS, semViagens);
+    if (O2.length > O.length || D2.length > D.length) {
+      O = O2; D = D2;
+      registarParagens();
+      executar();
+    }
+  }
 
   // ------------------------------------------------------------------ escolha das melhores
   // Ordena pela hora de chegada (cada transbordo "custa" 6 min) e evita repetir a mesma linha
@@ -461,9 +496,23 @@ export async function planearViagem(
 
   // ------------------------------------------------------------------ UNIR (o telemóvel completa)
   const unir: CandidatoUnir[] = [];
+  const uO = paragensPerto(oLat, oLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
+  const uD = paragensPerto(dLat, dLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
+  const queAnteriores = db.prepare(
+    'SELECT stop_id AS id, stop_sequence AS seq FROM stop_routes WHERE route_id = ? AND direction_id = ? AND stop_sequence > ? AND stop_sequence < ? ORDER BY stop_sequence DESC LIMIT 3',
+  );
+  const quePercurso = db.prepare(
+    `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+     WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence BETWEEN ? AND ? ORDER BY sr.stop_sequence`,
+  );
+  /** Paragens anteriores a `sb` e percurso entre `sa` e `sb`, para a app completar a hora da UNIR e desenhar a linha */
+  const detalheLinhaUnir = (route: string, sentido: number, sa: number, sb: number) => ({
+    anteriores: (queAnteriores.all(route, sentido, sa, sb) as Array<{ id: string; seq: number }>)
+      .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: sb - a.seq })),
+    pontos: (quePercurso.all(route, sentido, sa, sb) as Array<{ lat: number; lon: number; nome: string }>)
+      .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)),
+  });
   try {
-    const uO = paragensPerto(oLat, oLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
-    const uD = paragensPerto(dLat, dLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
     if (uO.length && uD.length) {
       const rows = db.prepare(`
         SELECT a.route_id AS route, a.direction_id AS sentido, a.stop_id AS de, a.stop_sequence AS sa, b.stop_id AS para, b.stop_sequence AS sb
@@ -478,23 +527,11 @@ export async function planearViagem(
         const a = melhor.get(k);
         if (!a || custo < a.custo) melhor.set(k, { r, custo });
       }
-      const queAnteriores = db.prepare(
-        'SELECT stop_id AS id, stop_sequence AS seq FROM stop_routes WHERE route_id = ? AND direction_id = ? AND stop_sequence > ? AND stop_sequence < ? ORDER BY stop_sequence DESC LIMIT 3',
-      );
-      const quePercurso = db.prepare(
-        `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
-         WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence BETWEEN ? AND ? ORDER BY sr.stop_sequence`,
-      );
       for (const { r } of Array.from(melhor.values()).sort((a, b) => a.custo - b.custo).slice(0, 5)) {
         const l = linha(r.route);
         const po = mO.get(r.de)!, pd = mD.get(r.para)!;
-        const anteriores = (queAnteriores.all(r.route, r.sentido, r.sa, r.sb) as Array<{ id: string; seq: number }>)
-          .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: r.sb - a.seq }));
-        const pontos = (quePercurso.all(r.route, r.sentido, r.sa, r.sb) as Array<{ lat: number; lon: number; nome: string }>)
-          .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
         unir.push({
-          anteriores,
-          pontos,
+          ...detalheLinhaUnir(r.route, r.sentido, r.sa, r.sb),
           linha: l?.short || r.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: r.sentido, paragens: r.sb - r.sa,
           origem: { codigo: r.de.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos },
           destino: { codigo: r.para.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos },
@@ -505,5 +542,222 @@ export async function planearViagem(
     console.warn('[Planeador] UNIR:', err?.message || err);
   }
 
-  return { routes, unir, originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
+  // ------------------------------------------------------------------ UNIR + resto da rede (híbridas)
+  // Perto do destino (ou da origem) só há paragens da UNIR, que não têm horários no servidor, e nenhuma
+  // ligação direta serve: junta-se uma viagem normal (STCP, Metro, CP…) com uma linha da UNIR, nos dois
+  // sentidos. A viagem normal vem calculada com horas; a UNIR é completada pelo telemóvel com a AMP.
+  const hibridas: HibridaUnir[] = [];
+  const pontes: PonteUnir[] = [];
+  const semTransito = !routes.some((r) => r.id !== 'a-pe') && unir.length === 0;
+  if (semTransito && (uO.length || uD.length)) {
+    const ix = indicePronto();
+    const prazo = Date.now() + 2500;
+    if (ix) {
+      const mDx = new Map(uD.map((p) => [p.id, p]));
+      const mOx = new Map(uO.map((p) => [p.id, p]));
+      const origensDo = (lista: Paragem[], t0: number) => {
+        const out: Array<{ stop: number; t: number }> = [];
+        for (const p of lista) { const i = ix.stopIdx.get(p.id); if (i !== undefined) out.push({ stop: i, t: t0 + p.minutos * 60 }); }
+        return out;
+      };
+      const caminhoParaUnir = () => {
+        // Linhas da UNIR que passam perto do destino: a paragem mais próxima por linha e sentido
+        const rows = db.prepare(`SELECT route_id AS route, direction_id AS sentido, stop_id AS para, stop_sequence AS sb FROM stop_routes WHERE stop_id IN (${marcas(uD.length)})`)
+          .all(...uD.map((p) => p.id)) as Array<{ route: string; sentido: number; para: string; sb: number }>;
+        const porLinha = new Map<string, { route: string; sentido: number; para: string; sb: number; minutos: number }>();
+        for (const r of rows) {
+          const p = mDx.get(r.para); if (!p) continue;
+          const k = `${r.route}|${r.sentido}`;
+          const a = porLinha.get(k);
+          if (!a || p.minutos < a.minutos) porLinha.set(k, { ...r, minutos: p.minutos });
+        }
+        const linhasSel = Array.from(porLinha.values()).sort((a, b) => a.minutos - b.minutos).slice(0, 8);
+        if (!linhasSel.length) return [];
+        const qBordos = db.prepare(
+          `SELECT sr.stop_id AS id, sr.stop_sequence AS seq, s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
+           FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+           WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence < ? AND sr.stop_sequence >= ? ORDER BY sr.stop_sequence`,
+        );
+        type Bordo = { linha: typeof linhasSel[0]; id: string; seq: number; nome: string; lat: number; lon: number; xs: Array<{ idx: number; dist: number }> };
+        const bordos: Bordo[] = [];
+        const alvos = new Set<number>();
+        for (const l of linhasSel) {
+          for (const b of qBordos.all(l.route, l.sentido, l.sb, l.sb - 45) as Array<{ id: string; seq: number; nome: string; lat: number; lon: number }>) {
+            if (!Number.isFinite(b.lat) || !Number.isFinite(b.lon)) continue;
+            const xs = paragensProximas(ix, b.lat, b.lon, RAIO_TRANSBORDO_UNIR).slice(0, 6);
+            if (!xs.length) continue;
+            bordos.push({ linha: l, id: b.id, seq: b.seq, nome: b.nome, lat: b.lat, lon: b.lon, xs });
+            xs.forEach((x) => alvos.add(x.idx));
+          }
+        }
+        if (!bordos.length) return [];
+        const cands: Array<{ custo: number; b: Bordo; x: { idx: number; dist: number }; j: Jornada; dia: typeof dias[0] }> = [];
+        for (const dia of dias) {
+          const base = agoraSegs + dia.desvio;
+          const origens = origensDo(O, base);
+          if (!origens.length) continue;
+          const todos = new Map<number, Jornada[]>();
+          procurar(ix, {
+            origens, destinos: new Map(Array.from(alvos, (i) => [i, 0] as [number, number])), ativo: dia.ativo,
+            maxK: 3, limiteSaida: base + 2 * 3600, orcamentoMs: Math.max(400, prazo - Date.now()), todosAlvos: todos,
+          });
+          for (const b of bordos) for (const x of b.xs) {
+            const js = todos.get(x.idx);
+            if (!js) continue;
+            let melhor: Jornada | null = null, melhorV = Infinity;
+            for (const j of js) { const v = j.chegada + (j.rides.length - 1) * 360; if (v < melhorV) { melhorV = v; melhor = j; } }
+            if (!melhor) continue;
+            // hora estimada de chegada ao destino: (cada transbordo pesa 6 min), a pé até à UNIR, espera média, viagem, a pé até lá
+            const custo = melhorV + minutosAPe(x.dist) * 60 + MIN_ESPERA_UNIR * 60 + (b.linha.sb - b.seq) * 90 + b.linha.minutos * 60;
+            cands.push({ custo, b, x, j: melhor, dia });
+          }
+        }
+        cands.sort((a, b) => a.custo - b.custo);
+        const porLinhaN = new Map<string, number>();
+        const vistos = new Set<string>();
+        const escolhidas: typeof cands = [];
+        for (const c of cands) {
+          const k = `${c.b.linha.route}|${c.b.linha.sentido}`;
+          const sig = `${k}|${c.x.idx}`;
+          if (vistos.has(sig) || (porLinhaN.get(k) || 0) >= 2) continue;
+          vistos.add(sig);
+          porLinhaN.set(k, (porLinhaN.get(k) || 0) + 1);
+          escolhidas.push(c);
+          if (escolhidas.length >= 5) break;
+        }
+        const qPontos = db.prepare(
+          `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
+           WHERE st.trip_id = ? AND st.stop_sequence BETWEEN ? AND ? ORDER BY st.stop_sequence`,
+        );
+        const saida: HibridaUnir[] = [];
+        for (const c of escolhidas) {
+          const pernas = pernasDeJornada(ix, c.j);
+          const prim = pernas[0];
+          const andarO = minO.get(prim.de) || 1;
+          const legs: RouteLeg[] = [
+            { mode: 'WALK', instruction: `Ir a pé até ${nomeDe(prim.de)}`, durationMinutes: andarO, distanceMeters: Math.round((porId.get(`o:${prim.de}`)?.dist || 0) * DESVIO_RUAS) },
+          ];
+          let metrosAPe = porId.get(`o:${prim.de}`)?.dist || 0;
+          let andarTotal = andarO;
+          pernas.forEach((pn, i) => {
+            if (i > 0) {
+              const ant = pernas[i - 1];
+              if (ant.para !== pn.de) {
+                const a = ix.stopIdx.get(ant.para), b = ix.stopIdx.get(pn.de);
+                const m = a !== undefined && b !== undefined ? distM(ix.lat[a], ix.lon[a], ix.lat[b], ix.lon[b]) : 0;
+                const min = Math.max(1, minutosAPe(m));
+                legs.push({ mode: 'WALK', instruction: `Ir a pé até ${nomeDe(pn.de)} (transbordo)`, durationMinutes: min, distanceMeters: Math.round(m * DESVIO_RUAS) });
+                metrosAPe += m; andarTotal += min;
+              }
+            }
+            legs.push(pernaTransito(pn, c.dia.desvio));
+          });
+          for (const l of legs as any[]) {
+            const pn: Perna | undefined = l._perna;
+            delete l._perna;
+            if (l.mode === 'TRANSIT' && pn?.sa != null && pn?.sb != null) {
+              try { l.pontos = (qPontos.all(pn.trip, pn.sa, pn.sb) as Array<{ lat: number; lon: number }>).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)); } catch { /* sem desenho */ }
+            }
+          }
+          const xLat = ix.lat[c.x.idx], xLon = ix.lon[c.x.idx];
+          ligarTrocosAPe(legs, { lat: oLat, lon: oLon }, { lat: xLat, lon: xLon });
+          const chegada = c.j.chegada - c.dia.desvio;
+          const trocas = pernas.length - 1;
+          const bd = c.b, lnh = bd.linha;
+          const l = linha(lnh.route), pd = mDx.get(lnh.para)!;
+          saida.push({
+            prefixo: {
+              id: `hp-${pernas.map((x) => x.trip).join('-')}-${ix.stopId[c.x.idx]}`,
+              type: 'fewest_transfers', title: trocas ? 'Com transbordo' : 'Direto',
+              badgeLabel: trocas ? `${trocas} ${trocas === 1 ? 'transbordo' : 'transbordos'}` : 'Direto',
+              totalDurationMinutes: Math.max(1, Math.round((chegada - agoraSegs) / 60)),
+              departureTime: hm(prim.parte - c.dia.desvio - andarO * 60), arrivalTime: hm(chegada),
+              walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
+              legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Horário programado', relevantAlerts: [],
+            },
+            chegadaEpoch: epocaMeiaNoite + chegada,
+            transbordo: { lat: xLat, lon: xLon, nome: nomeDe(ix.stopId[c.x.idx]) },
+            candidato: {
+              ...detalheLinhaUnir(lnh.route, lnh.sentido, bd.seq, lnh.sb),
+              linha: l?.short || lnh.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: lnh.sentido, paragens: lnh.sb - bd.seq,
+              origem: { codigo: bd.id.replace(/^unir:/, ''), nome: bd.nome, metros: Math.round(c.x.dist * DESVIO_RUAS), minutos: minutosAPe(c.x.dist), lat: bd.lat, lon: bd.lon },
+              destino: { codigo: lnh.para.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos, lat: pd.lat, lon: pd.lon },
+            },
+          });
+        }
+        return saida;
+      };
+
+      const comecarNaUnir = () => {
+        // Linhas da UNIR que passam perto da origem: a paragem mais próxima por linha e sentido
+        const rows = db.prepare(`SELECT route_id AS route, direction_id AS sentido, stop_id AS de, stop_sequence AS sa FROM stop_routes WHERE stop_id IN (${marcas(uO.length)})`)
+          .all(...uO.map((p) => p.id)) as Array<{ route: string; sentido: number; de: string; sa: number }>;
+        const porLinha = new Map<string, { route: string; sentido: number; de: string; sa: number; minutos: number }>();
+        for (const r of rows) {
+          const p = mOx.get(r.de); if (!p) continue;
+          const k = `${r.route}|${r.sentido}`;
+          const a = porLinha.get(k);
+          if (!a || p.minutos < a.minutos) porLinha.set(k, { ...r, minutos: p.minutos });
+        }
+        const linhasSel = Array.from(porLinha.values()).sort((a, b) => a.minutos - b.minutos).slice(0, 6);
+        const qSeg = db.prepare(
+          `SELECT sr.stop_id AS id, sr.stop_sequence AS seq, s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
+           FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
+           WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence > ? AND sr.stop_sequence <= ? ORDER BY sr.stop_sequence`,
+        );
+        const pts: Array<{ linha: typeof linhasSel[0]; id: string; seq: number; nome: string; lat: number; lon: number; ys: Array<{ idx: number; dist: number }>; dDest: number }> = [];
+        for (const l of linhasSel) {
+          for (const s of qSeg.all(l.route, l.sentido, l.sa, l.sa + 45) as Array<{ id: string; seq: number; nome: string; lat: number; lon: number }>) {
+            if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
+            const ys = paragensProximas(ix, s.lat, s.lon, RAIO_TRANSBORDO_UNIR).slice(0, 8);
+            if (!ys.length) continue;
+            const dDest = distM(s.lat, s.lon, dLat, dLon);
+            if (dDest > distTotal) continue; // não serve afastar-se do destino
+            pts.push({ linha: l, id: s.id, seq: s.seq, nome: s.nome, lat: s.lat, lon: s.lon, ys, dDest });
+          }
+        }
+        // os mais perto do destino primeiro, sem repetir zonas
+        pts.sort((a, b) => a.dDest - b.dDest);
+        const sel: typeof pts = [];
+        for (const p of pts) {
+          if (sel.some((q) => distM(q.lat, q.lon, p.lat, p.lon) < 500)) continue;
+          sel.push(p);
+          if (sel.length >= 8) break;
+        }
+        const dia = dias[0];
+        const base = agoraSegs + dia.desvio;
+        const destinos = new Map<number, number>();
+        for (const p of D) { const i = ix.stopIdx.get(p.id); if (i !== undefined) destinos.set(i, p.minutos * 60); }
+        const verificadas: Array<{ est: number; p: typeof pts[0] }> = [];
+        for (const p of sel) {
+          if (Date.now() > prazo) break;
+          // a viagem em UNIR demora; a seguir continua-se a partir das paragens perto de onde se sai
+          const tEst = base + p.linha.minutos * 60 + MIN_ESPERA_UNIR * 60 + (p.seq - p.linha.sa) * 90;
+          const origens = p.ys.map((y) => ({ stop: y.idx, t: tEst + minutosAPe(y.dist) * 60 }));
+          const js = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 3, limiteSaida: tEst + 3 * 3600, orcamentoMs: 250 });
+          if (!js.length) continue;
+          verificadas.push({ est: Math.min(...js.map((j) => j.chegada)), p });
+        }
+        verificadas.sort((a, b) => a.est - b.est);
+        return verificadas.slice(0, 3).map(({ p }): PonteUnir => {
+          const lnh = p.linha;
+          const l = linha(lnh.route), po = mOx.get(lnh.de)!;
+          return {
+            ponto: { lat: p.lat, lon: p.lon, nome: p.nome },
+            candidato: {
+              ...detalheLinhaUnir(lnh.route, lnh.sentido, lnh.sa, p.seq),
+              linha: l?.short || lnh.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: lnh.sentido, paragens: p.seq - lnh.sa,
+              origem: { codigo: lnh.de.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos, lat: po.lat, lon: po.lon },
+              destino: { codigo: p.id.replace(/^unir:/, ''), nome: p.nome, metros: 0, minutos: 0, lat: p.lat, lon: p.lon },
+            },
+          };
+        });
+      };
+
+      try { if (O.length && uD.length) hibridas.push(...caminhoParaUnir()); } catch (err: any) { console.warn('[Planeador] híbridas (fim):', err?.message || err); }
+      try { if (D.length && uO.length && extras.ponte !== false) pontes.push(...comecarNaUnir()); } catch (err: any) { console.warn('[Planeador] híbridas (início):', err?.message || err); }
+    }
+  }
+
+  return { routes, unir, hibridas, pontes, originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
 }
