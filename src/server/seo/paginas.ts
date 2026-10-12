@@ -813,12 +813,12 @@ function quando(iso: string | null): string {
 }
 
 async function paginaGreves(): Promise<string> {
-  const { greves } = await grevesPartilhadas();
+  const { greves, completo } = await grevesPartilhadas();
   const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
   const oficiais = greves.filter((g) => g.origem === 'operador');
   const noticias = greves.filter((g) => g.origem === 'noticia');
   const grelhaOperadores = `<h2>${L('Greve por operador', 'Strikes by operator')}</h2><div class="grelha ops">${OPERADORES_GREVE.map((x) => {
-    const e = grevesDoOperador(greves, x.chave).estado;
+    const e = grevesDoOperador(greves, x.chave, completo).estado;
     return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</small></a>`;
   }).join('')}</div>`;
   let corpo = `<h1>${L('Greves nos transportes hoje e próximas greves', 'Transport strikes today and upcoming strikes')}</h1>
@@ -830,7 +830,11 @@ async function paginaGreves(): Promise<string> {
     'Get strikes on your phone, even with the app closed: open <a href="/alertas"><b>PAROU Alerts</b></a> and turn notifications on.')}</div>`;
   if (emIngles()) corpo += `<p class="nota">Strike notices are published in Portuguese by the operators and the news outlets, so the details below are in Portuguese.</p>`;
   corpo += grelhaOperadores;
-  if (oficiais.length === 0 && noticias.length === 0) {
+  if (oficiais.length === 0 && noticias.length === 0 && !completo) {
+    corpo += `<div class="cartao"><b>${L('Não foi possível confirmar as greves agora.', 'Strikes could not be confirmed right now.')}</b><p class="nota" style="margin:6px 0 0">${L(
+      'A fonte dos avisos dos operadores não respondeu. Consulta o site do operador antes de sair; esta página tenta outra vez dentro de instantes.',
+      'The source of the operator notices did not respond. Check the operator website before you leave; this page will try again shortly.')}</p></div>`;
+  } else if (oficiais.length === 0 && noticias.length === 0) {
     corpo += `<div class="cartao"><b>${L('Sem greves anunciadas neste momento.', 'No strikes announced right now.')}</b><p class="nota" style="margin:6px 0 0">${L(
       'Não há greves nos transportes anunciadas pelos operadores nem nas notícias dos últimos dias. Esta página atualiza-se sozinha.',
       'There are no transport strikes announced by the operators or in the news over the last few days. This page updates itself.')}</p></div>`;
@@ -980,20 +984,20 @@ let grevesMemo: { t: number; v: ReturnType<typeof obterGreves> } | null = null;
 function grevesPartilhadas() {
   if (!grevesMemo || Date.now() - grevesMemo.t > 120_000) {
     const m = { t: Date.now(), v: obterGreves() };
-    m.v.catch(() => { if (grevesMemo === m) grevesMemo = null; });
+    m.v.then((r) => { if (!r.completo) m.t = Date.now() - 100_000; }).catch(() => { if (grevesMemo === m) grevesMemo = null; });
     grevesMemo = m;
   }
   return grevesMemo.v;
 }
 
-type EstadoGreve = 'ativa' | 'anunciada' | 'noticias' | 'nenhuma';
-function grevesDoOperador(greves: GreveResumo[], chave: string) {
+type EstadoGreve = 'ativa' | 'anunciada' | 'noticias' | 'nenhuma' | 'incerta';
+function grevesDoOperador(greves: GreveResumo[], chave: string, completo = true) {
   const minhas = greves.filter((g) => g.geral || g.chaves.includes(chave));
   const oficiais = minhas.filter((g) => g.origem === 'operador');
   const ativas = oficiais.filter((g) => g.aDecorrer);
   const futuras = oficiais.filter((g) => !g.aDecorrer).sort((a, b) => String(a.inicio || '').localeCompare(String(b.inicio || '')));
   const noticias = minhas.filter((g) => g.origem === 'noticia');
-  const estado: EstadoGreve = ativas.length ? 'ativa' : futuras.length ? 'anunciada' : noticias.length ? 'noticias' : 'nenhuma';
+  const estado: EstadoGreve = ativas.length ? 'ativa' : futuras.length ? 'anunciada' : noticias.length ? 'noticias' : completo ? 'nenhuma' : 'incerta';
   return { ativas, futuras, noticias, estado };
 }
 
@@ -1002,6 +1006,7 @@ const PILULA_GREVE: Record<EstadoGreve, { bg: string; fg: string; pt: string; en
   anunciada: { bg: '#FF6B1A', fg: '#111111', pt: 'Greve anunciada', en: 'Strike announced' },
   noticias: { bg: '#FFD27A', fg: '#111111', pt: 'Notícias de greve', en: 'Strike in the news' },
   nenhuma: { bg: '#1E7A3C', fg: '#FFFFFF', pt: 'Sem greve anunciada', en: 'No strike announced' },
+  incerta: { bg: '#6B6B6B', fg: '#FFFFFF', pt: 'Sem confirmação', en: 'Not confirmed' },
 };
 const pilulaGreve = (e: EstadoGreve) => `<span class="estado" style="background:${PILULA_GREVE[e].bg};color:${PILULA_GREVE[e].fg}">${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</span>`;
 
@@ -1011,9 +1016,9 @@ function cartaoGreve(g: GreveResumo): string {
 const linhaNoticiaGreve = (g: GreveResumo) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`;
 
 async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
-  const { greves } = await grevesPartilhadas();
+  const { greves, completo } = await grevesPartilhadas();
   const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
-  const { ativas, futuras, noticias, estado } = grevesDoOperador(greves, o.chave);
+  const { ativas, futuras, noticias, estado } = grevesDoOperador(greves, o.chave, completo);
   const ix = obterIndice();
   // Se o índice ainda não está pronto, mostra na mesma as alternativas (as páginas de linhas respondem sozinhas)
   const existe = (slug: string) => (ix && ix.operadores.length ? ix.porSlugOperador.has(slug) : true);
@@ -1037,6 +1042,11 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
         `Ainda não encontrámos um aviso do operador, mas as notícias das últimas 72 horas falam de greve ${o.de}. Confirma no site do operador antes de sair.`,
         `We have not found a notice from the operator yet, but news from the last 72 hours mentions a strike at ${o.nome}. Check the operator's website before you leave.`);
     }
+    if (estado === 'incerta') {
+      return L(
+        `Não foi possível confirmar agora se há greve ${o.de}: a fonte dos avisos dos operadores não respondeu. Consulta o site do operador antes de sair.`,
+        `We could not confirm right now whether there is a strike at ${o.nome}: the source of the operator notices did not respond. Check the operator's website before you leave.`);
+    }
     return L(
       `Neste momento não há greve ${o.de} anunciada pelo operador nem nas notícias dos últimos dias.`,
       `Right now there is no strike at ${o.nome} announced by the operator or in the news over the last few days.`);
@@ -1046,7 +1056,7 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   const nomeAlt = (slug: string) => OPERADORES_GREVE.find((x) => x.slug === slug)?.nome || ix?.porSlugOperador.get(slug)?.nome || slug;
   const estadoDe = (slug: string): EstadoGreve => {
     const x = OPERADORES_GREVE.find((y) => y.slug === slug);
-    return x ? grevesDoOperador(greves, x.chave).estado : 'nenhuma';
+    return x ? grevesDoOperador(greves, x.chave, completo).estado : 'nenhuma';
   };
 
   const perguntas = [
@@ -1057,7 +1067,9 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
         ? L(`A próxima greve anunciada ${o.de} é ${quando(futuras[0].inicio)}. Esta página atualiza-se sozinha quando há novas datas.`, `The next announced strike at ${o.nome} is ${quando(futuras[0].inicio)}. This page updates itself when new dates are announced.`)
         : ativas.length
           ? L('Há uma greve a decorrer e ainda não foi anunciada outra. Esta página atualiza-se sozinha quando houver novas datas.', 'A strike is under way and no other has been announced yet. This page updates itself when new dates appear.')
-          : L('Neste momento não há nenhuma data anunciada. A lei exige pré-aviso (nos transportes públicos são, por regra, 10 dias úteis), por isso uma greve costuma ser conhecida com antecedência. Esta página atualiza-se sozinha.', 'No date has been announced right now. The law requires advance notice (for public transport it is, as a rule, 10 working days), so a strike is usually known well ahead. This page updates itself.'),
+          : estado === 'incerta'
+            ? L('Não foi possível confirmar agora as datas das greves. Consulta o site do operador; esta página tenta outra vez dentro de instantes.', 'The strike dates could not be confirmed right now. Check the operator\'s website; this page will try again shortly.')
+            : L('Neste momento não há nenhuma data anunciada. A lei exige pré-aviso (nos transportes públicos são, por regra, 10 dias úteis), por isso uma greve costuma ser conhecida com antecedência. Esta página atualiza-se sozinha.', 'No date has been announced right now. The law requires advance notice (for public transport it is, as a rule, 10 working days), so a strike is usually known well ahead. This page updates itself.'),
     },
     {
       p: L(`Há serviços mínimos na greve ${o.de}?`, `Are there minimum services in a strike at ${o.nome}?`),
@@ -1115,7 +1127,7 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   corpo += `<h2>${L('Perguntas frequentes', 'Frequently asked questions')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}`;
 
   corpo += `<h2>${L('Greves noutros operadores', 'Strikes at other operators')}</h2><div class="grelha ops">${OPERADORES_GREVE.filter((x) => x.slug !== o.slug).map((x) => {
-    const e = grevesDoOperador(greves, x.chave).estado;
+    const e = grevesDoOperador(greves, x.chave, completo).estado;
     return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${L(PILULA_GREVE[e].pt, PILULA_GREVE[e].en)}</small></a>`;
   }).join('')}</div><p><a href="/greves">${L('Ver todas as greves', 'See all strikes')}</a></p>
 <p class="nota">${L(
@@ -1133,7 +1145,9 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
       ? L(`Há greve ${o.de} anunciada para ${quando(primeira.inicio)}.`, `A strike at ${o.nome} is announced for ${quando(primeira.inicio)}.`)
       : estado === 'noticias'
         ? L(`Há notícias de greve ${o.de}, ainda sem aviso do operador.`, `There is news of a strike at ${o.nome}, with no operator notice yet.`)
-        : L(`Neste momento não há greve ${o.de} anunciada.`, `Right now there is no strike announced at ${o.nome}.`);
+        : estado === 'incerta'
+          ? L(`Não foi possível confirmar agora se há greve ${o.de}.`, `We could not confirm right now whether there is a strike at ${o.nome}.`)
+          : L(`Neste momento não há greve ${o.de} anunciada.`, `Right now there is no strike announced at ${o.nome}.`);
   const descricao = L(
     `${curta} Datas, serviços mínimos, notícias e alternativas em dia de greve, sempre atualizado.`,
     `${curta} Dates, minimum services, news and alternatives for a strike day, always up to date.`);
@@ -1726,8 +1740,9 @@ export function registarPaginasSeo(app: Express) {
     if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 300);
     try {
       const v = await paginaGreves();
-      cache.set(chaveG, { t: Date.now(), ttl: 5 * 60_000, v });
-      enviar(res, v, 300);
+      const completo = (await grevesPartilhadas()).completo;
+      cache.set(chaveG, { t: Date.now(), ttl: completo ? 5 * 60_000 : 30_000, v });
+      enviar(res, v, completo ? 300 : 30);
     } catch (err: any) {
       console.warn('[SEO] Greves falhou:', err?.message || err);
       res.status(500).send('Erro');
@@ -1756,8 +1771,9 @@ export function registarPaginasSeo(app: Express) {
     if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 300);
     try {
       const v = await paginaGrevesOperador(o);
-      cache.set(chaveG, { t: Date.now(), ttl: 5 * 60_000, v });
-      enviar(res, v, 300);
+      const completo = (await grevesPartilhadas()).completo;
+      cache.set(chaveG, { t: Date.now(), ttl: completo ? 5 * 60_000 : 30_000, v });
+      enviar(res, v, completo ? 300 : 30);
     } catch (err: any) {
       console.warn('[SEO] Greves por operador falhou:', err?.message || err);
       res.status(500).send('Erro');
@@ -1858,7 +1874,7 @@ export function registarPaginasSeo(app: Express) {
 
 // Para os testes locais
 /** Só para testes: fixa as greves que as páginas usam (sem ir buscar à rede) */
-function semearGreves(greves: GreveResumo[]) {
-  grevesMemo = { t: Date.now() + 365 * 24 * 3600_000, v: Promise.resolve({ atualizado: new Date().toISOString(), greves }) };
+function semearGreves(greves: GreveResumo[], completo = true) {
+  grevesMemo = { t: Date.now() + 365 * 24 * 3600_000, v: Promise.resolve({ atualizado: new Date().toISOString(), greves, completo }) };
 }
 export const _paginas = { paginaHub, paginaOperador, paginaLinha, paginaParagem, paginaGreves, paginaGrevesOperador, paginaPesquisa, paginaListaParagens, paginaIncendios, semearGreves };

@@ -1280,13 +1280,16 @@ export interface GreveResumo {
   geral: boolean;
 }
 
-export async function obterGreves(): Promise<{ atualizado: string; greves: GreveResumo[] }> {
+export async function obterGreves(): Promise<{ atualizado: string; greves: GreveResumo[]; completo: boolean }> {
   const agora = Date.now();
   const greves: GreveResumo[] = [];
+  // "completo" = os avisos dos operadores responderam a tempo: sem isso não se pode dizer que não há greves
+  let oficiaisOk = false;
   const oficiais = await Promise.race([
-    getCentralAlerts().catch(() => []),
+    getCentralAlerts().then((r) => { oficiaisOk = true; return r; }).catch(() => []),
     new Promise<any[]>((r) => setTimeout(() => r([]), 5000)),
   ]);
+  const completo = oficiaisOk;
   for (const a of oficiais as any[]) {
     if (a.tipo !== 'greve') continue;
     if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
@@ -1346,5 +1349,5 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
     Number(y.origem === 'operador') - Number(x.origem === 'operador') ||
     String(x.inicio || '').localeCompare(String(y.inicio || '')) ||
     String(y.publicada || '').localeCompare(String(x.publicada || '')));
-  return { atualizado: new Date().toISOString(), greves: greves.slice(0, 40) };
+  return { atualizado: new Date().toISOString(), greves: greves.slice(0, 40), completo };
 }
