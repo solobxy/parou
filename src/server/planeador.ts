@@ -548,8 +548,10 @@ export async function planearViagem(
   // sentidos. A viagem normal vem calculada com horas; a UNIR é completada pelo telemóvel com a AMP.
   const hibridas: HibridaUnir[] = [];
   const pontes: PonteUnir[] = [];
-  const semTransito = !routes.some((r) => r.id !== 'a-pe') && unir.length === 0;
-  if (semTransito && (uO.length || uD.length)) {
+  const emTransito = routes.filter((r) => r.id !== 'a-pe');
+  // Só se procura quando o que há não é bom: nada em transporte, ou a pé mais de ~9 min (a UNIR pode ficar mais perto)
+  const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9;
+  if (acessoFraco && unir.length === 0 && (uO.length || uD.length)) {
     const ix = indicePronto();
     const prazo = Date.now() + 2500;
     if (ix) {
