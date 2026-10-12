@@ -110,6 +110,16 @@ export function horaDe(ms: number): string {
   return new Intl.DateTimeFormat('pt-PT', { timeZone: 'Europe/Lisbon', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
 }
 
+/** Dia (aaaa-mm-dd) de Lisboa de um instante em ms */
+function diaDe(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+
+/** "Chegas às 18:40" (ou "Chegas amanhã às 00:15", se já for outro dia do que `base`) */
+export function textoChegada(ms: number, base: number): string {
+  return diaDe(ms) !== diaDe(base) ? t('Chegas amanhã às {h}', { h: horaDe(ms) }) : t('Chegas às {h}', { h: horaDe(ms) });
+}
+
 /** Texto do tempo de permanência: "Sem demora", "30 min", "1 h" */
 export function textoPermanencia(min: number): string {
   if (min <= 0) return t('Sem demora');
