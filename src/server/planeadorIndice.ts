@@ -278,6 +278,24 @@ export interface PedidoPesquisa {
   maxK: number; // máximo de viagens (transbordos + 1)
   limiteSaida: number; // não entra em viagens que partam depois disto
   orcamentoMs: number;
+  /**
+   * Se existir, a pesquisa não pára no melhor destino: guarda, para CADA paragem de `destinos`, os percursos
+   * (um por número de viagens que melhora a hora de chegada). A hora de `chegada` conta o tempo a pé do destino.
+   */
+  todosAlvos?: Map<number, Jornada[]>;
+}
+
+/** Paragens com serviço (de feeds com horários) a menos de `raio` metros (máx. ~330 m com esta grelha) */
+export function paragensProximas(ix: Indice, lat: number, lon: number, raio: number): Array<{ idx: number; dist: number }> {
+  const out: Array<{ idx: number; dist: number }> = [];
+  const cy = celulaY(lat), cx = celulaX(lon);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    for (const o of ix.grelha.get(chaveCelula(cy + dy, cx + dx)) || []) {
+      const m = distM(lat, lon, ix.lat[o], ix.lon[o]);
+      if (m <= raio) out.push({ idx: o, dist: m });
+    }
+  }
+  return out.sort((a, b) => a.dist - b.dist);
 }
 
 export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
@@ -411,6 +429,22 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
         }
       }
 
+      if (pedido.todosAlvos) {
+        // modo "todos os alvos": guarda o percurso a cada paragem que melhorou nesta ronda
+        for (const [d, egress] of destinos) {
+          if (kind[k][d] !== 1 && kind[k][d] !== 2) continue;
+          const j = reconstruir(k, d);
+          if (!j) continue;
+          j.chegada = tau[k][d] + egress;
+          const lista = pedido.todosAlvos.get(d);
+          if (lista) lista.push(j); else pedido.todosAlvos.set(d, [j]);
+        }
+        const prox0 = new Set<number>(novos);
+        for (const o of aPe) prox0.add(o);
+        marcados = Array.from(prox0);
+        if (!marcados.length) break;
+        continue;
+      }
       // chegada ao destino nesta ronda
       let melhorD = -1, melhorC = INF;
       for (const [d, egress] of destinos) {
@@ -448,6 +482,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
     }
   };
 
+  if (pedido.todosAlvos) { correr(new Set()); return []; }
   const primeiras = correr(new Set());
   juntar(primeiras);
   // Alternativas: volta a pesquisar sem cada uma das linhas do melhor percurso

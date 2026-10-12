@@ -1395,8 +1395,9 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
       const d = DateTime.fromISO(quandoTxt, { zone: 'Europe/Lisbon' });
       if (d.isValid) quando = d.toJSDate();
     }
-    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando);
-    console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR em ${Date.now() - t0} ms`);
+    // ponte=0: a app já está a continuar uma viagem a partir de uma paragem da UNIR (não voltar a propor outra ponte)
+    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando, { ponte: String(req.query.ponte) !== '0' });
+    console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR + ${routeData.hibridas?.length || 0}/${routeData.pontes?.length || 0} híbridas em ${Date.now() - t0} ms`);
     return res.json(routeData);
   } catch (err: any) {
     console.error('[Plan Route API] Erro:', err);

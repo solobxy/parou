@@ -112,6 +112,8 @@ export interface TransitRouteOption {
   realtimeStatus: 'TEMPO_REAL' | 'PROGRAMADO';
   realtimeLabel: string;
   relevantAlerts: string[];
+  /** Instante (epoch em segundos) em que se chega ao fim; usado para encadear viagens (UNIR + resto) */
+  chegadaEpoch?: number;
 }
 
 /** Ligação direta da UNIR encontrada pelo servidor (linha, sentido e paragens); a hora vem da AMP */
@@ -121,21 +123,34 @@ export interface CandidatoUnir {
   cor: string;
   sentido: number;
   paragens: number;
-  origem: { codigo: string; nome: string; metros: number; minutos: number };
-  destino: { codigo: string; nome: string; metros: number; minutos: number };
+  origem: { codigo: string; nome: string; metros: number; minutos: number; lat?: number; lon?: number };
+  destino: { codigo: string; nome: string; metros: number; minutos: number; lat?: number; lon?: number };
   /** Paragens imediatamente antes do destino, na mesma linha e sentido (a AMP não lista chegadas ao fim da linha) */
   anteriores?: Array<{ codigo: string; passos: number }>;
   /** Paragens da linha entre a origem e o destino, para desenhar o percurso no mapa */
   pontos?: PontoRota[];
 }
 
-export interface DestinationSuggestion {
-  id: string;
-  title: string;
-  subtitle: string;
-  latitude: number;
-  longitude: number;
-  type: 'STATION' | 'STOP' | 'PLACE' | 'CITY';
-  transportMode?: TransportMode;
-  distanceFromUserMeters?: number;
+/**
+ * Viagem em transporte com horário (STCP, Metro, CP…) até uma paragem perto de uma paragem da UNIR e,
+ * a seguir, uma linha da UNIR até ao destino. O servidor calcula a primeira parte; a hora da UNIR vem da AMP
+ * (pelo telemóvel) e conta a partir do instante de chegada ao transbordo.
+ */
+export interface HibridaUnir {
+  /** Do ponto de partida até ao transbordo (sem a parte a pé até à paragem da UNIR) */
+  prefixo: TransitRouteOption;
+  /** Instante (epoch, s) em que se chega ao transbordo */
+  chegadaEpoch: number;
+  transbordo: PontoRota;
+  /** Origem = paragem da UNIR a seguir ao transbordo; destino = a que fica perto do destino final */
+  candidato: CandidatoUnir;
+}
+
+/**
+ * Começa na UNIR (a origem só tem paragens da UNIR perto): linha da UNIR até uma paragem onde se
+ * continua em transporte. A app calcula o resto a partir de `ponto`, à hora a que a UNIR chega lá.
+ */
+export interface PonteUnir {
+  candidato: CandidatoUnir;
+  ponto: PontoRota;
 }
