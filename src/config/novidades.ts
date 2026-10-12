@@ -196,4 +196,23 @@ parou.pt`,
     imagens: ['/novidades/conforto-1.jpg'],
     comunidade: 'Mais três detalhes no telemóvel: o gesto de voltar fecha a janela que tens aberta, em Horários as tuas linhas favoritas vêm primeiro e, em Alertas, já tens o botão para te juntares ao canal de WhatsApp.',
   },
+  {
+    id: 'stcp-tempo-real',
+    data: '2026-10-12',
+    etiqueta: 'Novidade',
+    titulo: 'STCP em tempo real, com os dados oficiais',
+    texto: `🚌 *STCP em tempo real*
+
+No Porto, a PAROU passa a usar os dados oficiais da STCP:
+⏱️ Quando chega o próximo autocarro, atualizado a cada poucos segundos
+📍 Onde vai cada autocarro, no mapa
+🟢 O que vem mesmo em direto fica assinalado
+
+Um obrigado à STCP por ter partilhado os dados.
+_Dados abertos da STCP, licença CC BY 4.0._
+
+parou.pt`,
+    imagens: ['/novidades/stcp-tempo-real-1.jpg'],
+    comunidade: 'No Porto, os autocarros da STCP passam a aparecer na PAROU com os dados oficiais da STCP: próximas chegadas atualizadas a cada poucos segundos e a posição de cada autocarro no mapa. Um obrigado à STCP por ter partilhado os dados.',
+  },
 ];
