@@ -57,7 +57,7 @@ export const DIRECT_GTFS_ZIP_URLS: Record<string, string> = {
 // Fontes concretas de telemetria em tempo real (URL/API real) ou "não integrado"
 export const CONCRETE_REALTIME_SOURCES: Record<string, string> = {
   carris_metropolitana: 'https://api.carrismetropolitana.pt/v2',
-  stcp: 'https://dadosabertos.cm-porto.pt/api/3/action/datastore_search',
+  stcp: 'https://api.stcp.pt:8443/v1/real',
   unir: 'https://paragens.amp.pt/geoserver/paragens/ows',
   metro_lisboa: 'https://api.metrolisboa.pt',
 };
