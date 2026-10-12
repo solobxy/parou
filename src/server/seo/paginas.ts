@@ -16,6 +16,7 @@ import { html, hora, cortar, slug, nomeBonito } from './texto';
 import { LinesEngine } from '../linesEngine';
 import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../dadosProntos';
 import { obterGreves } from '../alertasEngine';
+import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -92,6 +93,11 @@ details>summary::-webkit-details-marker{display:none}details>summary:after{conte
 form.pesquisa{display:flex;gap:8px;margin:14px 0}form.pesquisa input{flex:1;min-width:0;height:48px;border:1px solid #E6E6E3;border-radius:12px;padding:0 14px;font:inherit;background:#F4F4F2}
 .paginas{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}.paginas a,.paginas span{padding:6px 11px;border-radius:9px;background:#F4F4F2;text-decoration:none;font-size:14px}.paginas span{background:#111;color:#fff}
 .aviso{background:#FFF4EC;border:1px solid #FFD9C2;border-radius:14px;padding:12px 14px;margin:12px 0}
+.grelha.estreita{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+ul.lista li.fogo{padding:12px 14px}.fogo .l1{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}.fogo .l1 b{font-size:17px;line-height:1.25}
+.fogo .onde{margin-top:2px}.fogo .meta{margin-top:2px;font-size:13px;color:#6B6B6B;font-variant-numeric:tabular-nums}
+.estado{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.estado:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 footer.rodape{border-top:1px solid #E6E6E3;background:#F4F4F2;color:#4A4A4A;font-size:14px}footer .in{max-width:880px;margin:0 auto;padding:22px 16px 30px}
 footer nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}footer a{text-decoration:none}footer a:hover{text-decoration:underline}
 footer button.idioma{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:999px;padding:5px 14px;min-height:32px;cursor:pointer;opacity:.85}footer button.idioma:hover{opacity:1}
@@ -107,7 +113,7 @@ html[data-tema=escuro] header.topo{background:#161618;border-color:#2A2A2E}
 html[data-tema=escuro] .btn{background:#F2F2F0;color:#111}
 html[data-tema=escuro] .btn.laranja{background:#FF6B1A;color:#111}
 html[data-tema=escuro] .btn.claro{background:#26262B;color:#F2F2F0}
-html[data-tema=escuro] nav.migalhas,html[data-tema=escuro] nav.migalhas a,html[data-tema=escuro] .nota,html[data-tema=escuro] .resumo span,html[data-tema=escuro] .lista .t small,html[data-tema=escuro] .lista .dir,html[data-tema=escuro] ol.percurso small,html[data-tema=escuro] .partidas .hora small,html[data-tema=escuro] .grelha small,html[data-tema=escuro] details>summary:after,html[data-tema=escuro] h1 span[style]{color:#A9A9AF!important}
+html[data-tema=escuro] nav.migalhas,html[data-tema=escuro] nav.migalhas a,html[data-tema=escuro] .nota,html[data-tema=escuro] .resumo span,html[data-tema=escuro] .lista .t small,html[data-tema=escuro] .lista .dir,html[data-tema=escuro] ol.percurso small,html[data-tema=escuro] .partidas .hora small,html[data-tema=escuro] .grelha small,html[data-tema=escuro] .fogo .meta,html[data-tema=escuro] details>summary:after,html[data-tema=escuro] h1 span[style]{color:#A9A9AF!important}
 html[data-tema=escuro] .sub{color:#C9C9CD}
 html[data-tema=escuro] .chip{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
 html[data-tema=escuro] .cartao,html[data-tema=escuro] details{background:#1E1E21;border-color:#34343A}
@@ -134,7 +140,7 @@ html[data-tema=ambar] body{color:#2A170B;background-color:#FFE3C8;background-ima
 html[data-tema=ambar] header.topo{background:rgba(255,248,240,.72);border-color:rgba(255,255,255,.7);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}
 html[data-tema=ambar] .btn{background:linear-gradient(180deg,#FF8A3D,#FF6B1A);color:#1F0F05;box-shadow:0 6px 16px rgba(255,107,26,.32)}
 html[data-tema=ambar] .btn.claro{background:rgba(255,250,245,.7);color:#2A170B;box-shadow:none;border:1px solid rgba(255,255,255,.8)}
-html[data-tema=ambar] nav.migalhas,html[data-tema=ambar] nav.migalhas a,html[data-tema=ambar] .nota,html[data-tema=ambar] .resumo span,html[data-tema=ambar] .lista .t small,html[data-tema=ambar] .lista .dir,html[data-tema=ambar] ol.percurso small,html[data-tema=ambar] .partidas .hora small,html[data-tema=ambar] .grelha small,html[data-tema=ambar] details>summary:after,html[data-tema=ambar] h1 span[style]{color:#70513C!important}
+html[data-tema=ambar] nav.migalhas,html[data-tema=ambar] nav.migalhas a,html[data-tema=ambar] .nota,html[data-tema=ambar] .resumo span,html[data-tema=ambar] .lista .t small,html[data-tema=ambar] .lista .dir,html[data-tema=ambar] ol.percurso small,html[data-tema=ambar] .partidas .hora small,html[data-tema=ambar] .grelha small,html[data-tema=ambar] .fogo .meta,html[data-tema=ambar] details>summary:after,html[data-tema=ambar] h1 span[style]{color:#70513C!important}
 html[data-tema=ambar] .sub{color:#5A3B27}
 html[data-tema=ambar] .cartao,html[data-tema=ambar] details,html[data-tema=ambar] ul.lista,html[data-tema=ambar] .grelha a{background:rgba(255,250,245,.62);border-color:rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(160,80,20,.1);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 html[data-tema=ambar] .resumo div{background:rgba(255,250,245,.66);border:1px solid rgba(255,255,255,.8)}
@@ -170,7 +176,7 @@ function rodape(): string {
   const principais = (ix?.operadores || []).slice(0, 14).map((o) => `<a href="/linhas/${o.slug}">${html(o.nome)}</a>`).join('');
   return `<footer class="rodape"><div class="in">
 <div class="marca" style="font-size:20px">${LOGO_SVG}PAROU</div>
-<nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables')}</a><a href="/cidades">${L('Cidades', 'Cities')}</a><a href="/greves">${L('Greves', 'Strikes')}</a><a href="/alertas">${L('Alertas', 'Alerts')}</a><a href="/mapa">${L('Mapa', 'Map')}</a><a href="/sobre">${L('Sobre', 'About')}</a><a href="/privacidade">${L('Privacidade', 'Privacy')}</a><a href="/termos">${L('Termos', 'Terms')}</a><a href="/apagar-conta">${L('Apagar conta', 'Delete account')}</a><a href="/contactar">${L('Contactar', 'Contact')}</a></nav>
+<nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables')}</a><a href="/cidades">${L('Cidades', 'Cities')}</a><a href="/greves">${L('Greves', 'Strikes')}</a><a href="/incendios">${L('Incêndios', 'Fires')}</a><a href="/alertas">${L('Alertas', 'Alerts')}</a><a href="/mapa">${L('Mapa', 'Map')}</a><a href="/sobre">${L('Sobre', 'About')}</a><a href="/privacidade">${L('Privacidade', 'Privacy')}</a><a href="/termos">${L('Termos', 'Terms')}</a><a href="/apagar-conta">${L('Apagar conta', 'Delete account')}</a><a href="/contactar">${L('Contactar', 'Contact')}</a></nav>
 <nav aria-label="${L('Operadores', 'Operators')}">${principais}</nav>
 <p class="nota">${L('Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.', 'Free and non-profit. Official timetables published by the operators (GTFS) and by IMT; they can change without notice — if in doubt, check with the operator.')}</p>
 <p style="margin:12px 0 0"><button type="button" class="idioma" lang="${emIngles() ? 'pt' : 'en'}" onclick="parouIdioma('${emIngles() ? 'pt' : 'en'}')">${emIngles() ? 'Português' : 'English'}</button></p>
@@ -843,6 +849,182 @@ async function paginaGreves(): Promise<string> {
   });
 }
 
+// ------------------------------------------------------------------------------------
+// Incêndios ativos hoje: lista nacional e por distrito. Dados da Proteção Civil (ANEPC) através do
+// Fogos.pt (VOST Portugal), que exige a fonte visível e uso não comercial. Nunca se diz "sem
+// incêndios" quando a fonte não respondeu: nesse caso a página diz que não conseguiu os dados.
+// ------------------------------------------------------------------------------------
+interface Distrito { slug: string; nome: string; em: string; alias?: string }
+const distrito = (nome: string, em?: string, alias?: string): Distrito => ({ slug: slug(nome), nome, em: em || `em ${nome}`, alias });
+export const DISTRITOS: Distrito[] = [
+  distrito('Aveiro'), distrito('Beja'), distrito('Braga'), distrito('Bragança'), distrito('Castelo Branco'), distrito('Coimbra'),
+  distrito('Évora'), distrito('Faro', undefined, 'Algarve'), distrito('Guarda'), distrito('Leiria'), distrito('Lisboa'),
+  distrito('Portalegre'), distrito('Porto', 'no Porto'), distrito('Santarém'), distrito('Setúbal'), distrito('Viana do Castelo'),
+  distrito('Vila Real'), distrito('Viseu'), distrito('Madeira', 'na Madeira'), distrito('Açores', 'nos Açores'),
+];
+const rotuloDistrito = (d: Distrito): string => (d.alias ? `${d.nome} (${d.alias})` : d.nome);
+
+/** Normaliza o distrito que vem da fonte ("Ilha da Madeira", "Viana Do Castelo") para o endereço da página */
+function chaveDistrito(d: string): string {
+  const s = slug(d || '', 60).replace(/^(ilha-d[aeo]s?-|regiao-autonoma-d[aeo]s?-)/, '');
+  if (/^(sao-miguel|terceira|pico|faial|sao-jorge|graciosa|flores|corvo|santa-maria)$/.test(s)) return 'acores';
+  if (s === 'porto-santo') return 'madeira';
+  return s;
+}
+
+function haQuanto(iso: string | null): string {
+  if (!iso) return '';
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (!Number.isFinite(min)) return '';
+  if (min < 2) return L('agora mesmo', 'just now');
+  if (min < 60) return L(`há ${min} min`, `${min} min ago`);
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h < 24) return L(`há ${h} h${m ? ` ${m} min` : ''}`, `${h} h${m ? ` ${m} min` : ''} ago`);
+  const d = Math.floor(h / 24);
+  return L(`há ${d} ${d === 1 ? 'dia' : 'dias'}`, `${d} ${d === 1 ? 'day' : 'days'} ago`);
+}
+
+function meiosTexto(m: IncidenteProtecaoCivil['meios']): string {
+  const p: string[] = [];
+  if (m.humanos > 0) p.push(L(`${num(m.humanos)} ${m.humanos === 1 ? 'operacional' : 'operacionais'}`, `${num(m.humanos)} personnel`));
+  if (m.terrestres > 0) p.push(L(`${num(m.terrestres)} ${m.terrestres === 1 ? 'meio terrestre' : 'meios terrestres'}`, `${num(m.terrestres)} ground ${m.terrestres === 1 ? 'vehicle' : 'vehicles'}`));
+  if (m.aereos > 0) p.push(L(`${num(m.aereos)} ${m.aereos === 1 ? 'meio aéreo' : 'meios aéreos'}`, `${num(m.aereos)} aerial ${m.aereos === 1 ? 'unit' : 'units'}`));
+  return p.join(' · ');
+}
+
+function estadoTexto(i: IncidenteProtecaoCivil): string {
+  const e = i.estado.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (i.aAcalmar || /resolucao/.test(e)) return L('Em resolução', 'Being resolved');
+  if (/curso/.test(e)) return L('Em curso', 'Ongoing');
+  return i.estado;
+}
+
+function linhaIncendio(i: IncidenteProtecaoCivil, comDistrito: boolean): string {
+  const cor = /^[0-9a-f]{6}$/i.test(i.corEstado) ? i.corEstado : 'FF6B1A';
+  const onde = [i.local, i.concelho && i.concelho !== i.local ? i.concelho : ''].filter(Boolean).join(', ');
+  const sitio = [onde, comDistrito ? i.distrito : ''].filter(Boolean).join(' · ');
+  const meta = [haQuanto(i.inicio), meiosTexto(i.meios)].filter(Boolean).join(' · ');
+  return `<li class="fogo"><div class="l1"><b>${html(i.natureza)}</b><span class="estado" style="background:#${cor};color:${corTexto('#' + cor)}">${html(estadoTexto(i))}</span></div>${sitio ? `<div class="onde">${html(sitio)}</div>` : ''}${meta ? `<div class="meta">${html(meta)}</div>` : ''}</li>`;
+}
+
+function paginaIncendios(d?: Distrito): string {
+  const { atualizado, incidentes, temChave } = obterIncidentes();
+  const fresco = !!atualizado && Date.now() - Date.parse(atualizado) < 3 * 3600_000;
+  const todos = incidentes
+    .filter((i) => i.tipo === 'incendio')
+    .sort((a, b) => Number(b.importante) - Number(a.importante) || Number(a.aAcalmar) - Number(b.aAcalmar) || Date.parse(b.inicio || '') - Date.parse(a.inicio || '') || 0);
+  const porDistrito = new Map<string, number>();
+  for (const i of todos) porDistrito.set(chaveDistrito(i.distrito), (porDistrito.get(chaveDistrito(i.distrito)) || 0) + 1);
+  const fogos = d ? todos.filter((i) => chaveDistrito(i.distrito) === d.slug) : todos;
+  const n = fogos.length;
+  const emResolucao = fogos.filter((i) => i.aAcalmar).length;
+  const emCurso = n - emResolucao;
+  const operacionais = fogos.reduce((s, i) => s + i.meios.humanos, 0);
+  const onde = d ? `${d.em}${d.alias ? ` (${d.alias})` : ''}` : L('em Portugal', 'in Portugal');
+  const frequencia = temChave ? L('de 2 em 2 minutos', 'every 2 minutes') : L('cerca de uma vez por hora', 'about once an hour');
+  const atual = atualizado ? quando(atualizado) : '';
+  const rotuloAtivos = (k: number) => (k === 1 ? L('incêndio ativo', 'active fire') : L('incêndios ativos', 'active fires'));
+
+  const perguntas: Array<{ p: string; r: string }> = [
+    {
+      p: L('De onde vêm os dados dos incêndios?', 'Where does the fire data come from?'),
+      r: L(
+        `Da Proteção Civil (ANEPC), através do Fogos.pt, o projeto do VOST Portugal que reúne as ocorrências em curso. A PAROU consulta o Fogos.pt ${frequencia} e mostra apenas os incêndios que ainda estão ativos.`,
+        `From Portugal's civil protection authority (ANEPC), through Fogos.pt, the VOST Portugal project that gathers ongoing incidents. PAROU checks Fogos.pt ${frequencia} and only shows fires that are still active.`),
+    },
+    {
+      p: L('O que quer dizer «em curso» e «em resolução»?', 'What do "ongoing" and "being resolved" mean?'),
+      r: L(
+        '«Em curso» é um incêndio que ainda está a ser combatido. «Em resolução» quer dizer que a situação está a acalmar, mas as equipas continuam no terreno a rematar o trabalho. Os incêndios concluídos ou só em vigilância saem da lista.',
+        '"Ongoing" is a fire that is still being fought. "Being resolved" means the situation is calming down but crews are still on site finishing the work. Fires that are concluded or only under watch leave the list.'),
+    },
+    {
+      p: L('Que número devo ligar se vir um incêndio?', 'Which number should I call if I see a fire?'),
+      r: L(
+        'Liga 112 e indica o local o mais exato possível. Afasta-te do fogo e do fumo e não tentes apagar incêndios florestais por tua conta.',
+        'Call 112 and give the location as precisely as you can. Move away from the fire and the smoke and do not try to put out wildfires yourself.'),
+    },
+    {
+      p: L('Como vejo os incêndios perto de mim?', 'How do I see fires near me?'),
+      r: L(
+        'Abre o mapa da PAROU: mostra os incêndios ativos em Portugal e as perturbações nos transportes à tua volta.',
+        'Open the PAROU map: it shows the active fires in Portugal and the transport disruptions around you.'),
+    },
+  ];
+
+  let corpo = `<h1>${d ? L(`Incêndios ativos ${html(d.em)}${d.alias ? ` (${html(d.alias)})` : ''} hoje`, `Active fires in ${html(rotuloDistrito(d))} today`) : L('Incêndios ativos hoje em Portugal', 'Active fires in Portugal today')}</h1>`;
+  if (!fresco) {
+    corpo += `<p class="sub">${L('Não foi possível obter os dados da Proteção Civil neste momento.', 'The civil protection data could not be retrieved right now.')}</p>`;
+  } else if (n === 0) {
+    corpo += `<p class="sub">${L(`Neste momento não há incêndios ativos registados ${html(onde)}.`, `Right now there are no active fires recorded ${html(onde)}.`)} ${L('Atualizado', 'Updated')} ${html(atual)}.</p>`;
+  } else {
+    corpo += `<p class="sub">${L(
+      `Há ${n} ${rotuloAtivos(n)} ${html(onde)} neste momento: ${emCurso} em curso e ${emResolucao} em resolução${operacionais ? `, com ${num(operacionais)} operacionais no terreno` : ''}. Atualizado ${html(atual)}.`,
+      `There ${n === 1 ? 'is' : 'are'} ${n} ${rotuloAtivos(n)} ${html(onde)} right now: ${emCurso} ongoing and ${emResolucao} being resolved${operacionais ? `, with ${num(operacionais)} personnel on site` : ''}. Updated ${html(atual)}.`)}</p>`;
+  }
+  corpo += `<div class="aviso"><b>${L('Emergência? Liga 112.', 'Emergency? Call 112.')}</b> ${L(
+    'Esta página é informativa e não substitui os avisos da Proteção Civil nem as indicações das autoridades locais.',
+    'This page is informational and does not replace civil protection warnings or the instructions of local authorities.')}</div>
+<p><a class="btn laranja" href="/mapa">${L('Ver no mapa', 'See on the map')}</a> <a class="btn claro" href="/alertas">${L('Alertas', 'Alerts')}</a>${d && CIDADES.some((c) => c.slug === d.slug) ? ` <a class="btn claro" href="/cidade/${d.slug}">${L(`Transportes ${html(d.em)}`, `Transport in ${html(d.nome)}`)}</a>` : ''}</p>`;
+  if (emIngles()) corpo += `<p class="nota">Place names, fire types and statuses come from the Portuguese civil protection data and are shown in Portuguese.</p>`;
+
+  if (!fresco) {
+    corpo += `<div class="cartao"><b>${L('Sem dados atuais', 'No current data')}</b><p class="nota" style="margin:6px 0 0">${L(
+      'A PAROU não conseguiu atualizar a lista de incêndios, por isso não é possível dizer se há ou não incêndios ativos. Consulta o <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> e, em caso de emergência, liga 112.',
+      'PAROU could not refresh the fire list, so it cannot say whether there are active fires. Check <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> and, in an emergency, call 112.')}</p></div>`;
+  } else if (n > 0) {
+    corpo += `<div class="resumo"><div><b>${n}</b><span>${rotuloAtivos(n)}</span></div><div><b>${emCurso}</b><span>${L('em curso', 'ongoing')}</span></div><div><b>${emResolucao}</b><span>${L('em resolução', 'being resolved')}</span></div><div><b>${num(operacionais)}</b><span>${L('operacionais no terreno', 'personnel on site')}</span></div></div>
+<h2>${L('Incêndios ativos agora', 'Active fires now')}</h2><ul class="lista">${fogos.slice(0, 150).map((i) => linhaIncendio(i, !d)).join('')}</ul>${n > 150 ? `<p class="nota">${L(`A mostrar 150 de ${n}. Os restantes estão nas páginas de cada distrito.`, `Showing 150 of ${n}. The rest are on each district's page.`)}</p>` : ''}`;
+  } else {
+    corpo += `<div class="cartao"><b>${L('Sem incêndios ativos registados.', 'No active fires recorded.')}</b><p class="nota" style="margin:6px 0 0">${L(
+      'Esta página atualiza-se sozinha. Se vires fogo ou fumo, liga 112.',
+      'This page updates itself. If you see fire or smoke, call 112.')}</p></div>`;
+  }
+
+  corpo += `<h2>${L('Incêndios por distrito', 'Fires by district')}</h2><div class="grelha estreita">${DISTRITOS.filter((x) => x.slug !== d?.slug).map((x) => {
+    const k = porDistrito.get(x.slug) || 0;
+    return `<a href="/incendios/${x.slug}"><b>${html(x.nome)}</b><small>${fresco ? (k ? `${k} ${rotuloAtivos(k)}` : L('Sem incêndios ativos', 'No active fires')) : L('Ver incêndios', 'See fires')}</small></a>`;
+  }).join('')}</div>${d ? `<p><a href="/incendios">${L('Ver os incêndios de todo o país', 'See fires across the country')}</a></p>` : ''}
+<h2>${L('Perguntas frequentes', 'Frequently asked questions')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}
+<p class="nota">${L(
+    'Fonte: <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> (VOST Portugal), com dados da Autoridade Nacional de Emergência e Proteção Civil (ANEPC). Utilização não comercial: a PAROU é gratuita e sem fins lucrativos.',
+    'Source: <a href="https://fogos.pt" rel="noopener" target="_blank">Fogos.pt</a> (VOST Portugal), with data from the National Emergency and Civil Protection Authority (ANEPC). Non-commercial use: PAROU is free and non-profit.')}</p>`;
+
+  const tituloBase = d
+    ? L(`Incêndios ${d.em}${d.alias ? ` (${d.alias})` : ''} hoje: ativos agora | PAROU`, `Fires in ${rotuloDistrito(d)} today: active now | PAROU`)
+    : L('Incêndios ativos hoje em Portugal: lista por distrito | PAROU', 'Active fires in Portugal today: list by district | PAROU');
+  let descricao: string;
+  if (!fresco) {
+    descricao = L(
+      `Incêndios ativos ${onde}, com local, estado e meios no terreno. Dados da Proteção Civil através do Fogos.pt. Em emergência, liga 112.`,
+      `Active fires ${onde}, with location, status and resources on site. Civil protection data through Fogos.pt. In an emergency, call 112.`);
+  } else if (n === 0) {
+    descricao = L(
+      `Neste momento não há incêndios ativos registados ${onde}. Consulta a lista por distrito, com local, estado e meios no terreno. Dados do Fogos.pt.`,
+      `Right now there are no active fires recorded ${onde}. Check the list by district, with location, status and resources on site. Data from Fogos.pt.`);
+  } else {
+    descricao = L(
+      `${n} ${rotuloAtivos(n)} ${onde} agora: ${emCurso} em curso e ${emResolucao} em resolução. Local, estado e meios no terreno. Dados do Fogos.pt, com a Proteção Civil.`,
+      `${n} ${rotuloAtivos(n)} ${onde} now: ${emCurso} ongoing and ${emResolucao} being resolved. Location, status and resources on site. Data from Fogos.pt, with civil protection.`);
+  }
+  return pagina({
+    titulo: tituloBase,
+    descricao,
+    caminho: d ? `/incendios/${d.slug}` : '/incendios',
+    corpo,
+    migalhas: [
+      { nome: L('Início', 'Home'), url: '/' },
+      { nome: L('Incêndios', 'Fires'), url: '/incendios' },
+      ...(d ? [{ nome: d.nome, url: `/incendios/${d.slug}` }] : []),
+    ],
+    jsonld: [{
+      '@context': 'https://schema.org', '@type': 'FAQPage',
+      mainEntity: perguntas.map((q) => ({ '@type': 'Question', name: q.p, acceptedAnswer: { '@type': 'Answer', text: q.r } })),
+    }],
+  });
+}
+
 function normal(s: string) {
   return slug(s, 200).replace(/-/g, ' ');
 }
@@ -1034,6 +1216,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
   { loc: '/linhas', freq: 'weekly', pri: '0.9' },
   { loc: '/cidades', freq: 'weekly', pri: '0.8' },
   { loc: '/greves', freq: 'hourly', pri: '0.9' },
+  { loc: '/incendios', freq: 'hourly', pri: '0.9' },
   { loc: '/alertas', freq: 'hourly', pri: '0.8' },
   { loc: '/transportes', freq: 'weekly', pri: '0.8' },
   { loc: '/mapa', freq: 'hourly', pri: '0.6' },
@@ -1049,7 +1232,7 @@ export const PAGINAS_APP: Array<{ loc: string; freq: string; pri: string }> = [
 
 export function todosOsEnderecos(): string[] {
   const ix = obterIndice();
-  const out = [...PAGINAS_APP.map((p) => p.loc), ...CIDADES.map((c) => `/cidade/${c.slug}`)];
+  const out = [...PAGINAS_APP.map((p) => p.loc), ...DISTRITOS.map((d) => `/incendios/${d.slug}`), ...CIDADES.map((c) => `/cidade/${c.slug}`)];
   if (!ix) return out;
   for (const o of ix.operadores) {
     out.push(`/linhas/${o.slug}`, `/paragens/${o.slug}`);
@@ -1120,6 +1303,7 @@ function textoLlms(): string {
     '- [App: transportes perto de ti](https://parou.pt/): próximos autocarros, metro, comboios e barcos à tua volta, em tempo real onde existir',
     '- [Linhas e horários](https://parou.pt/linhas): todos os operadores, linhas e paragens que a PAROU tem',
     '- [Greves](https://parou.pt/greves): greves de transportes em curso e anunciadas',
+    '- [Incêndios ativos hoje](https://parou.pt/incendios): lista dos incêndios ativos em Portugal por distrito, com local, estado e meios no terreno (dados do Fogos.pt e da Proteção Civil)',
     '- [Alertas](https://parou.pt/alertas): greves, avisos do IPMA, incêndios, perturbações e feriados',
     '- [Mapa de avisos e incêndios](https://parou.pt/mapa): incêndios, avisos meteorológicos e perturbações em Portugal',
     '- [Ocorrências](https://parou.pt/ocorrencias): atrasos, avarias e cortes de via reportados pela comunidade nas últimas 24 horas',
@@ -1132,6 +1316,7 @@ function textoLlms(): string {
     '- Horário de uma linha: https://parou.pt/linhas/{operador}/{linha} (dias úteis, sábados, domingos e paragens do percurso)',
     '- Próximas partidas numa paragem: https://parou.pt/paragens/{operador}/{paragem}',
     '- Transportes numa cidade: https://parou.pt/cidade/{cidade}',
+    '- Incêndios ativos num distrito: https://parou.pt/incendios/{distrito} (por exemplo /incendios/porto)',
     '- Pesquisa por linha ou paragem: https://parou.pt/pesquisa?q=…',
   ];
   if (ix) {
@@ -1247,6 +1432,26 @@ export function registarPaginasSeo(app: Express) {
     }
   });
 
+  // Incêndios ativos: lista nacional e por distrito (dados do Fogos.pt, renovados a cada minuto)
+  app.get('/incendios', comIdioma, (_req, res) => enviar(res, emCache('incendios', 60_000, () => paginaIncendios()), 60));
+  app.get('/incendios/:distrito', comIdioma, (req, res) => {
+    const d = DISTRITOS.find((x) => x.slug === req.params.distrito);
+    if (!d) {
+      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Vary', 'Cookie');
+      return void res.send(pagina({
+        titulo: L('Página não encontrada | PAROU', 'Page not found | PAROU'),
+        descricao: L('Este distrito não existe ou mudou de sítio.', 'This district does not exist or has moved.'),
+        caminho: '/incendios',
+        indexar: false,
+        corpo: `<h1>${L('Página não encontrada', 'Page not found')}</h1><p>${L('Não há uma página de incêndios para este distrito.', 'There is no fires page for this district.')}</p><p><a class="btn" href="/incendios">${L('Ver os incêndios ativos', 'See active fires')}</a></p>`,
+      }));
+    }
+    enviar(res, emCache(`incendios:${d.slug}`, 60_000, () => paginaIncendios(d)), 60);
+  });
+  // Nomes que as pessoas também procuram
+  app.get(['/fogos', '/fogos-ativos', '/incendios-ativos'], (_req, res) => res.redirect(301, '/incendios'));
+
   app.get('/pesquisa', comIdioma, pronto, (req, res) => {
     const q = String(req.query.q || '').slice(0, 80);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -1276,7 +1481,8 @@ export function registarPaginasSeo(app: Express) {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(xml([
-      ...PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri })),
+      ...PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/incendios', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri })),
+      ...DISTRITOS.map((d) => ({ loc: `/incendios/${d.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.6' })),
       ...CIDADES.map((c) => ({ loc: `/cidade/${c.slug}`, freq: 'weekly', pri: '0.8' })),
     ]));
   });
@@ -1318,4 +1524,4 @@ export function registarPaginasSeo(app: Express) {
 }
 
 // Para os testes locais
-export const _paginas = { paginaHub, paginaOperador, paginaLinha, paginaParagem, paginaGreves, paginaPesquisa, paginaListaParagens };
+export const _paginas = { paginaHub, paginaOperador, paginaLinha, paginaParagem, paginaGreves, paginaPesquisa, paginaListaParagens, paginaIncendios };

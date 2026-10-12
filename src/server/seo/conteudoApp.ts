@@ -29,7 +29,7 @@ ${p('A PAROU mostra-te o que passa perto de ti, agora: autocarros da Carris Metr
 <h2 style="font-size:20px;margin:28px 0 0">Horários e tempo real por operador</h2>
 ${lista([...OPERADORES, ['/linhas', 'Todos os operadores, linhas e horários']])}
 <h2 style="font-size:20px;margin:28px 0 0">Greves, mau tempo e incêndios</h2>
-${p('Vê as <a href="/greves" style="color:#111">greves nos transportes</a>, os avisos do IPMA, os incêndios da Proteção Civil e as perturbações nos <a href="/alertas" style="color:#111">Alertas</a> e no <a href="/mapa" style="color:#111">mapa</a>, e recebe avisos no telemóvel antes de saíres de casa.')}
+${p('Vê as <a href="/greves" style="color:#111">greves nos transportes</a>, os avisos do IPMA, os <a href="/incendios" style="color:#111">incêndios ativos hoje</a> da Proteção Civil e as perturbações nos <a href="/alertas" style="color:#111">Alertas</a> e no <a href="/mapa" style="color:#111">mapa</a>, e recebe avisos no telemóvel antes de saíres de casa.')}
 <h2 style="font-size:20px;margin:28px 0 0">Transportes por cidade</h2>
 ${p(`${CIDADES_DESTAQUE.map(([s, n]) => `<a href="/cidade/${s}" style="color:#111">${html(n)}</a>`).join(' · ')} · <a href="/cidades" style="color:#111">todas as cidades</a>`)}
 <h2 style="font-size:20px;margin:28px 0 0">Quem faz a PAROU</h2>
