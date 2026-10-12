@@ -28,7 +28,8 @@ import {
   TrainFrontTunnel,
   Navigation,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
@@ -48,6 +49,9 @@ import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { InputPesquisa } from './InputPesquisa';
+import { OpcaoRota } from './OpcaoRota';
+import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
+import { novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
@@ -157,6 +161,60 @@ function corTextoSobre(fundo?: string): string {
 
 function escaparHtmlMapa(t: string): string {
   return String(t || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+/** Desenha no mapa os troços de uma opção de viagem: a pé a tracejado, transporte a laranja com as paragens e o número da linha */
+function desenharPercurso(grupo: L.LayerGroup, legs: TransitRouteOption['legs'], limites: L.LatLngTuple[], etiquetas: boolean) {
+  const nomeTip = (nome: string, extra?: string) =>
+    `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(formatTransitName(nome))}${extra ? `<span style="font-weight:500;opacity:.75"> · ${escaparHtmlMapa(extra)}</span>` : ''}</span>`;
+
+  legs.forEach((leg) => {
+    const pts = (leg.pontos || []).filter((p) => isValidCoordinate(p.lat, p.lon));
+    if (pts.length < 2) return;
+    const linha: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
+    linha.forEach((p) => limites.push(p));
+
+    if (leg.mode === 'WALK') {
+      L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+      L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
+      return;
+    }
+
+    // Troço de transporte: linha laranja com contorno branco
+    L.polyline(linha, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+    L.polyline(linha, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+
+    // Paragens intermédias
+    pts.slice(1, -1).forEach((p) => {
+      L.circleMarker([p.lat, p.lon], { radius: 3.5, color: '#FF6B1A', weight: 2, fillColor: '#FFFFFF', fillOpacity: 1, interactive: !!p.nome })
+        .bindTooltip(nomeTip(p.nome || ''), { direction: 'top', offset: [0, -4], className: 'parou-rota-tip' })
+        .addTo(grupo);
+    });
+
+    // Embarque e desembarque
+    const primeiro = pts[0];
+    const ultimo = pts[pts.length - 1];
+    L.circleMarker([primeiro.lat, primeiro.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
+      .bindTooltip(nomeTip(leg.fromStopName || primeiro.nome || '', leg.departureTime), { permanent: etiquetas, direction: 'top', offset: [0, -8], className: 'parou-rota-tip' })
+      .addTo(grupo);
+    L.circleMarker([ultimo.lat, ultimo.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
+      .bindTooltip(nomeTip(leg.toStopName || ultimo.nome || '', leg.arrivalTime), { permanent: etiquetas, direction: 'bottom', offset: [0, 8], className: 'parou-rota-tip' })
+      .addTo(grupo);
+
+    // Número da linha a meio do percurso
+    const meio = pts[Math.floor(pts.length / 2)];
+    const fundo = leg.lineColor || '#111111';
+    L.marker([meio.lat, meio.lon], {
+      interactive: false,
+      zIndexOffset: 500,
+      icon: L.divIcon({
+        className: 'parou-rota-linha',
+        html: `<div style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 6px;border-radius:5px;background:${fundo};color:${corTextoSobre(fundo)};border:2px solid #FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,.35);font:700 13px/1 'Barlow Condensed',Inter,sans-serif;white-space:nowrap">${escaparHtmlMapa(leg.lineCode || '')}</div>`,
+        iconSize: [40, 22],
+        iconAnchor: [20, 11],
+      }),
+    }).addTo(grupo);
+  });
 }
 
 function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
@@ -348,6 +406,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
   const [rotasCalculadas, setRotasCalculadas] = useState<boolean>(false);
   const pedidoRotasRef = useRef(0);
+  const partidaRotasRef = useRef(Date.now());
+  // Vários destinos (até 5): a lista vive aqui e o ecrã da viagem (RotaVariosDestinos) calcula os troços
+  const [destinosViagem, setDestinosViagem] = useState<DestinoViagem[]>([]);
+  const [viagemSemente, setViagemSemente] = useState<{ opcoes: TransitRouteOption[]; escolhida: number; partida: number } | null>(null);
+  const [mapaViagem, setMapaViagem] = useState<MapaViagem | null>(null);
+  const viagemLayerRef = useRef<L.LayerGroup | null>(null);
+  const emViagem = destinosViagem.length > 0;
 
   // Map & Controls
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -542,21 +607,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setCalculatedRoutes([]);
     setSelectedRoute(null);
     setRotasCalculadas(false);
+    setDestinosViagem([]);
+    setMapaViagem(null);
+    partidaRotasRef.current = Date.now();
     const pedido = ++pedidoRotasRef.current;
 
-    // Ordena por duração total, marca a mais rápida e põe "a pé" no fim se não for a melhor
-    const ordenar = (lista: TransitRouteOption[]) => {
-      const vistas = new Set<string>();
-      const unicas = lista.filter((r) => (vistas.has(r.id) ? false : (vistas.add(r.id), true)));
-      unicas.sort((a, b) => a.totalDurationMinutes + a.transfersCount * 6 - (b.totalDurationMinutes + b.transfersCount * 6));
-      const melhor = unicas.find((r) => r.id !== 'a-pe');
-      return unicas.slice(0, 5).map((r) => ({
-        ...r,
-        badgeLabel: r.id === 'a-pe' ? t('A pé')
-          : r.id === melhor?.id ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
-          : r.transfersCount ? tn(r.transfersCount, '{n} transbordo', '{n} transbordos') : t('Direto'),
-      }));
-    };
+    const ordenar = ordenarOpcoes;
 
     try {
       const res = await planTransitRoute(lat, lon, destLat, destLon, destName);
@@ -614,8 +670,20 @@ export const PertoView: React.FC<PertoViewProps> = ({
     calculateRoutesToDestination(sug.latitude, sug.longitude, sug.title);
   };
 
+  /** Passa da rota simples à viagem com vários destinos, a começar pelo que já estava escolhido */
+  const iniciarViagem = () => {
+    if (!selectedDestination) return;
+    const escolhida = Math.max(0, calculatedRoutes.findIndex((r) => r.id === selectedRoute?.id));
+    setViagemSemente(calculatedRoutes.length ? { opcoes: calculatedRoutes, escolhida, partida: partidaRotasRef.current } : null);
+    setSelectedRoute(null);
+    setDestinosViagem([{ uid: novoUid(), dest: selectedDestination, permanencia: 0 }]);
+  };
+
   const handleClearDestination = () => {
     pedidoRotasRef.current++;
+    setDestinosViagem([]);
+    setViagemSemente(null);
+    setMapaViagem(null);
     setSelectedDestination(null);
     setDestinationQuery('');
     setCalculatedRoutes([]);
@@ -983,56 +1051,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
     const grupo = L.layerGroup();
     const limites: L.LatLngTuple[] = [];
-    const nomeTip = (nome: string, extra?: string) =>
-      `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(formatTransitName(nome))}${extra ? `<span style="font-weight:500;opacity:.75"> · ${escaparHtmlMapa(extra)}</span>` : ''}</span>`;
-
-    selectedRoute.legs.forEach((leg) => {
-      const pts = (leg.pontos || []).filter((p) => isValidCoordinate(p.lat, p.lon));
-      if (pts.length < 2) return;
-      const linha: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
-      linha.forEach((p) => limites.push(p));
-
-      if (leg.mode === 'WALK') {
-        L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
-        L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
-        return;
-      }
-
-      // Troço de transporte: linha laranja com contorno branco
-      L.polyline(linha, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
-      L.polyline(linha, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
-
-      // Paragens intermédias
-      pts.slice(1, -1).forEach((p) => {
-        L.circleMarker([p.lat, p.lon], { radius: 3.5, color: '#FF6B1A', weight: 2, fillColor: '#FFFFFF', fillOpacity: 1, interactive: !!p.nome })
-          .bindTooltip(nomeTip(p.nome || ''), { direction: 'top', offset: [0, -4], className: 'parou-rota-tip' })
-          .addTo(grupo);
-      });
-
-      // Embarque e desembarque
-      const primeiro = pts[0];
-      const ultimo = pts[pts.length - 1];
-      L.circleMarker([primeiro.lat, primeiro.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
-        .bindTooltip(nomeTip(leg.fromStopName || primeiro.nome || '', leg.departureTime), { permanent: true, direction: 'top', offset: [0, -8], className: 'parou-rota-tip' })
-        .addTo(grupo);
-      L.circleMarker([ultimo.lat, ultimo.lon], { radius: 8, color: '#111111', weight: 3, fillColor: '#FFFFFF', fillOpacity: 1 })
-        .bindTooltip(nomeTip(leg.toStopName || ultimo.nome || '', leg.arrivalTime), { permanent: true, direction: 'bottom', offset: [0, 8], className: 'parou-rota-tip' })
-        .addTo(grupo);
-
-      // Número da linha a meio do percurso
-      const meio = pts[Math.floor(pts.length / 2)];
-      const fundo = leg.lineColor || '#111111';
-      L.marker([meio.lat, meio.lon], {
-        interactive: false,
-        zIndexOffset: 500,
-        icon: L.divIcon({
-          className: 'parou-rota-linha',
-          html: `<div style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 6px;border-radius:5px;background:${fundo};color:${corTextoSobre(fundo)};border:2px solid #FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,.35);font:700 13px/1 'Barlow Condensed',Inter,sans-serif;white-space:nowrap">${escaparHtmlMapa(leg.lineCode || '')}</div>`,
-          iconSize: [40, 22],
-          iconAnchor: [20, 11],
-        }),
-      }).addTo(grupo);
-    });
+    desenharPercurso(grupo, selectedRoute.legs, limites, true);
 
     // Destino
     if (selectedDestination && isValidCoordinate(selectedDestination.latitude, selectedDestination.longitude)) {
@@ -1062,6 +1081,67 @@ export const PertoView: React.FC<PertoViewProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoute?.id]);
+
+  // Viagem com vários destinos no mapa: a opção escolhida de cada troço e os destinos numerados
+  const mapaViagemRef = useRef<MapaViagem | null>(null);
+  mapaViagemRef.current = mapaViagem;
+  const chaveMapaViagem = mapaViagem
+    ? `${mapaViagem.destinos.map((d) => d.uid).join(',')}|${mapaViagem.rotas.map((r) => r?.id ?? '-').join(',')}|${mapaViagem.foco ?? 'todos'}`
+    : '';
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    viagemLayerRef.current?.remove();
+    viagemLayerRef.current = null;
+    const mv = mapaViagemRef.current;
+    if (!mv) return;
+
+    const grupo = L.layerGroup();
+    const todos: L.LatLngTuple[] = [];
+    const doFoco: L.LatLngTuple[] = [];
+    const unicoTroco = mv.destinos.length === 1;
+    mv.rotas.forEach((rota, i) => {
+      if (!rota) return;
+      const lim: L.LatLngTuple[] = [];
+      // Etiquetas com as horas só no troço em foco (ou quando há um só): com cinco troços ficava tudo coberto
+      desenharPercurso(grupo, rota.legs, lim, mv.foco === i || (mv.foco === null && unicoTroco));
+      lim.forEach((p) => todos.push(p));
+      if (mv.foco === i) lim.forEach((p) => doFoco.push(p));
+    });
+
+    mv.destinos.forEach((d, i) => {
+      const { latitude, longitude, title } = d.dest;
+      if (!isValidCoordinate(latitude, longitude)) return;
+      todos.push([latitude, longitude]);
+      if (mv.foco === i || mv.foco === i + 1) doFoco.push([latitude, longitude]);
+      L.marker([latitude, longitude], {
+        zIndexOffset: 900 + i,
+        title,
+        icon: L.divIcon({
+          className: 'parou-rota-destino',
+          html: `<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font:700 14px/1 'Barlow Condensed',Inter,sans-serif">${i + 1}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+      })
+        .bindTooltip(`<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(title)}</span>`, { direction: 'top', offset: [0, -14], className: 'parou-rota-tip' })
+        .addTo(grupo);
+    });
+
+    grupo.addTo(map);
+    viagemLayerRef.current = grupo;
+
+    const limites = mv.foco !== null && doFoco.length > 1 ? doFoco : todos;
+    if (limites.length > 1) {
+      setFollowMode(false);
+      try {
+        map.fitBounds(L.latLngBounds(limites), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 36], maxZoom: 16, animate: true });
+      } catch (err) {
+        console.warn('[PertoView] fitBounds da viagem:', err);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveMapaViagem]);
 
   // Filter Stops
   const filteredStops = useMemo(() => {
@@ -1203,7 +1283,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
 
   // Ecrã próprio da rota: com um destino escolhido a lista de paragens dá lugar às opções de viagem
-  const emRota = Boolean(selectedDestination) && (calculatedRoutes.length > 0 || isCalculatingRoutes || rotasCalculadas);
+  const emRota = emViagem || (Boolean(selectedDestination) && (calculatedRoutes.length > 0 || isCalculatingRoutes || rotasCalculadas));
 
   // Lista de sugestões (pesquisa de destino ou de local)
   const listaSugestoes = (compacta: boolean) => (
@@ -1390,7 +1470,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       {/* Painel: Transportes perto */}
       <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
         {/* Cabeçalho (telemóvel): na rota, seta para voltar aos transportes perto */}
-        {emRota && selectedDestination && (
+        {emRota && (selectedDestination || emViagem) && (
           <div className="lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none" {...gestoPainel}>
             <button
               onClick={() => setMapaExpandido((v) => !v)}
@@ -1409,8 +1489,21 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
               <div className="min-w-0 flex-1">
                 <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">{t('Como chegar')}</h2>
-                <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">{t('a {d}', { d: selectedDestination.title })}</p>
+                <p className="text-[12px] text-[#6B6B6B] mt-1 truncate">
+                  {destinosViagem.length > 1 ? tn(destinosViagem.length, '{n} destino', '{n} destinos') : t('a {d}', { d: (destinosViagem[0]?.dest ?? selectedDestination)?.title || '' })}
+                </p>
               </div>
+              {!emViagem && calculatedRoutes.length > 0 && (
+                <button
+                  onClick={iniciarViagem}
+                  data-teste="juntar-destino-cabecalho"
+                  className="shrink-0 h-10 pl-2.5 pr-3.5 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] text-[13px] font-semibold flex items-center gap-1 cursor-pointer active:bg-[#F4F4F2]"
+                  aria-label={t('Adicionar outro destino a esta viagem')}
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  {t('Destino')}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1468,7 +1561,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className="relative">
+          <div className={`relative ${emViagem ? 'hidden' : ''}`}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] stroke-[2]" />
             <InputPesquisa
               valor={destinationQuery}
@@ -1519,7 +1612,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         )}
 
         {/* Percursos: a calcular / sem resultados */}
-        {emRota && selectedDestination && calculatedRoutes.length === 0 && (
+        {emRota && !emViagem && selectedDestination && calculatedRoutes.length === 0 && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-2 pb-6">
             <div className="hidden lg:flex items-center gap-2.5 pb-3">
               <button onClick={handleClearDestination} className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer" aria-label={t('Voltar aos transportes perto')}>
@@ -1546,94 +1639,48 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         )}
 
+        {/* Vários destinos: um troço por destino, cada um com as suas opções */}
+        {emViagem && (
+          <RotaVariosDestinos
+            origem={{ lat: userCoords?.latitude ?? 38.7253, lon: userCoords?.longitude ?? -9.1500 }}
+            destinos={destinosViagem}
+            onMudar={setDestinosViagem}
+            onSair={handleClearDestination}
+            onMapa={setMapaViagem}
+            abrirAdicionar
+            inicial={viagemSemente}
+          />
+        )}
+
         {/* Route Planning Result Panel (if destination active) */}
-        {emRota && selectedDestination && calculatedRoutes.length > 0 && (
+        {emRota && !emViagem && selectedDestination && calculatedRoutes.length > 0 && (
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-6 space-y-3">
             <div className="hidden lg:flex items-center gap-2.5 px-1 pb-1">
               <button onClick={handleClearDestination} className="shrink-0 w-9 h-9 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer" aria-label={t('Voltar aos transportes perto')}>
                 <ArrowLeft className="w-4.5 h-4.5 stroke-[2.25]" />
               </button>
-              <span className="font-semibold text-[15px] text-[#111111] truncate">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
+              <span className="font-semibold text-[15px] text-[#111111] truncate min-w-0 flex-1">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
+              <button
+                onClick={iniciarViagem}
+                data-teste="juntar-destino-cabecalho-pc"
+                className="shrink-0 h-9 pl-2.5 pr-3.5 rounded-full border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] text-[13px] font-semibold flex items-center gap-1 cursor-pointer hover:bg-[#F4F4F2]"
+                aria-label={t('Adicionar outro destino a esta viagem')}
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                {t('Destino')}
+              </button>
             </div>
 
             <div className="space-y-2">
-              {calculatedRoutes.map((route) => {
-                const isSel = selectedRoute?.id === route.id;
-                return (
-                  <div
-                    key={route.id}
-                    onClick={() => setSelectedRoute(route)}
-                    className={`p-3 rounded-[12px] border transition-all cursor-pointer ${
-                      isSel 
-                        ? 'bg-[#FFFFFF] border-[#111111] shadow-xs' 
-                        : 'bg-[#FFFFFF] border-[#E6E6E3] hover:border-[#6B6B6B]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-condensada text-xl font-bold text-[#111111] tabular-nums">
-                          {route.totalDurationMinutes} min
-                        </span>
-                        <span className="text-xs text-[#6B6B6B]">· {t('Chegada')} ~{route.arrivalTime}</span>
-                      </div>
-                      <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide">
-                        {traduzirBadge(route.badgeLabel)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-[#6B6B6B] mb-1.5">
-                      {route.id === 'a-pe'
-                        ? t('{m} m a pé', { m: route.walkingDistanceMeters })
-                        : `${t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {route.legs.map((leg, lIdx) => (
-                        <React.Fragment key={lIdx}>
-                          {lIdx > 0 && <span className="text-[#6B6B6B] text-xs">→</span>}
-                          {leg.mode === 'WALK' ? (
-                            <div className="flex items-center gap-1 text-xs text-[#6B6B6B]">
-                              <Footprints className="w-3.5 h-3.5 stroke-[2]" />
-                              <span>{leg.durationMinutes}m</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <LineChip number={leg.lineCode || '—'} color={leg.lineColor} />
-                              <span className="text-xs text-[#111111] font-medium truncate max-w-[120px]">
-                                {formatTransitName(leg.toStopName || leg.instruction || '')}
-                              </span>
-                            </div>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                    {isSel && route.id !== 'a-pe' && (
-                      <>
-                      <AvisoPartida route={route} />
-                      <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
-                        {route.legs.map((leg, i) => {
-                          if (leg.mode === 'WALK' && leg.durationMinutes <= 0) return null;
-                          const seguinte = route.legs.slice(i + 1).find((l) => l.mode === 'TRANSIT');
-                          const paraOnde = seguinte ? formatTransitName(seguinte.fromStopName || '') : selectedDestination.title;
-                          return (
-                          <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-[#111111]">
-                            {leg.mode === 'WALK'
-                              ? <Footprints className="w-3.5 h-3.5 mt-0.5 stroke-[2] text-[#6B6B6B] shrink-0" />
-                              : <span className="shrink-0 mt-px"><LineChip number={leg.lineCode || '—'} color={leg.lineColor} /></span>}
-                            <span className={leg.mode === 'WALK' ? 'text-[#6B6B6B]' : ''}>
-                              {leg.mode === 'WALK'
-                                ? `${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min`
-                                : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? t('paragem') : t('paragens')}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
-                            </span>
-                          </li>
-                          );
-                        })}
-                        <li className="text-[11px] text-[#6B6B6B]">{route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
-                      </ol>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+              {calculatedRoutes.map((route) => (
+                <OpcaoRota
+                  key={route.id}
+                  route={route}
+                  selecionada={selectedRoute?.id === route.id}
+                  destinoNome={selectedDestination.title}
+                  onSelecionar={() => setSelectedRoute(route)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -2115,7 +2162,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         }`}
       >
         {/* Pesquisa por cima do mapa (telemóvel) */}
-        {localizacaoPronta && (
+        {localizacaoPronta && !emViagem && (
           <div className="lg:hidden absolute top-3 left-3 right-[60px] z-20">
             <div className="relative flex items-center bg-[#FFFFFF] rounded-[12px] shadow-[0_4px_14px_rgba(17,17,17,0.12)]">
               <Search className="absolute left-3 w-4 h-4 text-[#6B6B6B] stroke-[2] pointer-events-none" />

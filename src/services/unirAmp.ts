@@ -183,11 +183,15 @@ export function motivosFalhaUnir(): string[] { return motivosFalha.splice(0, mot
 export async function viagemUnir(
   c: CandidatoUnir, destNome: string,
   coordOrigem?: { lat: number; lon: number }, coordDestino?: { lat: number; lon: number },
+  /** Instante (epoch em segundos) em que se está na origem; por omissão, agora. Vários destinos: o troço seguinte começa mais tarde. */
+  desde?: number,
 ): Promise<TransitRouteOption | null> {
+  const agora = desde ?? Math.floor(Date.now() / 1000);
+  // A AMP dá o horário do dia de hoje: para outro dia não há dados
+  if (desde && new Date(desde * 1000).toLocaleDateString('pt-PT', { timeZone: ZONA }) !== new Date().toLocaleDateString('pt-PT', { timeZone: ZONA })) return null;
   const [o, d] = await Promise.all([pedir(c.origem.codigo, 0), pedir(c.destino.codigo, 0)]);
   const etiqueta = `${c.linha} ${c.origem.codigo}→${c.destino.codigo}`;
   if (!o.ok) { motivosFalha.push(`${etiqueta}: origem sem resposta`); return null; }
-  const agora = Math.floor(Date.now() / 1000);
   // Viagens da linha na paragem de origem a que ainda se chega a tempo
   const apanhaveis = o.lista.filter((p) => p.linha === c.linha && p.viagem && p.epoch >= agora + c.origem.minutos * 60 - 30);
   if (!apanhaveis.length) { motivosFalha.push(`${etiqueta}: sem viagens na origem (${o.lista.filter((p) => p.linha === c.linha).length} da linha)`); return null; }

@@ -91,7 +91,9 @@ export async function planTransitRoute(
   originLon: number,
   destLat: number,
   destLon: number,
-  destName: string
+  destName: string,
+  /** Partir a outra hora (vários destinos: o troço seguinte começa quando se chega ao anterior) */
+  quando?: Date,
 ): Promise<{
   routes: TransitRouteOption[];
   /** Ligações diretas da UNIR: a app completa-as com o horário da AMP */
@@ -107,6 +109,8 @@ export async function planTransitRoute(
     destLon: destLon.toString(),
     destName: destName,
   });
+  // Só pede outra hora quando é mesmo diferente de agora (o pedido normal fica igual)
+  if (quando && Math.abs(quando.getTime() - Date.now()) > 90_000) params.set('quando', quando.toISOString());
 
   const res = await fetch(`/api/transit/plan-route?${params.toString()}`);
   if (!res.ok) {
