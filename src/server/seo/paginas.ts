@@ -746,7 +746,7 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
     corpo += `<h2>${L('Paragens perto', 'Stops nearby')}</h2><ul class="lista">${perto.map(({ g: p, d }) => {
       const o2 = ix.operadores.find((o) => o.feedId === p.feedId);
       if (!o2) return '';
-      return `<li><a href="/paragens/${o2.slug}/${p.slug}"><span class="t">${html(p.nome)}<small>${html(o2.nome)}</small></span><span class="dir">${Math.round(d / 10) * 10} m</span></a></li>`;
+      return `<li><a href="/paragens/${o2.slug}/${p.slug}"><span class="t">${html(p.nome)}<small>${html(o2.nome)}</small></span><span class="dir">${Math.round(d / 10) * 10} ${L('metros', 'meters')}</span></a></li>`;
     }).join('')}</ul>`;
   }
   corpo += g.feedId === UNIR

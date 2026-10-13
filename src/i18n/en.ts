@@ -1096,4 +1096,6 @@ export const EN: Record<string, string> = {
   'Tens 1 ponto por resgatar.': 'You have 1 point to claim.',
   '{d} às {h}': '{d} at {h}',
   'Mais 1 ponto por dia, só por voltares a abrir a PAROU.': 'Plus 1 point a day, just for coming back to PAROU.',
+  '{n} metro': '{n} meter',
+  '{n} metros': '{n} meters',
 };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Footprints } from 'lucide-react';
+import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { formatTransitName } from '../utils/transitFormatter';
@@ -13,9 +14,9 @@ function traduzirBadge(label: string): string {
   return m ? tn(+m[1], '{n} transbordo', '{n} transbordos') : t(label);
 }
 
-/** "450 m", "1,3 km" */
+/** "450 metros", "1,3 km" */
 function textoDistancia(metros: number): string {
-  if (metros < 950) return `${Math.max(10, Math.round(metros / 10) * 10)} m`;
+  if (metros < 950) return textoMetros(Math.max(10, Math.round(metros / 10) * 10));
   return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(metros / 1000)} km`;
 }
 
