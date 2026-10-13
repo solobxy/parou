@@ -551,6 +551,8 @@ export async function planearViagem(
   const emTransito = routes.filter((r) => r.id !== 'a-pe');
   // Só se procura quando o que há não é bom: nada em transporte, ou a pé mais de ~9 min (a UNIR pode ficar mais perto)
   const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9;
+  // Entra se chegar até 10 min depois do melhor percurso normal: o telemóvel mostra as duas e a pessoa escolhe
+  const limiteHibrida = Number.isFinite(melhorChegada) ? melhorChegada + 10 * 60 : Infinity;
   if (acessoFraco && unir.length === 0 && (uO.length || uD.length)) {
     const ix = indicePronto();
     const prazo = Date.now() + 2500;
@@ -621,7 +623,7 @@ export async function planearViagem(
         const escolhidas: typeof cands = [];
         for (const c of cands) {
           // só interessa se chegar antes do melhor percurso normal (que pode ser mau: muito a pé, muita espera)
-          if (Number.isFinite(melhorChegada) && c.custo - c.dia.desvio >= melhorChegada - 3 * 60) continue;
+          if (c.custo - c.dia.desvio > limiteHibrida) continue;
           const k = `${c.b.linha.route}|${c.b.linha.sentido}`;
           const sig = `${k}|${c.x.idx}`;
           if (vistos.has(sig) || (porLinhaN.get(k) || 0) >= 2 || (porTransbordoN.get(c.x.idx) || 0) >= 2) continue;
@@ -743,7 +745,7 @@ export async function planearViagem(
           const js = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 3, limiteSaida: tEst + 3 * 3600, orcamentoMs: 250 });
           if (!js.length) continue;
           const est = Math.min(...js.map((j) => j.chegada));
-          if (Number.isFinite(melhorChegada) && est >= melhorChegada - 3 * 60) continue; // não ganha ao percurso normal
+          if (est > limiteHibrida) continue; // demasiado pior do que o percurso normal
           verificadas.push({ est, p });
         }
         verificadas.sort((a, b) => a.est - b.est);
