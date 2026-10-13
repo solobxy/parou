@@ -263,4 +263,19 @@ parou.pt`,
     imagens: ['/novidades/proxima-ligacao-1.jpg'],
     comunidade: 'A PAROU já mostra a próxima ligação mesmo quando não há nada nas próximas horas (por exemplo, a primeira da manhã seguinte). Junta também duas linhas da UNIR quando é preciso mudar de autocarro e, se não houver paragens com horários por perto, diz qual é a mais próxima.',
   },
+  {
+    id: 'ponto-diario',
+    data: '2026-10-13',
+    etiqueta: 'Novidade',
+    titulo: 'Um ponto por dia, só por voltares',
+    texto: `🎁 *Ponto diário na PAROU*
+
+Entra na tua conta e resgata 1 ponto de reputação por dia. Os pontos abrem peças novas para o teu avatar.
+⏱️ Aparece um aviso pequeno quando abres a app; se o fechares, volta na próxima vez (ou resgatas no teu perfil, onde vês a contagem até ao próximo ponto)
+📆 Um ponto a cada 24 h, a contar do último que resgataste: se faltares, não acumula
+
+parou.pt`,
+    imagens: ['/novidades/ponto-diario-1.jpg'],
+    comunidade: 'Já há ponto diário: quem tem conta resgata 1 ponto de reputação por dia (aparece um aviso pequeno ao abrir a app, e no perfil vê-se a contagem até ao próximo). Os pontos abrem peças novas do avatar.',
+  },
 ];
