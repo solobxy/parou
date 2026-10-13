@@ -1012,6 +1012,15 @@ app.post('/api/central-alerts/notify-sent', (req: Request, res: Response) => {
   return res.json({ success: true });
 });
 
+// Modo de transporte de uma paragem a partir do modo do feed (usado em /nearby e nas células do mapa)
+function modoPrincipalParagem(modo: unknown): 'Autocarro' | 'Metro' | 'Comboio' | 'Barco' {
+  const rawMode = String(modo || '').toLowerCase();
+  if (rawMode.includes('metro') || rawMode.includes('subway') || rawMode.includes('tram') || rawMode.includes('mst')) return 'Metro';
+  if (rawMode.includes('comboio') || rawMode.includes('train') || rawMode.includes('rail') || rawMode.includes('fertagus') || rawMode.includes('cp')) return 'Comboio';
+  if (rawMode.includes('barco') || rawMode.includes('ferry') || rawMode.includes('fluvial')) return 'Barco';
+  return 'Autocarro';
+}
+
 // ==========================================
 // PAROU PERTO - NEARBY TRANSIT & MOBILITY API (ALL FEEDS UNIFIED)
 // ==========================================
@@ -1100,15 +1109,7 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       const formattedDist = distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`;
       const walkMins = Math.max(1, Math.round(distM / 80));
 
-      const rawMode = (stop.modes[0] || '').toLowerCase();
-      let primaryMode = 'Autocarro';
-      if (rawMode.includes('metro') || rawMode.includes('subway') || rawMode.includes('tram') || rawMode.includes('mst')) {
-        primaryMode = 'Metro';
-      } else if (rawMode.includes('comboio') || rawMode.includes('train') || rawMode.includes('rail') || rawMode.includes('fertagus') || rawMode.includes('cp')) {
-        primaryMode = 'Comboio';
-      } else if (rawMode.includes('barco') || rawMode.includes('ferry') || rawMode.includes('fluvial')) {
-        primaryMode = 'Barco';
-      }
+      const primaryMode = modoPrincipalParagem(stop.modes[0]);
 
       const opName = stop.operators[0] || 'Transportes';
 
@@ -1358,6 +1359,88 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       radiusMeters: Number(req.query.radius) || 500,
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// Paragens de uma célula do mapa (≈1 km × 1 km): o "Perto" pede as células por onde o utilizador arrasta
+// o mapa. Resposta leve (nome, sítio, modo; sem linhas nem partidas) e guardada no servidor e no telemóvel.
+const CELULA_LAT = 0.01;
+const CELULA_LON = 0.012;
+const CELULAS_MAX = 600;
+const CELULAS_VALIDADE_MS = 15 * 60_000;
+const celulasParagens = new Map<string, { t: number; corpo: string }>();
+const celulasEmCurso = new Map<string, Promise<string>>();
+
+async function corpoDaCelula(i: number, j: number): Promise<string> {
+  const arredondar = (n: number) => Math.round(n * 1e6) / 1e6;
+  const minLat = arredondar(i * CELULA_LAT);
+  const maxLat = arredondar((i + 1) * CELULA_LAT);
+  const minLon = arredondar(j * CELULA_LON);
+  const maxLon = arredondar((j + 1) * CELULA_LON);
+  const lista = await StopsEngine.getNearbyUnifiedStops(
+    (minLat + maxLat) / 2,
+    (minLon + maxLon) / 2,
+    10_000_000,
+    0,
+    { box: { minLat, maxLat, minLon, maxLon }, semLinhas: true, exato: true, rawLimit: 6000 },
+  );
+  const paragens = lista.map((p) => {
+    const unir = (p.member_stop_ids || []).filter((m: string) => m.startsWith('unir:')).map((m: string) => m.slice(5));
+    return {
+      id: p.id,
+      nome: p.name,
+      lat: p.lat,
+      lon: p.lon,
+      modo: modoPrincipalParagem(p.modes[0]),
+      op: p.operators[0] || 'Transportes',
+      ...(unir.length ? { unir } : {}),
+    };
+  });
+  return JSON.stringify({ i, j, paragens });
+}
+
+app.get('/api/transit/stops-cell', async (req: Request, res: Response) => {
+  try {
+    const i = Number(req.query.i);
+    const j = Number(req.query.j);
+    // Só células de Portugal (continente e ilhas)
+    if (!Number.isInteger(i) || !Number.isInteger(j) || i < 2990 || i > 4300 || j < -2800 || j > -400) {
+      return res.status(400).json({ error: 'Célula inválida.' });
+    }
+    if (!isDadosProntosPronto()) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ status: 'loading', isLoading: true, i, j, paragens: [] });
+    }
+    const chave = `${i},${j}`;
+    const guardada = celulasParagens.get(chave);
+    let corpo: string;
+    if (guardada && Date.now() - guardada.t <= CELULAS_VALIDADE_MS) {
+      corpo = guardada.corpo;
+      // Usada agora: passa para o fim (as mais antigas saem primeiro)
+      celulasParagens.delete(chave);
+      celulasParagens.set(chave, guardada);
+    } else {
+      if (guardada) celulasParagens.delete(chave);
+      let emCurso = celulasEmCurso.get(chave);
+      if (!emCurso) {
+        emCurso = corpoDaCelula(i, j).finally(() => celulasEmCurso.delete(chave));
+        celulasEmCurso.set(chave, emCurso);
+      }
+      corpo = await emCurso;
+      celulasParagens.set(chave, { t: Date.now(), corpo });
+      while (celulasParagens.size > CELULAS_MAX) {
+        const maisAntiga = celulasParagens.keys().next().value;
+        if (maisAntiga === undefined) break;
+        celulasParagens.delete(maisAntiga);
+      }
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    return res.type('application/json').send(corpo);
+  } catch (err: any) {
+    if (err?.message?.includes('malformed')) reloadDatabaseConnection();
+    else console.warn('[stops-cell] Aviso:', err?.message || err);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(500).json({ error: 'Erro ao obter as paragens da zona.' });
   }
 });
 
