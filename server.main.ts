@@ -1396,8 +1396,10 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
       if (d.isValid) quando = d.toJSDate();
     }
     // ponte=0: a app já está a continuar uma viagem a partir de uma paragem da UNIR (não voltar a propor outra ponte)
-    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando, { ponte: String(req.query.ponte) !== '0' });
-    console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR + ${routeData.hibridas?.length || 0}/${routeData.pontes?.length || 0} híbridas em ${Date.now() - t0} ms`);
+    // nv=0|1|2: a app usa o modo geral da UNIR (combinações de qualquer tipo; o nível é a profundidade da continuação)
+    const nv = req.query.nv === undefined ? undefined : Math.max(0, Math.min(2, Number(req.query.nv) || 0));
+    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando, { ponte: String(req.query.ponte) !== '0', nivel: nv });
+    console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR + ${routeData.hibridas?.length || 0}/${routeData.pontes?.length || 0} híbridas + ${routeData.ligacoes?.length ?? '-'} gerais em ${Date.now() - t0} ms`);
     return res.json(routeData);
   } catch (err: any) {
     console.error('[Plan Route API] Erro:', err);
