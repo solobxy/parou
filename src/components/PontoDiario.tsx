@@ -146,7 +146,7 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
   return (
     <>
       <div
-        className="folha-fundo fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/35 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        className="folha-fundo fixed inset-0 z-[65] flex items-center justify-center bg-black/35 px-4 py-[max(1rem,env(safe-area-inset-top))]"
         data-teste="ponto-diario"
       >
         <div
@@ -155,7 +155,7 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
           aria-modal="true"
           aria-labelledby="ponto-diario-titulo"
           tabIndex={-1}
-          className="folha-entra relative w-full max-w-[340px] rounded-[16px] border border-[#E6E6E3] bg-[#FFFFFF] shadow-2xl p-4 outline-none"
+          className="ponto-entra relative w-full max-w-[340px] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[16px] border border-[#E6E6E3] bg-[#FFFFFF] shadow-2xl p-4 outline-none"
         >
           <div className="flex items-center gap-3 pr-9">
             <span className="relative shrink-0">
