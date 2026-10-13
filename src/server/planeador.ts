@@ -599,8 +599,9 @@ export async function planearViagem(
   const hibridas: HibridaUnir[] = [];
   const pontes: PonteUnir[] = [];
   const emTransito = routes.filter((r) => r.id !== 'a-pe');
-  // Só se procura quando o que há não é bom: nada em transporte, ou a pé mais de ~9 min (a UNIR pode ficar mais perto)
-  const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9;
+  // Só se procura quando o que há não é bom: nada em transporte, a pé mais de ~9 min (a UNIR pode ficar mais perto), com transbordos ou demorado
+  const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9
+    || emTransito[0].transfersCount > 0 || emTransito[0].totalDurationMinutes > 45; // também quando o melhor percurso é lento ou com transbordos
   // Entra se chegar até 10 min depois do melhor percurso normal: o telemóvel mostra as duas e a pessoa escolhe
   // e mais ainda quando o melhor percurso normal obriga a andar muito a pé (cada minuto a pé a mais de 9 vale ~45 s de folga, até +10 min):
   // uma UNIR que poupa 10–15 min de caminhada compensa chegar um pouco mais tarde.
@@ -775,7 +776,6 @@ export async function planearViagem(
         // Para cada linha, TODAS as paragens a jusante (até 60) onde se pode sair e continuar noutra rede a pé; uma só pesquisa
         // por linha com todas elas como pontos de partida (cada uma com a hora a que se lá chega: espera média + ~90 s por paragem
         // + a pé até à paragem com horários). Assim a saída mais curta (2–3 paragens) conta tanto como a mais longa.
-        if (process.env.PLANO_DEBUG) console.log('[dbg] linhasSel', linhasSel.length, 'destinos', destinos.size, 'base', base);
         const achados: Array<{ est: number; linha: typeof linhasSel[0]; p: Saida }> = [];
         for (const l of linhasSel) {
           if (Date.now() > prazo) break;
@@ -787,7 +787,6 @@ export async function planearViagem(
             if (!ys.length) continue;
             pts.push({ s: { ...s, ys } });
           }
-          if (process.env.PLANO_DEBUG) console.log('[dbg] linha', l.route, l.sentido, 'min', l.minutos, 'pts', pts.length);
           if (!pts.length) continue;
           const porY = new Map<number, { t: number; p: Saida }>();
           for (const { s } of pts) {
@@ -810,7 +809,6 @@ export async function planearViagem(
             const est = j.chegada + (j.rides.length - 1) * 360; // cada transbordo pesa 6 min
             if (!melhorL || est < melhorL.est) melhorL = { est, p: o.p };
           }
-          if (process.env.PLANO_DEBUG) console.log('[dbg]   origens', origens.length, 'js', js.length, 'melhor', melhorL ? `${melhorL.est} (${melhorL.p.nome} seq ${melhorL.p.seq})` : null, 'limite', limiteHibrida);
           if (melhorL) achados.push({ est: melhorL.est, linha: l, p: melhorL.p });
         }
         achados.sort((a, b) => a.est - b.est);
