@@ -1610,12 +1610,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
     };
   }, []);
 
-  // Mudou o que condiciona as paragens extra (lista de perto, filtro, favoritos, paragem aberta, mapa livre)
+  // Mudou o que condiciona as paragens extra (lista de perto, filtro, favoritos, paragem aberta, mapa livre):
+  // redesenha de imediato com o que já está em memória...
   useEffect(() => {
-    carregarExtrasRef.current();
     sincronizarExtrasRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stops, activeFilterTab, favoriteStopIds, selectedStop?.id, extrasAtivos]);
+  // ...e pede o que falta daqui a pouco: ao abrir, o mapa ainda está a "voar" até à tua posição e não vale a pena
+  // carregar a zona por onde ele passa (ao chegar, o fim do movimento pede a certa)
+  useEffect(() => {
+    const espera = setTimeout(() => carregarExtrasRef.current(), 400);
+    return () => clearTimeout(espera);
+  }, [activeFilterTab, extrasAtivos]);
 
   useEffect(() => { if (!selectedStop) { enriquecerRef.current++; setGrupoExtra([]); } }, [selectedStop]);
 
