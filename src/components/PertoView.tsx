@@ -397,7 +397,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // UNIR: horário do dia pedido à AMP pelo telemóvel (por paragem da lista)
   const [unirPorParagem, setUnirPorParagem] = useState<Record<string, { t: number; ok: boolean; aCarregar: boolean; passagens: PassagemUnir[] }>>({});
   const unirPedidosRef = useRef<Set<string>>(new Set());
-  const [, setTiqueUnir] = useState(0);
+  const [tiqueUnir, setTiqueUnir] = useState(0);
 
   // Search & Navigation
   const [destinationQuery, setDestinationQuery] = useState<string>('');
@@ -1237,7 +1237,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Só se desenham as paragens mais próximas; as restantes aparecem a pedido (cada cartão tem muitas partidas)
   const [maxParagens, setMaxParagens] = useState(24);
   useEffect(() => { setMaxParagens(24); }, [activeFilterTab]);
-  const paragensVisiveis = useMemo(() => filteredStops.slice(0, maxParagens), [filteredStops, maxParagens]);
 
   // UNIR: pede à AMP as partidas das paragens UNIR mais próximas e da paragem aberta
   const unirPorParagemRef = useRef(unirPorParagem);
@@ -1274,6 +1273,26 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const cores = new Map<string, string>((stop.lines || []).map((l) => [String(l.code), l.color]));
     return partidasParaMostrar(e.passagens, cores, todas ? Infinity : 40);
   };
+
+  // Os cartões vêm por distância; aqui passam a ficar por hora: primeiro a paragem onde passa algo mais cedo
+  // (em empate, a mais perto; sem partidas, no fim). Assim "3 min" nunca aparece depois de "35 min".
+  const paragensPorHora = useMemo(() => {
+    const proxima = (stop: NearbyStopItem): number => {
+      const deps = [...(stop.nextDepartures || []), ...partidasUnirDe(stop)];
+      let melhor = Infinity;
+      for (const d of deps) {
+        const m = parseDepartureTime(d).minutesDiff;
+        if (m < 999 && m < melhor) melhor = Math.max(0, m);
+      }
+      return melhor;
+    };
+    return filteredStops
+      .map((stop, i) => ({ stop, i, k: proxima(stop) }))
+      .sort((a, b) => (a.k === b.k ? a.i - b.i : a.k - b.k))
+      .map((x) => x.stop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredStops, unirPorParagem, tiqueUnir]);
+  const paragensVisiveis = useMemo(() => paragensPorHora.slice(0, maxParagens), [paragensPorHora, maxParagens]);
 
   // Render Stops on Map — só se mexe no que mudou (novo, saiu, mudou de estado), não em todos
   useEffect(() => {
