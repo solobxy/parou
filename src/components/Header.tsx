@@ -124,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => onTabChange('perto')}
             className="flex items-center text-left focus:outline-none rounded-[8px] min-h-[44px] cursor-pointer text-[#111111]"
-            aria-label="PAROU Início"
+            aria-label={`PAROU · ${t('Página inicial')}`}
           >
             <Logo size={28} className="max-[419px]:hidden" />
             <Logo size={22} className="min-[420px]:hidden" />

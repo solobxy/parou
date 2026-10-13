@@ -1100,4 +1100,6 @@ export const FR: Record<string, string> = {
   'Ver ocorrências': 'Voir les incidents',
   'Idioma': 'Langue',
   'Mudar de idioma': 'Changer de langue',
+  'Página inicial': 'Page d’accueil',
+  'Açores': 'Açores',
 };

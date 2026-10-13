@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { IDIOMAS, idioma, mudarIdioma, t, type Idioma } from '../i18n';
 import { Bandeira } from './Bandeira';
@@ -12,6 +12,23 @@ export const SeletorIdioma: React.FC = () => {
   const [aberto, setAberto] = useState(false);
   const raiz = useRef<HTMLDivElement | null>(null);
   const botao = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; largura: number } | null>(null);
+
+  // O menu alinha-se ao botão mas nunca sai do ecrã (o botão fica longe do canto direito em ecrãs estreitos)
+  useLayoutEffect(() => {
+    if (!aberto || !botao.current) { setPos(null); return; }
+    const r = botao.current.getBoundingClientRect();
+    const margem = 12;
+    const largura = Math.min(232, window.innerWidth - margem * 2);
+    const left = Math.max(margem, Math.min(r.right - largura, window.innerWidth - margem - largura));
+    setPos({ left, top: r.bottom + 6, largura });
+  }, [aberto]);
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = () => setAberto(false);
+    window.addEventListener('resize', fechar);
+    return () => window.removeEventListener('resize', fechar);
+  }, [aberto]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -47,7 +64,8 @@ export const SeletorIdioma: React.FC = () => {
         <div
           role="radiogroup"
           aria-label={t('Idioma')}
-          className="absolute right-0 top-[calc(100%+6px)] z-50 w-[min(232px,calc(100vw-24px))] rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-1.5 shadow-lg tema-menu"
+          className="fixed z-50 rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] p-1.5 shadow-lg tema-menu"
+          style={pos ? { left: pos.left, top: pos.top, width: pos.largura } : { visibility: 'hidden' }}
           data-teste="menu-idioma"
         >
           {IDIOMAS.map((l) => {
