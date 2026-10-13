@@ -645,7 +645,7 @@ export async function planearViagem(
         if (origens.length && destinosS.size) {
           const js = procurarComUnir(ix, { origens, destinos: destinosS, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 900 });
           // pior chegada que ainda interessa: quando o percurso normal é bom, só se for melhor; senão, com a folga habitual
-          const limiteLig = Number.isFinite(melhorChegada) ? melhorChegada + (fracoReg ? (30 + Math.min(10, Math.max(0, aPeReg - 9) * 0.75)) * 60 : -3 * 60) : Infinity;
+          const limiteLig = Number.isFinite(melhorChegada) ? melhorChegada + (fracoReg ? (20 + Math.min(10, Math.max(0, aPeReg - 9) * 0.75)) * 60 : 0) : Infinity;
           const qNome = db.prepare('SELECT stop_name AS nome, stop_lat AS lat, stop_lon AS lon FROM stops WHERE stop_id = ?');
           const infoParagem = (id: string) => {
             const r = qNome.get(id) as { nome: string; lat: number; lon: number } | undefined;
@@ -659,7 +659,7 @@ export async function planearViagem(
             .filter((j) => j.rides.some((r) => ix.padroes[r.pat].freq))
             .sort((a, b) => a.chegada - b.chegada || a.k - b.k);
           const vistas = new Set<string>();
-          const maximo = nivelLig === 0 ? 5 : nivelLig === 1 ? 3 : 2;
+          const maximo = nivelLig === 0 ? 6 : nivelLig === 1 ? 4 : 2;
           for (const j of candidatas) {
             if (ligacoes.length >= maximo) break;
             if (j.chegada - dia.desvio > limiteLig) continue;
