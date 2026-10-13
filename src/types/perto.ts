@@ -188,3 +188,23 @@ export interface CadeiaUnir {
   pernas: CandidatoUnir[];
   transbordos: PontoRota[];
 }
+
+/**
+ * Combinação geral com a UNIR: [viagem normal até lá] + [uma linha da UNIR] + [o que falta, calculado a partir de onde se sai].
+ * Cobre qualquer mistura (normal→UNIR, UNIR→normal, UNIR→UNIR, normal→UNIR→normal…): a app pede a hora da UNIR à AMP
+ * e, se não chegar ao destino (`fim` falso), volta a perguntar ao servidor como continuar a partir de `ponto`.
+ */
+export interface LigacaoUnir {
+  /** Do ponto de partida até onde se apanha a UNIR (já com horas); ausente quando se começa logo na UNIR */
+  prefixo?: TransitRouteOption;
+  /** Instante (epoch, s) em que o prefixo chega a `transbordo` */
+  chegadaEpoch?: number;
+  transbordo?: PontoRota;
+  candidato: CandidatoUnir;
+  /** Onde se sai da UNIR (se `fim`, é a paragem perto do destino final) */
+  ponto: PontoRota;
+  /** A linha da UNIR já chega ao destino final */
+  fim: boolean;
+  /** Duração total estimada (min) com horas estimadas da UNIR; só para ordenar */
+  estimativa: number;
+}

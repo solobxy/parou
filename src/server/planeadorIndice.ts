@@ -15,6 +15,10 @@ const RAIO_VIZ = 300; // metros a pé entre paragens num transbordo
 const M_POR_MIN = 75;
 const DESVIO_RUAS = 1.3;
 const INF = 0x3fffffff;
+// UNIR sem horários na base: no modo "sint" tratam-se as linhas como se passassem a cada ESPERA_SINT s, com PASSO_SINT s por paragem
+export const ESPERA_SINT = 10 * 60;
+export const PASSO_SINT = 90;
+const FIM_SINT = 23 * 3600 + 30 * 60; // última hora a que se conta apanhar uma UNIR estimada
 
 export interface Padrao {
   feed: string; // feed original (para os serviços ativos)
@@ -30,6 +34,12 @@ export interface Padrao {
   tripId: string[];
   service: string[];
   headsign: string[];
+  /** Linha sem horários (UNIR): só entra na pesquisa "sint", com viagens estimadas */
+  freq?: boolean;
+  /** Sentido da linha (só nas freq) */
+  dir?: number;
+  /** stop_sequence de cada posição (só nas freq) */
+  fseq?: Int32Array;
 }
 
 export interface Indice {
@@ -44,7 +54,10 @@ export interface Indice {
   psPat: Int32Array;
   psPos: Int32Array;
   grelha: Map<number, number[]>;
+  /** Como a grelha, mas também com as paragens que só têm linhas estimadas (UNIR) */
+  grelhaS: Map<number, number[]>;
   viz: Map<number, { ids: Int32Array; min: Uint8Array }>;
+  vizS: Map<number, { ids: Int32Array; min: Uint8Array }>;
   nRotas: number;
 }
 
@@ -225,6 +238,38 @@ async function construir(dbAny: any): Promise<Indice> {
   }
   grupos.clear();
 
+  // --- linhas da UNIR sem horários: um padrão "freq" por linha e sentido (a hora vem de uma espera média, não de viagens)
+  try {
+    const linhasU = dbAny.prepare(
+      `SELECT sr.route_id AS r, sr.direction_id AS d, sr.stop_id AS s, sr.stop_sequence AS q FROM stop_routes sr
+       JOIN stops st ON st.stop_id = sr.stop_id WHERE st.feed_id = 'unir' ORDER BY sr.route_id, sr.direction_id, sr.stop_sequence`,
+    ).all() as Array<{ r: string; d: number; s: string; q: number }>;
+    const porLinha = new Map<string, Array<{ r: string; d: number; s: number; q: number }>>();
+    for (const x of linhasU) {
+      const si = stopIdx.get(x.s);
+      if (si === undefined) continue;
+      const k = `${x.r}|${x.d}`;
+      let l = porLinha.get(k);
+      if (!l) { l = []; porLinha.set(k, l); }
+      l.push({ r: x.r, d: x.d, s: si, q: x.q });
+    }
+    for (const l of porLinha.values()) {
+      if (l.length < 2) continue;
+      let ri = routeIdxMap.get(`unir|${l[0].r}`);
+      if (ri === undefined) { ri = routeIdxMap.size; routeIdxMap.set(`unir|${l[0].r}`, ri); }
+      padroes.push({
+        feed: 'unir', feedSaida: 'unir', route: l[0].r, routeIdx: ri,
+        stops: Int32Array.from(l.map((x) => x.s)), nT: 0,
+        dep: new Int32Array(0), arr: new Int32Array(0), seq: new Int32Array(0), pick: new Uint8Array(0),
+        tripId: [], service: [], headsign: [],
+        freq: true, dir: l[0].d, fseq: Int32Array.from(l.map((x) => x.q)),
+      });
+    }
+  } catch (e: any) {
+    console.warn('[Planeador] linhas estimadas da UNIR:', e?.message || e);
+  }
+  await tick();
+
   // --- paragem -> (padrão, posição)
   const nStops = stopId.length;
   const psStart = new Int32Array(nStops + 1);
@@ -238,24 +283,32 @@ async function construir(dbAny: any): Promise<Indice> {
 
   const lat = Float64Array.from(latA), lon = Float64Array.from(lonA);
   const grelha = new Map<number, number[]>();
+  const grelhaS = new Map<number, number[]>();
+  const temReal = new Uint8Array(nStops);
+  for (const p of padroes) if (!p.freq) for (let j = 0; j < p.stops.length; j++) temReal[p.stops[j]] = 1;
   for (let s = 0; s < nStops; s++) {
     if (psStart[s + 1] === psStart[s] || !Number.isFinite(lat[s]) || !Number.isFinite(lon[s])) continue;
     const k = chaveCelula(celulaY(lat[s]), celulaX(lon[s]));
+    const ls = grelhaS.get(k);
+    if (ls) ls.push(s); else grelhaS.set(k, [s]);
+    if (!temReal[s]) continue; // só com linhas estimadas: fora da pesquisa normal
     const l = grelha.get(k);
     if (l) l.push(s); else grelha.set(k, [s]);
   }
 
-  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, viz: new Map(), nRotas: routeIdxMap.size };
+  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, grelhaS, viz: new Map(), vizS: new Map(), nRotas: routeIdxMap.size };
 }
 
-function vizinhos(ix: Indice, s: number): { ids: Int32Array; min: Uint8Array } {
-  let v = ix.viz.get(s);
+function vizinhos(ix: Indice, s: number, sint = false): { ids: Int32Array; min: Uint8Array } {
+  const cache = sint ? ix.vizS : ix.viz;
+  const grade = sint ? ix.grelhaS : ix.grelha;
+  let v = cache.get(s);
   if (v) return v;
   const ids: number[] = [], mins: number[] = [];
   if (Number.isFinite(ix.lat[s]) && Number.isFinite(ix.lon[s])) {
     const cy = celulaY(ix.lat[s]), cx = celulaX(ix.lon[s]);
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      for (const o of ix.grelha.get(chaveCelula(cy + dy, cx + dx)) || []) {
+      for (const o of grade.get(chaveCelula(cy + dy, cx + dx)) || []) {
         if (o === s) continue;
         const m = distM(ix.lat[s], ix.lon[s], ix.lat[o], ix.lon[o]);
         if (m <= RAIO_VIZ) { ids.push(o); mins.push(Math.min(255, minAPe(m))); }
@@ -263,8 +316,8 @@ function vizinhos(ix: Indice, s: number): { ids: Int32Array; min: Uint8Array } {
     }
   }
   v = { ids: Int32Array.from(ids), min: Uint8Array.from(mins) };
-  if (ix.viz.size > 50000) ix.viz.clear();
-  ix.viz.set(s, v);
+  if (cache.size > 50000) cache.clear();
+  cache.set(s, v);
   return v;
 }
 
@@ -283,6 +336,11 @@ export interface PedidoPesquisa {
    * (um por número de viagens que melhora a hora de chegada). A hora de `chegada` conta o tempo a pé do destino.
    */
   todosAlvos?: Map<number, Jornada[]>;
+  /**
+   * Inclui as linhas sem horários (UNIR) como se passassem de ESPERA_SINT em ESPERA_SINT segundos, a PASSO_SINT s por
+   * paragem. Serve para descobrir combinações; as horas reais vêm depois da AMP (pelo telemóvel).
+   */
+  sint?: boolean;
 }
 
 /** Paragens com serviço (de feeds com horários) a menos de `raio` metros (máx. ~330 m com esta grelha) */
@@ -300,6 +358,7 @@ export function paragensProximas(ix: Indice, lat: number, lon: number, raio: num
 
 export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
   const { origens, destinos, ativo, maxK, limiteSaida } = pedido;
+  const sint = !!pedido.sint;
   const prazo = Date.now() + pedido.orcamentoMs;
   const S = ix.stopId.length, P = ix.padroes.length, K = maxK;
   const tau: Int32Array[] = [], kind: Uint8Array[] = [], pPat: Int32Array[] = [], pT: Int32Array[] = [], pB: Int32Array[] = [], pA: Int32Array[] = [], pFrom: Int32Array[] = [], rk: Int32Array[] = [];
@@ -383,6 +442,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
         for (let j = ix.psStart[s]; j < ix.psStart[s + 1]; j++) {
           const p = ix.psPat[j], pos = ix.psPos[j];
           if (banidas.size && banidas.has(ix.padroes[p].routeIdx)) continue;
+          if (ix.padroes[p].freq && !sint) continue;
           if (qPos[p] < 0) { tocados.push(p); qPos[p] = pos; } else if (pos < qPos[p]) qPos[p] = pos;
         }
       }
@@ -391,6 +451,27 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
       const anterior = tau[k - 1], margem = k > 1 ? MARGEM : 0;
       for (const p of tocados) {
         const pd = ix.padroes[p], nS = pd.stops.length;
+        if (pd.freq) {
+          // Linha estimada: a viagem "virtual" passa na posição x à hora t0 + x * PASSO_SINT
+          let t0 = 0, emb0 = 0, aBordo = false;
+          for (let pos = qPos[p]; pos < nS; pos++) {
+            const s = pd.stops[pos];
+            if (aBordo) {
+              const a = t0 + pos * PASSO_SINT;
+              if (a < best[s] && a < alvo) {
+                tau[k][s] = a; best[s] = a; kind[k][s] = 1;
+                pPat[k][s] = p; pT[k][s] = t0; pB[k][s] = emb0; pA[k][s] = pos; rk[k][s] = pd.routeIdx;
+                if (marca[s] !== carimbo) { marca[s] = carimbo; novos.push(s); }
+              }
+            }
+            const prev = anterior[s];
+            if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
+              const min = prev + margem + ESPERA_SINT;
+              if (min <= FIM_SINT && min <= limiteSaida && (!aBordo || min < t0 + pos * PASSO_SINT)) { t0 = min - pos * PASSO_SINT; emb0 = pos; aBordo = true; }
+            }
+          }
+          continue;
+        }
         let t = -1, emb = 0;
         for (let pos = qPos[p]; pos < nS; pos++) {
           const s = pd.stops[pos];
@@ -418,7 +499,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
       const aPe: number[] = [];
       for (const s of novos) {
         if (kind[k][s] !== 1) continue;
-        const v = vizinhos(ix, s);
+        const v = vizinhos(ix, s, sint);
         for (let j = 0; j < v.ids.length; j++) {
           const o = v.ids[j];
           const c = tau[k][s] + v.min[j] * 60;
@@ -472,7 +553,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
   const vistas = new Set<string>();
   const juntar = (js: Jornada[]) => {
     for (const j of js) {
-      const sig = j.rides.map((r) => `${ix.padroes[r.pat].routeIdx}:${ix.padroes[r.pat].tripId[r.t]}`).join('>');
+      const sig = j.rides.map((r) => `${ix.padroes[r.pat].routeIdx}:${ix.padroes[r.pat].freq ? `f${r.t}` : ix.padroes[r.pat].tripId[r.t]}`).join('>');
       if (vistas.has(sig)) continue;
       // nunca duas viagens seguidas da mesma linha
       let repete = false;
