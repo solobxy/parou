@@ -159,6 +159,8 @@ export const EN: Record<string, string> = {
   '{m} m a pé': '{m} m walk',
   'Sair às {h}': 'Leave at {h}',
   '{n} min a pé': '{n} min walk',
+  '{n} min até ao destino': '{n} min to your destination',
+  '{n} min': '{n} min',
   '{n} transbordo': '{n} transfer',
   '{n} transbordos': '{n} transfers',
   'Daqui não parte nenhum autocarro. Para apanhar, usa a outra paragem com o mesmo nome.': 'No buses depart from here. To board, use the other stop with the same name.',

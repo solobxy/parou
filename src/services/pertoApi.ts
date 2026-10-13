@@ -4,6 +4,8 @@ import {
   TransitRouteOption, 
   DestinationSuggestion,
   CandidatoUnir,
+  HibridaUnir,
+  PonteUnir,
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
 import { getLocalFavorites, addFavorite, removeFavorite } from './favoritesService';
@@ -94,10 +96,16 @@ export async function planTransitRoute(
   destName: string,
   /** Partir a outra hora (vários destinos: o troço seguinte começa quando se chega ao anterior) */
   quando?: Date,
+  /** `semPonte`: não procurar percursos que começam na UNIR (já se está a continuar uma viagem que começou nela) */
+  opcoes?: { semPonte?: boolean },
 ): Promise<{
   routes: TransitRouteOption[];
   /** Ligações diretas da UNIR: a app completa-as com o horário da AMP */
   unir?: CandidatoUnir[];
+  /** Viagem normal até um transbordo + linha da UNIR até ao destino (a app completa a UNIR com a AMP) */
+  hibridas?: HibridaUnir[];
+  /** Linha da UNIR a partir da origem até um ponto onde se continua em transporte */
+  pontes?: PonteUnir[];
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
   destName: string;
@@ -111,6 +119,7 @@ export async function planTransitRoute(
   });
   // Só pede outra hora quando é mesmo diferente de agora (o pedido normal fica igual)
   if (quando && Math.abs(quando.getTime() - Date.now()) > 90_000) params.set('quando', quando.toISOString());
+  if (opcoes?.semPonte) params.set('ponte', '0');
 
   const res = await fetch(`/api/transit/plan-route?${params.toString()}`);
   if (!res.ok) {

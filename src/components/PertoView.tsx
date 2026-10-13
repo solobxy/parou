@@ -52,7 +52,8 @@ import { InputPesquisa } from './InputPesquisa';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
 import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
-import { MAX_DESTINOS, novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
+import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
+import { opcoesComUnir } from '../services/hibridasUnir';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
@@ -630,12 +631,22 @@ export const PertoView: React.FC<PertoViewProps> = ({
       let routes = ordenar(res.routes || []);
       setCalculatedRoutes(routes);
       if (routes.length > 0) setSelectedRoute(routes[0]);
-      // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada
+      // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
       const candidatos = (res.unir || []).slice(0, 4);
-      if (candidatos.length) {
-        const extra = (await Promise.all(candidatos.map((c) => viagemUnir(c, destName, res.originCoords, res.destCoords).catch(() => null))))
-          .filter(Boolean) as TransitRouteOption[];
+      const partidaMs = partidaRotasRef.current;
+      const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length);
+      if (candidatos.length || temCombinacoes) {
+        const validar = () => pedido === pedidoRotasRef.current;
+        const [diretas, combinadas] = await Promise.all([
+          Promise.all(candidatos.map((c) => viagemUnir(c, destName, res.originCoords, res.destCoords).catch(() => null))),
+          opcoesComUnir(
+            res, destName, partidaMs,
+            (ponto, quandoMs) => calcularTroco(ponto, { lat: destLat, lon: destLon }, destName, quandoMs, validar, true),
+            validar,
+          ).catch(() => [] as TransitRouteOption[]),
+        ]);
         if (pedido !== pedidoRotasRef.current) return;
+        const extra = [...(diretas.filter(Boolean) as TransitRouteOption[]), ...combinadas];
         if (extra.length) {
           routes = ordenar([...routes, ...extra]);
           setCalculatedRoutes(routes);
