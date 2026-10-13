@@ -303,7 +303,8 @@ export function registarRotasEstatisticas(app: Express, opcoes: { eAdmin: (req: 
       const ua = String(req.headers['user-agent'] || '');
       if (!ua || ROBOS.test(ua)) return res.status(204).end();
       const origem = ORIGENS.has(String(req.body?.o)) ? String(req.body.o) : 'site';
-      const idioma = String(req.body?.i) === 'en' ? 'en' : 'pt';
+      const pedido = String(req.body?.i);
+      const idioma = pedido === 'en' || pedido === 'de' || pedido === 'fr' ? pedido : 'pt';
       let id = lerCookie(req, COOKIE_VISITA);
       if (!id || !ID_VALIDO.test(id)) id = crypto.randomUUID();
       pôrCookie(req, res, COOKIE_VISITA, id, VALIDADE_S);

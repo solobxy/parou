@@ -26,17 +26,26 @@ const ZONA = 'Europe/Lisbon';
 // ao arrancar) vê a versão inglesa, que não é indexada: o Google continua a ver o português. O idioma do pedido
 // segue o código através de um AsyncLocalStorage (várias páginas são montadas em funções assíncronas).
 // ------------------------------------------------------------------------------------
-type Lang = 'pt' | 'en';
+type Lang = 'pt' | 'en' | 'de' | 'fr';
 const idiomaPedido = new AsyncLocalStorage<Lang>();
-const emIngles = (): boolean => idiomaPedido.getStore() === 'en';
-/** Texto no idioma do pedido: L('português', 'english') */
-const L = (pt: string, ingles: string): string => (emIngles() ? ingles : pt);
-const LOCALE = (): string => (emIngles() ? 'en-GB' : 'pt-PT');
+const lang = (): Lang => idiomaPedido.getStore() || 'pt';
+/** "Não é português": a base das outras versões é o inglês; o alemão e o francês traduzem por cima, e onde faltar fica o inglês */
+const emIngles = (): boolean => lang() !== 'pt';
+/** Texto no idioma do pedido: L('português', 'english', 'deutsch', 'français'). Sem alemão/francês, aparece o inglês. */
+const L = (pt: string, ingles: string, de?: string, fr?: string): string => {
+  const l = lang();
+  return l === 'pt' ? pt : l === 'de' ? (de ?? ingles) : l === 'fr' ? (fr ?? ingles) : ingles;
+};
+const LOCALES: Record<Lang, string> = { pt: 'pt-PT', en: 'en-GB', de: 'de-DE', fr: 'fr-FR' };
+const OG_LOCALES: Record<Lang, string> = { pt: 'pt_PT', en: 'en_GB', de: 'de_DE', fr: 'fr_FR' };
+const LANG_HTML: Record<Lang, string> = { pt: 'pt-PT', en: 'en', de: 'de', fr: 'fr' };
+const LOCALE = (): string => LOCALES[lang()];
 const num = (n: number): string => n.toLocaleString(LOCALE());
 function idiomaDoPedido(req: Request): Lang {
   const q = String(req.query.lang || '');
-  if (q === 'en' || q === 'pt') return q;
-  return /(?:^|;\s*)parou_idioma=en(?:;|$)/.test(req.headers.cookie || '') ? 'en' : 'pt';
+  if (q === 'en' || q === 'pt' || q === 'de' || q === 'fr') return q;
+  const c = /(?:^|;\s*)parou_idioma=(en|de|fr)(?:;|$)/.exec(req.headers.cookie || '');
+  return c ? (c[1] as Lang) : 'pt';
 }
 /** Primeiro passo de cada rota: fixa o idioma do pedido para tudo o que vem a seguir */
 const comIdioma = (req: Request, _res: Response, next: NextFunction) => idiomaPedido.run(idiomaDoPedido(req), () => next());
@@ -101,7 +110,7 @@ ul.lista li.fogo{padding:12px 14px}.fogo .l1{display:flex;flex-wrap:wrap;align-i
 .estado:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 footer.rodape{border-top:1px solid #E6E6E3;background:#F4F4F2;color:#4A4A4A;font-size:14px}footer .in{max-width:880px;margin:0 auto;padding:22px 16px 30px}
 footer nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}footer a{text-decoration:none}footer a:hover{text-decoration:underline}
-footer button.idioma{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:999px;padding:5px 14px;min-height:32px;cursor:pointer;opacity:.85}footer button.idioma:hover{opacity:1}
+footer .idiomas{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}footer button.idioma{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:999px;padding:5px 14px 5px 10px;min-height:36px;cursor:pointer;opacity:.85;display:inline-flex;align-items:center;gap:8px}footer button.idioma:hover{opacity:1}footer button.idioma.ativo{opacity:1;font-weight:700;border-width:2px;cursor:default}footer button.idioma svg{width:24px;height:16px;border-radius:2px;box-shadow:0 0 0 1px rgba(128,128,128,.45);flex:none}
 @media(max-width:520px){h1{font-size:26px}.btn.esconde{display:none}}
 `;
 
@@ -162,6 +171,15 @@ html[data-tema=ambar] footer.rodape{background:rgba(255,244,232,.7);border-color
 
 const SCRIPT_TEMA = `try{var t=localStorage.getItem('parou_tema');if(t==='escuro'||t==='ambar'){document.documentElement.setAttribute('data-tema',t);var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',t==='escuro'?'#161618':'#FFE9D2')}}catch(e){}`;
 
+const NOME_IDIOMA: Record<Lang, string> = { pt: 'Português', en: 'English', de: 'Deutsch', fr: 'Français' };
+// Bandeiras (as mesmas da app) em SVG simples
+const BANDEIRA_SVG: Record<Lang, string> = {
+  pt: '<svg viewBox="0 0 30 20" aria-hidden="true" focusable="false"><rect width="30" height="20" fill="#F00"/><rect width="12" height="20" fill="#060"/><circle cx="12" cy="10" r="5.2" fill="none" stroke="#FC0" stroke-width="1.1"/><path d="M12 4.8C9.6 4.8 8.4 6.6 8.4 8.6V11.4C8.4 13.2 10 14.8 12 15.6 14 14.8 15.6 13.2 15.6 11.4V8.6C15.6 6.6 14.4 4.8 12 4.8Z" fill="#F00" stroke="#fff" stroke-width=".55"/><path d="M12 7.2C10.9 7.2 10.4 8 10.4 8.9V11C10.4 11.9 11 12.6 12 13 13 12.6 13.6 11.9 13.6 11V8.9C13.6 8 13.1 7.2 12 7.2Z" fill="#fff"/><circle cx="12" cy="10" r=".9" fill="#039"/></svg>',
+  en: '<svg viewBox="0 0 30 20" aria-hidden="true" focusable="false"><clipPath id="gbs"><path d="M0 0v20h30V0z"/></clipPath><clipPath id="gbt"><path d="M30 15h30v15zv15h-30zh-30v-15zv-15h30z" transform="scale(.5 .6667)"/></clipPath><g clip-path="url(#gbs)"><path d="M0 0v20h30V0z" fill="#012169"/><path d="M0 0L30 20M30 0L0 20" stroke="#fff" stroke-width="4"/><path d="M0 0L30 20M30 0L0 20" clip-path="url(#gbt)" stroke="#C8102E" stroke-width="2.6"/><path d="M15 0v20M0 10h30" stroke="#fff" stroke-width="6.6"/><path d="M15 0v20M0 10h30" stroke="#C8102E" stroke-width="4"/></g></svg>',
+  de: '<svg viewBox="0 0 30 20" aria-hidden="true" focusable="false"><rect width="30" height="20" fill="#FFCE00"/><rect width="30" height="13.34" fill="#D00"/><rect width="30" height="6.67"/></svg>',
+  fr: '<svg viewBox="0 0 30 20" aria-hidden="true" focusable="false"><rect width="30" height="20" fill="#fff"/><rect width="10" height="20" fill="#0055A4"/><rect x="20" width="10" height="20" fill="#EF4135"/></svg>',
+};
+
 // Troca de idioma nas páginas do servidor: guarda a escolha (cookie para o servidor, localStorage para a app) e recarrega
 const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}location.reload()}`;
 
@@ -180,7 +198,7 @@ function rodape(): string {
 <nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables')}</a><a href="/cidades">${L('Cidades', 'Cities')}</a><a href="/greves">${L('Greves', 'Strikes')}</a><a href="/incendios">${L('Incêndios', 'Fires')}</a><a href="/alertas">${L('Alertas', 'Alerts')}</a><a href="/mapa">${L('Mapa', 'Map')}</a><a href="/sobre">${L('Sobre', 'About')}</a><a href="/privacidade">${L('Privacidade', 'Privacy')}</a><a href="/termos">${L('Termos', 'Terms')}</a><a href="/apagar-conta">${L('Apagar conta', 'Delete account')}</a><a href="/contactar">${L('Contactar', 'Contact')}</a></nav>
 <nav aria-label="${L('Operadores', 'Operators')}">${principais}</nav>
 <p class="nota">${L('Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.', 'Free and non-profit. Official timetables published by the operators (GTFS) and by IMT; they can change without notice — if in doubt, check with the operator.')}</p>
-<p style="margin:12px 0 0"><button type="button" class="idioma" lang="${emIngles() ? 'pt' : 'en'}" onclick="parouIdioma('${emIngles() ? 'pt' : 'en'}')">${emIngles() ? 'Português' : 'English'}</button></p>
+<p class="idiomas" role="group" aria-label="${L('Idioma', 'Language', 'Sprache', 'Langue')}">${(['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<button type="button" class="idioma${l === lang() ? ' ativo' : ''}" lang="${LANG_HTML[l]}"${l === lang() ? ' aria-current="true"' : ` onclick="parouIdioma('${l}')"`}>${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</button>`).join('')}</p>
 </div></footer>`;
 }
 
@@ -201,13 +219,13 @@ function pagina(o: OpcoesPagina): string {
   const verifG = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
   const verifB = (process.env.BING_SITE_VERIFICATION || '').trim();
   return `<!doctype html>
-<html lang="${ingles ? 'en' : 'pt-PT'}"><head>
+<html lang="${LANG_HTML[lang()]}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${html(titulo)}</title>
 <meta name="description" content="${html(desc)}">
 <meta name="robots" content="${o.indexar === false || ingles ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1'}">
 <link rel="canonical" href="${html(canonico)}">
-<meta property="og:type" content="website"><meta property="og:site_name" content="PAROU"><meta property="og:locale" content="${ingles ? 'en_GB' : 'pt_PT'}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="PAROU"><meta property="og:locale" content="${OG_LOCALES[lang()]}">
 <meta property="og:url" content="${html(canonico)}"><meta property="og:title" content="${html(titulo)}"><meta property="og:description" content="${html(desc)}">
 <meta property="og:image" content="${SITE}${o.imagem || '/og-image.png'}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${html(titulo)}"><meta name="twitter:description" content="${html(desc)}"><meta name="twitter:image" content="${SITE}${o.imagem || '/og-image.png'}">
@@ -302,7 +320,7 @@ function dataBase(): string {
 // Cache das páginas (uma entrada por idioma)
 // ------------------------------------------------------------------------------------
 const cache = new Map<string, { t: number; ttl: number; v: string }>();
-const chaveIdioma = (k: string): string => (emIngles() ? `en:${k}` : k);
+const chaveIdioma = (k: string): string => (lang() === 'pt' ? k : `${lang()}:${k}`);
 function emCache(chave: string, ttlMs: number, fazer: () => string): string {
   const k = chaveIdioma(chave);
   const c = cache.get(k);
