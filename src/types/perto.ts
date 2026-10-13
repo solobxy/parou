@@ -154,3 +154,14 @@ export interface PonteUnir {
   candidato: CandidatoUnir;
   ponto: PontoRota;
 }
+
+export interface DestinationSuggestion {
+  id: string;
+  title: string;
+  subtitle: string;
+  latitude: number;
+  longitude: number;
+  type: 'STATION' | 'STOP' | 'PLACE' | 'CITY';
+  transportMode?: TransportMode;
+  distanceFromUserMeters?: number;
+}
