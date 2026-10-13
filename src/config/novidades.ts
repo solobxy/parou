@@ -142,7 +142,7 @@ parou.pt`,
     titulo: 'PAROU também em inglês',
     texto: `🌍 *A PAROU também fala inglês*
 
-Toca em *EN* no topo e a app muda para inglês. Útil para quem visita Portugal.
+Toca na bandeira no topo e a app muda para inglês. Útil para quem visita Portugal.
 
 parou.pt`,
     imagens: ['/novidades/ingles-1.jpg'],
@@ -277,5 +277,22 @@ Entra na tua conta e resgata 1 ponto de reputação por dia. Os pontos abrem pe�
 parou.pt`,
     imagens: ['/novidades/ponto-diario-1.jpg'],
     comunidade: 'Já há ponto diário: quem tem conta resgata 1 ponto de reputação por dia (aparece um aviso pequeno ao abrir a app, e no perfil vê-se a contagem até ao próximo). Os pontos abrem peças novas do avatar.',
+  },
+  {
+    id: 'idiomas-de-fr',
+    data: '2026-10-13',
+    etiqueta: 'Novidade',
+    titulo: 'Agora também em alemão e francês',
+    texto: `🌍 *A PAROU agora fala alemão e francês*
+
+Toca na bandeira no topo e escolhe a língua: 🇵🇹 português, 🇬🇧 inglês, 🇩🇪 alemão ou 🇫🇷 francês.
+🧭 Menus, rotas, mapa e alertas mudam todos
+📖 Também as páginas de privacidade, termos e contactos
+
+Útil para quem visita Portugal, ou para quem vive cá e prefere outra língua.
+
+parou.pt`,
+    imagens: ['/novidades/idiomas-de-fr-1.jpg'],
+    comunidade: 'A PAROU já fala alemão e francês, além de português e inglês: toca na bandeira no topo e escolhe a língua. Menus, rotas, mapa e páginas mudam todos. Útil para quem visita Portugal!',
   },
 ];
