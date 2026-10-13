@@ -8,6 +8,7 @@ import {
   PonteUnir,
   DuplaUnir,
   CadeiaUnir,
+  LigacaoUnir,
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
 import { getLocalFavorites, addFavorite, removeFavorite } from './favoritesService';
@@ -98,8 +99,8 @@ export async function planTransitRoute(
   destName: string,
   /** Partir a outra hora (vários destinos: o troço seguinte começa quando se chega ao anterior) */
   quando?: Date,
-  /** `semPonte`: não procurar percursos que começam na UNIR (já se está a continuar uma viagem que começou nela) */
-  opcoes?: { semPonte?: boolean },
+  /** `semPonte`: modo antigo (sem combinações gerais). `nivel` (0–2): modo geral da UNIR; sobe a cada continuação depois de uma linha da UNIR */
+  opcoes?: { semPonte?: boolean; nivel?: number },
 ): Promise<{
   routes: TransitRouteOption[];
   /** Ligações diretas da UNIR: a app completa-as com o horário da AMP */
@@ -112,6 +113,8 @@ export async function planTransitRoute(
   duplas?: DuplaUnir[];
   /** Três linhas da UNIR seguidas */
   cadeias?: CadeiaUnir[];
+  /** Combinações gerais com a UNIR (modo `nivel`) */
+  ligacoes?: LigacaoUnir[];
   /** Sem resposta por falta de paragens com horários: metros até à mais próxima (-1 = nenhuma a menos de 8 km) */
   longe?: { origem?: number; destino?: number };
   originCoords: { lat: number; lon: number };
@@ -128,6 +131,7 @@ export async function planTransitRoute(
   // Só pede outra hora quando é mesmo diferente de agora (o pedido normal fica igual)
   if (quando && Math.abs(quando.getTime() - Date.now()) > 90_000) params.set('quando', quando.toISOString());
   if (opcoes?.semPonte) params.set('ponte', '0');
+  if (opcoes?.nivel !== undefined) params.set('nv', String(opcoes.nivel));
 
   const res = await fetch(`/api/transit/plan-route?${params.toString()}`);
   if (!res.ok) {
