@@ -78,6 +78,8 @@ export interface UserProfile {
   proximaPeca?: { nome: string; falta: number } | null;
   admin?: boolean; // conta de administração (o servidor decide pelo e-mail)
   distincao?: string; // conta com medalha exclusiva e todas as peças do avatar abertas (código da peça exclusiva)
+  /** Ponto diário: `disponivelEm` = hora (ms) a partir da qual se resgata o próximo; `agora` = hora do servidor (ms) */
+  resgate?: { disponivelEm: number; agora: number };
 }
 
 export interface DistrictData {

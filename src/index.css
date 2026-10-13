@@ -312,3 +312,11 @@ h1, h2, h3, h4 {
 }
 .folha-entra { animation: folha-sobe 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .folha-fundo { animation: folha-fundo 150ms ease-out both; }
+
+/* Ponto diário: o selo do avatar salta quando o ponto é resgatado */
+@keyframes ponto-mais {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.ponto-mais { animation: ponto-mais 450ms cubic-bezier(0.16, 1, 0.3, 1) both; }

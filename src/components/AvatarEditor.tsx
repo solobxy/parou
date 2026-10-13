@@ -197,6 +197,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
                 ? t('Faltam {n} pontos para desbloquear: {nome}.', { n: proxima.rep - pontos, nome: t(proxima.nome) })
                 : t('Já tens todas as peças desbloqueadas. Vêm aí mais.')}
               {' '}{t('Ganhas pontos ao reportar ocorrências, publicar, responder e quando confirmam o que escreves.')}
+              {' '}{t('Mais 1 ponto por dia, só por voltares a abrir a PAROU.')}
             </p>
           </div>
         </div>

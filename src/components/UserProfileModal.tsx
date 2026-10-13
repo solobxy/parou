@@ -24,6 +24,7 @@ import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
 import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
+import { PontoDiarioCartao } from './PontoDiario';
 import { listarBloqueados, desbloquear } from '../services/comunidade';
 
 interface UserProfileModalProps {
@@ -140,6 +141,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Ponto diário: resgatar (se o aviso foi fechado) ou contagem até ao próximo */}
+        <PontoDiarioCartao user={user} />
 
         {/* Avatar: próxima peça por abrir */}
         <button
