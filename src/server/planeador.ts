@@ -748,6 +748,7 @@ export async function planearViagem(
           if (est > limiteHibrida) continue; // demasiado pior do que o percurso normal
           verificadas.push({ est, p });
         }
+        if (process.env.PLANO_DEBUG) console.log('[dbg ponte]', 'linhas', linhasSel.length, 'pts', pts.length, 'sel', sel.length, 'verif', verificadas.length, 'limite', Math.round((limiteHibrida - agoraSegs) / 60), 'min', 'ests', sel.slice(0, 8).map((p) => p.nome).join(' / '));
         verificadas.sort((a, b) => a.est - b.est);
         return verificadas.slice(0, 3).map(({ p }): PonteUnir => {
           const lnh = p.linha;
