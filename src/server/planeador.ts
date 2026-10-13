@@ -155,7 +155,7 @@ function indiceUnir() {
   const rows = getDatabase().prepare(
     `SELECT sr.route_id AS route, sr.direction_id AS sentido, sr.stop_sequence AS seq, sr.stop_id AS id, s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
      FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id WHERE s.feed_id = 'unir'`,
-  ).all() as PassoUnir[];
+  ).all() as unknown as PassoUnir[];
   const celulas = new Map<string, PassoUnir[]>(), linhas = new Map<string, PassoUnir[]>();
   for (const r of rows) {
     if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) continue;
