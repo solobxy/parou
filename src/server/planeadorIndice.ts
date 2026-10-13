@@ -663,7 +663,7 @@ export function procurarComUnir(ix: Indice, pedido: Omit<PedidoPesquisa, 'sint' 
     return { k, rides, destStop: destino - S, chegada: 0 };
   };
 
-  best.fill(INF);
+  best.fill(INF); marca.fill(0);
   for (let k = 0; k <= K; k++) { tau[k].fill(INF); kind[k].fill(0); rk[k].fill(-1); }
   let alvo = INF;
   const saida: Jornada[] = [];
