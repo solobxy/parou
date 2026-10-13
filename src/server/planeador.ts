@@ -645,7 +645,7 @@ export async function planearViagem(
         if (origens.length && destinosS.size) {
           const js = procurarComUnir(ix, { origens, destinos: destinosS, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 900 });
           // pior chegada que ainda interessa: quando o percurso normal é bom, só se for melhor; senão, com a folga habitual
-          const limiteLig = Number.isFinite(melhorChegada) ? melhorChegada + (fracoReg ? (10 + Math.min(10, Math.max(0, aPeReg - 9) * 0.75)) * 60 : -3 * 60) : Infinity;
+          const limiteLig = Number.isFinite(melhorChegada) ? melhorChegada + (fracoReg ? (30 + Math.min(10, Math.max(0, aPeReg - 9) * 0.75)) * 60 : -3 * 60) : Infinity;
           const qNome = db.prepare('SELECT stop_name AS nome, stop_lat AS lat, stop_lon AS lon FROM stops WHERE stop_id = ?');
           const infoParagem = (id: string) => {
             const r = qNome.get(id) as { nome: string; lat: number; lon: number } | undefined;
@@ -669,8 +669,8 @@ export async function planearViagem(
             if (!fim && nivelLig >= 2) continue; // no último nível só cabem ligações que chegam ao destino
             const pu = ix.padroes[ru.pat];
             const idB = ix.stopId[pu.stops[ru.b]], idA = ix.stopId[pu.stops[ru.a]];
-            const sig = `${j.rides.slice(0, m).map((r) => ix.padroes[r.pat].tripId[r.t]).join('>')}|${pu.route}|${pu.dir}|${idB}|${idA}|${fim}`;
-            if (vistas.has(sig)) continue;
+            const sig = `${j.rides.slice(0, m).map((r) => ix.padroes[r.pat].tripId[r.t]).join('>')}|${pu.route}|${pu.dir}|${idB}|${fim}`;
+            if (vistas.has(sig)) continue; // uma só proposta por linha e paragem de embarque (a AMP escolhe a melhor saída)
             vistas.add(sig);
             const pB = infoParagem(idB), pA = infoParagem(idA);
             const l = linha(pu.route);
