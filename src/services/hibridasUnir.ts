@@ -3,13 +3,14 @@
 // real à AMP e junta as duas partes numa só opção, com o tempo a pé entre as duas.
 
 import { viagemUnir } from './unirAmp';
-import type { CandidatoUnir, DuplaUnir, HibridaUnir, PonteUnir, PontoRota, RouteLeg, TransitRouteOption } from '../types/perto';
+import type { CadeiaUnir, CandidatoUnir, DuplaUnir, HibridaUnir, PonteUnir, PontoRota, RouteLeg, TransitRouteOption } from '../types/perto';
 
 /** Resposta do planeador com o que interessa aqui */
 export interface PlanoComUnir {
   hibridas?: HibridaUnir[];
   pontes?: PonteUnir[];
   duplas?: DuplaUnir[];
+  cadeias?: CadeiaUnir[];
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
 }
@@ -86,6 +87,25 @@ export async function opcoesComUnir(
       if (!ua?.chegadaEpoch || !aindaValido()) return null;
       const ub = await viagemUnir(d.b, destNome, d.transbordo, res.destCoords, ua.chegadaEpoch).catch(() => null);
       return ub ? juntarOpcoes(ua, ub) : null;
+    })());
+  }
+
+  // Três linhas da UNIR: cada uma conta a partir da chegada da anterior
+  for (const c of (res.cadeias || []).slice(0, 3)) {
+    tarefas.push((async () => {
+      let atual: TransitRouteOption | null = null;
+      let desdeEpoch = desde;
+      for (let i = 0; i < c.pernas.length; i++) {
+        const ultimo = i === c.pernas.length - 1;
+        const de = i === 0 ? res.originCoords : c.transbordos[i - 1];
+        const para = ultimo ? res.destCoords : c.transbordos[i];
+        const nome = ultimo ? destNome : (c.transbordos[i].nome || c.pernas[i + 1].origem.nome);
+        const v = await viagemUnir(c.pernas[i], nome, de, para, desdeEpoch).catch(() => null);
+        if (!v || !aindaValido()) return null;
+        atual = atual ? juntarOpcoes(atual, v) : v;
+        if (!ultimo) { if (!v.chegadaEpoch) return null; desdeEpoch = v.chegadaEpoch; }
+      }
+      return atual;
     })());
   }
 

@@ -7,6 +7,7 @@ import {
   HibridaUnir,
   PonteUnir,
   DuplaUnir,
+  CadeiaUnir,
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
 import { getLocalFavorites, addFavorite, removeFavorite } from './favoritesService';
@@ -109,6 +110,8 @@ export async function planTransitRoute(
   pontes?: PonteUnir[];
   /** Duas linhas da UNIR com transbordo entre elas */
   duplas?: DuplaUnir[];
+  /** Três linhas da UNIR seguidas */
+  cadeias?: CadeiaUnir[];
   /** Sem resposta por falta de paragens com horários: metros até à mais próxima (-1 = nenhuma a menos de 8 km) */
   longe?: { origem?: number; destino?: number };
   originCoords: { lat: number; lon: number };

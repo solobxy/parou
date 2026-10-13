@@ -179,3 +179,12 @@ export interface DuplaUnir {
   b: CandidatoUnir;
   transbordo: PontoRota;
 }
+
+/**
+ * Três linhas da UNIR seguidas (quando nem uma nem duas chegam ao destino): a app pede as horas à AMP, cada linha
+ * a contar da chegada da anterior. `transbordos[i]` é a paragem onde se entra na linha `pernas[i + 1]`.
+ */
+export interface CadeiaUnir {
+  pernas: CandidatoUnir[];
+  transbordos: PontoRota[];
+}
