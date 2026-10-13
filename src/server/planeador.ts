@@ -660,13 +660,15 @@ export async function planearViagem(
             .sort((a, b) => a.chegada - b.chegada || a.k - b.k);
           const vistas = new Set<string>();
           const maximo = nivelLig === 0 ? 6 : nivelLig === 1 ? 4 : 2;
+          const maxNaoFim = nivelLig === 0 ? 4 : nivelLig === 1 ? 2 : 0;
+          let naoFim = 0;
           for (const j of candidatas) {
             if (ligacoes.length >= maximo) break;
             if (j.chegada - dia.desvio > limiteLig) continue;
             const m = j.rides.findIndex((r) => ix.padroes[r.pat].freq);
             const ru = j.rides[m];
             const fim = m === j.rides.length - 1;
-            if (!fim && nivelLig >= 2) continue; // no último nível só cabem ligações que chegam ao destino
+            if (!fim && (nivelLig >= 2 || naoFim >= maxNaoFim)) continue; // no último nível só cabem ligações que chegam ao destino; e cada continuação custa um pedido
             const pu = ix.padroes[ru.pat];
             const idB = ix.stopId[pu.stops[ru.b]], idA = ix.stopId[pu.stops[ru.a]];
             const sig = `${j.rides.slice(0, m).map((r) => ix.padroes[r.pat].tripId[r.t]).join('>')}|${pu.route}|${pu.dir}|${idB}|${fim}`;
@@ -738,6 +740,7 @@ export async function planearViagem(
               linha: l?.short || pu.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: pu.dir ?? 0, paragens: ru.a - ru.b,
               origem: origemU, destino: destinoU,
             };
+            if (!fim) naoFim++;
             ligacoes.push({
               ...(prefixo ? { prefixo, chegadaEpoch, transbordo } : {}),
               candidato, ponto: { lat: pA.lat, lon: pA.lon, nome: pA.nome }, fim,
