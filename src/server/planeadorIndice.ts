@@ -16,7 +16,7 @@ const M_POR_MIN = 75;
 const DESVIO_RUAS = 1.3;
 const INF = 0x3fffffff;
 // UNIR sem horários na base: no modo "sint" tratam-se as linhas como se passassem a cada ESPERA_SINT s, com PASSO_SINT s por paragem
-export const ESPERA_SINT = 10 * 60;
+export const ESPERA_SINT = 7 * 60; // um pouco abaixo da espera média real: serve para PROPOR combinações, a AMP confirma as horas
 export const PASSO_SINT = 90;
 const FIM_SINT = 23 * 3600 + 30 * 60; // última hora a que se conta apanhar uma UNIR estimada
 
