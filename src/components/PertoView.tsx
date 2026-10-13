@@ -484,7 +484,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Paragens de outras zonas do mapa (as que se vão descobrindo ao arrastar); separadas das de perto de ti,
   // que nunca são tocadas por este mecanismo
   const extrasMarkersRef = useRef<Map<string, { marker: L.Marker; modo: string; sel: boolean; lat: number; lon: number }>>(new Map());
-  const geracaoExtrasRef = useRef(0);
+  const filaExtrasRef = useRef<ParagemLeve[]>([]);
+  const desenhandoExtrasRef = useRef(false);
+  const contextoExtrasRef = useRef<{ vista: Limites; centro: { lat: number; lng: number }; cosLat: number; selecionadaId?: string } | null>(null);
   const sincronizarExtrasRef = useRef<() => void>(() => {});
   const carregarExtrasRef = useRef<() => void>(() => {});
   const abrirParagemLeveRef = useRef<(p: ParagemLeve) => void>(() => {});
@@ -970,7 +972,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       userMarkerRef.current = null;
       stopsMarkersRef.current.forEach((m) => m.marker.remove());
       stopsMarkersRef.current.clear();
-      geracaoExtrasRef.current++;
+      filaExtrasRef.current = [];
       extrasMarkersRef.current.forEach((m) => m.marker.remove());
       extrasMarkersRef.current.clear();
       circuloPrecisaoRef.current?.remove();
@@ -1449,10 +1451,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const map = mapRef.current;
     if (!map) return;
     const marcadores = extrasMarkersRef.current;
-    const geracao = ++geracaoExtrasRef.current;
     const selecionadaId = selectedStop?.id;
 
     const removerTodos = (poupar?: string) => {
+      filaExtrasRef.current = [];
       marcadores.forEach((m, id) => {
         if (id === poupar) return;
         m.marker.remove();
@@ -1472,6 +1474,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const dx = (p.lon - centro.lng) * cosLat;
       return dx * dx + dy * dy;
     };
+    const dentro = (p: { lat: number; lon: number }, l: Limites) => p.lat >= l.sul && p.lat <= l.norte && p.lon >= l.oeste && p.lon <= l.este;
 
     // O que já vem "perto de ti" não se repete; o resto respeita o mesmo filtro (modo ou favoritos)
     const jaPerto = new Set<string>();
@@ -1492,26 +1495,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (id !== selecionadaId && !permitidas.has(id)) { m.marker.remove(); marcadores.delete(id); }
     });
 
-    // As do ecrã primeiro, depois as da margem, sempre das mais centrais para as mais afastadas
-    const dentro = (p: ParagemLeve, l: Limites) => p.lat >= l.sul && p.lat <= l.norte && p.lon >= l.oeste && p.lon <= l.este;
-    const novas = candidatas
-      .filter((p) => !marcadores.has(p.id) && dentro(p, margem))
-      .map((p) => ({ p, ecra: dentro(p, vista) ? 0 : 1, d: distCentro(p) }))
-      .sort((a, b) => a.ecra - b.ecra || a.d - b.d)
-      .slice(0, MAX_EXTRAS_NOVOS)
-      .map((x) => x.p);
-
-    // Teto total: se passar, saem as mais afastadas do centro
-    const excesso = marcadores.size + novas.length - MAX_EXTRAS_TOTAL;
-    if (excesso > 0) {
-      const lista: Array<{ id: string; d: number }> = [];
-      marcadores.forEach((m, id) => { if (id !== selecionadaId) lista.push({ id, d: distCentro({ lat: m.lat, lon: m.lon }) }); });
-      lista.sort((a, b) => b.d - a.d).slice(0, excesso).forEach(({ id }) => {
-        marcadores.get(id)?.marker.remove();
-        marcadores.delete(id);
-      });
-    }
-
     // A aberta destaca-se; as outras voltam ao normal
     marcadores.forEach((m, id) => {
       const sel = id === selecionadaId;
@@ -1522,15 +1505,51 @@ export const PertoView: React.FC<PertoViewProps> = ({
       }
     });
 
-    // Desenha aos poucos (uns 40 por imagem) para o arrastar não encravar; uma sincronização nova cancela esta
-    let n = 0;
-    const desenhar = () => {
-      if (geracao !== geracaoExtrasRef.current || mapRef.current !== map) return;
-      const fim = Math.min(n + 40, novas.length);
-      for (; n < fim; n++) {
-        const p = novas[n];
+    // As do ecrã primeiro, depois as da margem, sempre das mais centrais para as mais afastadas
+    filaExtrasRef.current = candidatas
+      .filter((p) => !marcadores.has(p.id) && dentro(p, margem))
+      .map((p) => ({ p, ecra: dentro(p, vista) ? 0 : 1, d: distCentro(p) }))
+      .sort((a, b) => a.ecra - b.ecra || a.d - b.d)
+      .slice(0, MAX_EXTRAS_NOVOS)
+      .map((x) => x.p);
+    contextoExtrasRef.current = { vista, centro: { lat: centro.lat, lng: centro.lng }, cosLat, selecionadaId };
+
+    // Desenha aos poucos (uns 40 por imagem) para o arrastar não encravar. Um só ciclo de desenho de
+    // cada vez: uma sincronização nova só troca a lista do que falta desenhar (sem recomeçar)
+    if (filaExtrasRef.current.length === 0 || desenhandoExtrasRef.current) return;
+    desenhandoExtrasRef.current = true;
+    const passo = () => {
+      const mapa = mapRef.current;
+      const fila = filaExtrasRef.current;
+      if (!mapa || mapa !== map || fila.length === 0) { desenhandoExtrasRef.current = false; return; }
+      const ctx = contextoExtrasRef.current;
+      if (!ctx) { desenhandoExtrasRef.current = false; return; }
+      const dist = (lat: number, lon: number) => {
+        const dy = lat - ctx.centro.lat;
+        const dx = (lon - ctx.centro.lng) * ctx.cosLat;
+        return dx * dx + dy * dy;
+      };
+      const prioridade = (lat: number, lon: number) => (dentro({ lat, lon }, ctx.vista) ? 0 : 1);
+      let piores: Array<{ id: string; pr: number; d: number }> | null = null;
+      let feitas = 0;
+      while (fila.length > 0 && feitas < 40) {
+        const p = fila.shift()!;
         if (marcadores.has(p.id)) continue;
-        const sel = p.id === selecionadaId;
+        // No teto, cada nova só entra se trocar por uma pior (fora do ecrã ou mais afastada do centro)
+        if (marcadores.size >= MAX_EXTRAS_TOTAL) {
+          if (!piores) {
+            piores = [];
+            marcadores.forEach((m, id) => { if (id !== ctx.selecionadaId) piores!.push({ id, pr: prioridade(m.lat, m.lon), d: dist(m.lat, m.lon) }); });
+            piores.sort((x, y) => x.pr - y.pr || x.d - y.d); // a pior fica no fim
+          }
+          const pior = piores[piores.length - 1];
+          const pr = prioridade(p.lat, p.lon);
+          if (!pior || pior.pr < pr || (pior.pr === pr && pior.d <= dist(p.lat, p.lon))) { fila.length = 0; break; }
+          piores.pop();
+          marcadores.get(pior.id)?.marker.remove();
+          marcadores.delete(pior.id);
+        }
+        const sel = p.id === ctx.selecionadaId;
         const estilo = ESTILO_MODO[p.modo] || ESTILO_MODO.Autocarro;
         const marker = L.marker([p.lat, p.lon], {
           icon: iconeParagem(p.modo, sel),
@@ -1540,10 +1559,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
         }).addTo(map);
         marker.on('click', () => abrirParagemLeveRef.current(p));
         marcadores.set(p.id, { marker, modo: p.modo, sel, lat: p.lat, lon: p.lon });
+        feitas++;
       }
-      if (n < novas.length) requestAnimationFrame(desenhar);
+      if (fila.length > 0) requestAnimationFrame(passo);
+      else desenhandoExtrasRef.current = false;
     };
-    desenhar();
+    requestAnimationFrame(passo);
   };
 
   carregarExtrasRef.current = () => {
