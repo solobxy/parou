@@ -602,7 +602,11 @@ export async function planearViagem(
   // Só se procura quando o que há não é bom: nada em transporte, ou a pé mais de ~9 min (a UNIR pode ficar mais perto)
   const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9;
   // Entra se chegar até 10 min depois do melhor percurso normal: o telemóvel mostra as duas e a pessoa escolhe
-  const limiteHibrida = Number.isFinite(melhorChegada) ? melhorChegada + 10 * 60 : Infinity;
+  // e mais ainda quando o melhor percurso normal obriga a andar muito a pé (cada minuto a pé a mais de 9 vale ~45 s de folga, até +10 min):
+  // uma UNIR que poupa 10–15 min de caminhada compensa chegar um pouco mais tarde.
+  const aPeMelhor = emTransito.length ? Math.min(...emTransito.map((r) => r.walkingMinutes)) : 0;
+  const folgaHibrida = (10 + Math.min(10, Math.max(0, aPeMelhor - 9) * 0.75)) * 60;
+  const limiteHibrida = Number.isFinite(melhorChegada) ? melhorChegada + folgaHibrida : Infinity;
   if (acessoFraco && (uO.length || uD.length)) {
     const ix = indicePronto();
     const prazo = Date.now() + 2500;
