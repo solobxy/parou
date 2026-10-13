@@ -637,7 +637,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
       const candidatos = (res.unir || []).slice(0, 4);
       const partidaMs = partidaRotasRef.current;
-      const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length);
+      const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length || res.duplas?.length);
       if (candidatos.length || temCombinacoes) {
         const validar = () => pedido === pedidoRotasRef.current;
         const [diretas, combinadas] = await Promise.all([
