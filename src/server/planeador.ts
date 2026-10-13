@@ -510,6 +510,8 @@ export async function planearViagem(
     escolhidas.push(o);
     if (escolhidas.length >= 4) break;
   }
+  // Mostra-se por ordem de chegada: a que chega primeiro vai à frente (a igualdade, a com menos transbordos)
+  escolhidas.sort((a, b) => a._chegada - b._chegada || a.transfersCount - b.transfersCount);
   // Percursos para desenhar no mapa (só das opções escolhidas): as paragens de cada viagem e os troços a pé
   const qPontos = db.prepare(
     `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
@@ -601,7 +603,7 @@ export async function planearViagem(
   const acessoFraco = !emTransito.length || Math.min(...emTransito.map((r) => r.walkingMinutes)) > 9;
   // Entra se chegar até 10 min depois do melhor percurso normal: o telemóvel mostra as duas e a pessoa escolhe
   const limiteHibrida = Number.isFinite(melhorChegada) ? melhorChegada + 10 * 60 : Infinity;
-  if (acessoFraco && unir.length === 0 && (uO.length || uD.length)) {
+  if (acessoFraco && (uO.length || uD.length)) {
     const ix = indicePronto();
     const prazo = Date.now() + 2500;
     if (ix) {
@@ -755,50 +757,67 @@ export async function planearViagem(
           const a = porLinha.get(k);
           if (!a || p.minutos < a.minutos) porLinha.set(k, { ...r, minutos: p.minutos });
         }
-        const linhasSel = Array.from(porLinha.values()).sort((a, b) => a.minutos - b.minutos).slice(0, 6);
+        const linhasSel = Array.from(porLinha.values()).sort((a, b) => a.minutos - b.minutos).slice(0, 10);
         const qSeg = db.prepare(
           `SELECT sr.stop_id AS id, sr.stop_sequence AS seq, s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
            FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id
            WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence > ? AND sr.stop_sequence <= ? ORDER BY sr.stop_sequence`,
         );
-        const pts: Array<{ linha: typeof linhasSel[0]; id: string; seq: number; nome: string; lat: number; lon: number; ys: Array<{ idx: number; dist: number }>; dDest: number }> = [];
-        for (const l of linhasSel) {
-          for (const s of qSeg.all(l.route, l.sentido, l.sa, l.sa + 45) as Array<{ id: string; seq: number; nome: string; lat: number; lon: number }>) {
-            if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
-            const ys = paragensProximas(ix, s.lat, s.lon, RAIO_TRANSBORDO_UNIR).slice(0, 8);
-            if (!ys.length) continue;
-            const dDest = distM(s.lat, s.lon, dLat, dLon);
-            if (dDest > distTotal) continue; // não serve afastar-se do destino
-            pts.push({ linha: l, id: s.id, seq: s.seq, nome: s.nome, lat: s.lat, lon: s.lon, ys, dDest });
-          }
-        }
-        // os mais perto do destino primeiro, sem repetir zonas
-        pts.sort((a, b) => a.dDest - b.dDest);
-        const sel: typeof pts = [];
-        for (const p of pts) {
-          if (sel.some((q) => distM(q.lat, q.lon, p.lat, p.lon) < 500)) continue;
-          sel.push(p);
-          if (sel.length >= 8) break;
-        }
+        type Saida = { id: string; seq: number; nome: string; lat: number; lon: number; ys: Array<{ idx: number; dist: number }> };
         const dia = dias[0];
         const base = agoraSegs + dia.desvio;
         const destinos = new Map<number, number>();
         for (const p of D) { const i = ix.stopIdx.get(p.id); if (i !== undefined) destinos.set(i, p.minutos * 60); }
-        const verificadas: Array<{ est: number; p: typeof pts[0] }> = [];
-        for (const p of sel) {
+        // Para cada linha, TODAS as paragens a jusante (até 60) onde se pode sair e continuar noutra rede a pé; uma só pesquisa
+        // por linha com todas elas como pontos de partida (cada uma com a hora a que se lá chega: espera média + ~90 s por paragem
+        // + a pé até à paragem com horários). Assim a saída mais curta (2–3 paragens) conta tanto como a mais longa.
+        const achados: Array<{ est: number; linha: typeof linhasSel[0]; p: Saida }> = [];
+        for (const l of linhasSel) {
           if (Date.now() > prazo) break;
-          // a viagem em UNIR demora; a seguir continua-se a partir das paragens perto de onde se sai
-          const tEst = base + p.linha.minutos * 60 + MIN_ESPERA_UNIR * 60 + (p.seq - p.linha.sa) * 90;
-          const origens = p.ys.map((y) => ({ stop: y.idx, t: tEst + minutosAPe(y.dist) * 60 }));
-          const js = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 3, limiteSaida: tEst + 3 * 3600, orcamentoMs: 250 });
-          if (!js.length) continue;
-          const est = Math.min(...js.map((j) => j.chegada));
-          if (est > limiteHibrida) continue; // demasiado pior do que o percurso normal
-          verificadas.push({ est, p });
+          const pts: Array<{ s: Saida }> = [];
+          for (const s of qSeg.all(l.route, l.sentido, l.sa, l.sa + 60) as Array<{ id: string; seq: number; nome: string; lat: number; lon: number }>) {
+            if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
+            if (distM(s.lat, s.lon, dLat, dLon) > distTotal + 300) continue; // não serve afastar-se do destino
+            const ys = paragensProximas(ix, s.lat, s.lon, RAIO_TRANSBORDO_UNIR).slice(0, 8);
+            if (!ys.length) continue;
+            pts.push({ s: { ...s, ys } });
+          }
+          if (!pts.length) continue;
+          const porY = new Map<number, { t: number; p: Saida }>();
+          for (const { s } of pts) {
+            const tUnir = base + l.minutos * 60 + MIN_ESPERA_UNIR * 60 + (s.seq - l.sa) * 90;
+            for (const y of s.ys) {
+              const t = tUnir + minutosAPe(y.dist) * 60;
+              const a = porY.get(y.idx);
+              if (!a || t < a.t) porY.set(y.idx, { t, p: s });
+            }
+          }
+          const origens = Array.from(porY, ([stop, v]) => ({ stop, t: v.t }));
+          const tMax = origens.reduce((m, o) => Math.max(m, o.t), 0);
+          const js = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 3, limiteSaida: tMax + 3 * 3600, orcamentoMs: Math.max(150, Math.min(450, prazo - Date.now())) });
+          let melhorL: { est: number; p: Saida } | null = null;
+          for (const j of js) {
+            if (!j.rides.length) continue;
+            const r0 = j.rides[0];
+            const o = porY.get(ix.padroes[r0.pat].stops[r0.b]);
+            if (!o) continue;
+            const est = j.chegada + (j.rides.length - 1) * 360; // cada transbordo pesa 6 min
+            if (!melhorL || est < melhorL.est) melhorL = { est, p: o.p };
+          }
+          if (melhorL) achados.push({ est: melhorL.est, linha: l, p: melhorL.p });
         }
-        verificadas.sort((a, b) => a.est - b.est);
-        return verificadas.slice(0, 3).map(({ p }): PonteUnir => {
-          const lnh = p.linha;
+        achados.sort((a, b) => a.est - b.est);
+        // Só interessam as que chegam perto do melhor percurso normal (que pode ser mau: muita caminhada); linhas diferentes
+        const vistas = new Set<string>();
+        const saidas: typeof achados = [];
+        for (const c of achados) {
+          if (c.est > limiteHibrida) break;
+          if (vistas.has(c.linha.route)) continue;
+          vistas.add(c.linha.route);
+          saidas.push(c);
+          if (saidas.length >= 3) break;
+        }
+        return saidas.map(({ linha: lnh, p }): PonteUnir => {
           const l = linha(lnh.route), po = mOx.get(lnh.de)!;
           return {
             ponto: { lat: p.lat, lon: p.lon, nome: p.nome },
