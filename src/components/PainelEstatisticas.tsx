@@ -15,7 +15,7 @@ const diaCurto = (d: string) => d.split('-').reverse().slice(0, 2).join('/');
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 
 const NOME_ORIGEM: Record<string, string> = { android: 'App Android (Play Store)', instalada: 'App instalada no ecrã principal', site: 'Site no browser' };
-const NOME_IDIOMA: Record<string, string> = { pt: 'Português', en: 'Inglês' };
+const NOME_IDIOMA: Record<string, string> = { pt: 'Português', en: 'Inglês', de: 'Alemão', fr: 'Francês' };
 
 interface Props { aberta: boolean; onFechar: () => void }
 

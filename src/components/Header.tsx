@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
 import { BotaoInstalar } from './InstalarApp';
 import { SeletorTema } from './SeletorTema';
+import { SeletorIdioma } from './SeletorIdioma';
 import { Avatar } from './Avatar';
 import { usePontoDiario } from '../hooks/usePontoDiario';
 import { 
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { eAdmin } from '../utils/admin';
-import { t, idioma, mudarIdioma } from '../i18n';
+import { t } from '../i18n';
 
 interface HeaderProps {
   activeTab: 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage';
@@ -432,17 +433,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Idioma: PT ⇄ EN (mostra a língua para onde muda) */}
-          <button
-            onClick={() => mudarIdioma(idioma === 'en' ? 'pt' : 'en')}
-            className="w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] text-[13px] font-bold tracking-wide cursor-pointer"
-            title={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
-            aria-label={idioma === 'en' ? 'Mudar para português' : 'Switch to English'}
-            lang={idioma === 'en' ? 'pt-PT' : 'en'}
-            data-teste="mudar-idioma"
-          >
-            {idioma === 'en' ? 'PT' : 'EN'}
-          </button>
+          {/* Idioma: bandeira do idioma em uso; abre a lista (Português, English, Deutsch, Français) */}
+          <SeletorIdioma />
 
           {/* Tema: Claro, Escuro ou Âmbar */}
           <SeletorTema />

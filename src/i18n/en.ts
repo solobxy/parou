@@ -1098,4 +1098,6 @@ export const EN: Record<string, string> = {
   'Mais 1 ponto por dia, só por voltares a abrir a PAROU.': 'Plus 1 point a day, just for coming back to PAROU.',
   '{n} metro': '{n} meter',
   '{n} metros': '{n} meters',
+  'Idioma': 'Language',
+  'Mudar de idioma': 'Change language',
 };

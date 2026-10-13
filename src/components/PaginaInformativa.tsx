@@ -4,6 +4,10 @@ import { CONTACTO, TELEFONE, TELEFONE_LINK, ATUALIZADO, Secao, PreferenciaContag
 import { SobreEn, PrivacidadeEn, TermosEn, ContactarEn, ApagarContaEn } from './paginasInfoEn';
 import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle, Trash2 } from 'lucide-react';
 
+// Alemão e francês só se descarregam para quem os usa
+const PaginaDe = React.lazy(() => import('./paginasInfoDe'));
+const PaginaFr = React.lazy(() => import('./paginasInfoFr'));
+
 export type PaginaInfo = 'sobre' | 'privacidade' | 'termos' | 'contactar' | 'apagar-conta';
 
 interface Props {
@@ -357,7 +361,11 @@ export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }
       <h1 className="text-[28px] leading-tight font-bold tracking-tight text-[#111111]">{titulo}</h1>
       {idioma === 'en'
         ? (pagina === 'sobre' ? <SobreEn onAbrir={onAbrir} /> : pagina === 'privacidade' ? <PrivacidadeEn /> : pagina === 'contactar' ? <ContactarEn /> : pagina === 'apagar-conta' ? <ApagarContaEn /> : <TermosEn />)
-        : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : pagina === 'apagar-conta' ? <ApagarConta /> : <Termos />)}
+        : idioma === 'de'
+          ? <React.Suspense fallback={null}><PaginaDe pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
+          : idioma === 'fr'
+            ? <React.Suspense fallback={null}><PaginaFr pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
+            : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : pagina === 'apagar-conta' ? <ApagarConta /> : <Termos />)}
     </article>
   );
 };

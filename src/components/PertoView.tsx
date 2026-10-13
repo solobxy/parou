@@ -147,7 +147,7 @@ function distanciaViva(de: { latitude: number; longitude: number } | null | unde
   const m = Math.round(metrosEntre(de, stop));
   if (!Number.isFinite(m)) return null;
   return {
-    texto: m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', LOCALE.startsWith('pt') ? ',' : '.')} km` : textoMetros(m),
+    texto: m >= 1000 ? `${new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(m / 1000)} km` : textoMetros(m),
     minutos: Math.max(1, Math.round(m / 80)),
   };
 }
