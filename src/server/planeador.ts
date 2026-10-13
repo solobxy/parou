@@ -13,7 +13,7 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
-import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir } from '../types/perto';
+import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir } from '../types/perto';
 import { indicePronto, procurar, paragensProximas, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
@@ -138,6 +138,8 @@ export interface RespostaPlano {
   pontes?: PonteUnir[];
   /** Duas linhas da UNIR com transbordo entre elas (as horas vêm da AMP) */
   duplas?: DuplaUnir[];
+  /** Três linhas da UNIR seguidas (só quando nem uma ligação direta nem duas linhas chegam lá) */
+  cadeias?: CadeiaUnir[];
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
   destName: string;
@@ -147,16 +149,27 @@ export interface RespostaPlano {
 
 // Índice das paragens da UNIR por célula (~170 m) e por linha, para encontrar linhas que se cruzam
 interface PassoUnir { route: string; sentido: number; seq: number; id: string; nome: string; lat: number; lon: number }
-let indiceUnirCache: { t: number; celulas: Map<string, PassoUnir[]>; linhas: Map<string, PassoUnir[]> } | null = null;
+interface IndiceUnir {
+  t: number;
+  celulas: Map<string, PassoUnir[]>;
+  linhas: Map<string, PassoUnir[]>;
+  /** Em que linhas (e em que posição de cada uma) passa cada paragem */
+  porParagem: Map<string, Array<{ k: string; i: number }>>;
+  info: Map<string, PassoUnir>;
+  /** Paragens (sem repetir) por célula */
+  celulasP: Map<string, string[]>;
+}
+let indiceUnirCache: IndiceUnir | null = null;
 const CEL_LAT = 0.0015, CEL_LON = 0.002;
 const chaveCel = (lat: number, lon: number) => `${Math.floor(lat / CEL_LAT)}:${Math.floor(lon / CEL_LON)}`;
-function indiceUnir() {
+function indiceUnir(): IndiceUnir {
   if (indiceUnirCache && Date.now() - indiceUnirCache.t < 6 * 3600_000) return indiceUnirCache;
   const rows = getDatabase().prepare(
     `SELECT sr.route_id AS route, sr.direction_id AS sentido, sr.stop_sequence AS seq, sr.stop_id AS id, s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
      FROM stop_routes sr JOIN stops s ON s.stop_id = sr.stop_id WHERE s.feed_id = 'unir'`,
   ).all() as unknown as PassoUnir[];
   const celulas = new Map<string, PassoUnir[]>(), linhas = new Map<string, PassoUnir[]>();
+  const porParagem = new Map<string, Array<{ k: string; i: number }>>(), info = new Map<string, PassoUnir>(), celulasP = new Map<string, string[]>();
   for (const r of rows) {
     if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) continue;
     const c = chaveCel(r.lat, r.lon);
@@ -165,9 +178,20 @@ function indiceUnir() {
     const k = `${r.route}|${r.sentido}`;
     if (!linhas.has(k)) linhas.set(k, []);
     linhas.get(k)!.push(r);
+    if (!info.has(r.id)) {
+      info.set(r.id, r);
+      if (!celulasP.has(c)) celulasP.set(c, []);
+      celulasP.get(c)!.push(r.id);
+    }
   }
-  for (const l of linhas.values()) l.sort((a, b) => a.seq - b.seq);
-  indiceUnirCache = { t: Date.now(), celulas, linhas };
+  for (const [k, l] of linhas) {
+    l.sort((a, b) => a.seq - b.seq);
+    l.forEach((passo, i) => {
+      if (!porParagem.has(passo.id)) porParagem.set(passo.id, []);
+      porParagem.get(passo.id)!.push({ k, i });
+    });
+  }
+  indiceUnirCache = { t: Date.now(), celulas, linhas, porParagem, info, celulasP };
   return indiceUnirCache;
 }
 
@@ -841,78 +865,150 @@ export async function planearViagem(
     }
   }
 
-  // ------------------------------------------------------------------ UNIR + UNIR (duas linhas com transbordo)
-  // Quando nenhuma linha da UNIR liga os dois lados mas duas se cruzam. O servidor acha o par; a AMP dá as horas.
+  // ------------------------------------------------------------------ UNIR + UNIR (+ UNIR): linhas encadeadas
+  // Quando nenhuma linha da UNIR liga os dois lados mas duas (ou três) se encontram a poucos metros umas das outras.
+  // O servidor acha a cadeia (não tem os horários da UNIR: estima ~90 s por paragem e uma espera média por linha);
+  // a AMP dá as horas reais, cada linha a contar da chegada da anterior.
   const duplas: DuplaUnir[] = [];
+  const cadeias: CadeiaUnir[] = [];
   if (acessoFraco && unir.length === 0 && uO.length && uD.length) {
     try {
       const iu = indiceUnir();
+      const ESPERA = MIN_ESPERA_UNIR * 60, POR_PARAGEM = 90, ALCANCE = 60;
+      const prazoCadeias = Date.now() + 1500;
       const mOu = new Map(uO.map((p) => [p.id, p])), mDu = new Map(uD.map((p) => [p.id, p]));
-      // linhas da UNIR que servem o destino: a paragem mais perto por linha e sentido
-      const idsD = uD.map((p) => p.id);
-      const rowsD = db.prepare(`SELECT route_id AS route, direction_id AS sentido, stop_id AS para, stop_sequence AS sb FROM stop_routes WHERE stop_id IN (${marcas(idsD.length)})`).all(...idsD) as Array<{ route: string; sentido: number; para: string; sb: number }>;
-      const linhasD = new Map<string, { route: string; sentido: number; para: string; sb: number; minutos: number }>();
-      for (const r of rowsD) {
-        const p = mDu.get(r.para); if (!p) continue;
-        const k = `${r.route}|${r.sentido}`;
-        const a2 = linhasD.get(k);
-        if (!a2 || p.minutos < a2.minutos) linhasD.set(k, { ...r, minutos: p.minutos });
+      const vizCache = new Map<string, Array<{ s: PassoUnir; d: number }>>();
+      const vizinhas = (s: PassoUnir) => {
+        let v = vizCache.get(s.id);
+        if (v) return v;
+        v = [];
+        const cy = Math.floor(s.lat / CEL_LAT), cx = Math.floor(s.lon / CEL_LON);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          for (const id of iu.celulasP.get(`${cy + dy}:${cx + dx}`) || []) {
+            const o = iu.info.get(id)!;
+            const d = id === s.id ? 0 : distM(s.lat, s.lon, o.lat, o.lon);
+            if (d <= RAIO_TRANSBORDO_UNIR) v.push({ s: o, d });
+          }
+        }
+        vizCache.set(s.id, v);
+        return v;
+      };
+      // Rótulo: a melhor maneira (mais barata, em segundos desde a partida) de sair de um autocarro da UNIR numa paragem
+      type Rotulo = { custo: number; k: string; i: number; j: number; emb: PassoUnir; ant: Rotulo | null; ks: string[]; rotas: string[] };
+      const longeDemais = (p: PassoUnir) => distM(p.lat, p.lon, dLat, dLon) > distTotal + 2500;
+
+      // Nível 1: linhas que passam perto da origem (a paragem mais perto por linha e sentido)
+      const linhasO = new Map<string, { k: string; i: number; p: Paragem }>();
+      for (const po of uO) for (const { k, i } of iu.porParagem.get(po.id) || []) {
+        const a = linhasO.get(k);
+        if (!a || po.minutos < a.p.minutos) linhasO.set(k, { k, i, p: po });
       }
-      const idsO = uO.map((p) => p.id);
-      const rowsO = db.prepare(`SELECT route_id AS route, direction_id AS sentido, stop_id AS de, stop_sequence AS sa FROM stop_routes WHERE stop_id IN (${marcas(idsO.length)})`).all(...idsO) as Array<{ route: string; sentido: number; de: string; sa: number }>;
-      const linhasO = new Map<string, { route: string; sentido: number; de: string; sa: number; minutos: number }>();
-      for (const r of rowsO) {
-        const p = mOu.get(r.de); if (!p) continue;
-        const k = `${r.route}|${r.sentido}`;
-        const a2 = linhasO.get(k);
-        if (!a2 || p.minutos < a2.minutos) linhasO.set(k, { ...r, minutos: p.minutos });
+      const melhorEm = new Map<string, number>(); // custo mínimo já conhecido por paragem, em qualquer nível
+      let nivel = new Map<string, Rotulo>();
+      for (const A of Array.from(linhasO.values()).sort((x, y) => x.p.minutos - y.p.minutos).slice(0, 10)) {
+        const linhaA = iu.linhas.get(A.k)!;
+        const emb = linhaA[A.i];
+        for (let j = A.i + 1; j < linhaA.length && j <= A.i + ALCANCE; j++) {
+          const st = linhaA[j];
+          if (longeDemais(st)) continue;
+          const custo = A.p.minutos * 60 + ESPERA + (j - A.i) * POR_PARAGEM;
+          const ex = nivel.get(st.id);
+          if (!ex || custo < ex.custo) nivel.set(st.id, { custo, k: A.k, i: A.i, j, emb, ant: null, ks: [A.k], rotas: [emb.route] });
+        }
       }
-      type Cand = { custo: number; A: typeof rowsO[0] & { minutos: number }; X: PassoUnir; B: PassoUnir; LD: { route: string; sentido: number; para: string; sb: number; minutos: number }; andar: number; metros: number };
-      const cands: Cand[] = [];
-      for (const A of Array.from(linhasO.values()).sort((x, y) => x.minutos - y.minutos).slice(0, 8)) {
-        const passosA = iu.linhas.get(`${A.route}|${A.sentido}`) || [];
-        for (const X of passosA) {
-          if (X.seq <= A.sa || X.seq > A.sa + 60) continue;
-          const cy = Math.floor(X.lat / CEL_LAT), cx = Math.floor(X.lon / CEL_LON);
-          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-            for (const B of iu.celulas.get(`${cy + dy}:${cx + dx}`) || []) {
-              if (B.route === A.route) continue;
-              const metros = distM(X.lat, X.lon, B.lat, B.lon);
-              if (metros > 150) continue;
-              const LD = linhasD.get(`${B.route}|${B.sentido}`);
-              if (!LD || LD.sb <= B.seq || LD.sb - B.seq > 60) continue;
-              const andar = metros < 15 ? 0 : minutosAPe(metros);
-              const custo = A.minutos * 60 + MIN_ESPERA_UNIR * 60 + (X.seq - A.sa) * 90 + andar * 60 + MIN_ESPERA_UNIR * 60 + (LD.sb - B.seq) * 90 + LD.minutos * 60;
-              cands.push({ custo, A, X, B, LD, andar, metros });
+      for (const [id, r] of nivel) melhorEm.set(id, r.custo);
+
+      type Chegada = { custo: number; r: Rotulo; n: number };
+      const chegadas: Chegada[] = [];
+      const recolher = (n: number, niv: Map<string, Rotulo>) => {
+        for (const [id, r] of niv) {
+          const pd = mDu.get(id);
+          if (pd) chegadas.push({ custo: r.custo + pd.minutos * 60, r, n });
+        }
+      };
+      const expandir = (anterior: Map<string, Rotulo>) => {
+        const novo = new Map<string, Rotulo>();
+        for (const [sid, lab] of anterior) {
+          if (Date.now() > prazoCadeias) break;
+          const sOut = iu.info.get(sid)!;
+          for (const { s: n, d } of vizinhas(sOut)) {
+            const andar = d < 15 ? 0 : minutosAPe(d) * 60;
+            for (const { k, i } of iu.porParagem.get(n.id) || []) {
+              const linhaB = iu.linhas.get(k)!;
+              if (lab.rotas.includes(linhaB[i].route)) continue; // não voltar a uma linha já usada
+              for (let j = i + 1; j < linhaB.length && j <= i + ALCANCE; j++) {
+                const st = linhaB[j];
+                const custo = lab.custo + andar + ESPERA + (j - i) * POR_PARAGEM;
+                const conhecido = melhorEm.get(st.id);
+                if (conhecido !== undefined && conhecido <= custo) continue; // já se chega aqui mais depressa (com menos linhas)
+                const ex = novo.get(st.id);
+                if (ex && ex.custo <= custo) continue;
+                if (longeDemais(st)) continue;
+                novo.set(st.id, { custo, k, i, j, emb: linhaB[i], ant: lab, ks: [...lab.ks, k], rotas: [...lab.rotas, linhaB[i].route] });
+              }
             }
           }
         }
+        for (const [id, r] of novo) { const c = melhorEm.get(id); if (c === undefined || r.custo < c) melhorEm.set(id, r.custo); }
+        return novo;
+      };
+
+      nivel = expandir(nivel); // 2 linhas
+      recolher(2, nivel);
+      const duplasAchadas = chegadas.filter((c) => c.n === 2).length;
+      if (duplasAchadas < 2 && Date.now() < prazoCadeias) {
+        nivel = expandir(nivel); // 3 linhas
+        recolher(3, nivel);
       }
-      cands.sort((x, y) => x.custo - y.custo);
-      const vistosD = new Set<string>();
-      for (const c of cands) {
-        if (agoraSegs + c.custo > limiteHibrida) break;
-        const sig = `${c.A.route}|${c.A.sentido}>${c.B.route}|${c.B.sentido}`;
-        if (vistosD.has(sig)) continue;
-        vistosD.add(sig);
-        const lA = linha(c.A.route), lB = linha(c.B.route);
-        const po = mOu.get(c.A.de)!, pd = mDu.get(c.LD.para)!;
-        duplas.push({
-          transbordo: { lat: c.B.lat, lon: c.B.lon, nome: c.B.nome },
-          a: {
-            ...detalheLinhaUnir(c.A.route, c.A.sentido, c.A.sa, c.X.seq),
-            linha: lA?.short || c.A.route.replace(/^unir:/, ''), nome: lA?.long || '', cor: lA?.cor || '#CE9926', sentido: c.A.sentido, paragens: c.X.seq - c.A.sa,
-            origem: { codigo: c.A.de.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos, lat: po.lat, lon: po.lon },
-            destino: { codigo: c.X.id.replace(/^unir:/, ''), nome: c.X.nome, metros: Math.round(c.metros * DESVIO_RUAS), minutos: c.andar, lat: c.X.lat, lon: c.X.lon },
-          },
-          b: {
-            ...detalheLinhaUnir(c.B.route, c.B.sentido, c.B.seq, c.LD.sb),
-            linha: lB?.short || c.B.route.replace(/^unir:/, ''), nome: lB?.long || '', cor: lB?.cor || '#CE9926', sentido: c.B.sentido, paragens: c.LD.sb - c.B.seq,
-            origem: { codigo: c.B.id.replace(/^unir:/, ''), nome: c.B.nome, metros: 0, minutos: 0, lat: c.B.lat, lon: c.B.lon },
-            destino: { codigo: c.LD.para.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos, lat: pd.lat, lon: pd.lon },
-          },
+
+      // Cadeia → CandidatoUnir por linha
+      const montar = (c: Chegada) => {
+        const rotulos: Rotulo[] = [];
+        for (let r: Rotulo | null = c.r; r; r = r.ant) rotulos.unshift(r);
+        const pernas: CandidatoUnir[] = [];
+        const transbordos: Array<{ lat: number; lon: number; nome: string }> = [];
+        rotulos.forEach((r, m) => {
+          const linhaR = iu.linhas.get(r.k)!;
+          const emb = linhaR[r.i], des = linhaR[r.j];
+          const l = linha(emb.route);
+          const ultimo = m === rotulos.length - 1;
+          const prox = ultimo ? null : rotulos[m + 1].emb;
+          let origem: CandidatoUnir['origem'];
+          if (m === 0) {
+            const po = mOu.get(emb.id)!;
+            origem = { codigo: emb.id.replace(/^unir:/, ''), nome: po.nome, metros: Math.round(po.dist * DESVIO_RUAS), minutos: po.minutos, lat: po.lat, lon: po.lon };
+          } else {
+            origem = { codigo: emb.id.replace(/^unir:/, ''), nome: emb.nome, metros: 0, minutos: 0, lat: emb.lat, lon: emb.lon };
+          }
+          let destino: CandidatoUnir['destino'];
+          if (prox) {
+            const metros = distM(des.lat, des.lon, prox.lat, prox.lon);
+            destino = { codigo: des.id.replace(/^unir:/, ''), nome: des.nome, metros: Math.round(metros * DESVIO_RUAS), minutos: metros < 15 ? 0 : minutosAPe(metros), lat: des.lat, lon: des.lon };
+            transbordos.push({ lat: prox.lat, lon: prox.lon, nome: prox.nome });
+          } else {
+            const pd = mDu.get(des.id)!;
+            destino = { codigo: des.id.replace(/^unir:/, ''), nome: pd.nome, metros: Math.round(pd.dist * DESVIO_RUAS), minutos: pd.minutos, lat: pd.lat, lon: pd.lon };
+          }
+          pernas.push({
+            ...detalheLinhaUnir(emb.route, emb.sentido, emb.seq, des.seq),
+            linha: l?.short || emb.route.replace(/^unir:/, ''), nome: l?.long || '', cor: l?.cor || '#CE9926', sentido: emb.sentido, paragens: r.j - r.i,
+            origem, destino,
+          });
         });
-        if (duplas.length >= 4) break;
+        return { pernas, transbordos };
+      };
+
+      chegadas.sort((x, y) => x.custo - y.custo);
+      const vistosC = new Set<string>();
+      for (const c of chegadas) {
+        if (agoraSegs + c.custo > limiteHibrida) break;
+        const sig = c.r.ks.join('>');
+        if (vistosC.has(sig)) continue;
+        vistosC.add(sig);
+        const { pernas, transbordos } = montar(c);
+        if (c.n === 2) { if (duplas.length < 4) duplas.push({ transbordo: transbordos[0], a: pernas[0], b: pernas[1] }); }
+        else if (cadeias.length < 3) cadeias.push({ pernas, transbordos });
+        if (duplas.length >= 4 && cadeias.length >= 3) break;
       }
     } catch (err: any) {
       console.warn('[Planeador] UNIR+UNIR:', err?.message || err);
@@ -921,7 +1017,7 @@ export async function planearViagem(
 
   // Sem resposta nenhuma: se for por não haver paragens com horários por perto, diz-se (e a que distância ficam)
   let longe: RespostaPlano['longe'];
-  if (!routes.some((r) => r.id !== 'a-pe') && !unir.length && !hibridas.length && !pontes.length && !duplas.length) {
+  if (!routes.some((r) => r.id !== 'a-pe') && !unir.length && !hibridas.length && !pontes.length && !duplas.length && !cadeias.length) {
     try {
       const medir = (lat: number, lon: number, perto: boolean) => (perto ? undefined : Math.round(paragensPerto(lat, lon, 8000, 1, semViagens)[0]?.dist ?? -1));
       const l = { origem: medir(oLat, oLon, O.length > 0 || uO.length > 0), destino: medir(dLat, dLon, D.length > 0 || uD.length > 0) };
@@ -929,5 +1025,5 @@ export async function planearViagem(
     } catch { /* sem este pormenor, a mensagem fica genérica */ }
   }
 
-  return { routes, unir, hibridas, pontes, duplas, ...(longe ? { longe } : {}), originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
+  return { routes, unir, hibridas, pontes, duplas, cadeias, ...(longe ? { longe } : {}), originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
 }
