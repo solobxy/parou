@@ -114,6 +114,9 @@ export interface TransitRouteOption {
   relevantAlerts: string[];
   /** Instante (epoch em segundos) em que se chega ao fim; usado para encadear viagens (UNIR + resto) */
   chegadaEpoch?: number;
+  /** Dias (0 = hoje) até a viagem sair / chegar; só vem preenchido quando não é hoje */
+  departureDayOffset?: number;
+  arrivalDayOffset?: number;
 }
 
 /** Ligação direta da UNIR encontrada pelo servidor (linha, sentido e paragens); a hora vem da AMP */

@@ -234,9 +234,9 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
     if (troco.estado === 'sem-ligacao') {
       return (
         <div className="rounded-[12px] bg-[#F4F4F2] p-3">
-          <p className="text-[13.5px] font-semibold text-[#111111]">{t('Sem ligações nas próximas 2 horas')}</p>
+          <p className="text-[13.5px] font-semibold text-[#111111]">{t('Sem ligações encontradas')}</p>
           <p className="text-[12.5px] text-[#6B6B6B] mt-1 leading-snug">
-            {t('Não encontrámos ligações em transportes daqui para lá (até três transbordos e ~900 m a pé de cada lado).')}
+            {t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).')}
             {i < n - 1 ? ` ${t('As paragens seguintes dependem desta.')}` : ''}
           </p>
           {n > 1 && (

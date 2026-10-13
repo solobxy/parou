@@ -4,6 +4,7 @@ import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { formatTransitName } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
+import { formatarDuracao } from '../services/rotaVarios';
 import type { TransitRouteOption } from '../types/perto';
 
 /** Etiquetas dos percursos que vêm do servidor ("Direto", "2 transbordos", "A pé") */
@@ -48,9 +49,9 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes, avisar = 
         <div className="flex items-center justify-between mb-1 gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-condensada text-xl font-bold text-[#111111] tabular-nums shrink-0">
-              {route.totalDurationMinutes} min
+              {route.totalDurationMinutes >= 120 ? formatarDuracao(route.totalDurationMinutes) : `${route.totalDurationMinutes} min`}
             </span>
-            <span className="text-xs text-[#6B6B6B] truncate">· {t('Chegada')} ~{route.arrivalTime}</span>
+            <span className="text-xs text-[#6B6B6B] truncate">· {route.arrivalDayOffset ? t('Chegada amanhã ~{h}', { h: route.arrivalTime }) : `${t('Chegada')} ~${route.arrivalTime}`}</span>
           </div>
           <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide text-right shrink-0">
             {traduzirBadge(route.badgeLabel)}
@@ -59,7 +60,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes, avisar = 
         <div className="text-xs text-[#6B6B6B] mb-1.5">
           {route.id === 'a-pe'
             ? t('{m} m a pé', { m: route.walkingDistanceMeters })
-            : `${t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
+            : `${route.departureDayOffset ? t('Sair amanhã às {h}', { h: route.departureTime }) : t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

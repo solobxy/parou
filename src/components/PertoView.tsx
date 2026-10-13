@@ -1714,9 +1714,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </div>
             ) : (
               <div className="rounded-[14px] bg-[#F4F4F2] p-4">
-                <p className="text-[14px] font-semibold text-[#111111]">{t('Sem ligações nas próximas 2 horas')}</p>
+                <p className="text-[14px] font-semibold text-[#111111]">{t('Sem ligações encontradas')}</p>
                 <p className="text-[13px] text-[#6B6B6B] mt-1 leading-snug">
-                  {t('Não encontrámos ligações em transportes daqui para lá (até três transbordos e ~900 m a pé de cada lado).')}
+                  {t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).')}
                 </p>
                 <button onClick={handleClearDestination} className="mt-3 h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer">
                   {t('Voltar aos transportes perto')}
