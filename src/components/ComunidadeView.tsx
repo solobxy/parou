@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, MoreHorizontal, MapPin, Pencil, RefreshCw, ShieldCheck } from 'lucide-react';
 import { t, LOCALE } from '../i18n';
-import { UserProfile } from '../types';
+import { UserProfile, Occurrence } from '../types';
 import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
 import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { BotaoInstalarPagina } from './InstalarApp';
 import { Compositor } from './comunidade/Compositor';
+import { MinhasOcorrencias } from './comunidade/MinhasOcorrencias';
 import { Discussao } from './comunidade/Discussao';
 import { AcoesConteudo, AlvoAcoes } from './comunidade/AcoesConteudo';
 import { ImagensPost } from './comunidade/ImagensPost';
@@ -19,6 +20,10 @@ import { aplicarMetaRota } from '../seo/rotasApp';
 interface ComunidadeViewProps {
   currentUser: UserProfile | null;
   onOpenLoginModal: () => void;
+  /** Ocorrências reportadas pela pessoa (só com sessão iniciada) */
+  minhasOcorrencias?: Occurrence[];
+  onAbrirOcorrencia?: (o: Occurrence) => void;
+  onNovaOcorrencia?: () => void;
 }
 
 type Ordem = 'novas' | 'em-alta' | 'perto';
@@ -53,7 +58,7 @@ const ListaRegras: React.FC = () => (
   </ul>
 );
 
-export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onOpenLoginModal }) => {
+export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onOpenLoginModal, minhasOcorrencias, onAbrirOcorrencia, onNovaOcorrencia }) => {
   const [idAberto, setIdAberto] = useState<string | null>(() => idDaRota());
   const [ordem, setOrdem] = useState<Ordem>('novas');
   const [tipo, setTipo] = useState<TipoConversa | ''>('');
@@ -273,6 +278,10 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
               {t('Escreve algo à comunidade…')}
             </button>
           </div>
+
+          {currentUser && minhasOcorrencias && onAbrirOcorrencia && onNovaOcorrencia && (
+            <MinhasOcorrencias ocorrencias={minhasOcorrencias} onAbrir={onAbrirOcorrencia} onNova={onNovaOcorrencia} />
+          )}
 
           {/* Filtros */}
           <div className="space-y-2">

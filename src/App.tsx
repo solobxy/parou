@@ -912,6 +912,9 @@ export default function App() {
               <React.Suspense fallback={null}><ComunidadeView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
+                minhasOcorrencias={userPersonalReports}
+                onAbrirOcorrencia={handleSelectOccurrence}
+                onNovaOcorrencia={() => setIsReportModalOpen(true)}
               /></React.Suspense>
             </div>
           ) : activeNavTab === 'alertas' ? (
@@ -1184,6 +1187,9 @@ export default function App() {
               <React.Suspense fallback={null}><ComunidadeView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
+                minhasOcorrencias={userPersonalReports}
+                onAbrirOcorrencia={handleSelectOccurrence}
+                onNovaOcorrencia={() => setIsReportModalOpen(true)}
               /></React.Suspense>
             </div>
           )}
@@ -1280,8 +1286,6 @@ export default function App() {
         onClose={() => setIsUserProfileModalOpen(false)}
         user={currentUserProfile}
         userReports={userPersonalReports}
-        onSelectOccurrence={handleSelectOccurrence}
-        onOpenReportModal={() => setIsReportModalOpen(true)}
         onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
         onOpenEstatisticas={() => { setIsUserProfileModalOpen(false); setIsEstatisticasOpen(true); }}
         onOpenModeracao={() => { setIsUserProfileModalOpen(false); setIsAdminModalOpen(true); }}

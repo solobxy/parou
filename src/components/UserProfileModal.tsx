@@ -2,10 +2,7 @@ import React from 'react';
 import { useVoltarFecha } from '../utils/janelas';
 import { 
   X, 
-  MapPin, 
-  ThumbsUp, 
   LogOut, 
-  Plus,
   ChevronRight,
   Pencil,
   UserX,
@@ -16,7 +13,6 @@ import {
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
 import { eAdmin } from '../utils/admin';
-import { quandoAconteceu } from '../utils/quando';
 import { t } from '../i18n';
 import { MedalhaPioneiro } from './MedalhaPioneiro';
 import { SeloCriador } from './SeloCriador';
@@ -32,8 +28,6 @@ interface UserProfileModalProps {
   onClose: () => void;
   user: UserProfile | null;
   userReports: Occurrence[];
-  onSelectOccurrence: (occ: Occurrence) => void;
-  onOpenReportModal: () => void;
   onOpenWhatsApp?: () => void;
   onOpenEstatisticas?: () => void;
   onOpenModeracao?: () => void;
@@ -45,8 +39,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   user,
   userReports,
-  onSelectOccurrence,
-  onOpenReportModal,
   onOpenWhatsApp,
   onOpenEstatisticas,
   onOpenModeracao,
@@ -176,64 +168,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {userReports.length}
             </div>
-          </div>
-        </div>
-
-        {/* User Reports List */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-[#111111]">
-              {t('As minhas ocorrências ({n})', { n: userReports.length })}
-            </h4>
-
-            {/* Primary Action Button: Brand chamfer */}
-            <button
-              onClick={() => {
-                onClose();
-                onOpenReportModal();
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-[#FF6B1A] text-[#111111] font-bold text-xs rounded-[8px] brand-chamfer min-h-[36px] cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>{t('Nova')}</span>
-            </button>
-          </div>
-
-          <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] max-h-56 overflow-y-auto">
-            {userReports.length === 0 ? (
-              <div className="p-6 text-center text-xs text-[#6B6B6B]">
-                {t('Ainda não reportou nenhuma ocorrência.')}
-              </div>
-            ) : (
-              userReports.map((occ) => (
-                <div
-                  key={occ.id}
-                  onClick={() => {
-                    onClose();
-                    onSelectOccurrence(occ);
-                  }}
-                  className="p-3 hover:bg-[#F4F4F2] transition-colors cursor-pointer flex items-center justify-between gap-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-[#111111] truncate">{occ.title}</div>
-                    <div className="text-[11px] text-[#6B6B6B] truncate flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 stroke-[2]" />
-                      <span>{t(occ.district)}</span>
-                      <span>·</span>
-                      <span className="font-condensada tabular-nums">{quandoAconteceu(occ)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B] shrink-0">
-                    <ThumbsUp className="w-3 h-3 stroke-[2]" />
-                    <span className="font-condensada font-bold tabular-nums">
-                      {occ.confirmationsCount || occ.upvotes || 0}
-                    </span>
-                    <ChevronRight className="w-4 h-4 stroke-[2]" />
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         </div>
 
