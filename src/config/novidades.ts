@@ -232,4 +232,20 @@ parou.pt`,
     imagens: ['/novidades/varios-destinos-1.jpg'],
     comunidade: 'Já podes planear uma viagem com várias paragens (até 5): toca no "+" ao lado da pesquisa e escreve cada paragem. Arrasta para mudar a ordem. Cada troço mostra as opções da mais rápida à mais simples, e podes indicar quanto tempo ficas em cada sítio para as horas seguintes se ajustarem.',
   },
+  {
+    id: 'rotas-combinadas',
+    data: '2026-10-13',
+    etiqueta: 'Novidade',
+    titulo: 'Rotas que juntam operadores',
+    texto: `🔗 *Rotas que se juntam*
+
+Já não ficas sem resposta quando a ligação é feita por operadores diferentes. A PAROU agora junta, na mesma viagem:
+🚌 autocarro, metro e comboio de operadores diferentes (por exemplo STCP + UNIR, no Porto)
+🚶 os minutos a pé em cada troço e até ao teu destino, quando não fica mesmo ao lado da paragem
+⏱️ as opções da mais rápida à mais simples
+
+parou.pt`,
+    imagens: ['/novidades/rotas-combinadas-1.jpg'],
+    comunidade: 'A PAROU já junta autocarros, metro e comboio de operadores diferentes na mesma viagem (por exemplo STCP + UNIR, no Porto) e mostra quantos minutos tens de andar a pé em cada troço e até ao destino. Se uma rota que conheces ainda não aparece, diz-nos aqui.',
+  },
 ];
