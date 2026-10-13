@@ -168,3 +168,14 @@ export interface DestinationSuggestion {
   transportMode?: TransportMode;
   distanceFromUserMeters?: number;
 }
+
+/**
+ * Duas linhas da UNIR que se cruzam (ou passam a poucos metros uma da outra): a app pede a hora das duas à AMP,
+ * a segunda a contar da chegada da primeira. `a.destino` é o local onde se sai (a pé até à paragem de `b`) e
+ * `b.origem` a paragem onde se entra na segunda linha.
+ */
+export interface DuplaUnir {
+  a: CandidatoUnir;
+  b: CandidatoUnir;
+  transbordo: PontoRota;
+}
