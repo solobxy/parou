@@ -65,13 +65,15 @@ export function novoUid(): string { contador += 1; return `d${Date.now().toStrin
 export function pontoDoDestino(d: DestinoViagem): Ponto { return { lat: d.dest.latitude, lon: d.dest.longitude }; }
 
 /**
- * Ordena as opções de um troço por duração total (cada transbordo pesa 6 min, porque cansa e
- * arrisca perder a ligação), marca a mais rápida e põe "a pé" no fim se não for a melhor.
+ * Ordena as opções de um troço da mais rápida para a mais lenta (hora de chegada); em caso de
+ * empate ganha a que tem menos transbordos e, depois, menos a pé. Marca a mais rápida.
  */
 export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[] {
   const vistas = new Set<string>();
   const unicas = lista.filter((r) => (vistas.has(r.id) ? false : (vistas.add(r.id), true)));
-  unicas.sort((a, b) => a.totalDurationMinutes + a.transfersCount * 6 - (b.totalDurationMinutes + b.transfersCount * 6));
+  unicas.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes
+    || a.transfersCount - b.transfersCount
+    || a.walkingMinutes - b.walkingMinutes);
   const melhor = unicas.find((r) => r.id !== 'a-pe');
   return unicas.slice(0, 5).map((r) => ({
     ...r,
