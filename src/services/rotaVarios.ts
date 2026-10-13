@@ -5,7 +5,7 @@
 import { planTransitRoute } from './pertoApi';
 import { viagemUnir, motivosFalhaUnir } from './unirAmp';
 import { opcoesComUnir } from './hibridasUnir';
-import { t, tn } from '../i18n';
+import { t, tn, LOCALE } from '../i18n';
 import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
 
 export const MAX_DESTINOS = 5;
@@ -22,12 +22,32 @@ export interface DestinoViagem {
   permanencia: number;
 }
 
+/** Quando não há paragens com horários perto: metros até à mais próxima (-1 = nenhuma a menos de 8 km) */
+export interface LongeDeParagens { origem?: number; destino?: number }
+/** Opções de um troço; `longe` só vem quando não há nenhuma e falta cobertura de horários */
+export type OpcoesTroco = TransitRouteOption[] & { longe?: LongeDeParagens };
+
+/** Texto de "sem ligações": explica a falta de paragens com horários perto, se for esse o motivo */
+export function textoSemLigacao(longe?: LongeDeParagens): string {
+  const base = t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).');
+  if (!longe || (longe.origem === undefined && longe.destino === undefined)) return base;
+  const km = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
+  const dist = (m: number) => (m < 0 ? t('mais de 8 km') : m >= 1000 ? `${km.format(m / 1000)} km` : `${m} m`);
+  const frases: string[] = [];
+  if (longe.origem !== undefined) frases.push(t('Não há paragens com horários perto da origem (a mais próxima fica a {d}).', { d: dist(longe.origem) }));
+  if (longe.destino !== undefined) frases.push(t('Não há paragens com horários perto do destino (a mais próxima fica a {d}).', { d: dist(longe.destino) }));
+  frases.push(t('A PAROU ainda não tem os horários de todos os operadores desta zona.'));
+  return frases.join(' ');
+}
+
 export type EstadoTroco = 'espera' | 'a-calcular' | 'ok' | 'sem-ligacao' | 'erro';
 
 /** Um troço da viagem: do ponto anterior (ou da posição atual) até ao destino com o mesmo índice */
 export interface Troco {
   estado: EstadoTroco;
   opcoes: TransitRouteOption[];
+  /** Só em "sem-ligacao": falta de paragens com horários perto da origem ou do destino */
+  longe?: LongeDeParagens;
   /** Índice, em `opcoes`, da opção escolhida (a primeira é a mais rápida) */
   escolhida: number;
   /** Instante (ms) em que se parte */
@@ -71,7 +91,7 @@ export function chegadaDe(opcao: TransitRouteOption, partida: number): number {
  */
 export async function calcularTroco(
   de: Ponto, para: Ponto, nomeDestino: string, partida: number, aindaValido: () => boolean = () => true, semPonte = false,
-): Promise<TransitRouteOption[]> {
+): Promise<OpcoesTroco> {
   const res = await planTransitRoute(de.lat, de.lon, para.lat, para.lon, nomeDestino, new Date(partida), semPonte ? { semPonte: true } : undefined);
   if (!aindaValido()) return [];
   let rotas = ordenarOpcoes(res.routes || []);
@@ -89,7 +109,7 @@ export async function calcularTroco(
   motivosFalhaUnir(); // só serve para o diagnóstico do planeador normal
   const extra = [...(diretasOk.filter(Boolean) as TransitRouteOption[]), ...combinadasOk];
   if (extra.length && aindaValido()) rotas = ordenarOpcoes([...rotas, ...extra]);
-  return rotas;
+  return Object.assign(rotas, res.longe && !rotas.length ? { longe: res.longe } : {});
 }
 
 /**

@@ -106,6 +106,8 @@ export async function planTransitRoute(
   hibridas?: HibridaUnir[];
   /** Linha da UNIR a partir da origem até um ponto onde se continua em transporte */
   pontes?: PonteUnir[];
+  /** Sem resposta por falta de paragens com horários: metros até à mais próxima (-1 = nenhuma a menos de 8 km) */
+  longe?: { origem?: number; destino?: number };
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
   destName: string;
