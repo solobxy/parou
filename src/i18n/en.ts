@@ -623,6 +623,7 @@ export const EN: Record<string, string> = {
   'Todas as gravidades': 'All severities',
   'Todos os concelhos': 'All municipalities',
   'As minhas ocorrências ({n})': 'My incidents ({n})',
+  'Ver ocorrências': 'View incidents',
   'Nova': 'New',
   'Via cortada': 'Road closed',
   'Outro': 'Other',
