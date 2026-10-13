@@ -586,3 +586,190 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
   }
   return resultado;
 }
+
+// ------------------------------------------------------------------------------------
+// Pesquisa que EXIGE pelo menos uma viagem da UNIR (RAPTOR com duas camadas)
+// ------------------------------------------------------------------------------------
+// Camada 0: ainda não se usou a UNIR; camada 1: já se usou. Uma linha da UNIR leva da camada 0 à 1. Assim aparecem as
+// combinações com a UNIR mesmo quando chegam mais tarde do que um percurso sem ela (por exemplo, para andar menos a pé),
+// coisa que a pesquisa normal descarta (só guarda o que melhora a hora de chegada).
+interface Camadas { S: number; K: number; tau: Int32Array[]; kind: Uint8Array[]; pPat: Int32Array[]; pT: Int32Array[]; pB: Int32Array[]; pA: Int32Array[]; pFrom: Int32Array[]; pL: Uint8Array[]; rk: Int32Array[]; best: Int32Array; marca: Int32Array }
+let camadasCache: Camadas | null = null;
+function camadas(S: number, K: number): Camadas {
+  if (camadasCache && camadasCache.S === S && camadasCache.K >= K) return camadasCache;
+  const S2 = S * 2;
+  const c: Camadas = { S, K, tau: [], kind: [], pPat: [], pT: [], pB: [], pA: [], pFrom: [], pL: [], rk: [], best: new Int32Array(S2), marca: new Int32Array(S2) };
+  for (let k = 0; k <= K; k++) {
+    c.tau.push(new Int32Array(S2)); c.kind.push(new Uint8Array(S2)); c.pPat.push(new Int32Array(S2)); c.pT.push(new Int32Array(S2));
+    c.pB.push(new Int32Array(S2)); c.pA.push(new Int32Array(S2)); c.pFrom.push(new Int32Array(S2)); c.pL.push(new Uint8Array(S2)); c.rk.push(new Int32Array(S2));
+  }
+  camadasCache = c;
+  return c;
+}
+
+export function procurarComUnir(ix: Indice, pedido: Omit<PedidoPesquisa, 'sint' | 'todosAlvos'>): Jornada[] {
+  const { origens, destinos, ativo, maxK, limiteSaida } = pedido;
+  const prazo = Date.now() + pedido.orcamentoMs;
+  const S = ix.stopId.length, P = ix.padroes.length, K = maxK;
+  const C = camadas(S, K);
+  const { tau, kind, pPat, pT, pB, pA, pFrom, pL, rk, best, marca } = C;
+  const qPos = new Int32Array(P * 2).fill(-1);
+  let carimbo = 0;
+  const masks: Array<Uint8Array | undefined> = new Array(P);
+  const mascara = (p: number): Uint8Array => {
+    let m = masks[p];
+    if (!m) {
+      const pd = ix.padroes[p];
+      const ac = ativo(pd.feed);
+      m = new Uint8Array(pd.nT);
+      for (let i = 0; i < pd.nT; i++) if (ac.has(pd.service[i])) m[i] = 1;
+      masks[p] = m;
+    }
+    return m;
+  };
+  const acharViagem = (p: number, pos: number, min: number): number => {
+    const pd = ix.padroes[p];
+    const nS = pd.stops.length, m = mascara(p);
+    let lo = 0, hi = pd.nT;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pd.dep[mid * nS + pos] < min) lo = mid + 1; else hi = mid;
+    }
+    for (let i = lo; i < pd.nT; i++) {
+      const d = pd.dep[i * nS + pos];
+      if (d > limiteSaida) return -1;
+      if (m[i] && !pd.pick[i * nS + pos]) return i;
+    }
+    return -1;
+  };
+  const reconstruir = (k: number, destino: number): Jornada | null => {
+    const rides: Corrida[] = [];
+    let kk = k, cur = destino, guarda = 0;
+    while (kk > 0) {
+      if (guarda++ > 40) return null;
+      while (kk > 0 && kind[kk][cur] === 0) kk--;
+      if (kk === 0) break;
+      let ki = kind[kk][cur];
+      let passos = 0;
+      while (ki === 2) { cur = pFrom[kk][cur]; ki = kind[kk][cur]; if (++passos > 5) return null; }
+      if (ki !== 1) return null;
+      const pat = pPat[kk][cur], t = pT[kk][cur], b = pB[kk][cur], a = pA[kk][cur], lay = pL[kk][cur];
+      rides.push({ pat, t, b, a });
+      cur = ix.padroes[pat].stops[b] + lay * S;
+      kk--;
+    }
+    if (kind[0][cur] !== 3 || !rides.length) return null;
+    rides.reverse();
+    return { k, rides, destStop: destino - S, chegada: 0 };
+  };
+
+  best.fill(INF);
+  for (let k = 0; k <= K; k++) { tau[k].fill(INF); kind[k].fill(0); rk[k].fill(-1); }
+  let alvo = INF;
+  const saida: Jornada[] = [];
+  let marcados: number[] = [];
+  for (const o of origens) {
+    if (o.t < tau[0][o.stop]) {
+      if (tau[0][o.stop] === INF) marcados.push(o.stop);
+      tau[0][o.stop] = o.t; best[o.stop] = o.t; kind[0][o.stop] = 3;
+    }
+  }
+  for (let k = 1; k <= K; k++) {
+    if (Date.now() > prazo) break;
+    tau[k].set(tau[k - 1]); rk[k].set(rk[k - 1]);
+    const tocados: number[] = [];
+    for (const m of marcados) {
+      const lay = m >= S ? 1 : 0, s = m - lay * S;
+      for (let j = ix.psStart[s]; j < ix.psStart[s + 1]; j++) {
+        const q = ix.psPat[j] + lay * P, pos = ix.psPos[j];
+        if (qPos[q] < 0) { tocados.push(q); qPos[q] = pos; } else if (pos < qPos[q]) qPos[q] = pos;
+      }
+    }
+    const novos: number[] = [];
+    carimbo++;
+    const anterior = tau[k - 1], margem = k > 1 ? MARGEM : 0;
+    const marcar = (m: number) => { if (marca[m] !== carimbo) { marca[m] = carimbo; novos.push(m); } };
+    for (const q of tocados) {
+      const lay = q >= P ? 1 : 0, p = q - lay * P, off = lay * S;
+      const pd = ix.padroes[p], nS = pd.stops.length;
+      if (pd.freq) {
+        let t0 = 0, emb0 = 0, aBordo = false;
+        for (let pos = qPos[q]; pos < nS; pos++) {
+          const s = pd.stops[pos];
+          const mD = s + S; // depois de uma viagem da UNIR está-se sempre na camada 1
+          if (aBordo) {
+            const a = t0 + pos * PASSO_SINT;
+            if (a < best[mD] && a < alvo) {
+              tau[k][mD] = a; best[mD] = a; kind[k][mD] = 1;
+              pPat[k][mD] = p; pT[k][mD] = t0; pB[k][mD] = emb0; pA[k][mD] = pos; pL[k][mD] = lay; rk[k][mD] = pd.routeIdx;
+              marcar(mD);
+            }
+          }
+          const prev = anterior[s + off];
+          if (prev < INF && rk[k - 1][s + off] !== pd.routeIdx) {
+            const min = prev + margem + ESPERA_SINT;
+            if (min <= FIM_SINT && min <= limiteSaida && (!aBordo || min < t0 + pos * PASSO_SINT)) { t0 = min - pos * PASSO_SINT; emb0 = pos; aBordo = true; }
+          }
+        }
+      } else {
+        let t = -1, emb = 0;
+        for (let pos = qPos[q]; pos < nS; pos++) {
+          const s = pd.stops[pos], m = s + off;
+          if (t >= 0) {
+            const a = pd.arr[t * nS + pos];
+            if (a >= 0 && a < best[m] && a < alvo) {
+              tau[k][m] = a; best[m] = a; kind[k][m] = 1;
+              pPat[k][m] = p; pT[k][m] = t; pB[k][m] = emb; pA[k][m] = pos; pL[k][m] = lay; rk[k][m] = pd.routeIdx;
+              marcar(m);
+            }
+          }
+          const prev = anterior[m];
+          if (prev < INF && rk[k - 1][m] !== pd.routeIdx) {
+            const min = prev + margem;
+            if (t < 0 || min <= pd.dep[t * nS + pos]) {
+              const t2 = acharViagem(p, pos, min);
+              if (t2 >= 0 && (t < 0 || t2 < t)) { t = t2; emb = pos; }
+            }
+          }
+        }
+      }
+    }
+    for (const q of tocados) qPos[q] = -1;
+
+    // transbordos a pé (dentro da mesma camada)
+    const aPe: number[] = [];
+    for (const m of novos) {
+      if (kind[k][m] !== 1) continue;
+      const lay = m >= S ? 1 : 0, s = m - lay * S;
+      const v = vizinhos(ix, s, true);
+      for (let j = 0; j < v.ids.length; j++) {
+        const mo = v.ids[j] + lay * S;
+        const c = tau[k][m] + v.min[j] * 60;
+        if (c < best[mo] && c < alvo) {
+          tau[k][mo] = c; best[mo] = c; kind[k][mo] = 2; pFrom[k][mo] = m; rk[k][mo] = rk[k][m];
+          aPe.push(mo);
+        }
+      }
+    }
+
+    // percursos que chegam a cada paragem de destino (já com a UNIR) nesta ronda
+    for (const [d, egress] of destinos) {
+      const m = d + S;
+      if (kind[k][m] !== 1 && kind[k][m] !== 2) continue;
+      const j = reconstruir(k, m);
+      if (!j) continue;
+      j.chegada = tau[k][m] + egress;
+      if (j.chegada < alvo) alvo = j.chegada;
+      saida.push(j);
+    }
+    const prox = new Set<number>(novos);
+    for (const o of aPe) prox.add(o);
+    marcados = Array.from(prox);
+    if (!marcados.length) break;
+  }
+  // nunca duas viagens seguidas da mesma linha
+  return saida.filter((j) => {
+    for (let i = 1; i < j.rides.length; i++) if (ix.padroes[j.rides[i].pat].routeIdx === ix.padroes[j.rides[i - 1].pat].routeIdx) return false;
+    return true;
+  });
+}

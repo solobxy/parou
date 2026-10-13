@@ -14,7 +14,7 @@
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
-import { indicePronto, procurar, paragensProximas, type Indice, type Jornada } from './planeadorIndice';
+import { indicePronto, procurar, procurarComUnir, paragensProximas, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
 
@@ -643,7 +643,7 @@ export async function planearViagem(
         const destinosS = new Map<number, number>();
         for (const p of dAll) { const i = ix.stopIdx.get(p.id); if (i !== undefined) destinosS.set(i, p.minutos * 60); }
         if (origens.length && destinosS.size) {
-          const js = procurar(ix, { origens, destinos: destinosS, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 900, sint: true });
+          const js = procurarComUnir(ix, { origens, destinos: destinosS, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 900 });
           // pior chegada que ainda interessa: quando o percurso normal é bom, só se for melhor; senão, com a folga habitual
           const limiteLig = Number.isFinite(melhorChegada) ? melhorChegada + (fracoReg ? (10 + Math.min(10, Math.max(0, aPeReg - 9) * 0.75)) * 60 : -3 * 60) : Infinity;
           const qNome = db.prepare('SELECT stop_name AS nome, stop_lat AS lat, stop_lon AS lon FROM stops WHERE stop_id = ?');
