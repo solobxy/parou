@@ -38,7 +38,8 @@ const L = (pt: string, ingles: string, de?: string, fr?: string): string => {
 };
 const LOCALES: Record<Lang, string> = { pt: 'pt-PT', en: 'en-GB', de: 'de-DE', fr: 'fr-FR' };
 const OG_LOCALES: Record<Lang, string> = { pt: 'pt_PT', en: 'en_GB', de: 'de_DE', fr: 'fr_FR' };
-const LANG_HTML: Record<Lang, string> = { pt: 'pt-PT', en: 'en', de: 'de', fr: 'fr' };
+// Até as páginas estarem traduzidas para alemão e francês, o texto que aparece é inglês: o lang diz a verdade
+const LANG_HTML: Record<Lang, string> = { pt: 'pt-PT', en: 'en', de: 'en', fr: 'en' };
 const LOCALE = (): string => LOCALES[lang()];
 const num = (n: number): string => n.toLocaleString(LOCALE());
 function idiomaDoPedido(req: Request): Lang {
