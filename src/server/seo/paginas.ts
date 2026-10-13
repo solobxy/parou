@@ -605,7 +605,7 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
 <p><a class="btn laranja" href="/transportes?linha=${encodeURIComponent(l.routeId)}">${L('Ver em tempo real', 'See in real time', 'In Echtzeit ansehen', 'Voir en temps réel')}</a></p>`;
   for (const s of h.sentidos) {
     corpo += `<h2>${html(tituloSentido(s.destino))}</h2>
-<p class="nota">${L('Partidas de', 'Departures from', 'Abfahrten ab', 'Départs de')} ${html(s.paragens[0]?.nome || '')}.</p>`;
+<p class="nota">${L('Partidas de', 'Departures from', 'Abfahrten ab', 'Départs depuis')} ${html(s.paragens[0]?.nome || '')}.</p>`;
     s.horarios.forEach((hh, i) => {
       const dia = DateTime.fromISO(hh.data, { zone: ZONA }).setLocale(LOCALE());
       const resumoDia = hh.partidas.length
@@ -662,7 +662,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
     const primeira = s.paragens[0];
     corpo += `<h2>${html(tituloSentido(s.destino))}</h2>`;
     if (primeira) {
-      corpo += `<p class="nota">${L('Partidas de', 'Departures from', 'Abfahrten ab', 'Départs de')} ${html(primeira.nome)}.</p><div data-unir="linha" data-cods="${html(primeira.stopId.replace(/^unir:/, ''))}" data-linha="${html(l.codigo)}" data-sentido="${s.direcao}"><p class="nota">${L('A carregar o horário de hoje (AMP)…', "Loading today's timetable (AMP)…", 'Fahrplan von heute wird geladen (AMP) …', 'Chargement de l\'horaire du jour (AMP)…')}</p></div>`;
+      corpo += `<p class="nota">${L('Partidas de', 'Departures from', 'Abfahrten ab', 'Départs depuis')} ${html(primeira.nome)}.</p><div data-unir="linha" data-cods="${html(primeira.stopId.replace(/^unir:/, ''))}" data-linha="${html(l.codigo)}" data-sentido="${s.direcao}"><p class="nota">${L('A carregar o horário de hoje (AMP)…', "Loading today's timetable (AMP)…", 'Fahrplan von heute wird geladen (AMP) …', 'Chargement de l\'horaire du jour (AMP)…')}</p></div>`;
     }
     corpo += `<h3>${L('Paragens', 'Stops', 'Haltestellen', 'Arrêts')} (${s.paragens.length})</h3><ol class="percurso">${s.paragens.map((p) => {
       const g = ix.grupoPorStop.get(p.stopId);
