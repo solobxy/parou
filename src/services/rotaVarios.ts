@@ -69,11 +69,21 @@ export function pontoDoDestino(d: DestinoViagem): Ponto { return { lat: d.dest.l
  * empate ganha a que tem menos transbordos e, depois, menos a pé. Marca a mais rápida.
  */
 export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[] {
-  const vistas = new Set<string>();
-  const unicas = lista.filter((r) => (vistas.has(r.id) ? false : (vistas.add(r.id), true)));
-  unicas.sort((a, b) => a.totalDurationMinutes - b.totalDurationMinutes
+  const ordem = (a: TransitRouteOption, b: TransitRouteOption) => a.totalDurationMinutes - b.totalDurationMinutes
     || a.transfersCount - b.transfersCount
-    || a.walkingMinutes - b.walkingMinutes);
+    || a.walkingMinutes - b.walkingMinutes;
+  // A mesma viagem pode chegar por caminhos diferentes (ligação direta, combinação…): fica a mais rápida
+  const assinatura = (r: TransitRouteOption) => {
+    const t = r.legs.filter((l) => l.mode === 'TRANSIT').map((l) => `${l.lineCode}|${l.fromStopName}|${l.departureTime}`).join('>');
+    return t || r.id;
+  };
+  const vistas = new Set<string>();
+  const unicas = [...lista].sort(ordem).filter((r) => {
+    const sig = assinatura(r);
+    if (vistas.has(r.id) || vistas.has(sig)) return false;
+    vistas.add(r.id); vistas.add(sig);
+    return true;
+  });
   const melhor = unicas.find((r) => r.id !== 'a-pe');
   return unicas.slice(0, 5).map((r) => ({
     ...r,
@@ -90,22 +100,23 @@ export function chegadaDe(opcao: TransitRouteOption, partida: number): number {
 
 /**
  * Opções (ordenadas) para ir de `de` a `para` partindo no instante `partida` (ms).
- * `semPonte`: já se está a continuar uma viagem que começou na UNIR (não voltar a começar nela).
+ * `nivel`: quantas vezes já se continuou uma viagem depois de uma linha da UNIR (0, 1 ou 2); a partir do 2 já só
+ * se aceitam combinações que chegam ao destino.
  */
 export async function calcularTroco(
-  de: Ponto, para: Ponto, nomeDestino: string, partida: number, aindaValido: () => boolean = () => true, semPonte = false,
+  de: Ponto, para: Ponto, nomeDestino: string, partida: number, aindaValido: () => boolean = () => true, nivel = 0,
 ): Promise<OpcoesTroco> {
-  const res = await planTransitRoute(de.lat, de.lon, para.lat, para.lon, nomeDestino, new Date(partida), semPonte ? { semPonte: true } : undefined);
+  const res = await planTransitRoute(de.lat, de.lon, para.lat, para.lon, nomeDestino, new Date(partida), { nivel });
   if (!aindaValido()) return [];
   let rotas = ordenarOpcoes(res.routes || []);
   // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada pelo servidor
   const candidatos = (res.unir || []).slice(0, 4);
   const desde = Math.floor(partida / 1000);
   const diretas = Promise.all(candidatos.map((c) => viagemUnir(c, nomeDestino, res.originCoords, res.destCoords, desde).catch(() => null)));
-  // ...e junta a rede normal com a UNIR quando nenhuma ligação direta serve
+  // ...e junta a rede normal com a UNIR (em qualquer ordem) quando nenhuma ligação direta serve
   const combinadas = opcoesComUnir(
     res, nomeDestino, partida,
-    semPonte ? null : (ponto, quandoMs) => calcularTroco(ponto, para, nomeDestino, quandoMs, aindaValido, true),
+    nivel >= 2 ? null : (ponto, quandoMs) => calcularTroco(ponto, para, nomeDestino, quandoMs, aindaValido, nivel + 1),
     aindaValido,
   ).catch(() => [] as TransitRouteOption[]);
   const [diretasOk, combinadasOk] = await Promise.all([diretas, combinadas]);

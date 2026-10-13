@@ -3,7 +3,7 @@
 // real à AMP e junta as duas partes numa só opção, com o tempo a pé entre as duas.
 
 import { viagemUnir } from './unirAmp';
-import type { CadeiaUnir, CandidatoUnir, DuplaUnir, HibridaUnir, PonteUnir, PontoRota, RouteLeg, TransitRouteOption } from '../types/perto';
+import type { CadeiaUnir, CandidatoUnir, DuplaUnir, HibridaUnir, LigacaoUnir, PonteUnir, PontoRota, RouteLeg, TransitRouteOption } from '../types/perto';
 
 /** Resposta do planeador com o que interessa aqui */
 export interface PlanoComUnir {
@@ -11,6 +11,7 @@ export interface PlanoComUnir {
   pontes?: PonteUnir[];
   duplas?: DuplaUnir[];
   cadeias?: CadeiaUnir[];
+  ligacoes?: LigacaoUnir[];
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
 }
@@ -106,6 +107,23 @@ export async function opcoesComUnir(
         if (!ultimo) { if (!v.chegadaEpoch) return null; desdeEpoch = v.chegadaEpoch; }
       }
       return atual;
+    })());
+  }
+
+  // Combinações gerais: [viagem normal] + linha da UNIR (hora da AMP) + o que falta (o servidor volta a ser consultado a partir de onde se sai)
+  for (const lg of (res.ligacoes || []).slice(0, 5)) {
+    tarefas.push((async () => {
+      const desdeEpoch = lg.prefixo && lg.chegadaEpoch ? lg.chegadaEpoch : desde;
+      const de = lg.transbordo ?? res.originCoords;
+      const para = lg.fim ? res.destCoords : lg.ponto;
+      const nome = lg.fim ? destNome : (lg.ponto.nome || lg.candidato.destino.nome);
+      const uni = await viagemUnir(lg.candidato, nome, de, para, desdeEpoch).catch(() => null);
+      if (!uni || !aindaValido()) return null;
+      const inicio = lg.prefixo ? juntarOpcoes(lg.prefixo, uni) : uni;
+      if (lg.fim) return inicio;
+      if (!continuar || !uni.chegadaEpoch) return null;
+      const resto = await continuar(lg.ponto, uni.chegadaEpoch * 1000).catch(() => [] as TransitRouteOption[]);
+      return resto[0] ? juntarOpcoes(inicio, resto[0]) : null;
     })());
   }
 

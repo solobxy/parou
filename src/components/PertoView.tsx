@@ -629,7 +629,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const ordenar = ordenarOpcoes;
 
     try {
-      const res = await planTransitRoute(lat, lon, destLat, destLon, destName);
+      const res = await planTransitRoute(lat, lon, destLat, destLon, destName, undefined, { nivel: 0 });
       if (pedido !== pedidoRotasRef.current) return;
       let routes = ordenar(res.routes || []);
       setLongeRota(res.longe);
@@ -638,14 +638,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
       const candidatos = (res.unir || []).slice(0, 4);
       const partidaMs = partidaRotasRef.current;
-      const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length || res.duplas?.length || res.cadeias?.length);
+      const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length || res.duplas?.length || res.cadeias?.length || res.ligacoes?.length);
       if (candidatos.length || temCombinacoes) {
         const validar = () => pedido === pedidoRotasRef.current;
         const [diretas, combinadas] = await Promise.all([
           Promise.all(candidatos.map((c) => viagemUnir(c, destName, res.originCoords, res.destCoords).catch(() => null))),
           opcoesComUnir(
             res, destName, partidaMs,
-            (ponto, quandoMs) => calcularTroco(ponto, { lat: destLat, lon: destLon }, destName, quandoMs, validar, true),
+            (ponto, quandoMs) => calcularTroco(ponto, { lat: destLat, lon: destLon }, destName, quandoMs, validar, 1),
             validar,
           ).catch(() => [] as TransitRouteOption[]),
         ]);
