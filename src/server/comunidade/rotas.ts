@@ -4,7 +4,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import {
   Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, terminarSessao, apagarConta, confirmarPalavra,
   mudarNome, mudarPalavra, criarPedidoRecuperacao, redefinirPalavra, listarFavoritos, guardarFavoritos, apagarFavorito,
-  limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta, contaEAdmin,
+  limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta, contaEAdmin, resgatarPontoDiario,
 } from './contas';
 import {
   listarConversas, obterConversa, criarConversa, responder, votar, denunciar, bloquearAutor, listarBloqueados, desbloquear,
@@ -138,6 +138,17 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       if (!conta) return res.status(401).json({ erro: 'Entra na tua conta.', codigo: 'sem_sessao' });
       if (!dentroDoLimite(`avatar:${conta.id}`, 60, 3600_000)) return semLimite(res);
       res.json({ avatar: mudarAvatar(conta.id, req.body?.avatar) });
+    } catch (err) { erro(res, err); }
+  });
+
+  // Ponto diário: 1 ponto de reputação a cada 24 h (a hora decide-a o servidor)
+  app.post('/api/conta/ponto-diario', (req, res) => {
+    try {
+      const conta = contaDoPedido(req, res);
+      if (!conta) return res.status(401).json({ erro: 'Entra na tua conta.', codigo: 'sem_sessao' });
+      if (!dentroDoLimite(`ponto-diario:${conta.id}`, 30, 3600_000)) return semLimite(res);
+      const r = resgatarPontoDiario(conta.id);
+      res.json({ resgatado: r.resgatado, utilizador: perfilDaConta(r.conta) });
     } catch (err) { erro(res, err); }
   });
 

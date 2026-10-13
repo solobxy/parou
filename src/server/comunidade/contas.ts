@@ -19,6 +19,25 @@ export interface Conta {
   avatar: ConfigAvatar;
   operador: string | null; // conta oficial de um operador (as respostas levam "Resposta oficial")
   suspensoAte: number; // 0 = sem suspensão
+  ultimoResgate: number; // instante (ms) do último ponto diário resgatado; 0 = nunca
+}
+
+/** Tempo entre dois pontos diários: conta a partir do momento em que o último foi resgatado */
+export const INTERVALO_PONTO_DIARIO_MS = 24 * 3600_000;
+
+export interface EstadoPontoDiario {
+  /** Hora (ms) a partir da qual se pode resgatar o próximo ponto (no passado = já se pode) */
+  disponivelEm: number;
+  /** Hora do servidor (ms): o telemóvel usa-a para a contagem, para o relógio dele não valer nada */
+  agora: number;
+}
+
+/** Quando se pode resgatar o próximo ponto. Quem nunca resgatou pode já; ficar dias sem entrar não acumula pontos. */
+export function estadoPontoDiario(c: { ultimoResgate: number }, agora = Date.now()): EstadoPontoDiario {
+  const ultimo = Number(c.ultimoResgate) || 0;
+  // Se o relógio do servidor recuou, nunca se espera mais de 24 h
+  const disponivelEm = ultimo > 0 ? Math.min(ultimo + INTERVALO_PONTO_DIARIO_MS, agora + INTERVALO_PONTO_DIARIO_MS) : 0;
+  return { disponivelEm, agora };
 }
 
 export interface PerfilApp {
@@ -37,6 +56,7 @@ export interface PerfilApp {
   proximaPeca: { nome: string; falta: number } | null;
   admin?: boolean;
   distincao?: string; // conta com uma medalha exclusiva e todas as peças abertas (código da peça exclusiva)
+  resgate: EstadoPontoDiario; // ponto diário: quando se pode resgatar o próximo
 }
 
 /** Medalha "Pioneiro": todas as contas criadas até ao fim de 2026 (31/12 às 23:59, hora de Lisboa; em dezembro Lisboa = UTC). */
@@ -102,6 +122,7 @@ export function perfilDaConta(c: Conta): PerfilApp {
     ...(contaEAdmin(c) ? { admin: true } : {}),
     ...(distincao ? { distincao } : {}),
     proximaPeca: contaEAdmin(c) || distincao ? null : proximaPeca(c.pontos),
+    resgate: estadoPontoDiario(c),
   };
 }
 
@@ -175,11 +196,12 @@ function lerConta(linha: any): Conta | null {
     id: linha.id, email: linha.email, nome: linha.nome, foto: linha.foto || null,
     pontos: Number(linha.pontos), ocorrencias: Number(linha.ocorrencias), criado: Number(linha.criado),
     avatar: avatarDaLinha(linha.avatar, medalhaPorDefeito(linha)), operador: linha.operador || null, suspensoAte: Number(linha.suspenso_ate) || 0,
+    ultimoResgate: Number(linha.ultimo_resgate) || 0,
   };
 }
 
 export function contaPorId(id: string): Conta | null {
-  return lerConta(base().prepare('SELECT id, email, nome, foto, pontos, ocorrencias, criado, avatar, operador, suspenso_ate FROM utilizadores WHERE id = ?').get(id));
+  return lerConta(base().prepare('SELECT id, email, nome, foto, pontos, ocorrencias, criado, avatar, operador, suspenso_ate, ultimo_resgate FROM utilizadores WHERE id = ?').get(id));
 }
 
 export async function registar(emailBruto: unknown, palavra: unknown, nome: unknown): Promise<{ conta: Conta; token: string }> {
@@ -292,6 +314,22 @@ export function ganharPontos(id: string | undefined | null, motivo: string, pont
     ON CONFLICT(utilizador_id, dia, motivo) DO UPDATE SET pontos = pontos + excluded.pontos`).run(id, dia, motivo, dar);
   base().prepare('UPDATE utilizadores SET pontos = pontos + ? WHERE id = ?').run(dar, id);
   return dar;
+}
+
+/**
+ * Ponto diário: 1 ponto, e só se passaram 24 h desde o último resgate (a contagem recomeça de cada resgate).
+ * Quem fica dias sem entrar ganha na mesma 1 ponto, não acumula. Uma só instrução SQL decide e grava, por isso
+ * dois pedidos ao mesmo tempo (dois separadores, dois telemóveis) nunca dão 2 pontos.
+ * Devolve a conta atualizada e se o ponto foi dado agora.
+ */
+export function resgatarPontoDiario(id: string, agora = Date.now()): { conta: Conta; resgatado: boolean } {
+  const r = base().prepare(
+    `UPDATE utilizadores SET pontos = pontos + 1, ultimo_resgate = ?
+     WHERE id = ? AND (ultimo_resgate IS NULL OR ultimo_resgate <= ? OR ultimo_resgate > ?)`,
+  ).run(agora, id, agora - INTERVALO_PONTO_DIARIO_MS, agora + INTERVALO_PONTO_DIARIO_MS);
+  const conta = contaPorId(id);
+  if (!conta) throw new ErroConta('sem_sessao', 'Entra na tua conta.', 401);
+  return { conta, resgatado: Number(r.changes) > 0 };
 }
 
 /** Administração: marca uma conta como oficial de um operador (ou tira a marca). */
