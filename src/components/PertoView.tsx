@@ -53,6 +53,7 @@ import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
 import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
 import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, type DestinoViagem, type LongeDeParagens } from '../services/rotaVarios';
+import { textoMetros, traduzirDistancia } from '../utils/distancia';
 import { opcoesComUnir } from '../services/hibridasUnir';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
@@ -146,7 +147,7 @@ function distanciaViva(de: { latitude: number; longitude: number } | null | unde
   const m = Math.round(metrosEntre(de, stop));
   if (!Number.isFinite(m)) return null;
   return {
-    texto: m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', LOCALE.startsWith('pt') ? ',' : '.')} km` : `${m} m`,
+    texto: m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', LOCALE.startsWith('pt') ? ',' : '.')} km` : textoMetros(m),
     minutos: Math.max(1, Math.round(m / 80)),
   };
 }
@@ -1339,7 +1340,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const topAlert = contextualAlerts[0] || null;
 
   const raio = raioUsado || selectedRadius;
-  const raioTexto = raio >= 1000 ? `${(raio / 1000).toLocaleString('pt-PT')} km` : `${raio} m`;
+  const raioTexto = raio >= 1000 ? `${(raio / 1000).toLocaleString(LOCALE)} km` : textoMetros(raio);
   const subtitulo = !localizacaoPronta
     ? (gpsStatus === 'requesting' ? t('A obter a tua localização…') : t('À espera da tua localização'))
     : isDbLoading && filteredStops.length === 0
@@ -1855,7 +1856,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                     <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-condensada text-[13px] font-bold text-[#111111] tabular-nums">
                       <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
-                      {distanciaViva(userCoords, stop)?.texto ?? stop.formattedDistance}
+                      {distanciaViva(userCoords, stop)?.texto ?? traduzirDistancia(stop.formattedDistance)}
                     </span>
                   </div>
 
@@ -1985,7 +1986,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     </div>
                   )}
                   <div className="text-xs text-[#6B6B6B] mt-0.5">
-                    {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {distanciaViva(userCoords, selectedStop)?.texto ?? selectedStop.formattedDistance}
+                    {selectedStop.operatorName || normalizeTransportMode(selectedStop.transportMode)} · {distanciaViva(userCoords, selectedStop)?.texto ?? traduzirDistancia(selectedStop.formattedDistance)}
                     {(distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes) ? ` · ${t('{n} min a pé', { n: distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes })}` : ''}
                   </div>
                 </div>

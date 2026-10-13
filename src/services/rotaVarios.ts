@@ -5,6 +5,7 @@
 import { planTransitRoute } from './pertoApi';
 import { viagemUnir, motivosFalhaUnir } from './unirAmp';
 import { opcoesComUnir } from './hibridasUnir';
+import { textoMetros } from '../utils/distancia';
 import { t, tn, LOCALE } from '../i18n';
 import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
 
@@ -32,7 +33,7 @@ export function textoSemLigacao(longe?: LongeDeParagens): string {
   const base = t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).');
   if (!longe || (longe.origem === undefined && longe.destino === undefined)) return base;
   const km = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
-  const dist = (m: number) => (m < 0 ? t('mais de 8 km') : m >= 1000 ? `${km.format(m / 1000)} km` : `${m} m`);
+  const dist = (m: number) => (m < 0 ? t('mais de 8 km') : m >= 1000 ? `${km.format(m / 1000)} km` : textoMetros(m));
   const frases: string[] = [];
   if (longe.origem !== undefined) frases.push(t('Não há paragens com horários perto da origem (a mais próxima fica a {d}).', { d: dist(longe.origem) }));
   if (longe.destino !== undefined) frases.push(t('Não há paragens com horários perto do destino (a mais próxima fica a {d}).', { d: dist(longe.destino) }));
