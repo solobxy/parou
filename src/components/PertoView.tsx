@@ -2348,8 +2348,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <button
               onClick={() => setMapaExpandido((v) => !v)}
               className="lg:hidden w-11 h-11 rounded-[12px] bg-[#FFFFFF] text-[#111111] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer"
-              title={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
-              aria-label={mapaExpandido ? 'Reduzir o mapa' : 'Aumentar o mapa'}
+              title={mapaExpandido ? t('Reduzir o mapa') : t('Aumentar o mapa')}
+              aria-label={mapaExpandido ? t('Reduzir o mapa') : t('Aumentar o mapa')}
             >
               {mapaExpandido ? <Minimize2 className="w-4 h-4 stroke-[2]" /> : <Maximize2 className="w-4 h-4 stroke-[2]" />}
             </button>

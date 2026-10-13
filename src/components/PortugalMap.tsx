@@ -665,7 +665,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
                       : 'text-[#6B6B6B] hover:text-[#111111]'
                   }`}
                 >
-                  {arch === 'acores' ? 'Açores' : arch}
+                  {arch === 'acores' ? t('Açores') : arch}
                 </button>
               ))}
             </div>
