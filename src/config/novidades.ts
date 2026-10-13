@@ -248,4 +248,19 @@ parou.pt`,
     imagens: ['/novidades/rotas-combinadas-1.jpg'],
     comunidade: 'A PAROU já junta autocarros, metro e comboio de operadores diferentes na mesma viagem (por exemplo STCP + UNIR, no Porto) e mostra quantos minutos tens de andar a pé em cada troço e até ao destino. Se uma rota que conheces ainda não aparece, diz-nos aqui.',
   },
+  {
+    id: 'proxima-ligacao',
+    data: '2026-10-13',
+    etiqueta: 'Novidade',
+    titulo: 'Próxima ligação, mesmo que seja amanhã',
+    texto: `🕐 *Já não ficas sem resposta*
+
+Quando não há nada nas próximas horas (o último autocarro já passou, ou a linha é pouco frequente), a PAROU mostra a próxima ligação, mesmo que seja amanhã de manhã.
+🔗 Junta duas linhas da UNIR quando é preciso mudar de autocarro
+📍 Se não há paragens com horários por perto, diz qual é a mais próxima e a que distância fica
+
+parou.pt`,
+    imagens: ['/novidades/proxima-ligacao-1.jpg'],
+    comunidade: 'A PAROU já mostra a próxima ligação mesmo quando não há nada nas próximas horas (por exemplo, a primeira da manhã seguinte). Junta também duas linhas da UNIR quando é preciso mudar de autocarro e, se não houver paragens com horários por perto, diz qual é a mais próxima.',
+  },
 ];
