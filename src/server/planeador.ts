@@ -616,16 +616,20 @@ export async function planearViagem(
         }
         cands.sort((a, b) => a.custo - b.custo);
         const porLinhaN = new Map<string, number>();
+        const porTransbordoN = new Map<number, number>();
         const vistos = new Set<string>();
         const escolhidas: typeof cands = [];
         for (const c of cands) {
+          // só interessa se chegar antes do melhor percurso normal (que pode ser mau: muito a pé, muita espera)
+          if (Number.isFinite(melhorChegada) && c.custo - c.dia.desvio >= melhorChegada - 3 * 60) continue;
           const k = `${c.b.linha.route}|${c.b.linha.sentido}`;
           const sig = `${k}|${c.x.idx}`;
-          if (vistos.has(sig) || (porLinhaN.get(k) || 0) >= 2) continue;
+          if (vistos.has(sig) || (porLinhaN.get(k) || 0) >= 2 || (porTransbordoN.get(c.x.idx) || 0) >= 2) continue;
           vistos.add(sig);
           porLinhaN.set(k, (porLinhaN.get(k) || 0) + 1);
+          porTransbordoN.set(c.x.idx, (porTransbordoN.get(c.x.idx) || 0) + 1);
           escolhidas.push(c);
-          if (escolhidas.length >= 5) break;
+          if (escolhidas.length >= 4) break;
         }
         const qPontos = db.prepare(
           `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
@@ -738,7 +742,9 @@ export async function planearViagem(
           const origens = p.ys.map((y) => ({ stop: y.idx, t: tEst + minutosAPe(y.dist) * 60 }));
           const js = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 3, limiteSaida: tEst + 3 * 3600, orcamentoMs: 250 });
           if (!js.length) continue;
-          verificadas.push({ est: Math.min(...js.map((j) => j.chegada)), p });
+          const est = Math.min(...js.map((j) => j.chegada));
+          if (Number.isFinite(melhorChegada) && est >= melhorChegada - 3 * 60) continue; // não ganha ao percurso normal
+          verificadas.push({ est, p });
         }
         verificadas.sort((a, b) => a.est - b.est);
         return verificadas.slice(0, 3).map(({ p }): PonteUnir => {
