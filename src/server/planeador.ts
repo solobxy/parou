@@ -154,7 +154,7 @@ export async function planearViagem(
   const epocaMeiaNoite = Math.floor(meiaNoite.toSeconds());
   const distTotal = distM(oLat, oLon, dLat, dLon);
 
-  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string }> = [];
+  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string; _saida?: number }> = [];
 
   // ------------------------------------------------------------------ a pé
   if (distTotal <= 1600) {
@@ -234,6 +234,7 @@ export async function planearViagem(
     } as RouteLeg;
   };
 
+  let janela = 3 * 3600; // até onde se procuram partidas (o resto do dia e a manhã seguinte, se não houver nada)
   const executar = () => {
   if (O.length && D.length) {
     const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : [p.id]));
@@ -250,7 +251,7 @@ export async function planearViagem(
           const origens: Array<{ stop: number; t: number }> = [];
           for (const p of O) { const i = ix.stopIdx.get(p.id); if (i !== undefined) origens.push({ stop: i, t: base + p.minutos * 60 }); }
           if (!origens.length || !destinos.size) continue;
-          const jornadas = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 4, limiteSaida: base + 3 * 3600, orcamentoMs: 2500 });
+          const jornadas = procurar(ix, { origens, destinos, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs: janela > 3 * 3600 ? 2000 : 2500 });
           for (const j of jornadas) {
             const pernas: Perna[] = pernasDeJornada(ix, j);
             const primeira = pernas[0], ultima = pernas[pernas.length - 1];
@@ -284,6 +285,7 @@ export async function planearViagem(
               departureTime: hm(primeira.parte - dia.desvio - andarO * 60), arrivalTime: hm(chegada),
               walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
               legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Horário programado', relevantAlerts: [],
+              _saida: primeira.parte - dia.desvio - andarO * 60,
               _chegada: chegada, _pontos: chegada + trocas * 6 * 60, // com transbordos, o que distingue um percurso são as viagens a seguir à primeira (o mesmo comboio apanhado a partir de várias linhas é uma só opção)
               _assinatura: pernas.length > 1 ? `M:${pernas.slice(1).map((x) => x.route).join('>')}` : pernas[0].route,
             });
@@ -451,6 +453,15 @@ export async function planearViagem(
     }
   }
 
+  // Nada nas próximas 3 h (o último serviço já passou, linha pouco frequente, fim de semana…): alarga a procura ao
+  // resto do dia e à manhã seguinte, para a pessoa saber quando há a próxima ligação (a hora aparece na opção).
+  if (!opcoes.some((o) => o.id !== 'a-pe') && indicePronto()) {
+    janela = 16 * 3600;
+    const amanha = lis.plus({ days: 1 });
+    dias.push({ desvio: -86400, ativo: servicosDoDia(amanha.toFormat('yyyyMMdd'), amanha.toFormat('cccc').toLowerCase()) });
+    executar();
+  }
+
   // ------------------------------------------------------------------ escolha das melhores
   // Ordena pela hora de chegada (cada transbordo "custa" 6 min) e evita repetir a mesma linha
   opcoes.sort((a, b) => a._pontos - b._pontos);
@@ -489,7 +500,14 @@ export async function planearViagem(
   }
 
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
-  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, ...o }) => {
+  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, ...resto }) => {
+    // Só aparecem quando a viagem sai ou chega noutro dia (0 = hoje): "Sair amanhã às 07:10"
+    const o: typeof resto = { ...resto };
+    if (o.id !== 'a-pe') {
+      const dc = Math.floor(_chegada / 86400), ds = _saida !== undefined ? Math.floor(_saida / 86400) : 0;
+      if (dc > 0) o.arrivalDayOffset = dc;
+      if (ds > 0) o.departureDayOffset = ds;
+    }
     if (melhor && o.id === melhor.id) return { ...o, badgeLabel: o.transfersCount ? `Mais rápido · ${o.transfersCount} ${o.transfersCount === 1 ? 'transbordo' : 'transbordos'}` : 'Mais rápido' };
     return o;
   });
