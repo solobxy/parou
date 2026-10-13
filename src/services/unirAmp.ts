@@ -283,5 +283,6 @@ export async function viagemUnir(
     realtimeStatus: 'PROGRAMADO',
     realtimeLabel: estimada ? 'Horário da AMP · chegada estimada' : 'Horário da AMP',
     relevantAlerts: [],
+    chegadaEpoch: chegadaFinal,
   };
 }

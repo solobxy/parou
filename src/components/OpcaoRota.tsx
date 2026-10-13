@@ -3,13 +3,19 @@ import { Footprints } from 'lucide-react';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { formatTransitName } from '../utils/transitFormatter';
-import { t, tn } from '../i18n';
+import { t, tn, LOCALE } from '../i18n';
 import type { TransitRouteOption } from '../types/perto';
 
 /** Etiquetas dos percursos que vêm do servidor ("Direto", "2 transbordos", "A pé") */
 function traduzirBadge(label: string): string {
   const m = /^(\d+) transbordos?$/.exec(label);
   return m ? tn(+m[1], '{n} transbordo', '{n} transbordos') : t(label);
+}
+
+/** "450 m", "1,3 km" */
+function textoDistancia(metros: number): string {
+  if (metros < 950) return `${Math.max(10, Math.round(metros / 10) * 10)} m`;
+  return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(metros / 1000)} km`;
 }
 
 interface Props {
@@ -63,7 +69,11 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes, avisar = 
               {leg.mode === 'WALK' ? (
                 <div className="flex items-center gap-1 text-xs text-[#6B6B6B]">
                   <Footprints className="w-3.5 h-3.5 stroke-[2]" />
-                  <span>{leg.durationMinutes}m</span>
+                  <span className="tabular-nums">
+                    {lIdx === route.legs.length - 1 && route.legs.length > 1 && leg.durationMinutes >= 1
+                      ? t('{n} min até ao destino', { n: leg.durationMinutes })
+                      : t('{n} min', { n: leg.durationMinutes })}
+                  </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
@@ -93,7 +103,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes, avisar = 
                     : <span className="shrink-0 mt-px"><LineChip number={leg.lineCode || '—'} color={leg.lineColor} /></span>}
                   <span className={leg.mode === 'WALK' ? 'text-[#6B6B6B]' : ''}>
                     {leg.mode === 'WALK'
-                      ? `${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min`
+                      ? `${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min${(leg.distanceMeters ?? 0) >= 50 ? ` (${textoDistancia(leg.distanceMeters as number)})` : ''}`
                       : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? t('paragem') : t('paragens')}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
                   </span>
                 </li>

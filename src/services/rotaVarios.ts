@@ -4,6 +4,7 @@
 
 import { planTransitRoute } from './pertoApi';
 import { viagemUnir, motivosFalhaUnir } from './unirAmp';
+import { opcoesComUnir } from './hibridasUnir';
 import { t, tn } from '../i18n';
 import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
 
@@ -64,22 +65,30 @@ export function chegadaDe(opcao: TransitRouteOption, partida: number): number {
   return partida + Math.max(0, opcao.totalDurationMinutes) * 60_000;
 }
 
-/** Opções (ordenadas) para ir de `de` a `para` partindo no instante `partida` (ms) */
+/**
+ * Opções (ordenadas) para ir de `de` a `para` partindo no instante `partida` (ms).
+ * `semPonte`: já se está a continuar uma viagem que começou na UNIR (não voltar a começar nela).
+ */
 export async function calcularTroco(
-  de: Ponto, para: Ponto, nomeDestino: string, partida: number, aindaValido: () => boolean = () => true,
+  de: Ponto, para: Ponto, nomeDestino: string, partida: number, aindaValido: () => boolean = () => true, semPonte = false,
 ): Promise<TransitRouteOption[]> {
-  const res = await planTransitRoute(de.lat, de.lon, para.lat, para.lon, nomeDestino, new Date(partida));
+  const res = await planTransitRoute(de.lat, de.lon, para.lat, para.lon, nomeDestino, new Date(partida), semPonte ? { semPonte: true } : undefined);
   if (!aindaValido()) return [];
   let rotas = ordenarOpcoes(res.routes || []);
   // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada pelo servidor
   const candidatos = (res.unir || []).slice(0, 4);
-  if (candidatos.length) {
-    const desde = Math.floor(partida / 1000);
-    const extra = (await Promise.all(candidatos.map((c) => viagemUnir(c, nomeDestino, res.originCoords, res.destCoords, desde).catch(() => null))))
-      .filter(Boolean) as TransitRouteOption[];
-    motivosFalhaUnir(); // só serve para o diagnóstico do planeador normal
-    if (extra.length) rotas = ordenarOpcoes([...rotas, ...extra]);
-  }
+  const desde = Math.floor(partida / 1000);
+  const diretas = Promise.all(candidatos.map((c) => viagemUnir(c, nomeDestino, res.originCoords, res.destCoords, desde).catch(() => null)));
+  // ...e junta a rede normal com a UNIR quando nenhuma ligação direta serve
+  const combinadas = opcoesComUnir(
+    res, nomeDestino, partida,
+    semPonte ? null : (ponto, quandoMs) => calcularTroco(ponto, para, nomeDestino, quandoMs, aindaValido, true),
+    aindaValido,
+  ).catch(() => [] as TransitRouteOption[]);
+  const [diretasOk, combinadasOk] = await Promise.all([diretas, combinadas]);
+  motivosFalhaUnir(); // só serve para o diagnóstico do planeador normal
+  const extra = [...(diretasOk.filter(Boolean) as TransitRouteOption[]), ...combinadasOk];
+  if (extra.length && aindaValido()) rotas = ordenarOpcoes([...rotas, ...extra]);
   return rotas;
 }
 
