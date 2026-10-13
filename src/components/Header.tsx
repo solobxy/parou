@@ -3,6 +3,7 @@ import { Logo } from './Logo';
 import { BotaoInstalar } from './InstalarApp';
 import { SeletorTema } from './SeletorTema';
 import { Avatar } from './Avatar';
+import { usePontoDiario } from '../hooks/usePontoDiario';
 import { 
   Search, 
   Newspaper, 
@@ -72,6 +73,8 @@ export const Header: React.FC<HeaderProps> = ({
   const admin = eAdmin();
   // O painel do WhatsApp também abre com a conta de administração (sem precisar da chave neste telemóvel)
   const painelWhatsApp = admin || Boolean(currentUser?.admin);
+  // Ponto diário por resgatar: um pontinho laranja no botão da conta (a contagem em si está no perfil)
+  const pontoPorResgatar = usePontoDiario(currentUser, 30_000)?.disponivel ?? false;
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -467,9 +470,9 @@ export const Header: React.FC<HeaderProps> = ({
           {currentUser ? (
             <button
               onClick={onOpenUserProfileModal}
-              className="w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
+              className="relative w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
               title={`${t('A tua conta')} (${currentUser.displayName})`}
-              aria-label={t('A tua conta: {nome}', { nome: currentUser.displayName })}
+              aria-label={`${t('A tua conta: {nome}', { nome: currentUser.displayName })}${pontoPorResgatar ? `. ${t('Tens 1 ponto por resgatar.')}` : ''}`}
               data-teste="botao-conta"
             >
               {currentUser.avatar ? (
@@ -480,6 +483,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="w-7 h-7 rounded-full bg-[#111111] text-[#FFFFFF] text-[11px] font-bold flex items-center justify-center" aria-hidden="true">
                   {currentUser.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?'}
                 </span>
+              )}
+              {pontoPorResgatar && (
+                <span aria-hidden="true" data-teste="ponto-por-resgatar" className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#FF6B1A] border-2 border-[#FFFFFF]" />
               )}
             </button>
           ) : (

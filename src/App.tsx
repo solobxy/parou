@@ -18,6 +18,7 @@ import { Header } from './components/Header';
 import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { AvisoSemRede } from './components/AvisoSemRede';
+import { PontoDiario } from './components/PontoDiario';
 import { aplicarMetaRota } from './seo/rotasApp';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
 import { ImportantOccurrencesList } from './components/ImportantOccurrencesList';
@@ -1256,6 +1257,9 @@ export default function App() {
       </footer>
 
       {/* Modals & Dialogs */}
+      {/* Ponto diário: o primeiro aviso quando se abre a app com sessão iniciada */}
+      <PontoDiario user={currentUserProfile} />
+
       {isReportModalOpen && <React.Suspense fallback={null}><ReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}

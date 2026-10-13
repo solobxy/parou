@@ -53,8 +53,14 @@ let emailAtivoNoServidor = false;
 const ouvintesSessao = new Set<(u: Utilizador | null) => void>();
 let aArrancar = false;
 
+// A contagem do ponto diário usa a hora do servidor (o relógio do telemóvel pode estar errado ou mexido)
+let desvioServidorMs = 0;
+/** Agora, segundo o servidor da PAROU (ms) */
+export function agoraDoServidor(): number { return Date.now() + desvioServidorMs; }
+
 function definirUtilizador(u: Utilizador | null) {
   const mudou = (u?.userId || null) !== (utilizadorAtual?.userId || null);
+  if (typeof u?.resgate?.agora === 'number' && u.resgate.agora > 0) desvioServidorMs = u.resgate.agora - Date.now();
   utilizadorAtual = u;
   sessaoConhecida = true;
   if (mudou) ouvintesSessao.forEach((f) => { try { f(u); } catch {} });
@@ -118,6 +124,18 @@ export function subscribeUserProfile(_userId: string, onProfileUpdate: (profile:
   perfilOuvintes.add(onProfileUpdate);
   const temporizador = setInterval(() => { if (!document.hidden) void lerSessao().catch(() => {}); }, 60_000);
   return () => { perfilOuvintes.delete(onProfileUpdate); clearInterval(temporizador); };
+}
+
+/**
+ * Resgata o ponto diário (1 ponto de reputação a cada 24 h, a contar do último resgate). Quem não aparece
+ * durante dias ganha na mesma 1 ponto, não acumula. `resgatado` = false quando já tinha sido resgatado
+ * (por exemplo noutro telemóvel): o perfil que volta já traz a hora do próximo.
+ */
+export async function resgatarPontoDiario(): Promise<{ resgatado: boolean; utilizador: Utilizador }> {
+  const r = await pedido<{ resgatado: boolean; utilizador: Utilizador }>('POST', '/api/conta/ponto-diario', {});
+  definirUtilizador(r.utilizador);
+  perfilOuvintes.forEach((f) => { try { f(r.utilizador); } catch {} });
+  return r;
 }
 
 function depoisDeAgir() {
