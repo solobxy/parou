@@ -157,16 +157,6 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
           tabIndex={-1}
           className="folha-entra relative w-full max-w-[340px] rounded-[16px] border border-[#E6E6E3] bg-[#FFFFFF] shadow-2xl p-4 outline-none"
         >
-          <button
-            type="button"
-            onClick={fechar}
-            aria-label={t('Fechar')}
-            data-teste="ponto-diario-fechar"
-            className="absolute right-1 top-1 w-11 h-11 rounded-full flex items-center justify-center text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2] cursor-pointer"
-          >
-            <X className="w-5 h-5 stroke-[2]" />
-          </button>
-
           <div className="flex items-center gap-3 pr-9">
             <span className="relative shrink-0">
               <Avatar config={user.avatar} tamanho={48} />
@@ -203,7 +193,6 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
             <>
               <button
                 type="button"
-                data-foco
                 onClick={() => void resgatar()}
                 disabled={fase === 'a-resgatar'}
                 aria-busy={fase === 'a-resgatar'}
@@ -222,17 +211,14 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
             <>
               <div className="mt-3.5 rounded-[12px] bg-[#F4F4F2] border border-[#E6E6E3] px-3 py-2.5">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6B6B]">{t('Próximo ponto daqui a')}</div>
-                <div className="mt-0.5 flex items-baseline justify-between gap-3">
-                  <span role="timer" aria-live="off" data-teste="ponto-diario-contagem" className="font-condensada text-[32px] leading-none font-bold tabular-nums text-[#111111]">
-                    {formatarContagem(ponto.restanteMs)}
-                  </span>
-                  <span className="text-[12.5px] text-[#4A4A4A] text-right leading-tight">{t('Volta {quando}', { quando: quandoFicaPronto(ponto.proximoEm) })}</span>
+                <div className="mt-0.5 font-condensada text-[32px] leading-none font-bold tabular-nums text-[#111111]">
+                  <span role="timer" aria-live="off" data-teste="ponto-diario-contagem">{formatarContagem(ponto.restanteMs)}</span>
                 </div>
+                <div className="mt-1 text-[12.5px] text-[#4A4A4A] leading-tight">{t('Volta {quando}', { quando: quandoFicaPronto(ponto.proximoEm) })}</div>
               </div>
               <div className="mt-3 flex items-center gap-2">
                 <button
                   type="button"
-                  data-foco
                   onClick={() => setEditor(true)}
                   data-teste="ponto-diario-personalizar"
                   className="flex-1 h-11 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
@@ -250,6 +236,15 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
               </div>
             </>
           )}
+          <button
+            type="button"
+            onClick={fechar}
+            aria-label={t('Fechar')}
+            data-teste="ponto-diario-fechar"
+            className="absolute right-1 top-1 w-11 h-11 rounded-full flex items-center justify-center text-[#6B6B6B] hover:text-[#111111] hover:bg-[#F4F4F2] cursor-pointer"
+          >
+            <X className="w-5 h-5 stroke-[2]" />
+          </button>
           <span role="status" aria-live="polite" className="sr-only">{!pronto && resgatadoAgora ? t('Ponto resgatado!') : ''}</span>
         </div>
       </div>
@@ -307,9 +302,9 @@ export const PontoDiarioCartao: React.FC<{ user: UserProfile }> = ({ user }) => 
             <span className="flex-1 min-w-0 leading-tight">
               <span className="block text-[14px] font-semibold text-[#111111]">{feitoAgora ? t('Ponto resgatado!') : t('Ponto diário')}</span>
               <span className="block text-[12px] text-[#4A4A4A]">{t('Próximo ponto daqui a')}</span>
-            </span>
-            <span role="timer" aria-live="off" data-teste="ponto-diario-contagem-perfil" className="font-condensada text-[26px] leading-none font-bold tabular-nums text-[#111111] shrink-0">
-              {formatarContagem(ponto.restanteMs)}
+              <span role="timer" aria-live="off" data-teste="ponto-diario-contagem-perfil" className="block mt-0.5 font-condensada text-[28px] leading-none font-bold tabular-nums text-[#111111]">
+                {formatarContagem(ponto.restanteMs)}
+              </span>
             </span>
           </div>
           <div className="mt-2.5 h-1.5 rounded-full bg-[#E6E6E3] overflow-hidden" aria-hidden="true">
