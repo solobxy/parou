@@ -58,6 +58,7 @@ import { opcoesComUnir } from '../services/hibridasUnir';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
+import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 
 interface PertoViewProps {
@@ -139,6 +140,50 @@ function iconeParagem(modo: 'Autocarro' | 'Metro' | 'Comboio' | 'Barco', selecio
     iconesParagem.set(chave, icone);
   }
   return icone;
+}
+
+// Paragens por onde se arrasta o mapa (além das que já vêm "perto de ti")
+const ZOOM_MIN_EXTRAS = 15;        // mais afastado que isto seria um mar de marcadores
+const MAX_EXTRAS_NOVOS = 400;      // marcadores a desenhar de cada vez (primeiro os do ecrã)
+const MAX_EXTRAS_TOTAL = 450;      // teto de marcadores extra no mapa
+const MARGEM_EXTRAS = 0.5;         // carrega e desenha meio ecrã além de cada lado
+const MODO_DO_FILTRO = { autocarro: 'Autocarro', metro: 'Metro', comboio: 'Comboio', barco: 'Barco' } as const;
+
+function limitesDoMapa(map: L.Map, margem: number): Limites {
+  const b = map.getBounds().pad(margem);
+  return { sul: b.getSouth(), oeste: b.getWest(), norte: b.getNorth(), este: b.getEast() };
+}
+
+/** Distância ao utilizador no formato do servidor; vazia se ainda não há posição */
+function distanciaParaItem(de: { latitude: number; longitude: number } | null | undefined, lat: number, lon: number) {
+  if (!de) return { distanceMeters: 0, formattedDistance: '', walkingMinutes: 0 };
+  const m = Math.round(metrosEntre(de, { latitude: lat, longitude: lon }));
+  if (!Number.isFinite(m)) return { distanceMeters: 0, formattedDistance: '', walkingMinutes: 0 };
+  return {
+    distanceMeters: m,
+    formattedDistance: m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`,
+    walkingMinutes: Math.max(1, Math.round(m / 80)),
+  };
+}
+
+/** Paragem "leve" (só nome, sítio e modo) como cartão; as partidas chegam logo a seguir pelo painel */
+function itemDeParagemLeve(p: ParagemLeve, de: { latitude: number; longitude: number } | null | undefined): NearbyStopItem {
+  return {
+    id: p.id,
+    name: p.nome,
+    operatorId: '',
+    operatorName: p.op,
+    transportMode: p.modo,
+    latitude: p.lat,
+    longitude: p.lon,
+    locality: '',
+    district: '',
+    ...distanciaParaItem(de, p.lat, p.lon),
+    lines: [],
+    nextDepartures: [],
+    activeAlerts: [],
+    ...(p.unir?.length ? { unirIds: p.unir } : {}),
+  };
 }
 
 /** Distância viva ao utilizador, no mesmo formato do servidor ("120 m", "1,4 km") */
@@ -436,6 +481,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const linhaNoMapa = Boolean(linhaAberta?.percurso);
   const stopsMarkersRef = useRef<Map<string, { marker: L.Marker; modo: string; sel: boolean; lat: number; lon: number }>>(new Map());
   const paragensPorIdRef = useRef<Map<string, NearbyStopItem>>(new Map());
+  // Paragens de outras zonas do mapa (as que se vão descobrindo ao arrastar); separadas das de perto de ti,
+  // que nunca são tocadas por este mecanismo
+  const extrasMarkersRef = useRef<Map<string, { marker: L.Marker; modo: string; sel: boolean; lat: number; lon: number }>>(new Map());
+  const geracaoExtrasRef = useRef(0);
+  const sincronizarExtrasRef = useRef<() => void>(() => {});
+  const carregarExtrasRef = useRef<() => void>(() => {});
+  const abrirParagemLeveRef = useRef<(p: ParagemLeve) => void>(() => {});
+  const enriquecerRef = useRef(0);
+  // Outras paragens no mesmo sítio da paragem aberta que veio do mapa (para trocar de poste sem voltar)
+  const [grupoExtra, setGrupoExtra] = useState<NearbyStopItem[]>([]);
   const circuloPrecisaoRef = useRef<L.Circle | null>(null);
   // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
@@ -915,6 +970,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
       userMarkerRef.current = null;
       stopsMarkersRef.current.forEach((m) => m.marker.remove());
       stopsMarkersRef.current.clear();
+      geracaoExtrasRef.current++;
+      extrasMarkersRef.current.forEach((m) => m.marker.remove());
+      extrasMarkersRef.current.clear();
       circuloPrecisaoRef.current?.remove();
       circuloPrecisaoRef.current = null;
       map.remove();
@@ -1380,6 +1438,186 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   // Ecrã próprio da rota: com um destino escolhido a lista de paragens dá lugar às opções de viagem
   const emRota = emViagem || (Boolean(selectedDestination) && (calculatedRoutes.length > 0 || isCalculatingRoutes || rotasCalculadas));
+
+  // ── Paragens por onde se arrasta o mapa ──
+  // Ao mexer no mapa carregam-se as paragens das zonas por onde se passa (células de ≈1 km, guardadas
+  // em memória) e desenham-se por cima, sem tocar nas paragens de perto de ti. Só com zoom aproximado,
+  // só com o mapa livre (não com a rota ou o percurso de uma linha) e com um teto de marcadores.
+  const extrasAtivos = !linhaNoMapa && !emRota && localizacaoPronta;
+
+  sincronizarExtrasRef.current = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const marcadores = extrasMarkersRef.current;
+    const geracao = ++geracaoExtrasRef.current;
+    const selecionadaId = selectedStop?.id;
+
+    const removerTodos = (poupar?: string) => {
+      marcadores.forEach((m, id) => {
+        if (id === poupar) return;
+        m.marker.remove();
+        marcadores.delete(id);
+      });
+    };
+    if (!extrasAtivos) { removerTodos(); return; }
+    if (map.getZoom() < ZOOM_MIN_EXTRAS) { removerTodos(selecionadaId); return; }
+
+    const vista = limitesDoMapa(map, 0);
+    const margem = limitesDoMapa(map, MARGEM_EXTRAS);
+    const guardar = limitesDoMapa(map, MARGEM_EXTRAS * 2);
+    const centro = map.getCenter();
+    const cosLat = Math.cos((centro.lat * Math.PI) / 180);
+    const distCentro = (p: { lat: number; lon: number }) => {
+      const dy = p.lat - centro.lat;
+      const dx = (p.lon - centro.lng) * cosLat;
+      return dx * dx + dy * dy;
+    };
+
+    // O que já vem "perto de ti" não se repete; o resto respeita o mesmo filtro (modo ou favoritos)
+    const jaPerto = new Set<string>();
+    stops.forEach((st) => jaPerto.add(st.id));
+    const modoFiltro = activeFilterTab in MODO_DO_FILTRO ? MODO_DO_FILTRO[activeFilterTab as keyof typeof MODO_DO_FILTRO] : null;
+    const passa = (p: ParagemLeve) => {
+      if (jaPerto.has(p.id)) return false;
+      if (activeFilterTab === 'todos') return true;
+      if (activeFilterTab === 'favoritos') return favoriteStopIds.has(p.id);
+      return p.modo === modoFiltro;
+    };
+    const candidatas = paragensNosLimites(guardar).filter(passa);
+    const permitidas = new Set<string>();
+    candidatas.forEach((p) => permitidas.add(p.id));
+
+    // Saem as que ficaram longe, foram filtradas ou passaram a ser de perto de ti (a aberta fica sempre)
+    marcadores.forEach((m, id) => {
+      if (id !== selecionadaId && !permitidas.has(id)) { m.marker.remove(); marcadores.delete(id); }
+    });
+
+    // As do ecrã primeiro, depois as da margem, sempre das mais centrais para as mais afastadas
+    const dentro = (p: ParagemLeve, l: Limites) => p.lat >= l.sul && p.lat <= l.norte && p.lon >= l.oeste && p.lon <= l.este;
+    const novas = candidatas
+      .filter((p) => !marcadores.has(p.id) && dentro(p, margem))
+      .map((p) => ({ p, ecra: dentro(p, vista) ? 0 : 1, d: distCentro(p) }))
+      .sort((a, b) => a.ecra - b.ecra || a.d - b.d)
+      .slice(0, MAX_EXTRAS_NOVOS)
+      .map((x) => x.p);
+
+    // Teto total: se passar, saem as mais afastadas do centro
+    const excesso = marcadores.size + novas.length - MAX_EXTRAS_TOTAL;
+    if (excesso > 0) {
+      const lista: Array<{ id: string; d: number }> = [];
+      marcadores.forEach((m, id) => { if (id !== selecionadaId) lista.push({ id, d: distCentro({ lat: m.lat, lon: m.lon }) }); });
+      lista.sort((a, b) => b.d - a.d).slice(0, excesso).forEach(({ id }) => {
+        marcadores.get(id)?.marker.remove();
+        marcadores.delete(id);
+      });
+    }
+
+    // A aberta destaca-se; as outras voltam ao normal
+    marcadores.forEach((m, id) => {
+      const sel = id === selecionadaId;
+      if (m.sel !== sel) {
+        m.marker.setIcon(iconeParagem(normalizeTransportMode(m.modo), sel));
+        m.marker.setZIndexOffset(sel ? 1000 : 0);
+        m.sel = sel;
+      }
+    });
+
+    // Desenha aos poucos (uns 40 por imagem) para o arrastar não encravar; uma sincronização nova cancela esta
+    let n = 0;
+    const desenhar = () => {
+      if (geracao !== geracaoExtrasRef.current || mapRef.current !== map) return;
+      const fim = Math.min(n + 40, novas.length);
+      for (; n < fim; n++) {
+        const p = novas[n];
+        if (marcadores.has(p.id)) continue;
+        const sel = p.id === selecionadaId;
+        const estilo = ESTILO_MODO[p.modo] || ESTILO_MODO.Autocarro;
+        const marker = L.marker([p.lat, p.lon], {
+          icon: iconeParagem(p.modo, sel),
+          zIndexOffset: sel ? 1000 : 0,
+          keyboard: false,
+          title: `${estilo.plural} – ${formatTransitName(p.nome)}`,
+        }).addTo(map);
+        marker.on('click', () => abrirParagemLeveRef.current(p));
+        marcadores.set(p.id, { marker, modo: p.modo, sel, lat: p.lat, lon: p.lon });
+      }
+      if (n < novas.length) requestAnimationFrame(desenhar);
+    };
+    desenhar();
+  };
+
+  carregarExtrasRef.current = () => {
+    const map = mapRef.current;
+    if (!map || !extrasAtivos || map.getZoom() < ZOOM_MIN_EXTRAS) return;
+    carregarCelulas(celulasDosLimites(limitesDoMapa(map, MARGEM_EXTRAS))).catch(() => {});
+  };
+
+  // Toque numa paragem de outra zona: abre já com o que se sabe e completa (linhas, sentido, outras
+  // paragens no mesmo sítio) com um pedido pequeno àquele ponto; as partidas vêm do painel, como sempre
+  abrirParagemLeveRef.current = (p: ParagemLeve) => {
+    const item = itemDeParagemLeve(p, coordsRef.current);
+    const pedido = ++enriquecerRef.current;
+    setGrupoExtra([]);
+    setSelectedStop(item);
+    setFollowMode(false);
+    safeFlyTo(mapRef.current, p.lat, p.lon, 16.5);
+    fetchNearbyTransit(p.lat, p.lon, 60, AbortSignal.timeout(15000))
+      .then((data) => {
+        if (pedido !== enriquecerRef.current || data.isLoading) return;
+        const lista = data.stops || [];
+        const alvo = lista.find((st) => st.id === p.id);
+        if (!alvo) return;
+        const de = coordsRef.current;
+        const comDistancia = (st: NearbyStopItem): NearbyStopItem => ({ ...st, ...distanciaParaItem(de, st.latitude, st.longitude) });
+        setGrupoExtra(lista.filter((st) => st.id !== alvo.id && metrosEntre(st, alvo) <= 30).map(comDistancia));
+        setSelectedStop((atual) => (atual && atual.id === p.id ? comDistancia(alvo) : atual));
+      })
+      .catch(() => {});
+  };
+
+  // Mexer no mapa: carrega e desenha (no máximo 4 vezes por segundo) e, ao parar, de imediato
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let ultimo = 0;
+    const executar = () => {
+      timer = null;
+      ultimo = Date.now();
+      carregarExtrasRef.current();
+      sincronizarExtrasRef.current();
+    };
+    const agendar = (imediato: boolean) => {
+      if (timer !== null) {
+        if (!imediato) return;
+        clearTimeout(timer);
+      }
+      timer = setTimeout(executar, imediato ? 0 : Math.max(0, 250 - (Date.now() - ultimo)));
+    };
+    const aoMover = () => agendar(false);
+    const aoParar = () => agendar(true);
+    map.on('move', aoMover);
+    map.on('moveend', aoParar);
+    map.on('zoomend', aoParar);
+    const deixarDeOuvir = aoChegarCelula(() => agendar(false));
+    agendar(true);
+    return () => {
+      map.off('move', aoMover);
+      map.off('moveend', aoParar);
+      map.off('zoomend', aoParar);
+      deixarDeOuvir();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, []);
+
+  // Mudou o que condiciona as paragens extra (lista de perto, filtro, favoritos, paragem aberta, mapa livre)
+  useEffect(() => {
+    carregarExtrasRef.current();
+    sincronizarExtrasRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, activeFilterTab, favoriteStopIds, selectedStop?.id, extrasAtivos]);
+
+  useEffect(() => { if (!selectedStop) { enriquecerRef.current++; setGrupoExtra([]); } }, [selectedStop]);
 
   // Lista de sugestões (pesquisa de destino ou de local)
   const listaSugestoes = (compacta: boolean) => (
@@ -2012,7 +2250,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </div>
               {/* Outras paragens no mesmo sítio (ex.: STCP e UNIR no mesmo poste): trocar sem voltar à lista */}
               {(() => {
-                const grupo = filteredStops
+                const comExtra = [...filteredStops];
+                [...grupoExtra, selectedStop].forEach((g) => { if (!comExtra.some((f) => f.id === g.id)) comExtra.push(g); });
+                const grupo = comExtra
                   .filter((s) => s.id === selectedStop.id || metrosEntre(s, selectedStop) <= 30)
                   .sort((x, y) => String(x.operatorName || '').localeCompare(String(y.operatorName || '')) || String(x.id).localeCompare(String(y.id)));
                 if (grupo.length < 2 || (linhaAberta && mapaExpandido)) return null;

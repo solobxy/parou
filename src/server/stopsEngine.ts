@@ -366,7 +366,17 @@ export class StopsEngine {
     userLat: number,
     userLon: number,
     requestedRadius = 500,
-    limit = 100
+    limit = 100,
+    opts: {
+      /** Caixa exata a consultar (em vez de um quadrado à volta do ponto): usada pelas células do mapa */
+      box?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+      /** Não procura as linhas de cada paragem (é o passo mais pesado); o mapa só precisa de nome, sítio e modo */
+      semLinhas?: boolean;
+      /** Respeita o raio pedido, sem o alargar a 1 km quando há poucas paragens */
+      exato?: boolean;
+      /** Limite de linhas lidas da base (por omissão 2500) */
+      rawLimit?: number;
+    } = {}
   ): Promise<(UnifiedStop & { distance_meters: number })[]> {
     const feeds = getAllFeeds();
     const feedsMap = new Map<string, any>();
@@ -380,13 +390,13 @@ export class StopsEngine {
     const dLat = (searchRadiusMeters * 1.25) / 111000;
     const dLon = (searchRadiusMeters * 1.25) / (111000 * cosLat);
 
-    const minLat = userLat - dLat;
-    const maxLat = userLat + dLat;
-    const minLon = userLon - dLon;
-    const maxLon = userLon + dLon;
+    const minLat = opts.box ? opts.box.minLat : userLat - dLat;
+    const maxLat = opts.box ? opts.box.maxLat : userLat + dLat;
+    const minLon = opts.box ? opts.box.minLon : userLon - dLon;
+    const maxLon = opts.box ? opts.box.maxLon : userLon + dLon;
 
     // 1. Query candidates from SQL stops table with status = 'OK'
-    const rawStops = queryStopsInBoundingBox(minLat, maxLat, minLon, maxLon, 2500);
+    const rawStops = queryStopsInBoundingBox(minLat, maxLat, minLon, maxLon, opts.rawLimit || 2500);
 
     // 2. Separate into stops with a real parent_station vs unparented stops
     // RULE: Stops with an empty parent_station must NEVER be grouped together!
@@ -523,7 +533,7 @@ export class StopsEngine {
 
     // 5. Query Rule: Default radius 500m; if fewer than 15 stops, widen to 1 km (1000m)
     let effectiveRadius = requestedRadius || 500;
-    if (effectiveRadius <= 500) {
+    if (effectiveRadius <= 500 && !opts.exato) {
       const count500 = candidates.filter((s) => s.distance_meters <= 500).length;
       if (count500 < 15) {
         effectiveRadius = 1000;
@@ -538,6 +548,7 @@ export class StopsEngine {
     }
 
     // 6. Populate lines for returned stops
+    if (opts.semLinhas) return finalStops;
     for (const stop of finalStops) {
       const lineMap = new Map<string, StopLine>();
       for (const mId of stop.member_stop_ids) {
