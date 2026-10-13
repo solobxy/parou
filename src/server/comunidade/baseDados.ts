@@ -190,6 +190,12 @@ function migrar(b: DatabaseSync) {
     if (!colunas.includes('imagens')) b.exec('ALTER TABLE publicacoes ADD COLUMN imagens TEXT');
     b.exec('PRAGMA user_version = 3');
   }
+  if (versao < 4) {
+    // Ponto diário: instante (ms) em que a conta resgatou o último ponto (vazio = ainda nunca resgatou)
+    const colunas = (b.prepare('PRAGMA table_info(utilizadores)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!colunas.includes('ultimo_resgate')) b.exec('ALTER TABLE utilizadores ADD COLUMN ultimo_resgate INTEGER');
+    b.exec('PRAGMA user_version = 4');
+  }
 }
 
 /** Executa várias gravações como uma só: ou ficam todas, ou nenhuma. */
