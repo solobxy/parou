@@ -139,6 +139,8 @@ export interface RespostaPlano {
   originCoords: { lat: number; lon: number };
   destCoords: { lat: number; lon: number };
   destName: string;
+  /** Só quando não há resposta nenhuma por falta de paragens com horários: metros até à mais próxima (-1 = nenhuma a menos de 8 km) */
+  longe?: { origem?: number; destino?: number };
 }
 
 export async function planearViagem(
@@ -787,5 +789,15 @@ export async function planearViagem(
     }
   }
 
-  return { routes, unir, hibridas, pontes, originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
+  // Sem resposta nenhuma: se for por não haver paragens com horários por perto, diz-se (e a que distância ficam)
+  let longe: RespostaPlano['longe'];
+  if (!routes.some((r) => r.id !== 'a-pe') && !unir.length && !hibridas.length && !pontes.length) {
+    try {
+      const medir = (lat: number, lon: number, perto: boolean) => (perto ? undefined : Math.round(paragensPerto(lat, lon, 8000, 1, semViagens)[0]?.dist ?? -1));
+      const l = { origem: medir(oLat, oLon, O.length > 0 || uO.length > 0), destino: medir(dLat, dLon, D.length > 0 || uD.length > 0) };
+      if (l.origem !== undefined || l.destino !== undefined) longe = l;
+    } catch { /* sem este pormenor, a mensagem fica genérica */ }
+  }
+
+  return { routes, unir, hibridas, pontes, ...(longe ? { longe } : {}), originCoords: { lat: oLat, lon: oLon }, destCoords: { lat: dLat, lon: dLon }, destName: destNome };
 }

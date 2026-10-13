@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronDown, ChevronUp, Clock, Plus, RefreshCw, X } from 'lucide-react';
 import { OpcaoRota } from './OpcaoRota';
 import {
-  MAX_DESTINOS, PERMANENCIAS_MIN, calcularTroco, chegadaDe, formatarDuracao, horaDe, pontoDoDestino,
+  MAX_DESTINOS, PERMANENCIAS_MIN, calcularTroco, textoSemLigacao, type OpcoesTroco, chegadaDe, formatarDuracao, horaDe, pontoDoDestino,
   primeiroTrocoAlterado, textoChegada, textoPermanencia, trocoVazio,
   type DestinoViagem, type Ponto, type Troco,
 } from '../services/rotaVarios';
@@ -112,7 +112,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
       }
       if (token !== tokenRef.current) return;
       if (falhou) { lista[i] = { ...trocoVazio('erro'), partida }; aplicar([...lista]); break; }
-      if (!opcoes.length) { lista[i] = { ...trocoVazio('sem-ligacao'), partida }; aplicar([...lista]); break; }
+      if (!opcoes.length) { lista[i] = { ...trocoVazio('sem-ligacao'), partida, longe: (opcoes as OpcoesTroco).longe }; aplicar([...lista]); break; }
       lista[i] = { estado: 'ok', opcoes, escolhida: 0, partida, chegada: chegadaDe(opcoes[0], partida) };
       aplicar([...lista]);
     }
@@ -236,7 +236,7 @@ export function RotaVariosDestinos({ origem, origemNome, destinos, onMudar, onSa
         <div className="rounded-[12px] bg-[#F4F4F2] p-3">
           <p className="text-[13.5px] font-semibold text-[#111111]">{t('Sem ligações encontradas')}</p>
           <p className="text-[12.5px] text-[#6B6B6B] mt-1 leading-snug">
-            {t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).')}
+            {textoSemLigacao(troco.longe)}
             {i < n - 1 ? ` ${t('As paragens seguintes dependem desta.')}` : ''}
           </p>
           {n > 1 && (

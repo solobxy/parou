@@ -52,7 +52,7 @@ import { InputPesquisa } from './InputPesquisa';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
 import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
-import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, type DestinoViagem } from '../services/rotaVarios';
+import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, type DestinoViagem, type LongeDeParagens } from '../services/rotaVarios';
 import { opcoesComUnir } from '../services/hibridasUnir';
 import { Logo } from './Logo';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
@@ -407,6 +407,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteOption | null>(null);
   const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
   const [rotasCalculadas, setRotasCalculadas] = useState<boolean>(false);
+  const [longeRota, setLongeRota] = useState<LongeDeParagens | undefined>(undefined);
   const pedidoRotasRef = useRef(0);
   const partidaRotasRef = useRef(Date.now());
   // Vários destinos (até 5): a lista vive aqui e o ecrã da viagem (RotaVariosDestinos) calcula os troços
@@ -618,6 +619,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setCalculatedRoutes([]);
     setSelectedRoute(null);
     setRotasCalculadas(false);
+    setLongeRota(undefined);
     setDestinosViagem([]);
     setMapaViagem(null);
     partidaRotasRef.current = Date.now();
@@ -629,6 +631,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const res = await planTransitRoute(lat, lon, destLat, destLon, destName);
       if (pedido !== pedidoRotasRef.current) return;
       let routes = ordenar(res.routes || []);
+      setLongeRota(res.longe);
       setCalculatedRoutes(routes);
       if (routes.length > 0) setSelectedRoute(routes[0]);
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
@@ -1716,7 +1719,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <div className="rounded-[14px] bg-[#F4F4F2] p-4">
                 <p className="text-[14px] font-semibold text-[#111111]">{t('Sem ligações encontradas')}</p>
                 <p className="text-[13px] text-[#6B6B6B] mt-1 leading-snug">
-                  {t('Não encontrámos ligações em transportes daqui para lá, hoje ou amanhã de manhã (até três transbordos e ~1,5 km a pé de cada lado).')}
+                  {textoSemLigacao(longeRota)}
                 </p>
                 <button onClick={handleClearDestination} className="mt-3 h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer">
                   {t('Voltar aos transportes perto')}
