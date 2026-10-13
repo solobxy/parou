@@ -184,7 +184,7 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
               )}
               <p className={`text-[12.5px] text-[#4A4A4A] leading-snug ${peca ? 'mt-1.5' : ''}`}>
                 {abriuPeca && <><strong className="text-[#111111]">{t('Desbloqueaste: {nome}!', { nome: t(abriuPeca.nome) })}</strong>{' '}</>}
-                {peca && t('Faltam {n} pts para: {nome}', { n: peca.falta, nome: t(peca.nome) })}
+                {peca && tn(peca.falta, 'Falta {n} pt para: {nome}', 'Faltam {n} pts para: {nome}', { nome: t(peca.nome) })}
               </p>
             </div>
           )}

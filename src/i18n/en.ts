@@ -1077,6 +1077,7 @@ export const EN: Record<string, string> = {
   'Chegaste ao máximo de {n} paragens.': 'You\'ve reached the maximum of {n} stops.',
   'Chegas amanhã às {h}': 'You arrive tomorrow at {h}',
   // Ponto diário
+  'Falta {n} pt para: {nome}': '{n} pt to go for: {nome}',
   'O teu ponto de hoje': 'Your point for today',
   'Ponto resgatado!': 'Point claimed!',
   'Já resgataste o ponto de hoje': 'You\'ve already claimed today\'s point',
