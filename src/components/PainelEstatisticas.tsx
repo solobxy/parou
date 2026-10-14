@@ -5,6 +5,7 @@ import { PainelContas } from './PainelContas';
 import { eAdmin } from '../utils/admin';
 import { utilizadorAutenticado } from '../services/conta';
 import { fetchEstatisticasAdmin, type EstatisticasAdmin } from '../services/estatisticasAdmin';
+import { fetchSegurancaAdmin, type ResumoSeguranca } from '../services/segurancaAdmin';
 
 // Painel só para a administração (conta do Criador ou chave de administração).
 // "Pessoas" são telemóveis/browsers diferentes que abriram a app (contagem anónima, uma por dia);
@@ -185,6 +186,72 @@ function amostraTexto(r: { amostra: number; voltaram: number }): string {
   return `${num(r.voltaram)} de ${num(r.amostra)} pessoas${r.amostra < 30 ? ' · amostra pequena' : ''}`;
 }
 
+
+const NOME_EVENTO: Record<string, string> = {
+  admin_negado: 'Tentativas na administração',
+  entrada_falhada: 'Entradas falhadas',
+  redefinir_falhada: 'Códigos de recuperação errados',
+  limite: 'Pedidos travados por excesso',
+  origem_recusada: 'Escritas de outros sites',
+  erro_servidor: 'Erros internos',
+  pedido_grande: 'Pedidos grandes demais',
+  sondagem: 'Sondagens de robôs',
+};
+const NIVEL_AVISO: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' };
+
+/** Segurança: só eventos suspeitos, com códigos de origem que mudam todos os dias (ver política de privacidade) */
+const CartaoSeguranca: React.FC = () => {
+  const [r, setR] = useState<ResumoSeguranca | null>(null);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    fetchSegurancaAdmin().then((x) => { if (vivo) setR(x); }).catch((e) => { if (vivo) setErro(e instanceof Error ? e.message : 'Sem dados.'); });
+    return () => { vivo = false; };
+  }, []);
+  const tipos = Object.keys(NOME_EVENTO);
+  const total = r ? tipos.reduce((a, t) => a + (r.ultimas24h[t] || 0), 0) : 0;
+  return (
+    <Cartao
+      titulo="Segurança (últimas 24 h)"
+      nota={r ? `Só eventos suspeitos, não visitas. As origens são códigos que mudam todos os dias (não há IPs) e apagam-se aos ${r.retencaoDias} dias. Atualizado às ${hora(r.atualizado)}.` : undefined}
+    >
+      {erro && <p className="text-[14px] text-[#6B6B6B]">{erro}</p>}
+      {!r && !erro && <p className="text-[14px] text-[#6B6B6B]">A carregar…</p>}
+      {r && (
+        <>
+          {r.avisos.length > 0 ? (
+            <ul className="space-y-2" data-teste="avisos-seguranca">
+              {r.avisos.map((a) => (
+                <li key={a.codigo} role="alert" className="rounded-[12px] border border-[#F2B8B2] bg-[#FDECEA] px-3 py-2.5 text-[14px] text-[#9F1D14]">
+                  <b className="font-semibold">{NIVEL_AVISO[a.nivel] || a.nivel}:</b> {a.texto}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[14px] text-[#111111]" data-teste="seguranca-sem-avisos">Sem avisos. {total === 0 ? 'Nada de suspeito registado.' : `${num(total)} eventos registados, dentro do normal.`}</p>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {tipos.map((t) => <Valor key={t} rotulo={NOME_EVENTO[t]} valor={num(r.ultimas24h[t] || 0)} />)}
+          </div>
+          {r.origensMaisAtivasHoje.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-[#E6E6E3]">
+              <h4 className="text-[12.5px] font-bold uppercase tracking-[0.1em] text-[#6B6B6B]">Origens mais ativas hoje</h4>
+              <ul className="mt-2 space-y-1.5 text-[14px] text-[#111111]">
+                {r.origensMaisAtivasHoje.slice(0, 5).map((o) => (
+                  <li key={o.origem} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0"><code className="text-[13px]">{o.origem}</code> <span className="text-[#6B6B6B]">· {o.tipos.split(',').map((t) => NOME_EVENTO[t] || t).join(', ')}</span></span>
+                    <span className="font-semibold tabular-nums shrink-0">{num(o.n)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </Cartao>
+  );
+};
+
 const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ d, aoVerContas }) => {
   const origens = Object.entries(d.porOrigemUltimos30Dias);
   const totalOrigens = origens.reduce((a, [, v]) => a + v, 0);
@@ -335,6 +402,8 @@ const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ 
           <Valor rotulo="Reclamações" valor={num(d.outrosNumeros.reclamacoesGuardadas)} sub="guardadas" />
         </div>
       </Cartao>
+
+      <CartaoSeguranca />
 
       <p
         role={ig.ok ? undefined : 'alert'}

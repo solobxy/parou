@@ -24,6 +24,7 @@ import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite, ipDe } from './src/server/limites';
+import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
@@ -86,15 +87,18 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 app.use((_req: Request, res: Response, next: NextFunction) => {
   const json = res.json.bind(res);
   res.json = ((corpo?: any) => {
-    if (res.statusCode >= 500 && corpo && typeof corpo === 'object' && !Array.isArray(corpo) && 'details' in corpo) {
-      const { details, ...resto } = corpo;
-      if (details) console.warn(`[Erro ${res.statusCode}] ${String(details).slice(0, 200)}`);
+    if (res.statusCode >= 500 && corpo && typeof corpo === 'object' && !Array.isArray(corpo) && ('details' in corpo || ('message' in corpo && 'error' in corpo))) {
+      const { details, message, ...resto } = corpo;
+      const tecnico = details || message;
+      if (tecnico) console.warn(`[Erro ${res.statusCode}] ${String(tecnico).slice(0, 200)}`);
       corpo = resto;
     }
     return json(corpo);
   }) as typeof res.json;
   next();
 });
+// Registo de segurança: só eventos suspeitos, sem dados pessoais legíveis (ver src/server/registoSeguranca.ts)
+registarSeguranca(app);
 // Parâmetros repetidos (?q=a&q=b) ou aninhados (?q[a]=1) deixavam de ser texto e partiam as rotas:
 // fica sempre o primeiro valor, e só se for texto.
 app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -154,6 +158,7 @@ function pedidoDeAdmin(req: Request): boolean {
   return crypto.timingSafeEqual(Buffer.from(resumoDado), Buffer.from(esperado));
 }
 function recusarSemAdmin(res: Response) {
+  registarEvento('admin_negado', 403);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(403).json({ erro: 'Só para administração.' });
 }
@@ -1554,7 +1559,7 @@ app.get('/api/transit/destinations', async (req: Request, res: Response) => {
     return res.json({ suggestions, total: suggestions.length });
   } catch (err: any) {
     console.error('[Destinations API] Erro:', err);
-    return res.status(500).json({ error: 'Erro ao pesquisar destinos.', message: err.message });
+    return res.status(500).json({ error: 'Erro ao pesquisar destinos.', details: err.message });
   }
 });
 
@@ -1586,7 +1591,7 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
     return res.json(routeData);
   } catch (err: any) {
     console.error('[Plan Route API] Erro:', err);
-    return res.status(500).json({ error: 'Erro ao planear rota de transporte público.', message: err.message });
+    return res.status(500).json({ error: 'Erro ao planear rota de transporte público.', details: err.message });
   }
 });
 

@@ -113,6 +113,13 @@ function Privacidade() {
           necessário (no máximo 30 dias nos registos do servidor).
         </p>
         <p>
+          <strong>Registo de segurança.</strong> Para proteger a PAROU de ataques e abusos, o servidor regista só <em>eventos suspeitos</em>
+          (por exemplo, tentativas de aceder à administração sem chave, palavras-passe erradas repetidas, pedidos em excesso ou erros
+          internos), e não cada visita. Guarda o tipo de evento, a hora cheia, a rota (sem o que escreveste) e um código calculado a partir do
+          teu IP que muda todos os dias, por isso não serve para te seguir de um dia para o outro. Não guarda o IP em claro, cookies,
+          palavras-passe, emails nem a tua posição. Apaga-se sozinho ao fim de 30 dias.
+        </p>
+        <p>
           <strong>Relatórios de erro.</strong> Se a app falhar, envia-nos o texto técnico do erro, a página onde aconteceu e o tipo de
           browser ou telemóvel, para o corrigirmos. Não leva o teu nome, email nem a tua posição, e fica nos registos do servidor
           pelo mesmo prazo (30 dias no máximo).
@@ -133,7 +140,7 @@ function Privacidade() {
       <Secao titulo="Fundamento">
         <p>
           A localização e a conta baseiam-se no teu consentimento (podes retirá-lo quando quiseres). A cópia dos favoritos, a contagem
-          anónima de utilizadores, os dados técnicos e as ocorrências públicas baseiam-se no interesse legítimo de prestar, melhorar e proteger o serviço que pediste (podes opor-te à contagem a qualquer momento, como acima).
+          anónima de utilizadores, o registo de segurança, os dados técnicos e as ocorrências públicas baseiam-se no interesse legítimo de prestar, melhorar e proteger o serviço que pediste (podes opor-te à contagem a qualquer momento, como acima).
         </p>
       </Secao>
       <Secao titulo="Com quem partilhamos">

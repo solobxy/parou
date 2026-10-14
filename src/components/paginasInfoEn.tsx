@@ -104,6 +104,13 @@ export function PrivacidadeEn() {
           necessary (30 days at most in the server logs).
         </p>
         <p>
+          <strong>Security log.</strong> To protect PAROU from attacks and abuse, the server records only <em>suspicious events</em> (for
+          example, attempts to reach the administration without a key, repeated wrong passwords, excessive requests or internal errors),
+          not every visit. It keeps the event type, the hour, the route (without what you typed) and a code derived from your IP address
+          that changes every day, so it cannot be used to follow you from one day to the next. It does not keep your IP address in
+          clear, cookies, passwords, emails or your location. It deletes itself after 30 days.
+        </p>
+        <p>
           <strong>Error reports.</strong> If the app crashes, it sends us the technical error text, the page where it happened and the
           browser or phone type, so we can fix it. It does not include your name, email or location, and it stays in the server logs
           for the same period (30 days at most).
@@ -124,7 +131,7 @@ export function PrivacidadeEn() {
       <Secao titulo="Legal basis">
         <p>
           Location and the account are based on your consent (you can withdraw it whenever you want). The favourites copy, the
-          anonymous user count, technical data and public incidents are based on the legitimate interest in providing, improving
+          anonymous user count, the security log, technical data and public incidents are based on the legitimate interest in providing, improving
           and protecting the service you asked for (you can object to the count at any time, as above).
         </p>
       </Secao>

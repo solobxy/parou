@@ -21,6 +21,7 @@ import { iniciarNovidadesAutomaticas } from './novidades';
 import { iniciarAvisosAutomaticos } from './avisos';
 import { emailAtivo, enviarEmail, htmlDoEmail } from './email';
 import { dentroDoLimite, ipDe } from '../limites';
+import { registarEvento, resumoAdmin as resumoSeguranca, descarregarRegisto } from '../registoSeguranca';
 
 const COOKIE = 'parou_sessao';
 
@@ -53,7 +54,11 @@ function contaDoPedido(req: Request, res: Response): Conta | null {
 }
 
 function erro(res: Response, err: unknown) {
-  if (err instanceof ErroConta) return res.status(err.estado).json({ erro: err.message, codigo: err.codigo });
+  if (err instanceof ErroConta) {
+    if (err.codigo === 'credenciais') registarEvento('entrada_falhada', err.estado);
+    else if (err.codigo === 'pedido_invalido') registarEvento('redefinir_falhada', err.estado);
+    return res.status(err.estado).json({ erro: err.message, codigo: err.codigo });
+  }
   console.error('[Comunidade] Erro:', (err as any)?.message || err);
   return res.status(500).json({ erro: 'Algo correu mal. Tenta outra vez dentro de instantes.', codigo: 'interno' });
 }
@@ -86,7 +91,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
         try { host = new URL(String(origem)).host; } catch {}
         const meu = String(req.headers['x-forwarded-host'] || req.headers.host || '');
         const permitido = host === meu || /(^|\.)parou\.pt$/.test(host) || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
-        if (!permitido) return res.status(403).json({ erro: 'Pedido de origem não permitida.', codigo: 'origem' });
+        if (!permitido) { registarEvento('origem_recusada', 403); return res.status(403).json({ erro: 'Pedido de origem não permitida.', codigo: 'origem' }); }
       }
     }
     next();
@@ -460,6 +465,15 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       res.setHeader('Cache-Control', 'no-store');
       res.json({ ...resumoEstatisticas(), contas: resumoDeContas() });
     } catch (err) { erro(res, err); }
+  });
+  // Registo de segurança (só totais, rotas e códigos de origem do dia; nunca IPs). Chave de administração ou conta do Criador.
+  app.get('/api/comunidade/admin/seguranca', (req, res) => {
+    if (!eAdmin(req, res)) { registarEvento('admin_negado', 403); return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' }); }
+    try {
+      descarregarRegisto();
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(resumoSeguranca());
+    } catch { res.status(500).json({ erro: 'Sem registo de segurança neste momento.', codigo: 'interno' }); }
   });
   // Lista de todas as contas (nome, email, datas e idioma) para o Criador. Só administração; nunca vai para a cache.
   app.get('/api/comunidade/admin/contas', (req, res) => {
