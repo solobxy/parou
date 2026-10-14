@@ -55,7 +55,8 @@ function resumirAviso(corpo: any): string {
  * `base` é a política que já vai em todos os pedidos (frame-ancestors, object-src…); em modo "enforcar" junta-se-lhe a dos scripts.
  */
 export function registarCspScripts(app: Express, base: string) {
-  app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/json', 'application/reports+json'], limit: '16kb' }), (req: Request, res: Response) => {
+  const lerAviso = express.json({ type: ['application/csp-report', 'application/json', 'application/reports+json'], limit: '16kb' });
+  app.post('/api/csp-report', (req: Request, res: Response, next: NextFunction) => lerAviso(req, res, (e) => (e ? void res.status(204).end() : next())), (req: Request, res: Response) => {
     try {
       if (dentroDoLimite(`csp:${ipDe(req)}`, 30, 60_000)) {
         const lista = Array.isArray(req.body) ? req.body.slice(0, 3).map((x: any) => x?.body || x) : [req.body];
