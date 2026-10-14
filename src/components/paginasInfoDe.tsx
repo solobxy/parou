@@ -106,6 +106,14 @@ export function PrivacidadeDe() {
           nicht länger als nötig auf (höchstens 30 Tage in den Server-Protokollen).
         </p>
         <p>
+          <strong>Sicherheitsprotokoll.</strong> Um PAROU vor Angriffen und Missbrauch zu schützen, protokolliert der Server nur
+          <em>verdächtige Ereignisse</em> (zum Beispiel Versuche, ohne Schlüssel auf die Verwaltung zuzugreifen, wiederholt falsche Passwörter,
+          übermäßig viele Anfragen oder interne Fehler), nicht jeden Besuch. Gespeichert werden die Art des Ereignisses, die Stunde, die Route
+          (ohne das, was du eingegeben hast) und ein aus deiner IP-Adresse berechneter Code, der sich täglich ändert und dich daher nicht
+          von einem Tag zum nächsten verfolgen lässt. Nicht gespeichert werden die IP-Adresse im Klartext, Cookies, Passwörter, E-Mails oder
+          dein Standort. Das Protokoll löscht sich nach 30 Tagen selbst.
+        </p>
+        <p>
           <strong>Fehlerberichte.</strong> Wenn die App abstürzt, sendet sie uns den technischen Fehlertext, die Seite, auf der es passiert
           ist, und den Browser- oder Telefontyp, damit wir den Fehler beheben können. Sie enthalten weder deinen Namen noch deine
           E-Mail-Adresse oder deinen Standort und bleiben im selben Zeitraum in den Server-Protokollen (höchstens 30 Tage).
@@ -126,7 +134,7 @@ export function PrivacidadeDe() {
       <Secao titulo="Rechtsgrundlage">
         <p>
           Standort und Konto beruhen auf deiner Einwilligung (du kannst sie jederzeit widerrufen). Die Favoriten-Kopie, die anonyme
-          Nutzerzählung, technische Daten und öffentliche Vorfälle beruhen auf dem berechtigten Interesse, den von dir gewünschten Dienst
+          Nutzerzählung, das Sicherheitsprotokoll, technische Daten und öffentliche Vorfälle beruhen auf dem berechtigten Interesse, den von dir gewünschten Dienst
           bereitzustellen, zu verbessern und zu schützen (der Zählung kannst du jederzeit widersprechen, wie oben beschrieben).
         </p>
       </Secao>

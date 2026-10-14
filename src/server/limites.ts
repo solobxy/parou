@@ -5,13 +5,19 @@ import type { Request } from 'express';
 
 const registos = new Map<string, number[]>();
 
+// O registo de segurança quer saber quando um limite trava alguém (só chega o início da chave, ver registoSeguranca.ts)
+let aoExceder: ((chave: string) => void) | null = null;
+export function aoExcederLimite(f: (chave: string) => void) { aoExceder = f; }
+
 /** true = pode continuar; false = passou do limite. Conta sempre este pedido. */
 export function dentroDoLimite(chave: string, max: number, janelaMs: number): boolean {
   const agora = Date.now();
   const lista = (registos.get(chave) || []).filter((t) => agora - t < janelaMs);
   lista.push(agora);
   registos.set(chave, lista);
-  return lista.length <= max;
+  const dentro = lista.length <= max;
+  if (!dentro && aoExceder) { try { aoExceder(chave); } catch { /* o registo nunca trava um pedido */ } }
+  return dentro;
 }
 
 setInterval(() => {

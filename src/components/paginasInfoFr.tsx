@@ -106,6 +106,13 @@ export function PrivacidadeFr() {
           plus longtemps que nécessaire (30 jours au maximum dans les journaux du serveur).
         </p>
         <p>
+          <strong>Journal de sécurité.</strong> Pour protéger PAROU contre les attaques et les abus, le serveur n’enregistre que les
+          <em>événements suspects</em> (par exemple, tentatives d’accès à l’administration sans clé, mots de passe erronés répétés,
+          requêtes excessives ou erreurs internes), et non chaque visite. Il conserve le type d’événement, l’heure, la route (sans ce que vous
+          avez saisi) et un code calculé à partir de votre IP qui change chaque jour, et ne permet donc pas de vous suivre d’un jour à l’autre.
+          Il ne conserve ni l’IP en clair, ni cookies, mots de passe, e-mails ou position. Il s’efface tout seul après 30 jours.
+        </p>
+        <p>
           <strong>Rapports d’erreurs.</strong> Si l’application plante, elle nous envoie le texte technique de l’erreur, la page où cela
           s’est produit et le type de navigateur ou de téléphone, pour que nous puissions corriger le problème. Ils ne contiennent ni votre
           nom, ni votre e-mail, ni votre position, et restent dans les journaux du serveur pendant la même durée (30 jours au maximum).
@@ -126,7 +133,7 @@ export function PrivacidadeFr() {
       <Secao titulo="Base juridique">
         <p>
           La position et le compte reposent sur votre consentement (vous pouvez le retirer quand vous voulez). La copie des favoris, le comptage
-          anonyme des utilisateurs, les données techniques et les incidents publics reposent sur l’intérêt légitime de fournir, d’améliorer
+          anonyme des utilisateurs, le journal de sécurité, les données techniques et les incidents publics reposent sur l’intérêt légitime de fournir, d’améliorer
           et de protéger le service que vous avez demandé (vous pouvez vous opposer au comptage à tout moment, comme indiqué ci-dessus).
         </p>
       </Secao>
