@@ -421,7 +421,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
             />
           </div>
 
-          <div className="border border-[#E6E6E3] rounded-[8px] overflow-x-auto bg-[#FFFFFF]">
+          <div className="border border-[#E6E6E3] rounded-[8px] overflow-x-auto bg-[#FFFFFF]" tabIndex={0} role="region" aria-label="Tabela de operadores">
             <table className="w-full text-left text-xs divide-y divide-[#E6E6E3]">
               <thead className="bg-[#F4F4F2] text-[#6B6B6B] font-semibold">
                 <tr>
@@ -513,6 +513,7 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
           <div>
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">Modo de Transporte</label>
             <select
+              aria-label="Modo de Transporte"
               value={manualForm.mode}
               onChange={(e) => setManualForm({ ...manualForm, mode: e.target.value })}
               className="w-full px-3 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-sm text-[#111111] min-h-[44px]"

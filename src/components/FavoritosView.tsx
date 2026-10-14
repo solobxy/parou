@@ -256,9 +256,9 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                   )}
 
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-[#111111] truncate">
+                    <p className="text-sm font-semibold text-[#111111] truncate">
                       {formatTransitName(item.title)}
-                    </h3>
+                    </p>
                     <p className="text-xs text-[#6B6B6B] mt-0.5 truncate">
                       {[formatTransitName(item.operatorName || item.locality || item.subtitle), live?.stopName ? formatTransitName(live.stopName) : ''].filter(Boolean).join(' · ')}
                     </p>

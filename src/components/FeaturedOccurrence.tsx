@@ -35,8 +35,6 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
     <div
       onClick={() => onSelectOccurrence(current)}
       className="p-4 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3] hover:border-[#111111] transition-colors cursor-pointer space-y-2.5"
-      role="button"
-      tabIndex={0}
     >
       {/* Top Header */}
       <div className="flex items-center justify-between gap-2">
@@ -86,7 +84,13 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
       {/* Main Title & Description */}
       <div>
         <h3 className="text-[18px] font-semibold text-[#111111] leading-snug">
-          {current.title}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSelectOccurrence(current); }}
+            className="text-left cursor-pointer"
+          >
+            {current.title}
+          </button>
         </h3>
         <p className="text-sm text-[#6B6B6B] mt-1 line-clamp-2 leading-relaxed">
           {current.description}

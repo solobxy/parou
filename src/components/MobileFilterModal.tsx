@@ -91,7 +91,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Distrito')}
             </label>
-            <select
+            <select aria-label={t('Distrito')}
               value={filters.distrito}
               onChange={(e) => {
                 const val = e.target.value;
@@ -116,7 +116,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Concelho')}
             </label>
-            <select
+            <select aria-label={t('Concelho')}
               value={filters.concelho}
               onChange={(e) => onFilterChange('concelho', e.target.value)}
               disabled={concelhosList.length <= 1}
@@ -135,7 +135,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Cidade')}
             </label>
-            <select
+            <select aria-label={t('Cidade')}
               value={filters.cidade}
               onChange={(e) => onFilterChange('cidade', e.target.value)}
               className="w-full bg-[#F4F4F2] text-[#111111] text-xs font-semibold p-2.5 rounded-[8px] border border-[#E6E6E3] focus:outline-none min-h-[44px]"
@@ -153,7 +153,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Operador')}
             </label>
-            <select
+            <select aria-label={t('Operador')}
               value={filters.operador}
               onChange={(e) => onFilterChange('operador', e.target.value)}
               className="w-full bg-[#F4F4F2] text-[#111111] text-xs font-semibold p-2.5 rounded-[8px] border border-[#E6E6E3] focus:outline-none min-h-[44px]"
@@ -171,7 +171,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Serviço')}
             </label>
-            <select
+            <select aria-label={t('Serviço')}
               value={filters.servico}
               onChange={(e) => onFilterChange('servico', e.target.value)}
               className="w-full bg-[#F4F4F2] text-[#111111] text-xs font-semibold p-2.5 rounded-[8px] border border-[#E6E6E3] focus:outline-none min-h-[44px]"
@@ -189,7 +189,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Tipo de transporte')}
             </label>
-            <select
+            <select aria-label={t('Tipo de transporte')}
               value={filters.tipoTransporte}
               onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
               className="w-full bg-[#F4F4F2] text-[#111111] text-xs font-semibold p-2.5 rounded-[8px] border border-[#E6E6E3] focus:outline-none min-h-[44px]"
@@ -207,7 +207,7 @@ export const MobileFilterModal: React.FC<MobileFilterModalProps> = ({
             <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
               {t('Categoria')}
             </label>
-            <select
+            <select aria-label={t('Categoria')}
               value={filters.categoria !== 'Todas' ? filters.categoria : filters.tipo}
               onChange={(e) => {
                 const val = e.target.value;
