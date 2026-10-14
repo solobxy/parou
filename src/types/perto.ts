@@ -8,6 +8,10 @@ export interface NextDeparture {
   destination: string;
   operatorName: string;
   operatorId: string;
+  /** Viagem, linha e paragem da partida (para abrir o percurso da linha) */
+  tripId?: string;
+  routeId?: string;
+  stopId?: string;
   transportMode: TransportMode;
   departureTime: string; // e.g. "14:32" or "Em 4 min"
   etaMinutes: number;

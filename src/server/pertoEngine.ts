@@ -88,6 +88,10 @@ export async function getNearbyTransitData(
       destination: d.headsign || 'Terminal',
       operatorName: d.operator_name || opName,
       operatorId: d.feed_id,
+      // Para abrir o percurso da linha (paragens por ordem) ao tocar na partida
+      tripId: d.trip_id,
+      routeId: d.route_id,
+      stopId: d.stop_id,
       transportMode: primaryMode as any,
       departureTime: d.display_text,
       displayText: d.display_text,
