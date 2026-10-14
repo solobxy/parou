@@ -2,8 +2,11 @@
 // Só números agregados: quantas pessoas abrem a app, quantas contas há, o que se faz na Comunidade.
 import { cabecalhosAdmin } from '../utils/admin';
 
-interface DiaPessoas { dia: string; pessoas: number; novas: number; aberturas: number }
-interface Periodo { desde: string; pessoas: number; novas: number; queJaConheciamos: number; aberturas: number }
+interface DiaPessoas { dia: string; pessoas: number; novas: number; aberturas: number; viaPaginas?: number }
+interface Periodo { desde: string; pessoas: number; novas: number; queJaConheciamos: number; aberturas: number; novasViaPaginas: number }
+interface Janela { de: string; ate: string; dias: number; pessoas: number; novas: number; novasViaPaginas: number; mediaPessoasPorDia: number; completa: boolean }
+interface Evolucao { dias: number; comparavel: boolean; atual: Janela; anterior: Janela; variacaoPessoas: number | null; variacaoNovas: number | null }
+interface Retorno { amostra: number; voltaram: number; percentagem: number | null }
 
 export interface EstatisticasAdmin {
   geradoEm: string;
@@ -15,12 +18,24 @@ export interface EstatisticasAdmin {
   ultimos30Dias: Periodo;
   ultimos365Dias: Periodo;
   desdeSempre: { pessoas: number; aberturas: number; desde: string | null };
+  evolucao: {
+    semana: Evolucao;
+    mes: Evolucao;
+    usoRegular: { mediaPessoasPorDia7Dias: number; pessoasDoMes: number; percentagem: number | null };
+  };
   fidelidade: {
-    novasNosUltimos14DiasSemHoje: number;
-    voltaramNoutroDia: number;
-    percentagemQueVoltou: number | null;
+    noDiaSeguinte: Retorno;
+    naPrimeiraSemana: Retorno;
     pessoasQueUsaramEm3OuMaisDiasNosUltimos30: number;
     percentagemDoMes: number | null;
+  };
+  comoChegamUltimos30Dias: { novasPelaApp: number; novasPorPaginasPublicas: number; pessoasQueUsaramPaginasPublicas: number };
+  integridade: {
+    verificadoEm: string;
+    diasVerificados: number;
+    ok: boolean;
+    reparado: boolean;
+    diferencas: Array<{ dia: string; campo: string; resumo: number; real: number }>;
   };
   porOrigemUltimos30Dias: Record<string, number>;
   porIdiomaUltimos30Dias: Record<string, number>;

@@ -108,10 +108,10 @@ export function PrivacidadeEn() {
           for the same period (30 days at most).
         </p>
         <p>
-          <strong>Anonymous user count.</strong> To know how many people use PAROU (and whether it is needed), we count app opens
-          with a random number stored in a cookie (<em>parou_visita</em>, 13 months). This way, someone who opens the app many
+          <strong>Anonymous user count.</strong> To know how many people use PAROU (and whether it is needed), we count opens of the app and of the
+          public pages of the website (for example, a line or stop page) with a random number stored in a cookie (<em>parou_visita</em>, 13 months). This way, someone who opens the app many
           times on the same day, or comes back on another day, counts as the same person. On the server we keep only that number
-          (encrypted), the day, the language and whether you opened it through the Android app, the installed app or the website.
+          (encrypted), the day, the language, whether you opened it through the Android app, the installed app or the website, and whether you arrived through the app or a public page.
           We do not store your IP or browser type, we do not link this to your account and we do not share it with anyone. Only we
           see the totals. If you prefer not to be counted, you can switch it off here:
         </p>

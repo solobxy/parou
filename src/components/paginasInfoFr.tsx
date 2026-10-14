@@ -111,10 +111,10 @@ export function PrivacidadeFr() {
         </p>
         <p>
           <strong>Comptage anonyme des utilisateurs.</strong> Pour savoir combien de personnes utilisent PAROU (et si elle est utile), nous
-          comptons les ouvertures de l’application avec un nombre aléatoire enregistré dans un cookie (<em>parou_visita</em>, 13 mois).
+          comptons les ouvertures de l’application et des pages publiques du site (par exemple celle d’une ligne ou d’un arrêt) avec un nombre aléatoire enregistré dans un cookie (<em>parou_visita</em>, 13 mois).
           Ainsi, quelqu’un qui ouvre l’application plusieurs fois le même jour, ou qui revient un autre jour, compte comme la même personne.
-          Sur le serveur, nous ne gardons que ce nombre (chiffré), le jour, la langue et si vous l’avez ouverte via l’application Android,
-          l’application installée ou le site web. Nous ne conservons ni votre IP ni votre type de navigateur, nous ne le relions pas à votre
+          Sur le serveur, nous ne gardons que ce nombre (chiffré), le jour, la langue, si vous l’avez ouverte via l’application Android,
+          l’application installée ou le site web, et si vous êtes arrivé par l’application ou par une page publique. Nous ne conservons ni votre IP ni votre type de navigateur, nous ne le relions pas à votre
           compte et ne le partageons avec personne. Nous seuls voyons les totaux. Si vous préférez ne pas être compté, vous pouvez le désactiver ici :
         </p>
         <PreferenciaContagem />

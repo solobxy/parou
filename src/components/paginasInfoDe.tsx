@@ -111,10 +111,10 @@ export function PrivacidadeDe() {
         </p>
         <p>
           <strong>Anonyme Nutzerzählung.</strong> Um zu wissen, wie viele Menschen PAROU nutzen (und ob es gebraucht wird), zählen wir
-          App-Aufrufe mit einer zufälligen Zahl, die in einem Cookie gespeichert ist (<em>parou_visita</em>, 13 Monate). So zählt jemand,
+          Aufrufe der App und der öffentlichen Seiten der Website (zum Beispiel einer Linien- oder Haltestellenseite) mit einer zufälligen Zahl, die in einem Cookie gespeichert ist (<em>parou_visita</em>, 13 Monate). So zählt jemand,
           der die App am selben Tag mehrmals öffnet oder an einem anderen Tag wiederkommt, als dieselbe Person. Auf dem Server speichern wir
-          nur diese Zahl (verschlüsselt), den Tag, die Sprache und ob du die App über Android, als installierte App oder über die Website
-          geöffnet hast. Wir speichern weder deine IP-Adresse noch deinen Browsertyp, verknüpfen das nicht mit deinem Konto und geben es an
+          nur diese Zahl (verschlüsselt), den Tag, die Sprache, ob du die App über Android, als installierte App oder über die Website
+          geöffnet hast, und ob du über die App oder eine öffentliche Seite gekommen bist. Wir speichern weder deine IP-Adresse noch deinen Browsertyp, verknüpfen das nicht mit deinem Konto und geben es an
           niemanden weiter. Nur wir sehen die Summen. Wenn du lieber nicht gezählt werden möchtest, kannst du das hier ausschalten:
         </p>
         <PreferenciaContagem />
