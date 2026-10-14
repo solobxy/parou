@@ -17,6 +17,7 @@ import { LinesEngine } from '../linesEngine';
 import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../dadosProntos';
 import { obterGreves, type GreveResumo } from '../alertasEngine';
 import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
+import { scriptVisita } from './scriptVisita';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -244,6 +245,7 @@ ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(
 <main>${migalhasHtml(migalhas)}${o.corpo}</main>
 ${rodape()}
 ${o.script ? `<script>${o.script}</script>` : ''}
+<script>${scriptVisita(lang())}</script>
 </body></html>`;
 }
 

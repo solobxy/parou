@@ -168,6 +168,18 @@ const Resumo: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
   );
 };
 
+/** "+12% (eram 40)" ou, sem comparação possível, nada */
+function variacaoTexto(v: number | null, comparavel: boolean, anterior: number): string | undefined {
+  if (!comparavel) return undefined;
+  if (v == null) return anterior === 0 ? 'semana anterior sem ninguém' : undefined;
+  const sinal = v > 0 ? '+' : v < 0 ? '−' : '';
+  return `${sinal}${Math.abs(v).toLocaleString('pt-PT')}% (eram ${num(anterior)})`;
+}
+function amostraTexto(r: { amostra: number; voltaram: number }): string {
+  if (r.amostra === 0) return 'ainda sem pessoas com tempo suficiente';
+  return `${num(r.voltaram)} de ${num(r.amostra)} pessoas${r.amostra < 30 ? ' · amostra pequena' : ''}`;
+}
+
 const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
   const origens = Object.entries(d.porOrigemUltimos30Dias);
   const totalOrigens = origens.reduce((a, [, v]) => a + v, 0);
@@ -175,6 +187,10 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
   const totalIdiomas = idiomas.reduce((a, [, v]) => a + v, 0);
   const f = d.fidelidade;
   const c = d.contas;
+  const semana = d.evolucao.semana;
+  const mes = d.evolucao.mes;
+  const chegam = d.comoChegamUltimos30Dias;
+  const ig = d.integridade;
 
   return (
     <>
@@ -182,20 +198,20 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
         <div className="flex items-end justify-between gap-3">
           <div>
             <div className="font-condensada text-[56px] leading-[0.9] font-bold tabular-nums">{num(d.hoje.pessoas)}</div>
-            <div className="mt-1 text-[14.5px] font-semibold">pessoas abriram a PAROU hoje</div>
-            <div className="text-[13px] text-[#C9C9C4]">ontem: {num(d.ontem.pessoas)} · {num(d.hoje.novas)} {d.hoje.novas === 1 ? 'nova' : 'novas'} hoje</div>
+            <div className="mt-1 text-[14.5px] font-semibold">pessoas usaram a PAROU hoje</div>
+            <div className="text-[13px] text-[#C9C9C4]">hoje ainda a contar · ontem, dia completo: {num(d.ontem.pessoas)} · {num(d.hoje.novas)} {d.hoje.novas === 1 ? 'nova' : 'novas'} hoje</div>
           </div>
           <div className="text-right shrink-0">
             <div className="inline-flex items-center gap-1.5 text-[13px] font-semibold"><span className="w-2 h-2 rounded-full bg-[#1F9D55]" aria-hidden="true" />agora</div>
             <div className="font-condensada text-[32px] leading-none font-bold tabular-nums">{num(d.ultimosMinutos30)}</div>
-            <div className="text-[12px] text-[#C9C9C4]">últimos 30 min</div>
+            <div className="text-[12px] text-[#C9C9C4]">abriram nos últimos 30 min</div>
           </div>
         </div>
       </section>
 
       <Cartao
         titulo="Dia, semana, mês, ano e total"
-        nota="Cada pessoa conta uma só vez em cada período. ‘Novas’ são as que apareceram pela primeira vez nesse período; ‘Aberturas’ são as vezes que a app foi aberta; ‘Contas novas’ são as contas criadas (no Total, todas as que existem)."
+        nota="Cada pessoa conta uma só vez em cada período, venha pela app ou por uma página pública do site. ‘Novas’ são as que apareceram pela primeira vez nesse período; ‘Aberturas’ são as vezes que a app (ou uma página do site) foi aberta, no máximo uma por meia hora e por pessoa; ‘Contas novas’ são as contas criadas (no Total, todas as que existem)."
       >
         <Resumo d={d} />
       </Cartao>
@@ -204,23 +220,54 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
         <Barras
           unidade="pessoas"
           singular="pessoa"
-          dados={d.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.pessoas, extra: `${num(x.novas)} ${x.novas === 1 ? 'nova' : 'novas'} · ${num(x.aberturas)} aberturas` }))}
+          dados={d.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.pessoas, extra: `${num(x.novas)} ${x.novas === 1 ? 'nova' : 'novas'} · ${num(x.aberturas)} aberturas${x.viaPaginas ? ` · ${num(x.viaPaginas)} por páginas públicas` : ''}` }))}
         />
       </Cartao>
 
       <Cartao
-        titulo="Voltam à app?"
-        nota={f.novasNosUltimos14DiasSemHoje > 0
-          ? `Das ${num(f.novasNosUltimos14DiasSemHoje)} pessoas que apareceram pela primeira vez nos últimos 14 dias (sem contar hoje), ${num(f.voltaramNoutroDia)} voltaram noutro dia.`
-          : 'Ainda não há pessoas suficientes para medir.'}
+        titulo="Está a crescer?"
+        nota={semana.comparavel
+          ? `Os últimos 7 dias completos (${diaCurto(semana.atual.de)} a ${diaCurto(semana.atual.ate)}, sem contar hoje) contra os 7 anteriores (${diaCurto(semana.anterior.de)} a ${diaCurto(semana.anterior.ate)}). Só se compara semanas inteiras, para um dia a meio não distorcer.`
+          : `A comparação só aparece quando houver duas semanas inteiras de dados (a contagem começou a ${d.desdeSempre.desde ? diaCurto(d.desdeSempre.desde) : '—'}, e o primeiro dia nunca é inteiro). Enquanto isso, olha para as pessoas por dia.`}
       >
         <div className="grid grid-cols-2 gap-2.5">
-          <Valor rotulo="Voltaram noutro dia" valor={f.percentagemQueVoltou == null ? '—' : `${f.percentagemQueVoltou}%`} />
+          <Valor rotulo="Pessoas na semana" valor={num(semana.atual.pessoas)} sub={variacaoTexto(semana.variacaoPessoas, semana.comparavel, semana.anterior.pessoas)} />
+          <Valor rotulo="Novas na semana" valor={num(semana.atual.novas)} sub={variacaoTexto(semana.variacaoNovas, semana.comparavel, semana.anterior.novas)} />
+          <Valor rotulo="Pessoas por dia" valor={num(semana.atual.mediaPessoasPorDia)} sub="média dos últimos 7 dias completos" />
+          <Valor rotulo="Usam num dia normal" valor={d.evolucao.usoRegular.percentagem == null ? '—' : `${d.evolucao.usoRegular.percentagem}%`} sub="das pessoas do mês (média de 7 dias)" />
+        </div>
+        {mes.comparavel && (
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+            <Valor rotulo="Pessoas no mês" valor={num(mes.atual.pessoas)} sub={variacaoTexto(mes.variacaoPessoas, true, mes.anterior.pessoas)} />
+            <Valor rotulo="Novas no mês" valor={num(mes.atual.novas)} sub={variacaoTexto(mes.variacaoNovas, true, mes.anterior.novas)} />
+          </div>
+        )}
+      </Cartao>
+
+      <Cartao
+        titulo="Voltam à app?"
+        nota="Só entram pessoas com tempo para voltar (quem chegou ontem ainda não teve oportunidade). A amostra diz de quantas pessoas é a percentagem: com poucas, o número oscila muito."
+      >
+        <div className="grid grid-cols-2 gap-2.5">
+          <Valor rotulo="Voltam no dia seguinte" valor={f.noDiaSeguinte.percentagem == null ? '—' : `${f.noDiaSeguinte.percentagem}%`} sub={amostraTexto(f.noDiaSeguinte)} />
+          <Valor rotulo="Voltam na 1.ª semana" valor={f.naPrimeiraSemana.percentagem == null ? '—' : `${f.naPrimeiraSemana.percentagem}%`} sub={amostraTexto(f.naPrimeiraSemana)} />
           <Valor rotulo="Usaram em 3+ dias (30 dias)" valor={num(f.pessoasQueUsaramEm3OuMaisDiasNosUltimos30)} sub={f.percentagemDoMes == null ? undefined : `${f.percentagemDoMes}% das pessoas do mês`} />
         </div>
       </Cartao>
 
-      <Cartao titulo="Como abrem a app (30 dias)">
+      {(chegam.novasPelaApp + chegam.novasPorPaginasPublicas) > 0 && (
+        <Cartao
+          titulo="Como chegam as pessoas novas (30 dias)"
+          nota={`Pelas páginas públicas (linhas, paragens, greves… que o Google mostra) chegaram ${num(chegam.novasPorPaginasPublicas)} pessoas novas; ${num(chegam.pessoasQueUsaramPaginasPublicas)} pessoas usaram estas páginas pelo menos uma vez.`}
+        >
+          <ul className="space-y-3">
+            <BarraH nome="Abriram a app" valor={chegam.novasPelaApp} total={chegam.novasPelaApp + chegam.novasPorPaginasPublicas} />
+            <BarraH nome="Chegaram por uma página pública" valor={chegam.novasPorPaginasPublicas} total={chegam.novasPelaApp + chegam.novasPorPaginasPublicas} />
+          </ul>
+        </Cartao>
+      )}
+
+      <Cartao titulo="Como abriram da última vez (30 dias)">
         {totalOrigens === 0 ? <p className="text-[14px] text-[#6B6B6B]">Ainda sem dados.</p> : (
           <ul className="space-y-3">{origens.map(([k, v]) => <BarraH key={k} nome={NOME_ORIGEM[k] || k} valor={v} total={totalOrigens} />)}</ul>
         )}
@@ -257,8 +304,18 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
         </div>
       </Cartao>
 
+      <p
+        role={ig.ok ? undefined : 'alert'}
+        className={`text-[12.5px] leading-snug ${ig.ok ? 'text-[#6B6B6B]' : 'rounded-[12px] border border-[#F2B8B2] bg-[#FDECEA] px-3 py-2.5 text-[#9F1D14]'}`}
+        data-teste="integridade-estatisticas"
+      >
+        {ig.ok
+          ? `Verificação às ${hora(ig.verificadoEm)}: os totais batem certo com os registos de cada pessoa e de cada visita (${num(ig.diasVerificados)} ${ig.diasVerificados === 1 ? 'dia' : 'dias'} conferidos).`
+          : `Atenção: os totais de ${num(ig.diferencas.length)} ${ig.diferencas.length === 1 ? 'valor' : 'valores'} não batem com os registos${ig.diferencas[0] ? ` (por exemplo ${diaCurto(ig.diferencas[0].dia)}: ${ig.diferencas[0].resumo} no resumo, ${ig.diferencas[0].real} nos registos)` : ''}. São corrigidos automaticamente durante a noite.`}
+      </p>
+
       <p className="text-[12.5px] leading-snug text-[#6B6B6B] pb-2">
-        Contagem anónima: sem IP, sem nome, sem email e sem ligar à conta. Uma "pessoa" é um telemóvel ou browser; quem apagar os cookies conta como pessoa nova e quem desligar a contagem na página de Privacidade não aparece. Por isso os números são um mínimo realista.
+        Contagem anónima: sem IP, sem nome, sem email e sem ligar à conta. Uma "pessoa" é um telemóvel ou browser (a app e as páginas públicas do site contam juntas); robôs e ferramentas automáticas não contam. Quem apagar os cookies conta como pessoa nova e quem desligar a contagem na página de Privacidade não aparece. Por isso os números são um mínimo realista.
       </p>
     </>
   );

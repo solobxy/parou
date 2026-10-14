@@ -18,32 +18,62 @@ function detetarOrigem(): Origem {
 const MEIA_HORA = 30 * 60_000;
 let iniciado = false;
 let ultimoAviso = 0;
+let diaDoUltimoAviso = '';
+let pendente = false; // o último aviso não chegou (sem rede ou servidor ocupado): tenta outra vez
 let origem: Origem = 'site';
 
-function avisar() {
-  ultimoAviso = Date.now();
+const diaDeLisboa = (): string => {
+  try { return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' }); } catch { return ''; }
+};
+
+async function enviar(): Promise<boolean> {
   try {
-    void fetch('/api/estatisticas/visita', {
+    const r = await fetch('/api/estatisticas/visita', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ o: origem, i: idioma }),
       credentials: 'same-origin',
       keepalive: true,
-    }).catch(() => {});
-  } catch {}
+    });
+    // 4xx = o servidor recusou de propósito (ex.: contagem desligada): não insiste. 5xx/429: tenta outra vez.
+    return r.ok || (r.status >= 400 && r.status < 500 && r.status !== 429);
+  } catch {
+    return false;
+  }
 }
 
-/** Chamar uma vez ao arrancar. Conta a abertura e, se a app ficar aberta em segundo plano, a volta a ela passada meia hora. */
+function avisar() {
+  ultimoAviso = Date.now();
+  diaDoUltimoAviso = diaDeLisboa();
+  void enviar().then((ok) => {
+    if (ok) return;
+    pendente = true;
+    // Sem rede quando a app abriu: avisa assim que voltar (ou daqui a um minuto, uma vez)
+    setTimeout(repetir, 60_000);
+  });
+}
+
+function repetir() {
+  if (!pendente || document.visibilityState !== 'visible') return;
+  pendente = false;
+  void enviar().then((ok) => { if (!ok) pendente = true; });
+}
+
+/** Chamar uma vez ao arrancar. Conta a abertura e, se a app ficar aberta em segundo plano, a volta a ela passada meia hora (ou num novo dia). */
 export function iniciarContagem() {
   if (iniciado || typeof window === 'undefined') return;
   iniciado = true;
   try { if ((navigator as any).webdriver) return; } catch {} // testes automáticos não contam
   origem = detetarOrigem(); // lido no arranque: é aqui que o Android indica que veio da app
   const quandoVisivel = () => {
-    if (document.visibilityState === 'visible' && Date.now() - ultimoAviso > MEIA_HORA) avisar();
+    if (document.visibilityState !== 'visible') return;
+    // Passada meia hora, ou a meia-noite passou (quem deixa a app aberta de um dia para o outro conta no dia novo)
+    if (Date.now() - ultimoAviso > MEIA_HORA || (diaDoUltimoAviso && diaDeLisboa() !== diaDoUltimoAviso)) avisar();
+    else if (pendente) repetir();
   };
   quandoVisivel();
   document.addEventListener('visibilitychange', quandoVisivel);
+  window.addEventListener('online', repetir);
 }
 
 /** Para a página de Privacidade: a pessoa quer ser contada? (null = não foi possível saber) */
