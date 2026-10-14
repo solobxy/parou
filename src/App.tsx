@@ -813,11 +813,11 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6 min-h-[75dvh]'}`}>
+      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6 min-h-[100dvh] lg:min-h-[75dvh]'}`}>
         {/* Título da página (só para leitores de ecrã e motores de pesquisa): cada separador tem o seu */}
-        <h1 className="sr-only">
+        {!isNotFound && <h1 className="sr-only">
           PAROU · {t(activeNavTab === 'perto' ? 'Perto' : activeNavTab === 'horarios' ? 'Horários' : activeNavTab === 'alertas' ? 'Notícias' : activeNavTab === 'comunidade' ? 'Comunidade' : activeNavTab === 'catalogo' ? 'Catálogo' : activeNavTab === 'favoritos' ? 'Favoritos' : activeNavTab === 'coverage' ? 'Cobertura' : 'Alertas')}
-        </h1>
+        </h1>}
         {/* Separador Alertas: convite para seguir o canal de WhatsApp (no lugar das antigas caixas "Tempo real" e filtros) */}
         {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
           <BotaoWhatsApp variante="cartao" className="mb-3 sm:mb-4" />
@@ -1265,7 +1265,7 @@ export default function App() {
               ['stcp', 'STCP'], ['metro-do-porto', 'Metro do Porto'], ['fertagus', 'Fertagus'], ['transtejo-soflusa', 'Transtejo e Soflusa'],
               ['mobicascais', 'MobiCascais'], ['metro-sul-do-tejo', 'Metro Sul do Tejo'], ['smtuc', 'SMTUC'], ['tub-braga', 'TUB Braga'],
             ].map(([slug, nome]) => (
-              <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center min-h-[28px]">{nome}</a>
+              <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center justify-center min-h-[28px] min-w-[28px]">{nome}</a>
             ))}
           </nav>
         </div>

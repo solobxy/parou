@@ -350,7 +350,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
                   {t('Distrito')}
                 </label>
-                <select
+                <select aria-label={t('Distrito')}
                   value={district}
                   onChange={(e) => handleDistrictChange(e.target.value)}
                   className="w-full px-2.5 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] min-h-[44px]"
@@ -365,7 +365,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">
                   {t('Concelho')}
                 </label>
-                <select
+                <select aria-label={t('Concelho')}
                   value={concelho}
                   onChange={(e) => setConcelho(e.target.value)}
                   className="w-full px-2.5 py-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] min-h-[44px]"

@@ -356,7 +356,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
             <form onSubmit={handleSubmitComplaint} className="space-y-3 text-xs">
               <div>
                 <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Operador')}</label>
-                <select
+                <select aria-label={t('Operador')}
                   value={formCompany}
                   onChange={(e) => setFormCompany(e.target.value)}
                   className="w-full p-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-[#111111] min-h-[44px]"
@@ -393,7 +393,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
 
               <div>
                 <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Distrito')}</label>
-                <select
+                <select aria-label={t('Distrito')}
                   value={formDistrict}
                   onChange={(e) => setFormDistrict(e.target.value)}
                   className="w-full p-2 bg-[#F4F4F2] border border-[#E6E6E3] rounded-[8px] text-[#111111] min-h-[44px]"

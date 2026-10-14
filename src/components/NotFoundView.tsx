@@ -9,7 +9,7 @@ interface NotFoundViewProps {
 
 export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigateHome, onNavigateTab }) => {
   return (
-    <main className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-12 text-center" role="main">
+    <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-12 text-center">
       <div className="max-w-md w-full bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] p-6 shadow-sm">
         <h1 className="text-xl font-bold text-[#111111] tracking-tight">
           {t('Página não encontrada')}
@@ -48,6 +48,6 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigateHome, onNa
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 };

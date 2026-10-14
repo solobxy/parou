@@ -159,6 +159,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           />
           {activeFilters.searchQuery && (
             <button
+              aria-label={t('Limpar pesquisa')}
               onClick={() => handleFilterUpdate('searchQuery', '')}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111] p-1"
             >
@@ -170,6 +171,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         {/* Filter controls row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <select
+            aria-label={t('Distrito')}
             value={activeFilters.distrito}
             onChange={(e) => {
               handleFilterUpdate('distrito', e.target.value);
@@ -184,6 +186,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </select>
 
           <select
+            aria-label={t('Concelho')}
             value={activeFilters.concelho || 'Todos'}
             onChange={(e) => handleFilterUpdate('concelho', e.target.value)}
             disabled={activeFilters.distrito === 'Todos'}
@@ -196,6 +199,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </select>
 
           <select
+            aria-label={t('Gravidade')}
             value={selectedGravidade}
             onChange={(e) => setSelectedGravidade(e.target.value)}
             className="col-span-2 sm:col-span-1 px-2.5 py-1.5 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] min-h-[36px]"
@@ -232,7 +236,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {activeCount > 0 && (
             <button
               onClick={handleReset}
-              className="text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer"
+              className="text-[#6B6B6B] hover:text-[#111111] underline cursor-pointer min-h-[28px] px-1"
             >
               {t('Limpar filtros')}
             </button>
