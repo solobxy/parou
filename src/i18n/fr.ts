@@ -1159,4 +1159,7 @@ export const FR: Record<string, string> = {
   '{n} linha': '{n} ligne',
   '{n} linhas': '{n} lignes',
   'Ainda não temos linhas de {cidades}.': 'Nous n’avons pas encore de lignes pour {cidades}.',
+  'A tua posição está pouco precisa (cerca de {d}).': 'Votre position est peu précise (environ {d}).',
+  'Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.': 'Dans les réglages du téléphone, activez la localisation précise pour ce navigateur. À l’intérieur, se rapprocher d’une fenêtre ou sortir aide.',
+  'Percebi': 'Compris',
 };

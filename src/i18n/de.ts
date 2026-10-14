@@ -1159,4 +1159,7 @@ export const DE: Record<string, string> = {
   '{n} linha': '{n} Linie',
   '{n} linhas': '{n} Linien',
   'Ainda não temos linhas de {cidades}.': 'Für {cidades} haben wir noch keine Linien.',
+  'A tua posição está pouco precisa (cerca de {d}).': 'Dein Standort ist ungenau (etwa {d}).',
+  'Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.': 'Aktiviere in den Handy-Einstellungen die genaue Standortbestimmung für diesen Browser. In Gebäuden hilft es, ans Fenster oder nach draußen zu gehen.',
+  'Percebi': 'Verstanden',
 };
