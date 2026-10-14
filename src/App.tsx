@@ -239,8 +239,9 @@ export default function App() {
   const [bemVindo, setBemVindo] = useState<{ demo: boolean; passo: number } | null>(null);
   useEffect(() => {
     // Demonstração de administração a meio de uma mudança de idioma: continua onde estava
-    if (BEM_VINDO_DEMO_AO_ABRIR !== null) {
-      const id = setTimeout(() => setBemVindo({ demo: true, passo: BEM_VINDO_DEMO_AO_ABRIR }), 250);
+    const passoDemo = BEM_VINDO_DEMO_AO_ABRIR;
+    if (passoDemo !== null) {
+      const id = setTimeout(() => setBemVindo({ demo: true, passo: passoDemo }), 250);
       return () => clearTimeout(id);
     }
     if (!BEM_VINDO_AO_ABRIR.mostrar) return;
