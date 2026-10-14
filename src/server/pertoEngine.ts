@@ -17,7 +17,8 @@ import {
   DestinationSuggestion 
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
-import { searchStopsInDb, getDatabase } from './db/gtfsDatabase';
+import { getDatabase } from './db/gtfsDatabase';
+import { procurarParagens } from './pesquisaParagens';
 
 // ========================================================
 // 1. NEARBY TRANSIT DATA (ALL REAL GTFS STOPS & LIVE VEHICLES)
@@ -243,27 +244,19 @@ export async function searchDestinationSuggestions(
   // Moradas, ruas e locais (OpenStreetMap, via Photon) em paralelo com as paragens da base
   const pedidoMoradas = procurarMoradas(query, userLat, userLon);
 
-  // Search real stops in SQLite database
-  const dbStops = searchStopsInDb(cleanQ, 20);
-  const results: DestinationSuggestion[] = dbStops.map((s) => {
-    const dist = userLat && userLon && s.stop_lat && s.stop_lon
-      ? Math.round(calculateDistanceMeters(userLat, userLon, s.stop_lat, s.stop_lon))
-      : undefined;
-
-    return {
-      id: `stop-${s.stop_id}`,
-      title: s.stop_name,
-      subtitle: `${s.location_type === 1 ? 'Estação' : 'Paragem'} · ${String(s.feed_id).replace(/_/g, ' ').toUpperCase()}`,
-      latitude: s.stop_lat,
-      longitude: s.stop_lon,
-      type: s.location_type === 1 ? 'STATION' : 'PLACE',
-      distanceFromUserMeters: dist,
-    };
-  });
-
-  if (userLat && userLon) {
-    results.sort((a, b) => (a.distanceFromUserMeters || 999999) - (b.distanceFromUserMeters || 999999));
-  }
+  // Paragens de todos os operadores: sem diferença entre maiúsculas e acentos, e por ordem de distância a quem pesquisa
+  // (sem localização, pela correspondência com o que foi escrito). Vêm bastantes porque o mesmo nome repete-se por sentido.
+  const comLocal = Number.isFinite(userLat) && Number.isFinite(userLon);
+  const dbStops = procurarParagens(query, userLat, userLon, 400);
+  const results: DestinationSuggestion[] = dbStops.map((s) => ({
+    id: `stop-${s.stop_id}`,
+    title: s.stop_name,
+    subtitle: `${s.location_type === 1 ? 'Estação' : 'Paragem'} · ${String(s.feed_id).replace(/_/g, ' ').toUpperCase()}`,
+    latitude: s.stop_lat,
+    longitude: s.stop_lon,
+    type: s.location_type === 1 ? 'STATION' : 'PLACE',
+    distanceFromUserMeters: comLocal ? s.distancia : undefined,
+  }));
 
   // A mesma paragem aparece várias vezes (um poste por sentido): fica só a mais perto
   const nomesVistos = new Set<string>();

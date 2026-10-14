@@ -683,10 +683,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
     // Só conta a resposta da última pesquisa (as antigas podem chegar depois e baralhar a lista)
     let atual = true;
     const timer = setTimeout(async () => {
-      const lat = userCoords?.latitude ?? 38.7253;
-      const lon = userCoords?.longitude ?? -9.1500;
+      // Só se envia a localização quando a pessoa a tem (ou a escolheu): com ela, as paragens vêm por ordem de distância;
+      // sem ela, vêm as que melhor correspondem ao que escreveu (e não as "mais perto de Lisboa", que ninguém pediu)
       try {
-        const results = await searchDestinations(destinationQuery, lat, lon);
+        const results = await searchDestinations(destinationQuery, userCoords?.latitude, userCoords?.longitude);
         if (atual) setSuggestions(results);
       } catch {}
     }, 60);
