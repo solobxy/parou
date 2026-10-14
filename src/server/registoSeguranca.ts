@@ -24,7 +24,8 @@ export const RETENCAO_DIAS = 30;
 const MAX_CHAVES_POR_HORA = 4000; // trava inundações: passado isto, as origens novas juntam-se numa só
 
 export type TipoEvento =
-  | 'admin_negado' // pedido a uma rota de administração sem chave válida
+  | 'admin_negado' // pedido a uma rota de administração sem nenhuma chave (robôs a passar: ruído normal)
+  | 'chave_errada' // pedido à administração COM uma chave, mas errada (alguém a tentar entrar)
   | 'entrada_falhada' // email ou palavra-passe errados ao entrar
   | 'redefinir_falhada' // código de recuperação inválido
   | 'limite' // pedido travado por excesso (429)
@@ -33,7 +34,7 @@ export type TipoEvento =
   | 'pedido_grande' // corpo grande demais (413)
   | 'sondagem'; // ferramenta à procura de ficheiros/painéis que não existem aqui
 
-export const TIPOS: TipoEvento[] = ['admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem'];
+export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem'];
 
 const contexto = new AsyncLocalStorage<Request>();
 
@@ -204,7 +205,8 @@ function regras(agora: number): Array<{ nivel: Aviso['nivel']; codigo: string; t
   const h = horaDe(agora);
   const j = somasPorTipo(h - 1, h); // hora atual e anterior (até ~2 h)
   const out: Array<{ nivel: Aviso['nivel']; codigo: string; texto: string; n: number }> = [];
-  if (j.admin_negado >= 5) out.push({ nivel: 'alta', codigo: 'admin_negado', n: j.admin_negado, texto: `${j.admin_negado} pedidos à administração sem chave válida nas últimas ~2 horas` });
+  if (j.chave_errada >= 3) out.push({ nivel: 'alta', codigo: 'chave_errada', n: j.chave_errada, texto: `${j.chave_errada} pedidos à administração com uma chave errada nas últimas ~2 horas (alguém a tentar entrar)` });
+  if (j.admin_negado >= 100) out.push({ nivel: 'baixa', codigo: 'admin_negado', n: j.admin_negado, texto: `${j.admin_negado} pedidos à administração sem chave nas últimas ~2 horas (varrimento de robôs)` });
   if (j.erro_servidor >= 25) out.push({ nivel: 'alta', codigo: 'erro_servidor', n: j.erro_servidor, texto: `${j.erro_servidor} erros internos nas últimas ~2 horas` });
   const topEntrada = bd().prepare(`SELECT MAX(s) AS m FROM (SELECT SUM(n) AS s FROM contagens WHERE tipo = 'entrada_falhada' AND hora >= ? AND hora <= ? GROUP BY origem)`).get(h - 1, h) as { m: number | null };
   if ((topEntrada?.m || 0) >= 15 || j.entrada_falhada >= 40) out.push({ nivel: 'media', codigo: 'entrada_falhada', n: j.entrada_falhada, texto: `${j.entrada_falhada} entradas falhadas nas últimas ~2 horas (a origem mais ativa fez ${topEntrada?.m || 0})` });

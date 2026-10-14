@@ -188,7 +188,8 @@ function amostraTexto(r: { amostra: number; voltaram: number }): string {
 
 
 const NOME_EVENTO: Record<string, string> = {
-  admin_negado: 'Tentativas na administração',
+  chave_errada: 'Chaves de administração erradas',
+  admin_negado: 'Robôs na administração (sem chave)',
   entrada_falhada: 'Entradas falhadas',
   redefinir_falhada: 'Códigos de recuperação errados',
   limite: 'Pedidos travados por excesso',
