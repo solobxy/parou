@@ -157,18 +157,19 @@ function pedidoDeAdmin(req: Request): boolean {
   if (!esperado) return false;
   return crypto.timingSafeEqual(Buffer.from(resumoDado), Buffer.from(esperado));
 }
-function recusarSemAdmin(res: Response) {
-  registarEvento('admin_negado', 403);
+function recusarSemAdmin(req: Request, res: Response) {
+  // Com chave errada é alguém a tentar entrar (grave); sem chave é só um robô a passar (ruído normal da internet)
+  registarEvento(String(req.headers['x-parou-admin'] || req.query.chave || '') ? 'chave_errada' : 'admin_negado', 403, req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(403).json({ erro: 'Só para administração.' });
 }
 app.use((req: Request, res: Response, next: NextFunction) => {
   const protegida = ROTAS_ADMIN.some((re) => re.test(req.path));
   if (!protegida || pedidoDeAdmin(req)) return next();
-  return recusarSemAdmin(res);
+  return recusarSemAdmin(req, res);
 });
 /** Segunda fechadura: vai em cada rota de administração, para não depender só da lista acima */
-const exigirAdmin = (req: Request, res: Response, next: NextFunction) => (pedidoDeAdmin(req) ? next() : recusarSemAdmin(res));
+const exigirAdmin = (req: Request, res: Response, next: NextFunction) => (pedidoDeAdmin(req) ? next() : recusarSemAdmin(req, res));
 // IndexNow (Bing e outros): avisa das páginas novas quando o parou.pt já aponta para aqui
 registarIndexNow(app);
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
