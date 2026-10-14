@@ -767,6 +767,18 @@ app.get('/api/lines', async (req: Request, res: Response) => {
       return res.json({ lines, total: lines.length });
     }
 
+    // ?cidades=porto,braga: só as linhas que passam nessas cidades (as "minhas cidades" da pessoa)
+    const cidades = cidadesValidas(req.query.cidades);
+    if (cidades.length > 0) {
+      const rotas = linhasDasCidades(cidades);
+      if (!rotas) {
+        // Índice dos horários ainda a construir (acontece logo a seguir a um arranque): a app volta a tentar
+        return res.json({ status: 'loading', isLoading: true, message: 'A preparar as tuas cidades…', lines: [], total: 0, page: 1, total_pages: 1 });
+      }
+      const filtrado = await LinesEngine.searchLines(q, mode, page, 50, rotas);
+      return res.json({ ...filtrado, cidades });
+    }
+
     const result = await LinesEngine.searchLines(q, mode, page, 50);
     return res.json(result);
   } catch (err: any) {
@@ -1743,6 +1755,7 @@ app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
+import { cidadesValidas, linhasDasCidades } from './src/server/linhasDasCidades';
 import { DebugEngine } from './src/server/debugEngine';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)

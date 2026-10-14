@@ -62,6 +62,7 @@ import { t, tn, LOCALE } from '../i18n';
 import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
+import { NotaLocalizacao, FolhaLocalizacao } from './PrivacidadeLocalizacao';
 
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
@@ -70,6 +71,8 @@ interface PertoViewProps {
   /** Abre os Favoritos (que vivem dentro do Perto) */
   onAbrirFavoritos?: () => void;
   totalFavoritos?: number;
+  /** Abre a página de privacidade */
+  onAbrirPrivacidade?: () => void;
 }
 
 // Normalize transport mode
@@ -330,8 +333,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
   onClearInitialDestination,
   onAbrirFavoritos,
   totalFavoritos = 0,
+  onAbrirPrivacidade,
 }) => {
-  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, motivoBloqueio } = useUserLocation();
+  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio } = useUserLocation();
+  // Janela "A tua localização" (o que se faz com ela e como a apagar)
+  const [dialogoLocalizacao, setDialogoLocalizacao] = useState<boolean>(false);
   const botaoFavoritos = onAbrirFavoritos ? (
     <button
       type="button"
@@ -1872,6 +1878,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 ? 'Não conseguimos obter a tua posição. Confirma que a localização do telemóvel está ligada.'
                 : 'Ativa a localização para veres as paragens à tua volta e quando chega o próximo autocarro, metro ou comboio, em tempo real.')}
         </p>
+        {!bloqueada && !semSinal && (
+          <NotaLocalizacao onAbrir={() => setDialogoLocalizacao(true)} className="mt-2.5 -mb-1" centrada />
+        )}
         {!aPedir && (
           <button
             onClick={() => activateLocation(true)}
@@ -2294,6 +2303,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
               >
                 {t('Mostrar mais paragens')} ({filteredStops.length - paragensVisiveis.length})
               </button>
+            )}
+            {localizacaoPronta && !userCoords?.isManual && (
+              <NotaLocalizacao onAbrir={() => setDialogoLocalizacao(true)} className="px-1" />
             )}
             </>
           ) : (
@@ -2734,6 +2746,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
           onConfirmar={aplicarEditor}
         />
       )}
+
+      <FolhaLocalizacao
+        aberta={dialogoLocalizacao}
+        onFechar={() => setDialogoLocalizacao(false)}
+        ativa={gpsStatus === 'active' && Boolean(userCoords) && !userCoords?.isManual}
+        onDesligar={() => { stopLocation(); setSelectedStop(null); }}
+        onPrivacidade={onAbrirPrivacidade}
+      />
     </div>
   );
 };

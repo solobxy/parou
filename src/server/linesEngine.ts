@@ -1157,7 +1157,9 @@ export class LinesEngine {
     q?: string,
     mode?: string,
     page = 1,
-    pageSize = 50
+    pageSize = 50,
+    /** Só as linhas com estes códigos (as das cidades escolhidas); vazio = nenhuma */
+    soEstasLinhas?: Set<string>
   ): Promise<{ lines: LineSummary[]; total: number; page: number; total_pages: number }> {
     const db = getDatabase();
     const feedsAviso = getFeedsAvisoHorario(db);
@@ -1165,6 +1167,15 @@ export class LinesEngine {
 
     let whereClause = `WHERE 1=1`;
     const params: any[] = [];
+
+    if (soEstasLinhas) {
+      if (soEstasLinhas.size === 0) return { lines: [], total: 0, page, total_pages: 0 };
+      // O SQLite aceita até 32 766 valores por consulta; as cidades escolhidas ficam muito abaixo disso
+      if (soEstasLinhas.size <= 30000) {
+        whereClause += ` AND r.route_id IN (${Array.from(soEstasLinhas, () => '?').join(',')})`;
+        params.push(...soEstasLinhas);
+      }
+    }
 
     if (q && q.trim()) {
       const term = `%${q.trim()}%`;
