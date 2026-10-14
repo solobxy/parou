@@ -74,6 +74,9 @@ interface OpcoesPagina {
 
 const LOGO_SVG = `<svg viewBox="26 17 48 66" width="20" height="28" aria-hidden="true"><mask id="m"><rect x="26" y="17" width="48" height="66" fill="#fff"/><circle cx="49" cy="57" r="8" fill="#000"/></mask><path d="M34 80V25H56L66 35V57H52" fill="none" stroke="#111" stroke-width="10" mask="url(#m)"/><circle cx="49" cy="57" r="6.5" fill="#FF6B1A"/></svg>`;
 
+// Letras da marca servidas pelo próprio site (sem pedidos ao Google; o ficheiro vem em paralelo com a página)
+const FONTES_CSS = '@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(/fontes/barlow-400.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlow-500.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlow-600.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:700;font-display:swap;src:url(/fontes/barlow-700.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlowcondensed-500.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlowcondensed-600.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(/fontes/barlowcondensed-700.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:800;font-display:swap;src:url(/fontes/barlowcondensed-800.woff) format("woff")}';
+
 const CSS = `
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;background:#fff;color:#111;font:16px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 a{color:inherit}main{max-width:880px;margin:0 auto;padding:16px 16px 48px}
@@ -236,9 +239,8 @@ function pagina(o: OpcoesPagina): string {
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${html(titulo)}"><meta name="twitter:description" content="${html(desc)}"><meta name="twitter:image" content="${SITE}${o.imagem || '/og-image.png'}">
 ${verifG ? `<meta name="google-site-verification" content="${html(verifG)}">` : ''}${verifB ? `<meta name="msvalidate.01" content="${html(verifB)}">` : ''}
 <meta name="theme-color" content="#FFFFFF"><script>${SCRIPT_TEMA}${SCRIPT_IDIOMA}</script><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
-<style>${CSS}${CSS_TEMAS}</style>
+<link rel="preload" as="font" type="font/woff" href="/fontes/barlow-400.woff" crossorigin><link rel="preload" as="font" type="font/woff" href="/fontes/barlow-700.woff" crossorigin><link rel="preload" as="font" type="font/woff" href="/fontes/barlowcondensed-700.woff" crossorigin>
+<style>${FONTES_CSS}${CSS}${CSS_TEMAS}</style>
 ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(/</g, '\\u003c')}</script>`).join('\n')}
 </head><body>
 <header class="topo"><div class="topo-in"><a class="marca" href="/" aria-label="${L('PAROU — início', 'PAROU — home', 'PAROU — Startseite', 'PAROU — accueil')}">${LOGO_SVG}PAROU</a>

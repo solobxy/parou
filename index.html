@@ -116,11 +116,11 @@
 
     <!-- Web Typography: Barlow & Barlow Condensed -->
     <link rel="preconnect" href="https://tile.openstreetmap.org" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Não bloqueia o primeiro desenho da página: a letra chega logo a seguir (display=swap) -->
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@500;600;700;800&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@500;600;700;800&amp;display=swap" /></noscript>
+    <!-- Letras da marca (Barlow e Barlow Condensed) servidas pelo próprio PAROU: sem pedidos ao Google, sem saltos de layout -->
+    <link rel="preload" as="font" type="font/woff" href="/fontes/barlow-400.woff" crossorigin>
+    <link rel="preload" as="font" type="font/woff" href="/fontes/barlow-700.woff" crossorigin>
+    <link rel="preload" as="font" type="font/woff" href="/fontes/barlowcondensed-700.woff" crossorigin>
+    <style>@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(/fontes/barlow-400.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlow-500.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlow-600.woff) format("woff")}@font-face{font-family:"Barlow";font-style:normal;font-weight:700;font-display:swap;src:url(/fontes/barlow-700.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/barlowcondensed-500.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/barlowcondensed-600.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(/fontes/barlowcondensed-700.woff) format("woff")}@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:800;font-display:swap;src:url(/fontes/barlowcondensed-800.woff) format("woff")}</style>
   </head>
   <body class="bg-[#FFFFFF] text-[#111111] antialiased selection:bg-[#FF6B1A] selection:text-[#111111]">
     <div id="root">

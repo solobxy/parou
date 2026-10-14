@@ -1905,7 +1905,7 @@ async function startServer() {
         // A página principal passa pelo servidor (metadados certos para cada endereço)
         index: false,
         setHeaders: (res, ficheiro) => {
-          if (ficheiro.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          if (ficheiro.includes(`${path.sep}assets${path.sep}`) || ficheiro.includes(`${path.sep}fontes${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           else if (ficheiro.endsWith('sw.js') || ficheiro.endsWith('.html') || ficheiro.endsWith('.webmanifest')) res.setHeader('Cache-Control', 'no-cache');
           else res.setHeader('Cache-Control', 'public, max-age=86400');
         },

@@ -693,7 +693,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
 
       {/* Tempo */}
       {!dados && aCarregar ? (
-        <div className="rounded-[16px] bg-[#F4F4F2] h-[188px] animate-pulse" />
+        <div className="rounded-[16px] bg-[#F4F4F2] h-[240px] animate-pulse" />
       ) : dados && (agora || hoje) && avisosLocais.length === 0 && tempoRecolhido ? (
         /* Encurtado por escolha da pessoa (só sem avisos): uma linha, toca para voltar ao completo */
         <section className="rounded-[14px] bg-[#111111] text-[#FFFFFF] overflow-hidden" data-teste="tempo-compacto">
@@ -801,7 +801,8 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         </section>
       ) : null}
 
-      {/* Feriados */}
+      {/* Feriados (reserva o espaço enquanto carrega, para o resto não saltar) */}
+      {!dados && aCarregar && <div className="rounded-[16px] bg-[#F4F4F2] h-[136px] animate-pulse" aria-hidden="true" />}
       {feriado && (
         <section className={`rounded-[16px] border p-4 ${feriado.emDias === 0 ? 'bg-[#FF6B1A] border-[#FF6B1A] text-[#111111]' : 'bg-[#FFFFFF] border-[#E6E6E3]'}`}>
           <div className="flex items-start gap-3">
