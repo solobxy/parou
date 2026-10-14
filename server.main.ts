@@ -76,10 +76,23 @@ app.use(compression());
 // Ninguém pode meter a PAROU dentro de outro site (proteção contra cliques enganadores)
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=()');
+  next();
+});
+// Os erros internos nunca mostram a mensagem técnica ao visitante (caminhos, SQL, versões): fica só no registo do servidor
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  const json = res.json.bind(res);
+  res.json = ((corpo?: any) => {
+    if (res.statusCode >= 500 && corpo && typeof corpo === 'object' && !Array.isArray(corpo) && 'details' in corpo) {
+      const { details, ...resto } = corpo;
+      if (details) console.warn(`[Erro ${res.statusCode}] ${String(details).slice(0, 200)}`);
+      corpo = resto;
+    }
+    return json(corpo);
+  }) as typeof res.json;
   next();
 });
 // Parâmetros repetidos (?q=a&q=b) ou aninhados (?q[a]=1) deixavam de ser texto e partiam as rotas:
@@ -123,10 +136,12 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 // Guarda-se no servidor só o resumo SHA-256 da chave (PAROU_ADMIN_HASH), nunca a chave em si.
 const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
 const RESUMO_ADMIN = String(process.env.PAROU_ADMIN_HASH || '').trim().toLowerCase();
-const ROTAS_ADMIN: Array<[string, RegExp]> = [
-  ['POST', /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+)\/?$/],
-  ['GET', /^\/api\/(estatisticas\/resumo|transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|coverage\/logs|transit\/audit\/availability)\/?$/],
-  ['GET', /^\/(debug\/.*)\/?$/],
+// Atenção: o Express aceita maiúsculas nos endereços (/Api/Coverage/Logs abre a mesma rota) e responde a HEAD como a GET.
+// Por isso a lista vale para qualquer método e ignora maiúsculas; e cada rota leva também o próprio "exigirAdmin".
+const ROTAS_ADMIN: RegExp[] = [
+  /^\/api\/(public-sources\/sync|transit-catalog\/probe|transit\/discovery\/sync|central-alerts\/sync|coverage\/.+|feeds\/.+)\/?$/i,
+  /^\/api\/(estatisticas\/resumo|transit\/diagnostic\/national|transit\/tml\/diagnostic|transit\/tml\/unir-diagnostic|central-alerts\/diagnostic|transit\/audit\/availability)\/?$/i,
+  /^\/debug(\/.*)?$/i,
 ];
 function pedidoDeAdmin(req: Request): boolean {
   const dada = String(req.headers['x-parou-admin'] || req.query.chave || '');
@@ -138,12 +153,17 @@ function pedidoDeAdmin(req: Request): boolean {
   if (!esperado) return false;
   return crypto.timingSafeEqual(Buffer.from(resumoDado), Buffer.from(esperado));
 }
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const protegida = ROTAS_ADMIN.some(([m, re]) => m === req.method && re.test(req.path));
-  if (!protegida || pedidoDeAdmin(req)) return next();
+function recusarSemAdmin(res: Response) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(403).json({ erro: 'Só para administração.' });
+}
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const protegida = ROTAS_ADMIN.some((re) => re.test(req.path));
+  if (!protegida || pedidoDeAdmin(req)) return next();
+  return recusarSemAdmin(res);
 });
+/** Segunda fechadura: vai em cada rota de administração, para não depender só da lista acima */
+const exigirAdmin = (req: Request, res: Response, next: NextFunction) => (pedidoDeAdmin(req) ? next() : recusarSemAdmin(res));
 // IndexNow (Bing e outros): avisa das páginas novas quando o parou.pt já aponta para aqui
 registarIndexNow(app);
 // Cópia de segurança dos favoritos de cada telemóvel (ver src/server/dadosUtilizador.ts)
@@ -221,12 +241,18 @@ const port = !isNaN(cliPort)
 // ==========================================
 // 1. CLASSIFICAR OCORRÊNCIA POR CATEGORIA (Determinístico - Zero IA)
 // ==========================================
+// Texto livre vindo de qualquer pessoa: corta-se o tamanho e limita-se o ritmo (a análise é feita no servidor)
+const ate = (v: unknown, n = 4000) => String(v ?? '').slice(0, n);
+app.use('/api/ai', (req: Request, res: Response, next: NextFunction) => {
+  if (!dentroDoLimite(`ai:${ipDe(req)}`, 120, 60_000)) return res.status(429).json({ error: 'Demasiados pedidos.' });
+  next();
+});
 app.post('/api/ai/classify', (req: Request, res: Response) => {
-  const { title, description } = req.body;
+  const title = ate(req.body?.title, 400), description = ate(req.body?.description);
   if (!title && !description) {
     return res.status(400).json({ error: 'Título ou descrição são obrigatórios.' });
   }
-  const result = classifyOccurrenceText(title || '', description || '');
+  const result = classifyOccurrenceText(title, description);
   return res.json(result);
 });
 
@@ -234,7 +260,7 @@ app.post('/api/ai/classify', (req: Request, res: Response) => {
 // 2. EXTRAIR CIDADE E LOCALIZAÇÃO ESPECÍFICA (Determinístico - Zero IA)
 // ==========================================
 app.post('/api/ai/extract-location', (req: Request, res: Response) => {
-  const { text } = req.body;
+  const text = ate(req.body?.text);
   if (!text) {
     return res.status(400).json({ error: 'Texto para análise é obrigatório.' });
   }
@@ -246,7 +272,7 @@ app.post('/api/ai/extract-location', (req: Request, res: Response) => {
 // 3. IDENTIFICAR EMPRESA OU SERVIÇO AFETADO (Determinístico - Zero IA)
 // ==========================================
 app.post('/api/ai/identify-operator', (req: Request, res: Response) => {
-  const { text, location } = req.body;
+  const text = ate(req.body?.text), location = req.body?.location === undefined ? undefined : ate(req.body.location, 300);
   if (!text) {
     return res.status(400).json({ error: 'Texto para análise é obrigatório.' });
   }
@@ -258,8 +284,9 @@ app.post('/api/ai/identify-operator', (req: Request, res: Response) => {
 // 4. DETECTAR OCORRÊNCIAS DUPLICADAS (Determinístico - Zero IA)
 // ==========================================
 app.post('/api/ai/detect-duplicates', (req: Request, res: Response) => {
-  const { newIncident, existingIncidents } = req.body;
-  if (!newIncident || !Array.isArray(existingIncidents)) {
+  const { newIncident } = req.body || {};
+  const existingIncidents = Array.isArray(req.body?.existingIncidents) ? req.body.existingIncidents.slice(0, 300) : null;
+  if (!newIncident || !existingIncidents) {
     return res.status(400).json({ error: 'newIncident e existingIncidents são obrigatórios.' });
   }
   const result = detectDuplicateOccurrence(newIncident, existingIncidents);
@@ -270,7 +297,7 @@ app.post('/api/ai/detect-duplicates', (req: Request, res: Response) => {
 // 5. RESUMIR DESCRIÇÕES LONGAS (Determinístico - Zero IA)
 // ==========================================
 app.post('/api/ai/summarize', (req: Request, res: Response) => {
-  const { text } = req.body;
+  const text = ate(req.body?.text, 8000);
   if (!text) {
     return res.status(400).json({ error: 'Texto para resumo é obrigatório.' });
   }
@@ -282,11 +309,11 @@ app.post('/api/ai/summarize', (req: Request, res: Response) => {
 // 6. ANÁLISE INTEGRADA ALL-IN-ONE (Determinístico - Zero IA)
 // ==========================================
 app.post('/api/ai/analyze-occurrence', (req: Request, res: Response) => {
-  const { title, description } = req.body;
+  const title = ate(req.body?.title, 400), description = ate(req.body?.description);
   if (!title && !description) {
     return res.status(400).json({ error: 'Título ou descrição são obrigatórios.' });
   }
-  const result = analyzeOccurrenceAllInOne(title || '', description || '');
+  const result = analyzeOccurrenceAllInOne(title, description);
   return res.json(result);
 });
 
@@ -320,7 +347,7 @@ app.get('/api/public-sources', (req: Request, res: Response) => {
 });
 
 // Run live ingestion across all categories (GTFS-RT, APIs, RSS, Official Pages)
-app.post('/api/public-sources/sync', async (req: Request, res: Response) => {
+app.post('/api/public-sources/sync', exigirAdmin, async (req: Request, res: Response) => {
   try {
     console.log('[Ingestion Engine] A iniciar sincronização auditada de fontes públicas...');
     const startTime = Date.now();
@@ -475,7 +502,7 @@ app.get('/api/transit-catalog', (req: Request, res: Response) => {
 });
 
 // Testar ao vivo todas as fontes ou uma fonte específica por ID
-app.post('/api/transit-catalog/probe', async (req: Request, res: Response) => {
+app.post('/api/transit-catalog/probe', exigirAdmin, async (req: Request, res: Response) => {
   const { operatorId } = req.body || {};
   try {
     if (operatorId) {
@@ -596,7 +623,7 @@ app.get('/api/transit/discovery/sources', (req: Request, res: Response) => {
 });
 
 // API: Executar Descoberta e Validação de Fontes
-app.post('/api/transit/discovery/sync', async (req: Request, res: Response) => {
+app.post('/api/transit/discovery/sync', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const result = await runNationalSourceDiscovery();
     return res.json({
@@ -610,7 +637,7 @@ app.post('/api/transit/discovery/sync', async (req: Request, res: Response) => {
 });
 
 // API: Relatório de Diagnóstico Admin Nacional (12 Colunas por Operador)
-app.get('/api/transit/diagnostic/national', async (req: Request, res: Response) => {
+app.get('/api/transit/diagnostic/national', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const report = await getNationalAggregatorDiagnosticReport();
     return res.json(report);
@@ -861,7 +888,7 @@ app.get('/api/transit/line/:id', (req: Request, res: Response) => {
 });
 
 // API: Auditoria Global de Disponibilidade de Serviços e Deteção de Discrepâncias
-app.get('/api/transit/audit/availability', async (req: Request, res: Response) => {
+app.get('/api/transit/audit/availability', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const { date } = req.query;
     const { auditAllRoutesAvailability } = await import('./src/server/gtfsAuditorEngine');
@@ -878,7 +905,7 @@ app.get('/api/transit/audit/availability', async (req: Request, res: Response) =
 // ==========================================
 
 // TML GO Hub: Diagnóstico Interno do Sistema de Transportes
-app.get('/api/transit/tml/diagnostic', async (req: Request, res: Response) => {
+app.get('/api/transit/tml/diagnostic', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const { diagnostic } = await getTmlVehiclesAudited();
     return res.json(diagnostic);
@@ -888,7 +915,7 @@ app.get('/api/transit/tml/diagnostic', async (req: Request, res: Response) => {
 });
 
 // TML GO Hub: Diagnóstico Crítico UNIR Realtime (AMP)
-app.get('/api/transit/tml/unir-diagnostic', async (req: Request, res: Response) => {
+app.get('/api/transit/tml/unir-diagnostic', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const unirReport = await getUnirDiagnosticReport();
     return res.json(unirReport);
@@ -1058,7 +1085,7 @@ app.get('/api/central-alerts', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/central-alerts/diagnostic', (req: Request, res: Response) => {
+app.get('/api/central-alerts/diagnostic', exigirAdmin, (req: Request, res: Response) => {
   try {
     const diagnostic = getCentralAlertsDiagnostic();
     return res.json(diagnostic);
@@ -1067,7 +1094,7 @@ app.get('/api/central-alerts/diagnostic', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/central-alerts/sync', async (req: Request, res: Response) => {
+app.post('/api/central-alerts/sync', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const syncRes = await runCentralAlertsSync();
     return res.json({ success: true, ...syncRes });
@@ -1641,8 +1668,8 @@ function guardarDiagnostico(prefixo: string, txt: string) {
 }
 app.post('/api/diagnostico-unir', (req: Request, res: Response) => {
   try {
-    if (!dentroDoLimite('diag-unir', 60, 3600_000)) return res.status(429).json({ ok: false });
-    const txt = JSON.stringify(req.body || {}).slice(0, 50_000);
+    if (!dentroDoLimite(`diag-unir:${ipDe(req)}`, 6, 3600_000) || !dentroDoLimite('diag-unir', 60, 3600_000)) return res.status(429).json({ ok: false });
+    const txt = JSON.stringify(req.body || {}).slice(0, 20_000);
     guardarDiagnostico('diag-unir', txt);
     console.log(`[Diag UNIR] relatório recebido (${txt.length} bytes)`);
     res.json({ ok: true });
@@ -1677,7 +1704,7 @@ app.get('/api/coverage', (_req: Request, res: Response) => {
 });
 
 // 1b. Test feed connection & validate GTFS zip (Requirement 1)
-app.post('/api/coverage/test-connection', async (req: Request, res: Response) => {
+app.post('/api/coverage/test-connection', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const { feedId, url } = req.body;
     if (!feedId && !url) {
@@ -1692,7 +1719,7 @@ app.post('/api/coverage/test-connection', async (req: Request, res: Response) =>
 });
 
 // 2. Get fetch audit logs (MANDATORY RULE 4: log every fetch URL, status, bytes, duration, time)
-app.get('/api/coverage/logs', (req: Request, res: Response) => {
+app.get('/api/coverage/logs', exigirAdmin, (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '100'), 10), 300);
     const logs = getFetchLogs(limit);
@@ -1703,7 +1730,7 @@ app.get('/api/coverage/logs', (req: Request, res: Response) => {
 });
 
 // 3. Trigger manual re-run of all feeds import
-app.post('/api/coverage/reingest-all', async (_req: Request, res: Response) => {
+app.post('/api/coverage/reingest-all', exigirAdmin, async (_req: Request, res: Response) => {
   try {
     void atualizarDados();
     return res.json({ success: true, message: 'A verificar se há dados novos.' });
@@ -1712,7 +1739,7 @@ app.post('/api/coverage/reingest-all', async (_req: Request, res: Response) => {
   }
 });
 
-app.post('/api/coverage/run-discovery', async (_req: Request, res: Response) => {
+app.post('/api/coverage/run-discovery', exigirAdmin, async (_req: Request, res: Response) => {
   try {
     void atualizarDados();
     return res.json({ success: true, message: 'A verificar se há dados novos.' });
@@ -1722,7 +1749,7 @@ app.post('/api/coverage/run-discovery', async (_req: Request, res: Response) => 
 });
 
 // 4. Manual Add Feed (Form "Adicionar feed": URL, type, operator name, optional key)
-app.post('/api/feeds/manual', async (req: Request, res: Response) => {
+app.post('/api/feeds/manual', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const { url, feed_type, operator_name, mode, key } = req.body;
     if (!url || !url.startsWith('http')) {
@@ -1758,7 +1785,7 @@ app.post('/api/feeds/manual', async (req: Request, res: Response) => {
 });
 
 // 5. Refresh single feed
-app.post('/api/feeds/:id/refresh', async (req: Request, res: Response) => {
+app.post('/api/feeds/:id/refresh', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const feed = getFeedById(req.params.id);
     if (!feed) {
@@ -1864,7 +1891,7 @@ app.get('/api/transit/vehicles', async (_req: Request, res: Response) => {
 
 // 4. Debug Stop API & Inspection View (Rule 5)
 // /debug/stop/:id lists each departure with feed, trip_id, scheduled time, real-time time, state and reason
-app.get('/debug/stop/:id', async (req: Request, res: Response) => {
+app.get('/debug/stop/:id', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const stopId = req.params.id;
     const timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
@@ -1883,7 +1910,7 @@ app.get('/debug/stop/:id', async (req: Request, res: Response) => {
 
 // 4b. Debug Nearby Stops API & Inspection View (Requirement 1)
 // /debug/nearby?lat=&lon=&r= shows status in /coverage, raw DB stops in radius, stops after merge, sent to UI, and dropped reasons
-app.get('/debug/nearby', async (req: Request, res: Response) => {
+app.get('/debug/nearby', exigirAdmin, async (req: Request, res: Response) => {
   try {
     const lat = Number(req.query.lat);
     const lon = Number(req.query.lon);
@@ -1903,30 +1930,6 @@ app.get('/debug/nearby', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Debug Nearby API] Erro:', err);
     return res.status(500).json({ error: 'Erro no diagnóstico de paragens próximas', details: err?.message });
-  }
-});
-
-// 5. User Report for Missing Stop or Line (Rule 6)
-app.post('/api/reports/missing-stop', async (req: Request, res: Response) => {
-  try {
-    const { operator, place, details, user_email } = req.body;
-    if (!operator || !place) {
-      return res.status(400).json({ error: 'Operador e localidade/paragem são obrigatórios.' });
-    }
-    console.log('[PAROU Reports] Paragem em falta reportada:', { operator, place, details, user_email });
-    logFetch({
-      feed_id: 'user_report',
-      url: `user_report://${encodeURIComponent(operator)}/${encodeURIComponent(place)}`,
-      http_status: 200,
-      bytes: 0,
-      duration_ms: 0,
-      timestamp: new Date().toISOString(),
-      message: `Reporte de utilizador: Linha/Paragem em falta (${operator} - ${place})`,
-      error_details: details || null,
-    });
-    return res.json({ success: true, message: 'Reporte de paragem/linha em falta submetido com sucesso.' });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'Erro ao submeter reporte', details: err?.message });
   }
 });
 
@@ -1979,7 +1982,10 @@ async function startServer() {
     });
 
     // 2. REQUIREMENT 1: O servidor escuta IMEDIATAMENTE em 0.0.0.0 na porta process.env.PORT antes de qualquer importação
-    const httpServer = app.listen(port, '0.0.0.0', () => {
+    // Em produção só escuta na própria máquina: quem fala com o exterior é o Caddy (https). Assim a porta 3000 nunca fica
+    // aberta ao mundo, mesmo que a firewall falhe. PAROU_ESCUTAR=0.0.0.0 repõe o comportamento antigo (ensaios).
+    const escutar = process.env.PAROU_ESCUTAR || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
+    const httpServer = app.listen(port, escutar, () => {
       console.log(`[PAROU.PT Server] A escutar imediatamente em http://0.0.0.0:${port}`);
 
       // Índice dos horários para o planeador (vários transbordos): constrói-se em segundo plano

@@ -85,7 +85,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
         let host = '';
         try { host = new URL(String(origem)).host; } catch {}
         const meu = String(req.headers['x-forwarded-host'] || req.headers.host || '');
-        const permitido = host === meu || /(^|\.)parou\.pt$/.test(host) || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) || /\.sslip\.io$/.test(host);
+        const permitido = host === meu || /(^|\.)parou\.pt$/.test(host) || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
         if (!permitido) return res.status(403).json({ erro: 'Pedido de origem não permitida.', codigo: 'origem' });
       }
     }
@@ -110,7 +110,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
 
   app.post('/api/conta/entrar', async (req, res) => {
     try {
-      const email = String(req.body?.email || '').trim().toLowerCase();
+      const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 150);
       if (!dentroDoLimite(`entrar-ip:${ipDe(req)}`, 40, 10 * 60_000) || !dentroDoLimite(`entrar-email:${email}`, 10, 10 * 60_000)) return semLimite(res);
       const { conta, token } = await entrar(email, req.body?.palavraPasse);
       pôrCookie(req, res, token);
@@ -181,7 +181,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
 
   app.post('/api/conta/esqueci', async (req, res) => {
     try {
-      const email = String(req.body?.email || '').trim().toLowerCase();
+      const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 150);
       if (!dentroDoLimite(`esqueci-ip:${ipDe(req)}`, 8, 3600_000) || !dentroDoLimite(`esqueci-email:${email}`, 3, 3600_000)) return semLimite(res);
       if (!emailAtivo()) return res.json({ ok: true, enviado: false, motivo: 'O envio de emails ainda não está ativo.' });
       const pedido = criarPedidoRecuperacao(email);
