@@ -221,7 +221,8 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
 
           <div role="tabpanel" className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mt-2">
             {itensVisiveis.map((item) => {
-              const bloqueado = (item.rep || 0) > pontos;
+              const custo = item.rep || 0;
+              const bloqueado = custo > pontos;
               const escolhido = cfg[categoria.id] === item.id;
               const miniatura = { ...cfg, [categoria.id]: item.id };
               return (
@@ -230,7 +231,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
                   type="button"
                   onClick={() => escolher(categoria.id, item.id, item.rep)}
                   aria-pressed={escolhido}
-                  aria-label={bloqueado ? t('{nome} (bloqueado: {n} pontos)', { nome: t(item.nome), n: item.rep as number }) : t(item.nome)}
+                  aria-label={bloqueado ? t('{nome} (bloqueado: {n} pontos)', { nome: t(item.nome), n: item.rep as number }) : custo > 0 ? t('{nome} ({n} pontos)', { nome: t(item.nome), n: custo }) : t(item.nome)}
                   data-teste={`peca-${categoria.id}-${item.id}`}
                   className={`relative flex flex-col items-center rounded-[12px] border-2 p-1.5 pb-2 cursor-pointer text-left transition-colors ${
                     escolhido ? 'border-[#FF6B1A] bg-[#FFF4EC]' : 'border-[#E6E6E3] bg-[#F4F4F2] hover:border-[#C9C9C4]'
@@ -245,11 +246,16 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
                     loading="lazy"
                   />
                   <span className="text-[12.5px] leading-tight font-semibold text-[#111111] text-center mt-1 min-h-[30px] flex items-center">{t(item.nome)}</span>
-                  {bloqueado && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 h-[22px] px-1.5 rounded-full bg-[#111111] text-[#FFFFFF] text-[11px] font-bold">
-                      <Lock className="w-3 h-3 stroke-[2.5]" />{item.rep}
+                  {/* O que a peça custa em pontos: com cadeado enquanto está bloqueada, e à vista mesmo depois de desbloqueada */}
+                  {custo > 0 && (bloqueado ? (
+                    <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 h-[22px] px-1.5 rounded-full bg-[#111111] text-[#FFFFFF] text-[11px] font-bold tabular-nums" data-teste={`custo-${categoria.id}-${item.id}`}>
+                      <Lock className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />{custo}
                     </span>
-                  )}
+                  ) : (
+                    <span className="absolute top-1.5 left-1.5 inline-flex items-center h-[22px] px-1.5 rounded-full bg-[#FFFFFF] border border-[#D5D5D0] text-[#4A4A4A] text-[11px] font-bold tabular-nums" data-teste={`custo-${categoria.id}-${item.id}`}>
+                      {custo} {t('pts')}
+                    </span>
+                  ))}
                   {escolhido && (
                     <span className="absolute top-1.5 right-1.5 w-[22px] h-[22px] rounded-full bg-[#FF6B1A] text-[#111111] flex items-center justify-center">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
