@@ -300,10 +300,16 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
     const dy = p.clientY - inicio.y;
     if (Math.abs(dx) > 56 && Math.abs(dy) < 40) ir(passo + (dx < 0 ? 1 : -1));
   };
-  const aoTeclar = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowRight') { e.preventDefault(); ir(passo + 1); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(passo - 1); }
-  };
+  // Setas do teclado: ouvidas no documento (o foco pode estar na janela ou no rodapé, fora do conteúdo dos passos)
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); setPasso((p) => Math.min(p + 1, total - 1)); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); setPasso((p) => Math.max(p - 1, 0)); }
+    };
+    document.addEventListener('keydown', aoTeclar);
+    return () => document.removeEventListener('keydown', aoTeclar);
+  }, [total]);
 
   const rodape = (
     <div className="flex flex-col gap-3">
@@ -355,7 +361,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
       onFechar={fechar}
       rodape={rodape}
     >
-      <div ref={raiz} onTouchStart={aoTocar} onTouchEnd={aoSoltar} onKeyDown={aoTeclar} data-teste="bem-vindo">
+      <div ref={raiz} onTouchStart={aoTocar} onTouchEnd={aoSoltar} data-teste="bem-vindo">
         <div className="sr-only" aria-live="polite">{t('Passo {a} de {b}', { a: passo + 1, b: total })}</div>
         <div className="overflow-hidden">
           <div className="flex transition-transform duration-300 ease-out" style={{ transform: `translateX(-${passo * 100}%)` }}>
