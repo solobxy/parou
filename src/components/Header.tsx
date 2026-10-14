@@ -22,6 +22,7 @@ import {
   Users,
   MessageCircle,
   Activity,
+  Play,
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -40,6 +41,8 @@ interface HeaderProps {
   onOpenAdminModal?: () => void;
   onOpenWhatsApp?: () => void;
   onOpenEstatisticas?: () => void;
+  /** TEMPORÁRIO (administração): ver o carrossel de boas-vindas */
+  onOpenBemVindo?: () => void;
   pendingModerationCount?: number;
   onOpenNotificationModal?: () => void;
   isNotificationActive?: boolean;
@@ -63,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdminModal,
   onOpenWhatsApp,
   onOpenEstatisticas,
+  onOpenBemVindo,
   pendingModerationCount,
   onOpenNotificationModal,
   isNotificationActive,
@@ -321,7 +325,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>}
                   </div>
 
-                  {(onOpenPublicSourcesModal || onOpenAdminModal || ((onOpenWhatsApp || onOpenEstatisticas) && painelWhatsApp)) && (
+                  {(onOpenPublicSourcesModal || onOpenAdminModal || ((onOpenWhatsApp || onOpenEstatisticas || onOpenBemVindo) && painelWhatsApp)) && (
                     <div className="py-1">
                       {onOpenPublicSourcesModal && (
                         <button
@@ -354,6 +358,23 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <Activity className="w-4 h-4 stroke-[2]" />
                           <span>Estatísticas</span>
+                        </button>
+                      )}
+
+                      {onOpenBemVindo && painelWhatsApp && (
+                        <button
+                          onClick={() => {
+                            onOpenBemVindo();
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#111111] hover:bg-[#F4F4F2] transition-colors cursor-pointer min-h-[44px]"
+                          data-teste="menu-bemvindo"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Play className="w-4 h-4 stroke-[2]" />
+                            <span>Ver boas-vindas</span>
+                          </div>
+                          <span className="font-condensada text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wide">temporário</span>
                         </button>
                       )}
 

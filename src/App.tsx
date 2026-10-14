@@ -27,6 +27,7 @@ import { RecentOccurrencesFeed } from './components/RecentOccurrencesFeed';
 import { ReportsView } from './components/ReportsView';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { fecharJanelas, navegarHistorico } from './utils/janelas';
+import { BEM_VINDO_AO_ABRIR } from './utils/bemVindo';
 import { ReportDetailPage } from './components/ReportDetailPage';
 import { PertoView } from './components/PertoView';
 import { NotificationModal } from './components/NotificationModal';
@@ -83,6 +84,7 @@ const ComunidadeView = React.lazy(() => import('./components/ComunidadeView').th
 const AdminModerationModal = React.lazy(() => import('./components/AdminModerationModal').then((m) => ({ default: m.AdminModerationModal })));
 const PainelWhatsApp = React.lazy(() => import('./components/PainelWhatsApp').then((m) => ({ default: m.PainelWhatsApp })));
 const PainelEstatisticas = React.lazy(() => import('./components/PainelEstatisticas').then((m) => ({ default: m.PainelEstatisticas })));
+const BemVindo = React.lazy(() => import('./components/BemVindo').then((m) => ({ default: m.BemVindo })));
 
 const FUNDO_PAGINA = (
   <div className="p-4 space-y-3" aria-hidden="true">
@@ -233,6 +235,15 @@ export default function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [isEstatisticasOpen, setIsEstatisticasOpen] = useState(false);
+  // Boas-vindas em carrossel: só a quem abre a PAROU pela primeira vez (ver utils/bemVindo.ts); o administrador vê-as quando quiser
+  const [bemVindo, setBemVindo] = useState<{ demo: boolean; passo: number } | null>(null);
+  useEffect(() => {
+    if (!BEM_VINDO_AO_ABRIR.mostrar) return;
+    const passo = BEM_VINDO_AO_ABRIR.passo;
+    // Deixa o início aparecer primeiro; ao retomar depois de mudar de idioma abre quase logo
+    const id = setTimeout(() => setBemVindo({ demo: false, passo }), passo > 0 ? 250 : 900);
+    return () => clearTimeout(id);
+  }, []);
   const [conversasPorRever, setConversasPorRever] = useState(0);
   const [isPublicSourcesModalOpen, setIsPublicSourcesModalOpen] = useState(false);
   const [complaintsList, setComplaintsList] = useState<Complaint[]>([]);
@@ -812,6 +823,7 @@ export default function App() {
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
         onOpenEstatisticas={() => setIsEstatisticasOpen(true)}
+        onOpenBemVindo={() => setBemVindo({ demo: true, passo: 0 })}
         pendingModerationCount={pendingModerationCount}
         onOpenPublicSourcesModal={() => setIsPublicSourcesModalOpen(true)}
         publicReportsCount={publicReportsCount}
@@ -1321,6 +1333,13 @@ export default function App() {
 
       {isWhatsAppOpen && <React.Suspense fallback={null}><PainelWhatsApp aberta={isWhatsAppOpen} onFechar={() => setIsWhatsAppOpen(false)} /></React.Suspense>}
       {isEstatisticasOpen && <React.Suspense fallback={null}><PainelEstatisticas aberta={isEstatisticasOpen} onFechar={() => setIsEstatisticasOpen(false)} /></React.Suspense>}
+      {bemVindo && <React.Suspense fallback={null}><BemVindo
+        demo={bemVindo.demo}
+        passoInicial={bemVindo.passo}
+        temConta={Boolean(currentUserProfile)}
+        onFechar={() => setBemVindo(null)}
+        onCriarConta={() => setIsLoginModalOpen(true)}
+      /></React.Suspense>}
 
       {isAdminModalOpen && <React.Suspense fallback={null}><AdminModerationModal
         isOpen={isAdminModalOpen}
