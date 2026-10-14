@@ -350,6 +350,11 @@ export const CoverageView: React.FC<CoverageViewProps> = ({ onBackToMap }) => {
       )}
 
       {/* Totals Strip */}
+      {isLoading && !report && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="h-[84px] rounded-[8px] bg-[#F4F4F2] animate-pulse" />)}
+        </div>
+      )}
       {report?.totals && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
