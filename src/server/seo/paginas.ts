@@ -190,7 +190,7 @@ const BANDEIRA_SVG: Record<Lang, string> = {
 };
 
 // Troca de idioma nas páginas do servidor: guarda a escolha (cookie para o servidor, localStorage para a app) e recarrega
-const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}location.reload()}`;
+const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}location.reload()}document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('[data-idioma]');if(b)parouIdioma(b.getAttribute('data-idioma'))});`;
 
 function migalhasHtml(m: Migalha[]): string {
   if (!m.length) return '';
@@ -207,7 +207,7 @@ function rodape(): string {
 <nav aria-label="PAROU"><a href="/">${L('Perto de mim', 'Nearby', 'In meiner Nähe', 'À proximité')}</a><a href="/linhas">${L('Linhas e horários', 'Lines and timetables', 'Linien und Fahrpläne', 'Lignes et horaires')}</a><a href="/cidades">${L('Cidades', 'Cities', 'Städte', 'Villes')}</a><a href="/greves">${L('Greves', 'Strikes', 'Streiks', 'Grèves')}</a><a href="/incendios">${L('Incêndios', 'Fires', 'Brände', 'Incendies')}</a><a href="/alertas">${L('Alertas', 'Alerts', 'Warnungen', 'Alertes')}</a><a href="/mapa">${L('Mapa', 'Map', 'Karte', 'Carte')}</a><a href="/sobre">${L('Sobre', 'About', 'Über uns', 'À propos')}</a><a href="/privacidade">${L('Privacidade', 'Privacy', 'Datenschutz', 'Confidentialité')}</a><a href="/termos">${L('Termos', 'Terms', 'Nutzungsbedingungen', 'Conditions')}</a><a href="/apagar-conta">${L('Apagar conta', 'Delete account', 'Konto löschen', 'Supprimer le compte')}</a><a href="/contactar">${L('Contactar', 'Contact', 'Kontakt', 'Contact')}</a></nav>
 <nav aria-label="${L('Operadores', 'Operators', 'Verkehrsunternehmen', 'Opérateurs')}">${principais}</nav>
 <p class="nota">${L('Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.', 'Free and non-profit. Official timetables published by the operators (GTFS) and by IMT; they can change without notice — if in doubt, check with the operator.', 'Kostenlos und gemeinnützig. Offizielle Fahrpläne der Verkehrsunternehmen (GTFS) und des IMT; sie können sich ohne Vorankündigung ändern — im Zweifel frag beim Verkehrsunternehmen nach.', 'Gratuite et à but non lucratif. Horaires officiels publiés par les opérateurs (GTFS) et par l\'IMT ; ils peuvent changer sans préavis — en cas de doute, vérifiez auprès de l\'opérateur.')}</p>
-<p class="idiomas" role="group" aria-label="${L('Idioma', 'Language', 'Sprache', 'Langue')}">${(['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<button type="button" class="idioma${l === lang() ? ' ativo' : ''}" lang="${LANG_HTML[l]}"${l === lang() ? ' aria-current="true"' : ` onclick="parouIdioma('${l}')"`}>${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</button>`).join('')}</p>
+<p class="idiomas" role="group" aria-label="${L('Idioma', 'Language', 'Sprache', 'Langue')}">${(['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<button type="button" class="idioma${l === lang() ? ' ativo' : ''}" lang="${LANG_HTML[l]}"${l === lang() ? ' aria-current="true"' : ` data-idioma="${l}"`}>${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</button>`).join('')}</p>
 </div></footer>`;
 }
 

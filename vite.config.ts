@@ -109,6 +109,8 @@ function hmrSilencer(): Plugin {
 
   return {
     name: 'hmr-silencer',
+    // Só no desenvolvimento: na versão publicada este script não faz falta (e trocava o WebSocket por um falso)
+    apply: 'serve',
     transformIndexHtml: {
       order: 'pre' as const,
       handler() {
