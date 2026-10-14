@@ -1333,6 +1333,8 @@ export default function App() {
         onClose={() => setIsUserProfileModalOpen(false)}
         user={currentUserProfile}
         userReports={userPersonalReports}
+        onOpenFavoritos={() => { handleTabSelect('favoritos'); setIsUserProfileModalOpen(false); }}
+        totalFavoritos={favoritesTotalCount}
         onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
         onOpenEstatisticas={() => { setIsUserProfileModalOpen(false); setIsEstatisticasOpen(true); }}
         onOpenModeracao={() => { setIsUserProfileModalOpen(false); setIsAdminModalOpen(true); }}

@@ -9,7 +9,8 @@ import {
   MessageCircle,
   Activity,
   ShieldAlert,
-  Play
+  Play,
+  Star
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
@@ -35,6 +36,10 @@ interface UserProfileModalProps {
   /** TEMPORÁRIO (administração): ver o carrossel de boas-vindas */
   onOpenBemVindo?: () => void;
   pendentesModeracao?: number;
+  /** Abre a página dos favoritos (fecha esta janela) */
+  onOpenFavoritos?: () => void;
+  /** Quantos favoritos a pessoa tem (paragens, linhas, rotas…) */
+  totalFavoritos?: number;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -42,6 +47,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   user,
   userReports,
+  onOpenFavoritos,
+  totalFavoritos = 0,
   onOpenWhatsApp,
   onOpenEstatisticas,
   onOpenModeracao,
@@ -141,12 +148,29 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Ponto diário: resgatar (se o aviso foi fechado) ou contagem até ao próximo */}
         <PontoDiarioCartao user={user} />
 
+        {/* Favoritos: atalho para as paragens, linhas e rotas guardadas */}
+        {onOpenFavoritos && (
+          <button
+            type="button"
+            onClick={onOpenFavoritos}
+            data-teste="abrir-favoritos"
+            className="mt-3 w-full min-h-[48px] px-3 py-2 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] hover:bg-[#ECECE8] flex items-center gap-2 text-left cursor-pointer"
+          >
+            <Star className="w-4 h-4 stroke-[2] shrink-0" aria-hidden="true" />
+            <span className="flex-1 min-w-0 text-[14px] font-semibold text-[#111111]">{t('Favoritos')}</span>
+            {totalFavoritos > 0 && (
+              <span className="font-condensada text-[14px] font-bold text-[#6B6B6B] tabular-nums">{totalFavoritos}</span>
+            )}
+            <ChevronRight className="w-4 h-4 text-[#6B6B6B] shrink-0" aria-hidden="true" />
+          </button>
+        )}
+
         {/* Avatar: próxima peça por abrir */}
         <button
           type="button"
           onClick={() => setEditorAvatar(true)}
           data-teste="personalizar-avatar"
-          className="mt-3 w-full min-h-[48px] px-3 py-2 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] hover:bg-[#ECECE8] flex items-center gap-2 text-left cursor-pointer"
+          className="mt-2 w-full min-h-[48px] px-3 py-2 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] hover:bg-[#ECECE8] flex items-center gap-2 text-left cursor-pointer"
         >
           <Pencil className="w-4 h-4 stroke-[2] shrink-0" aria-hidden="true" />
           <span className="flex-1 min-w-0 leading-tight">

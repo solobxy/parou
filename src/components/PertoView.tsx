@@ -36,8 +36,9 @@ import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFal
 import { 
   fetchNearbyTransit, 
   searchDestinations, 
-  planTransitRoute, 
-  getFavoriteStopIds 
+  planTransitRoute,
+  getFavoriteStopIds,
+  toggleFavoriteStopId
 } from '../services/pertoApi';
 import { 
   NearbyStopItem, 
@@ -537,6 +538,44 @@ export const PertoView: React.FC<PertoViewProps> = ({
       window.removeEventListener('parou_dados_repostos', reler);
     };
   }, []);
+
+  // Estrela de favorito: o mesmo favorito vale com ou sem o prefixo "stop-" no identificador
+  const paragemEFavorita = (stop: NearbyStopItem): boolean => {
+    const limpo = stop.id.startsWith('stop-') ? stop.id.slice(5) : stop.id;
+    // Só conta a lista viva: o campo isFavorite da paragem é uma fotografia de quando as paragens foram pedidas
+    return favoriteStopIds.has(stop.id) || favoriteStopIds.has(limpo) || favoriteStopIds.has(`stop-${limpo}`);
+  };
+  const alternarParagemFavorita = (stop: NearbyStopItem) => {
+    toggleFavoriteStopId(stop.id, {
+      name: formatTransitName(stop.name),
+      operatorId: stop.operatorId,
+      operatorName: stop.operatorName,
+      locality: stop.locality,
+      district: stop.district,
+      latitude: Number(stop.latitude),
+      longitude: Number(stop.longitude),
+      transportMode: stop.transportMode,
+    });
+    // Ler depois de gravar: o aviso de "favoritos mudaram" chega antes de a lista de paragens ficar atualizada
+    setFavoriteStopIds(getFavoriteStopIds());
+  };
+  const botaoFavorito = (stop: NearbyStopItem, extra: string) => {
+    const guardada = paragemEFavorita(stop);
+    const rotulo = guardada ? t('Remover dos favoritos') : t('Guardar nos favoritos');
+    return (
+      <button
+        type="button"
+        data-teste="favorito-paragem"
+        onClick={(e) => { e.stopPropagation(); alternarParagemFavorita(stop); }}
+        className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-full text-[#6B6B6B] hover:text-[#111111] active:bg-[#F4F4F2] cursor-pointer ${extra}`}
+        title={rotulo}
+        aria-label={`${rotulo}: ${formatTransitName(stop.name)}`}
+        aria-pressed={guardada}
+      >
+        <Star className={`w-5 h-5 stroke-[2] ${guardada ? 'fill-[#111111] text-[#111111]' : ''}`} />
+      </button>
+    );
+  };
 
   useEffect(() => { ultimoSeguir = followMode; }, [followMode]);
   seguirRef.current = followMode;
@@ -1377,7 +1416,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (activeFilterTab === 'comboio') return mode === 'Comboio';
       if (activeFilterTab === 'autocarro') return mode === 'Autocarro';
       if (activeFilterTab === 'barco') return mode === 'Barco';
-      if (activeFilterTab === 'favoritos') return stop.isFavorite || favoriteStopIds.has(stop.id);
+      // A lista viva manda: o isFavorite da paragem só reflete o momento em que foi pedida (e a estrela muda isto)
+      if (activeFilterTab === 'favoritos') return favoriteStopIds.has(stop.id);
       return true;
     });
   }, [stops, activeFilterTab, favoriteStopIds]);
@@ -2247,10 +2287,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         )}
                       </div>
                     </div>
-                    <span className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-condensada text-[13px] font-bold text-[#111111] tabular-nums">
-                      <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
-                      {distanciaViva(userCoords, stop)?.texto ?? traduzirDistancia(stop.formattedDistance)}
-                    </span>
+                    <div className="shrink-0 flex items-center gap-0.5">
+                      <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F4F4F2] font-condensada text-[13px] font-bold text-[#111111] tabular-nums">
+                        <Footprints className="w-3 h-3 stroke-[2.25] text-[#6B6B6B]" />
+                        {distanciaViva(userCoords, stop)?.texto ?? traduzirDistancia(stop.formattedDistance)}
+                      </span>
+                      {/* Estrela no canto direito: alvo de toque de 40 px, mas ocupa pouco espaço (margens negativas) */}
+                      {botaoFavorito(stop, '-my-2 -mr-2')}
+                    </div>
                   </div>
 
                   {/* Partidas */}
@@ -2404,6 +2448,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     {(distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes) ? ` · ${t('{n} min a pé', { n: distanciaViva(userCoords, selectedStop)?.minutos ?? selectedStop.walkingMinutes })}` : ''}
                   </div>
                 </div>
+                {botaoFavorito(selectedStop, '-mr-1')}
               </div>
               {/* Outras paragens no mesmo sítio (ex.: STCP e UNIR no mesmo poste): trocar sem voltar à lista */}
               {(() => {
