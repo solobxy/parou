@@ -328,3 +328,13 @@ h1, h2, h3, h4 {
 }
 .ponto-entra { animation: ponto-entra 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @media (prefers-reduced-motion: reduce) { .ponto-entra { animation: none; } }
+
+/* Campos de texto com 16 px nos telemóveis e tablets: abaixo disso o Safari do iPhone faz zoom ao tocar no campo
+   e a página fica ampliada ("grande demais"). Vale para todos os campos, mesmo os que usam letras mais pequenas. */
+@media (max-width: 1023px), (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):not([type='hidden']):not([type='submit']):not([type='button']):not([type='image']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
