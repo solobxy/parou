@@ -107,7 +107,7 @@ const norm360 = (g: number) => ((g % 360) + 360) % 360;
 
 export class FiltroGps {
   /** Afinações (a simulação em auditoria/gps-sim.mjs serve para as ajustar) */
-  ajustes = { saMin: 1.3, saMax: 6, fatorR: 1.25, minAcc: 5, nisAlfa: 0.6, nisBase: 1.2, saindoD2: 3, saindoN: 2 };
+  ajustes = { saMin: 1.3, saMax: 6, fatorR: 1.25, minAcc: 5, nisAlfa: 0.6, nisBase: 1.2, saindoD2: 3, saindoN: 2, capR: 3000, nisTeto: 9.21, expR: 4, fimRejeitar: 3 };
   private ini = false;
   private lat0 = 0;
   private lon0 = 0;
@@ -239,7 +239,7 @@ export class FiltroGps {
     const yx = z.x - this.x.p;
     const yy = z.y - this.y.p;
     const d2 = (yx * yx + yy * yy) / (this.x.Ppp + R);
-    this.nis = this.ajustes.nisAlfa * this.nis + (1 - this.ajustes.nisAlfa) * Math.min(d2, 30);
+    this.nis = this.ajustes.nisAlfa * this.nis + (1 - this.ajustes.nisAlfa) * Math.min(d2, this.ajustes.nisTeto);
 
     // 5. Leitura fora do esperado: pesa menos. Se várias seguidas se afastam do previsto sempre do mesmo modo
     //    (um desvio estável), a posição mudou mesmo (ou o filtro perdeu-se) e recomeça-se na leitura.
@@ -253,7 +253,9 @@ export class FiltroGps {
         this.ultimaBruta = z;
         return this.estimativa(l.t, 0);
       }
-      R *= Math.min(6, d2 / 9.21);
+      // Em andamento, uma leitura muito fora (reflexo do sinal) quase não conta; parado conta mais, porque
+      // o desvio pode ser o arranque do autocarro
+      R *= this.parado || this.surpresas >= this.ajustes.fimRejeitar ? Math.min(6, d2 / 9.21) : Math.min(this.ajustes.capR, Math.pow(d2 / 9.21, this.ajustes.expR));
     } else {
       this.surpresas = 0;
       this.ultimaInov = null;
