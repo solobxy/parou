@@ -196,7 +196,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
             previa: 'Escolhe uma nova palavra-passe. O link vale 1 hora.',
             titulo: 'Recuperar a palavra-passe',
             paragrafos: [`Olá ${pedido.conta.nome},`, 'Pediste para recuperar a palavra-passe da tua conta PAROU. Toca no botão para escolheres uma nova.'],
-            botao: { texto: 'Escolher nova palavra-passe', url: ligacao },
+            botao: { texto: 'Clica aqui para alterar a palavra-passe', url: ligacao },
             notas: ['O link vale 1 hora.', 'Se não foste tu, ignora este email: a tua conta continua segura.'],
           }),
         );
