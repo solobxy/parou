@@ -2320,7 +2320,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Detalhe da paragem escolhida */}
         {selectedStop && (
           <div className="painel-paragem absolute inset-0 z-20 flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none">
-            <div className={`shrink-0 px-3 pt-2 border-b border-[#E6E6E3] ${linhaAberta && mapaExpandido ? 'pb-1 max-lg:border-b-0' : 'pb-3'} touch-pan-x`} {...gestoPainel}>
+            <div className={`shrink-0 px-3 pt-2 border-b border-[#E6E6E3] ${linhaAberta ? 'pb-1 max-lg:border-b-0' : 'pb-3'} touch-pan-x`} {...gestoPainel}>
               {/* Pega do painel: toca ou desliza para encolher/aumentar (área de toque maior que a barrinha) */}
               <button
                 onClick={() => setMapaExpandido((v) => !v)}
@@ -2329,7 +2329,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               >
                 <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
               </button>
-              <div className={`flex items-start gap-2.5 ${linhaAberta && mapaExpandido ? 'max-lg:hidden' : ''}`}>
+              <div className={`flex items-start gap-2.5 ${linhaAberta ? 'max-lg:hidden' : ''}`}>
                 <button
                   onClick={fecharParagem}
                   className="shrink-0 w-10 h-10 -ml-0.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
@@ -2370,7 +2370,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 const grupo = comExtra
                   .filter((s) => s.id === selectedStop.id || metrosEntre(s, selectedStop) <= 30)
                   .sort((x, y) => String(x.operatorName || '').localeCompare(String(y.operatorName || '')) || String(x.id).localeCompare(String(y.id)));
-                if (grupo.length < 2 || (linhaAberta && mapaExpandido)) return null;
+                if (grupo.length < 2 || linhaAberta) return null;
                 // Etiqueta de cada poste. Se dois ficam iguais (mesmo operador e sem sentido), distingue-os
                 // pela distância e, em último caso, por um número, para nunca haver dois botões "STCP" iguais.
                 const baseEtiqueta = (s: typeof grupo[number]) => {

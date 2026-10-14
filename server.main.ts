@@ -1156,6 +1156,7 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         operatorName: d.operator_name || opName,
         operatorId: d.feed_id,
         tripId: d.trip_id,
+        routeId: d.route_id,
         stopId: d.stop_id,
         transportMode: primaryMode as any,
         departureTime: d.display_text,
