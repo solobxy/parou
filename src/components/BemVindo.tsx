@@ -67,7 +67,7 @@ const CARTAO = 'bg-[#FFFFFF] border border-[#E6E6E3] rounded-[12px] shadow-[0_2p
 
 const Palco: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div
-    className="relative flex-1 min-h-[208px] rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
+    className="relative flex-1 min-h-[208px] max-h-[280px] rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
     aria-hidden="true"
   >
     {children}
@@ -371,8 +371,8 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
                 return (
                   <section key={id} className="w-full shrink-0" aria-hidden={!ativo} aria-label="Idioma · Language" data-passo={id}>
                     <div className="flex flex-col items-center text-center pt-1">
-                      <Logo size={32} className="text-[#111111]" />
-                      <p className="mt-3 font-condensada text-[24px] leading-[1.1] font-bold text-[#111111]">
+                      <Logo size={32} className="text-[#111111] [@media(max-height:640px)]:hidden" />
+                      <p className="mt-3 [@media(max-height:640px)]:mt-0 font-condensada text-[24px] leading-[1.1] font-bold text-[#111111]">
                         Bem-vindo · Welcome<br />Bienvenue · Willkommen
                       </p>
                     </div>
@@ -388,7 +388,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
                             data-primeiro-idioma={k === 0 ? true : undefined}
                             data-teste={`bv-idioma-${l.id}`}
                             onClick={() => escolherIdioma(l.id)}
-                            className={`w-full min-h-[60px] flex items-center gap-3.5 px-3.5 rounded-[14px] border-2 bg-[#FFFFFF] hover:bg-[#F4F4F2] text-left cursor-pointer ${atual ? 'border-[#111111]' : 'border-[#E6E6E3]'}`}
+                            className={`w-full min-h-[60px] [@media(max-height:640px)]:min-h-[52px] flex items-center gap-3.5 px-3.5 rounded-[14px] border-2 bg-[#FFFFFF] hover:bg-[#F4F4F2] text-left cursor-pointer ${atual ? 'border-[#111111]' : 'border-[#E6E6E3]'}`}
                           >
                             <Bandeira idioma={l.id} className="w-[36px] h-[24px]" />
                             <span className="flex-1 min-w-0">
