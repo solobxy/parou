@@ -84,7 +84,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
                 onFilterChange('cidade', val);
               }
             }}
-            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
+            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate"
           >
             {DISTRITOS_OPTIONS.map((d) => (
               <option key={d} value={d} className="bg-[#FFFFFF] text-[#111111]">
@@ -104,7 +104,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             value={filters.concelho || 'Todos'}
             onChange={(e) => onFilterChange('concelho', e.target.value)}
             disabled={filters.distrito === 'Todos'}
-            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate disabled:opacity-40"
+            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate disabled:opacity-40"
           >
             <option value="Todos" className="bg-[#FFFFFF] text-[#111111]">
               {filters.distrito === 'Todos' ? t('Selecione distrito') : t('Todos')}
@@ -126,7 +126,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
           <select aria-label={t('Operador')}
             value={filters.operador || 'Todos'}
             onChange={(e) => onFilterChange('operador', e.target.value)}
-            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
+            className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate"
           >
             {OPERADORES_OPTIONS.map((op) => (
               <option key={op} value={op} className="bg-[#FFFFFF] text-[#111111]">
@@ -153,7 +153,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
               <select aria-label={t('Serviço')}
                 value={filters.servico || 'Todos'}
                 onChange={(e) => onFilterChange('servico', e.target.value)}
-                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
+                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate"
               >
                 {SERVICOS_OPTIONS.map((s) => (
                   <option key={s} value={s} className="bg-[#FFFFFF] text-[#111111]">
@@ -169,7 +169,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
               <select aria-label={t('Tipo de transporte')}
                 value={filters.tipoTransporte || 'Todos'}
                 onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
-                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
+                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate"
               >
                 {TIPOS_TRANSPORTE_OPTIONS.map((tp) => (
                   <option key={tp} value={tp} className="bg-[#FFFFFF] text-[#111111]">
@@ -185,7 +185,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
               <select aria-label={t('Categoria')}
                 value={filters.categoria || 'Todas'}
                 onChange={(e) => onFilterChange('categoria', e.target.value)}
-                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
+                className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 py-1.5 max-w-[150px] truncate"
               >
                 {CATEGORIAS_OPTIONS.map((c) => (
                   <option key={c} value={c} className="bg-[#FFFFFF] text-[#111111]">

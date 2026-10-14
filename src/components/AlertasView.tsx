@@ -879,7 +879,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
               </span>
             </h2>
             {onVerMapa && listaIncendios.length > 0 && (
-              <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer">{t('Ver no mapa')}</button>
+              <button onClick={onVerMapa} className="text-[13px] font-semibold text-[#6B6B6B] cursor-pointer min-h-[28px] px-1">{t('Ver no mapa')}</button>
             )}
           </div>
           {listaIncendios.length === 0 ? (

@@ -1705,7 +1705,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <MapPinOff className="w-5 h-5 stroke-[2.25]" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-[16.5px] font-bold text-[#111111] leading-tight">{t(titulo)}</h3>
+              <h2 className="text-[16.5px] font-bold text-[#111111] leading-tight">{t(titulo)}</h2>
               <p className="mt-0.5 text-[12.5px] text-[#6B6B6B] leading-snug">{t(texto)}</p>
             </div>
           </div>
@@ -1771,9 +1771,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
             )}
           </span>
         </div>
-        <h3 className="mt-3 text-[18px] font-bold text-[#111111] leading-tight">
+        <h2 className="mt-3 text-[18px] font-bold text-[#111111] leading-tight">
           {t(aPedir ? 'A localizar…' : bloqueada ? 'Localização bloqueada' : semSinal ? 'Sem sinal de GPS' : 'Vê o que passa perto de ti')}
-        </h3>
+        </h2>
         <p className="mt-1.5 text-[13px] text-[#6B6B6B] leading-snug">
           {t(aPedir
             ? 'Se o telemóvel perguntar, toca em Permitir.'
@@ -2109,9 +2109,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     <div className="flex items-center gap-2 min-w-0">
                       <IconeModo className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
                       <div className="min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111111] leading-snug truncate">
+                        <h2 className="text-[16px] font-semibold text-[#111111] leading-snug truncate">
                           {formatTransitName(stop.name)}
-                        </h3>
+                        </h2>
                         {stop.direction && (
                           <div className={`text-[12.5px] leading-tight truncate mt-0.5 ${stop.arrivalsOnly ? 'text-[#6B6B6B]' : 'text-[#111111]/70 font-medium'}`}>
                             {textoSentido(stop)}
@@ -2237,7 +2237,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   {(() => {
                     const estilo = ESTILO_MODO[normalizeTransportMode(selectedStop.transportMode)] || ESTILO_MODO.Autocarro;
                     return (
-                      <h4 className="flex items-center gap-2 font-semibold text-[17px] text-[#111111] leading-tight min-w-0">
+                      <h2 className="flex items-center gap-2 font-semibold text-[17px] text-[#111111] leading-tight min-w-0">
                         <span
                           className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center [&_svg]:w-[13px] [&_svg]:h-[13px] [&_span]:!text-[12px]"
                           style={{ background: estilo.cor }}
@@ -2245,7 +2245,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                           dangerouslySetInnerHTML={{ __html: estilo.simbolo }}
                         />
                         <span className="truncate">{estilo.plural} – {formatTransitName(selectedStop.name)}</span>
-                      </h4>
+                      </h2>
                     );
                   })()}
                   {selectedStop.direction && (
