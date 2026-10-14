@@ -83,7 +83,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
 
       {/* Main Title & Description */}
       <div>
-        <h3 className="text-[18px] font-semibold text-[#111111] leading-snug">
+        <h2 className="text-[18px] font-semibold text-[#111111] leading-snug">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onSelectOccurrence(current); }}
@@ -91,7 +91,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
           >
             {current.title}
           </button>
-        </h3>
+        </h2>
         <p className="text-sm text-[#6B6B6B] mt-1 line-clamp-2 leading-relaxed">
           {current.description}
         </p>
