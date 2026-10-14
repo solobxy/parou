@@ -295,4 +295,19 @@ parou.pt`,
     imagens: ['/novidades/idiomas-de-fr-1.jpg'],
     comunidade: 'A PAROU já fala alemão e francês, além de português e inglês: toca na bandeira no topo e escolhe a língua. Menus, rotas, mapa e páginas mudam todos. Útil para quem visita Portugal!',
   },
+  {
+    id: 'atrasos-em-direto',
+    data: '2026-10-14',
+    etiqueta: 'Novidade',
+    titulo: 'Atrasos em direto',
+    texto: `⏱️ *Atrasos em direto na PAROU*
+
+No Perto, quando a operadora indica que o autocarro vem atrasado, aparece "Atrasado N min" junto à linha.
+🚌 Para já com a STCP e a Carris Metropolitana
+🧭 Onde a operadora não indica o atraso, não mostramos nada: não inventamos
+
+parou.pt`,
+    imagens: ['/novidades/atrasos-em-direto-1.jpg'],
+    comunidade: 'No Perto já aparece "Atrasado N min" quando a operadora indica o atraso real do autocarro (para já STCP e Carris Metropolitana). Onde não há esse dado, não inventamos.',
+  },
 ];
