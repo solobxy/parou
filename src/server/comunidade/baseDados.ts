@@ -196,6 +196,17 @@ function migrar(b: DatabaseSync) {
     if (!colunas.includes('ultimo_resgate')) b.exec('ALTER TABLE utilizadores ADD COLUMN ultimo_resgate INTEGER');
     b.exec('PRAGMA user_version = 4');
   }
+  if (versao < 5) {
+    // Idioma preferido (o da app no último acesso) e instante do último acesso de cada conta, para a lista de contas do Criador.
+    // As contas que já existiam ficam com o último acesso da sessão mais recente (ou a data de criação) e sem idioma até voltarem a abrir a app.
+    const colunas = (b.prepare('PRAGMA table_info(utilizadores)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!colunas.includes('idioma')) b.exec('ALTER TABLE utilizadores ADD COLUMN idioma TEXT');
+    if (!colunas.includes('ultimo_acesso')) {
+      b.exec('ALTER TABLE utilizadores ADD COLUMN ultimo_acesso INTEGER');
+      b.exec('UPDATE utilizadores SET ultimo_acesso = COALESCE((SELECT MAX(renovada) FROM sessoes WHERE sessoes.utilizador_id = utilizadores.id), criado)');
+    }
+    b.exec('PRAGMA user_version = 5');
+  }
 }
 
 /** Executa várias gravações como uma só: ou ficam todas, ou nenhuma. */

@@ -355,6 +355,37 @@ export function darPontos(id: string | undefined | null, pontos: number, novaOco
     .run(pontos, novaOcorrencia ? 1 : 0, id);
 }
 
+// ------------------------------- último acesso e idioma -------------------------------
+const IDIOMAS_DA_CONTA = new Set(['pt', 'en', 'de', 'fr']);
+/** Não se regista outra vez o acesso de uma conta antes de passarem estes minutos (poupa escritas) */
+const INTERVALO_ACESSO_MS = 5 * 60_000;
+
+/**
+ * Regista que a conta acabou de usar a app e em que idioma (o da app, que o telemóvel envia no cookie parou_idioma).
+ * Só escreve se passou o intervalo ou se o idioma mudou.
+ */
+export function marcarAcesso(id: string, idioma?: string | null, agora = Date.now()) {
+  const lang = idioma && IDIOMAS_DA_CONTA.has(idioma) ? idioma : null;
+  base().prepare(
+    `UPDATE utilizadores SET ultimo_acesso = ?, idioma = COALESCE(?, idioma)
+     WHERE id = ? AND (ultimo_acesso IS NULL OR ultimo_acesso < ? OR (? IS NOT NULL AND (idioma IS NULL OR idioma != ?)))`,
+  ).run(agora, lang, id, agora - INTERVALO_ACESSO_MS, lang, lang);
+}
+
+export interface ContaParaAdmin { nome: string; email: string; criado: number; ultimoAcesso: number; idioma: string | null }
+
+/** Todas as contas (da mais recente à mais antiga) para a lista do Criador: só nome, email, datas e idioma */
+export function listarContasParaAdmin(limite = 20000): ContaParaAdmin[] {
+  const linhas = base().prepare('SELECT nome, email, criado, ultimo_acesso, idioma FROM utilizadores ORDER BY criado DESC LIMIT ?').all(limite) as any[];
+  return linhas.map((l) => ({
+    nome: String(l.nome || ''),
+    email: String(l.email || ''),
+    criado: Number(l.criado) || 0,
+    ultimoAcesso: Number(l.ultimo_acesso) || Number(l.criado) || 0,
+    idioma: IDIOMAS_DA_CONTA.has(String(l.idioma)) ? String(l.idioma) : null,
+  }));
+}
+
 // ------------------------------- sessões -------------------------------
 function criarSessao(utilizadorId: string): string {
   const token = crypto.randomBytes(32).toString('base64url');

@@ -2,7 +2,7 @@
 import { resumoEstatisticas, resumoDeContas } from '../estatisticas';
 import type { Express, Request, Response, NextFunction } from 'express';
 import {
-  Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, terminarSessao, apagarConta, confirmarPalavra,
+  Conta, ErroConta, perfilDaConta, registar, entrar, contaDaSessao, marcarAcesso, listarContasParaAdmin, terminarSessao, apagarConta, confirmarPalavra,
   mudarNome, mudarPalavra, criarPedidoRecuperacao, redefinirPalavra, listarFavoritos, guardarFavoritos, apagarFavorito,
   limparSessoesExpiradas, VALIDADE_SESSAO_MS, mudarAvatar, definirOperador, suspenderConta, contaEAdmin, resgatarPontoDiario,
 } from './contas';
@@ -48,6 +48,7 @@ function contaDoPedido(req: Request, res: Response): Conta | null {
   const s = contaDaSessao(token);
   if (!s) return null;
   if (s.renovar && token) pôrCookie(req, res, token);
+  try { marcarAcesso(s.conta.id, lerCookie(req, 'parou_idioma')); } catch {}
   return s.conta;
 }
 
@@ -102,6 +103,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       if (!dentroDoLimite(`registo:${ipDe(req)}`, 10, 3600_000)) return semLimite(res);
       const { conta, token } = await registar(req.body?.email, req.body?.palavraPasse, req.body?.nome);
       pôrCookie(req, res, token);
+      try { marcarAcesso(conta.id, lerCookie(req, 'parou_idioma')); } catch {}
       res.json({ utilizador: perfilDaConta(conta) });
     } catch (err) { erro(res, err); }
   });
@@ -112,6 +114,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       if (!dentroDoLimite(`entrar-ip:${ipDe(req)}`, 40, 10 * 60_000) || !dentroDoLimite(`entrar-email:${email}`, 10, 10 * 60_000)) return semLimite(res);
       const { conta, token } = await entrar(email, req.body?.palavraPasse);
       pôrCookie(req, res, token);
+      try { marcarAcesso(conta.id, lerCookie(req, 'parou_idioma')); } catch {}
       res.json({ utilizador: perfilDaConta(conta) });
     } catch (err) { erro(res, err); }
   });
@@ -456,6 +459,15 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     try {
       res.setHeader('Cache-Control', 'no-store');
       res.json({ ...resumoEstatisticas(), contas: resumoDeContas() });
+    } catch (err) { erro(res, err); }
+  });
+  // Lista de todas as contas (nome, email, datas e idioma) para o Criador. Só administração; nunca vai para a cache.
+  app.get('/api/comunidade/admin/contas', (req, res) => {
+    if (!eAdmin(req, res)) return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' });
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const contas = listarContasParaAdmin();
+      res.json({ geradoEm: new Date().toISOString(), total: contas.length, contas });
     } catch (err) { erro(res, err); }
   });
   app.get('/api/comunidade/admin/fila', (req, res) => {

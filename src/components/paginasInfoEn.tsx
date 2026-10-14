@@ -90,7 +90,8 @@ export function PrivacidadeEn() {
           <strong>Account (optional).</strong> If you create an account, we store your name, your email and an encrypted version of
           your password (never the password itself) on our server, to sync favourites between devices and to identify the incidents
           you post. When you sign in, we store a technical session cookie on your phone (<em>parou_sessao</em>, 30 days) so you do
-          not have to sign in every time. Your email is never shown to other people.
+          not have to sign in every time. Your email is never shown to other people. We also store the app language and the date and time of the account’s
+          last use, which only PAROU’s administration can see.
         </p>
         <p>
           <strong>Incidents and comments you post.</strong> They are public (title, description, place, time, the photo if you add

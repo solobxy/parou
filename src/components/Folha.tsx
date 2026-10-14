@@ -13,6 +13,9 @@ interface FolhaProps {
   largura?: 'normal' | 'larga';
 }
 
+// Folhas abertas por ordem: com uma por cima da outra, Esc e Tab só valem para a de cima
+const abertas: object[] = [];
+
 const FOCAVEIS = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -30,8 +33,11 @@ export const Folha: React.FC<FolhaProps> = ({ aberta, titulo, onFechar, children
     if (!aberta) return;
     const origem = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
+    const eu = {};
+    abertas.push(eu);
     document.body.style.overflow = 'hidden';
     const aoTecla = (e: KeyboardEvent) => {
+      if (abertas[abertas.length - 1] !== eu) return;
       if (e.key === 'Escape') { e.stopPropagation(); aoFechar.current(); return; }
       if (e.key !== 'Tab' || !caixa.current) return;
       const lista = Array.from(caixa.current.querySelectorAll<HTMLElement>(FOCAVEIS)).filter((x) => x.offsetParent !== null);
@@ -47,6 +53,8 @@ export const Folha: React.FC<FolhaProps> = ({ aberta, titulo, onFechar, children
     }, 40);
     return () => {
       clearTimeout(temporizador);
+      const i = abertas.indexOf(eu);
+      if (i >= 0) abertas.splice(i, 1);
       document.body.style.overflow = overflow;
       document.removeEventListener('keydown', aoTecla, true);
       try { origem?.focus?.({ preventScroll: true }); } catch {}

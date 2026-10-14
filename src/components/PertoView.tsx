@@ -494,7 +494,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const enriquecerRef = useRef(0);
   // Outras paragens no mesmo sítio da paragem aberta que veio do mapa (para trocar de poste sem voltar)
   const [grupoExtra, setGrupoExtra] = useState<NearbyStopItem[]>([]);
-  const circuloPrecisaoRef = useRef<L.Circle | null>(null);
   // Passados 30 s fora do Perto volta a seguir o utilizador (pode já estar noutro sítio)
   const [followMode, setFollowMode] = useState<boolean>(
     () => ultimoSeguir || !ultimaVistaMapa || Date.now() - ultimaVistaMapa.t > 30_000,
@@ -977,8 +976,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
       filaExtrasRef.current = [];
       extrasMarkersRef.current.forEach((m) => m.marker.remove());
       extrasMarkersRef.current.clear();
-      circuloPrecisaoRef.current?.remove();
-      circuloPrecisaoRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -1000,24 +997,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
     if (!mapRef.current || !userCoords) return;
     const { latitude, longitude } = userCoords;
     if (!isValidCoordinate(latitude, longitude)) return;
-
-    // Círculo de precisão: só quando o sinal é fraco, para se ver que o ponto pode estar fora do sítio
-    const precisao = Number(userCoords.accuracy);
-    const mostrarCirculo = Number.isFinite(precisao) && precisao > 15 && precisao < 3000 && !userCoords.isManual;
-    if (mostrarCirculo) {
-      if (circuloPrecisaoRef.current) {
-        circuloPrecisaoRef.current.setLatLng([latitude, longitude]);
-        circuloPrecisaoRef.current.setRadius(precisao);
-      } else {
-        circuloPrecisaoRef.current = L.circle([latitude, longitude], {
-          radius: precisao, interactive: false, weight: 1, color: '#FF6B1A', opacity: 0.45,
-          fillColor: '#FF6B1A', fillOpacity: 0.1,
-        }).addTo(mapRef.current);
-      }
-    } else if (circuloPrecisaoRef.current) {
-      circuloPrecisaoRef.current.remove();
-      circuloPrecisaoRef.current = null;
-    }
 
     if (userMarkerRef.current) {
       userMarkerRef.current.setLatLng([latitude, longitude]);
