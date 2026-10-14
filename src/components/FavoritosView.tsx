@@ -265,7 +265,7 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                     {(() => {
                       // Só com atraso indicado pelo operador em tempo real (nunca se adivinha)
                       const atraso = live?.nextDeparture ? parseDepartureTime(live.nextDeparture).delayMinutes : null;
-                      return atraso != null ? <EtiquetaAtraso minutos={atraso} horario={live?.nextDeparture?.scheduled_time} className="mt-1" /> : null;
+                      return atraso != null ? <EtiquetaAtraso minutos={atraso} className="mt-1" /> : null;
                     })()}
                   </div>
                 </div>

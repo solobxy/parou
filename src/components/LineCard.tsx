@@ -58,7 +58,7 @@ export const LineCard: React.FC<LineCardProps> = ({
           </div>
           {(paragemProxima || (mostrarOperador && line.operator) || atraso != null) && (
             <div className="flex items-center gap-1.5 min-w-0 text-xs text-[#6B6B6B] mt-0.5">
-              {atraso != null && <EtiquetaAtraso minutos={atraso} horario={proxima?.scheduled_time} />}
+              {atraso != null && <EtiquetaAtraso minutos={atraso} />}
               {(paragemProxima || (mostrarOperador && line.operator)) && (
                 <span className="truncate">
                   {[mostrarOperador ? line.operator : '', paragemProxima ? formatTransitName(paragemProxima) : ''].filter(Boolean).join(' · ')}

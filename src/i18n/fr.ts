@@ -793,6 +793,7 @@ export const FR: Record<string, string> = {
   'Ganhas pontos ao reportar ocorrências, publicar, responder e quando confirmam o que escreves.': 'Vous gagnez des points en signalant des incidents, en publiant, en répondant et quand d’autres confirment ce que vous écrivez.',
   'Tipo de peça': 'Type de pièce',
   '{nome} (bloqueado: {n} pontos)': '{nome} (verrouillé : {n} points)',
+  '{nome} ({n} pontos)': '{nome} ({n} points)',
   'Cor': 'Couleur',
   'Chapéu': 'Chapeau',
   'Cara': 'Visage',
