@@ -8,7 +8,8 @@ import {
   UserX,
   MessageCircle,
   Activity,
-  ShieldAlert
+  ShieldAlert,
+  Play
 } from 'lucide-react';
 import { UserProfile, Occurrence } from '../types';
 import { logout, apagarConta } from '../services/conta';
@@ -31,6 +32,8 @@ interface UserProfileModalProps {
   onOpenWhatsApp?: () => void;
   onOpenEstatisticas?: () => void;
   onOpenModeracao?: () => void;
+  /** TEMPORÁRIO (administração): ver o carrossel de boas-vindas */
+  onOpenBemVindo?: () => void;
   pendentesModeracao?: number;
 }
 
@@ -42,6 +45,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenWhatsApp,
   onOpenEstatisticas,
   onOpenModeracao,
+  onOpenBemVindo,
   pendentesModeracao,
 }) => {
   const [aApagar, setAApagar] = React.useState<'nao' | 'confirmar' | 'a-apagar'>('nao');
@@ -223,6 +227,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           >
             <ShieldAlert className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
             <span>Moderação (admin){pendentesModeracao ? ` · ${pendentesModeracao}` : ''}</span>
+          </button>
+        )}
+
+        {onOpenBemVindo && (eAdmin() || user?.admin) && (
+          <button
+            type="button"
+            onClick={onOpenBemVindo}
+            className="mt-3 w-full h-11 flex items-center justify-center gap-2 rounded-[10px] bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] text-[#111111] text-[14px] font-bold cursor-pointer"
+            data-teste="abrir-bemvindo"
+          >
+            <Play className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
+            <span>Ver boas-vindas (admin, temporário)</span>
           </button>
         )}
 
