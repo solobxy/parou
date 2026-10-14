@@ -36,19 +36,30 @@ function normalizar(t: string): string {
 
 // Carris Metropolitana: as viagens do horário estão no feed "cmh" com paragens e linhas "cmh:<id>", e a app (e a API)
 // usam "cm:<id>" (ver linesEngine). Aqui traduz-se de um lado para o outro para o percurso ter as paragens todas.
-const paraViagens = (id: string): string => (id.startsWith('cm:') ? `cmh:${id.slice(3)}` : id);
+// O tempo real da Carris Metropolitana traz a linha como "cm:[A2L1N]4436" e a viagem como "[ZLLEW][A2L1N]4436_0_1|1400|1520"
+// (com o código do padrão entre parênteses retos); no horário a linha é "cmh:4436" e a viagem "cmh:[ZLLEW][A2L1N]4436_0_1|1400|1520".
+const paraViagens = (id: string): string => (id.startsWith('cm:') ? `cmh:${id.slice(3).replace(/\[[^\]]*\]/g, '')}` : id);
 const PARAGEM_DA_APP = `CASE WHEN st.stop_id LIKE 'cmh:%' THEN 'cm:' || substr(st.stop_id, 5) ELSE st.stop_id END`;
 const LINHA_DA_APP = `CASE WHEN t.route_id LIKE 'cmh:%' THEN 'cm:' || substr(t.route_id, 5) ELSE t.route_id END`;
 
 /** Percurso de uma viagem (partida com trip_id) */
-export function percursoDeViagem(tripId: string, paragemId?: string): PercursoLinha | null {
+export function percursoDeViagem(tripIdPedido: string, paragemId?: string): PercursoLinha | null {
   const db = getDatabase();
-  const rows = db.prepare(`
+  const qViagem = db.prepare(`
     SELECT s.stop_id AS id, st.stop_sequence AS seq, st.arrival_secs AS chega, st.departure_secs AS parte,
            s.stop_name AS nome, s.stop_lat AS lat, s.stop_lon AS lon
     FROM stop_times st JOIN stops s ON s.stop_id = ${PARAGEM_DA_APP}
     WHERE st.trip_id = ? ORDER BY st.stop_sequence
-  `).all(tripId) as Array<{ id: string; seq: number; chega: number | null; parte: number | null; nome: string; lat: number; lon: number }>;
+  `);
+  type Linha = { id: string; seq: number; chega: number | null; parte: number | null; nome: string; lat: number; lon: number };
+  let tripId = tripIdPedido;
+  let rows = qViagem.all(tripId) as Linha[];
+  // Viagem do tempo real da Carris Metropolitana: no horário o código tem o prefixo "cmh:"
+  if (!rows.length && !tripId.startsWith('cmh:')) {
+    const alternativo = `cmh:${tripIdPedido}`;
+    const outras = qViagem.all(alternativo) as Linha[];
+    if (outras.length) { rows = outras; tripId = alternativo; }
+  }
   const paragens = rows
     .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon))
     .map((r) => ({ id: r.id, nome: String(r.nome || ''), lat: r.lat, lon: r.lon, hora: hm((r.chega ?? r.parte ?? 0)) }));
