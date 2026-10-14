@@ -153,7 +153,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <button
             type="button"
             onClick={onOpenFavoritos}
-            data-teste="abrir-favoritos"
+            data-teste="abrir-favoritos-perfil"
             className="mt-3 w-full min-h-[48px] px-3 py-2 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] hover:bg-[#ECECE8] flex items-center gap-2 text-left cursor-pointer"
           >
             <Star className="w-4 h-4 stroke-[2] shrink-0" aria-hidden="true" />
