@@ -580,8 +580,26 @@ export function getAllFeeds(): FeedItem[] {
   return SEED_FEEDS;
 }
 
-export function getFeedCalendarBounds(): Map<string, { firstDay: string | null; lastDay: string | null }> {
-  const map = new Map<string, { firstDay: string | null; lastDay: string | null }>();
+type LimitesCalendario = Map<string, { firstDay: string | null; lastDay: string | null }>;
+// Primeiro e último dia de horários de cada operador: a consulta agrupa o calendário todo (~13 ms) e era repetida em cada
+// pedido de partidas. Muda só quando a base é trocada; fica guardada 10 min e é apagada quando a base é recarregada.
+let limitesGuardados: { db: unknown; quando: number; mapa: LimitesCalendario } | null = null;
+registerCacheClearCallback(() => { limitesGuardados = null; });
+
+export function getFeedCalendarBounds(): LimitesCalendario {
+  try {
+    const db = getDatabase();
+    if (limitesGuardados && limitesGuardados.db === db && Date.now() - limitesGuardados.quando < 10 * 60_000) return limitesGuardados.mapa;
+    const mapa = calcularLimitesCalendario();
+    if (mapa.size > 0) limitesGuardados = { db, quando: Date.now(), mapa };
+    return mapa;
+  } catch {
+    return calcularLimitesCalendario();
+  }
+}
+
+function calcularLimitesCalendario(): LimitesCalendario {
+  const map: LimitesCalendario = new Map();
   try {
     const db = getDatabase();
     const rows = db.prepare(`
