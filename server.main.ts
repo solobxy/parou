@@ -787,6 +787,29 @@ app.get('/api/lines', async (req: Request, res: Response) => {
   }
 });
 
+// Quantas linhas tem cada cidade: o seletor das "minhas cidades" usa-o para dizer onde ainda não há horários
+let contagemCidades: { quando: number; dados: Record<string, number> } | null = null;
+app.get('/api/lines/cidades', async (_req: Request, res: Response) => {
+  try {
+    if (contagemCidades && Date.now() - contagemCidades.quando < 600_000) {
+      res.setHeader('Cache-Control', 'public, max-age=600');
+      return res.json({ cidades: contagemCidades.dados });
+    }
+    const dados: Record<string, number> = {};
+    for (const c of CIDADES) {
+      const rotas = linhasDasCidades([c.slug]);
+      if (!rotas) return res.json({ status: 'loading', isLoading: true, cidades: {} });
+      dados[c.slug] = rotas.size === 0 ? 0 : (await LinesEngine.searchLines(undefined, undefined, 1, 1, rotas)).total;
+    }
+    contagemCidades = { quando: Date.now(), dados };
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    return res.json({ cidades: dados });
+  } catch (err: any) {
+    console.error('[API /api/lines/cidades] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao contar as linhas das cidades.' });
+  }
+});
+
 app.get('/api/lines/:id', async (req: Request, res: Response) => {
   try {
     if (!isDadosProntosPronto()) {
@@ -1756,6 +1779,7 @@ import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
 import { cidadesValidas, linhasDasCidades } from './src/server/linhasDasCidades';
+import { CIDADES } from './src/data/cidades';
 import { DebugEngine } from './src/server/debugEngine';
 
 // 1. Unified Stop Details & Departures (Lists every line and operator serving it)

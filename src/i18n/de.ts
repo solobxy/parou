@@ -1155,4 +1155,8 @@ export const DE: Record<string, string> = {
   '{n} cidade escolhida.': '{n} Stadt gewählt.',
   '{n} cidades escolhidas (o máximo).': '{n} Städte gewählt (das Maximum).',
   '{n} cidades escolhidas.': '{n} Städte gewählt.',
+  'sem linhas ainda': 'noch keine Linien',
+  '{n} linha': '{n} Linie',
+  '{n} linhas': '{n} Linien',
+  'Ainda não temos linhas de {cidades}.': 'Für {cidades} haben wir noch keine Linien.',
 };
