@@ -1761,6 +1761,7 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
 
 // Percurso de uma linha (paragens por ordem, com coordenadas e horas) para desenhar no mapa:
 //   ?trip=<trip_id>&stop=<paragem de onde parte>[&rota=<route_id>&dest=<destino>]   (linhas com horários na base; rota e destino servem se o trip_id do tempo real não existir no horário)
+//   ?rota=<route_id>&stop=<paragem>&dest=<destino>   (sem trip_id: a viagem da mesma linha que acaba nesse destino; sem horas)
 //   ?route=<linha UNIR>&stop=<paragem>&sentido=<n>&destino=<texto>   (UNIR)
 app.get('/api/transit/percurso', (req: Request, res: Response) => {
   try {
@@ -1773,7 +1774,10 @@ app.get('/api/transit/percurso', (req: Request, res: Response) => {
       ? (percursoDeViagem(trip, stop || undefined) || (rota && stop ? percursoPorLinha(rota, txt(req.query.dest) || undefined, stop) : null))
       : route && stop
         ? percursoUnir(route, stop, txt(req.query.sentido) || undefined, txt(req.query.destino) || undefined)
-        : null;
+        // Partida sem viagem identificada (só se sabe a linha, o destino e a paragem): usa uma viagem da mesma linha
+        : rota && stop
+          ? percursoPorLinha(rota, txt(req.query.dest) || undefined, stop)
+          : null;
     if (!percurso) return res.status(404).json({ error: 'Percurso indisponível para esta linha.' });
     res.set('Cache-Control', 'public, max-age=300');
     return res.json(percurso);

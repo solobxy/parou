@@ -1109,6 +1109,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
     return () => { parar(); };
   }, []);
 
+  // Qualquer partida com linha e paragem (ou UNIR) abre o percurso, tenha ou não tempo real
+  const podeAbrirLinha = (dep: any): boolean =>
+    Boolean(dep?.tripId || (dep?.routeId && dep?.stopId) || (dep?.operatorId === 'unir' && dep?.unirLinha && dep?.unirParagem));
+
   // Tocar numa partida: mostra no mapa o percurso da linha e as suas paragens
   const abrirLinha = (dep: any) => {
     const pedido = ++pedidoLinhaRef.current;
@@ -1119,6 +1123,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
       url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}${dep.routeId ? `&rota=${encodeURIComponent(dep.routeId)}&dest=${encodeURIComponent(dep.destination || dep.headsign || '')}` : ''}`;
     } else if (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem) {
       url = `/api/transit/percurso?route=${encodeURIComponent(`unir:${dep.unirLinha}`)}&stop=${encodeURIComponent(`unir:${dep.unirParagem}`)}&sentido=${encodeURIComponent(dep.unirSentido || '')}&destino=${encodeURIComponent(dep.destination || '')}`;
+    } else if (dep.routeId && dep.stopId) {
+      // Sem viagem identificada: o servidor usa uma viagem da mesma linha que acabe neste destino
+      url = `/api/transit/percurso?rota=${encodeURIComponent(dep.routeId)}&stop=${encodeURIComponent(dep.stopId)}&dest=${encodeURIComponent(dep.destination || dep.headsign || '')}`;
     }
     if (!url) { setLinhaAberta({ ...base, estado: 'erro' }); return; }
     setLinhaAberta({ ...base, estado: 'a-carregar' });
@@ -1145,8 +1152,23 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const lon = Number(selectedStop?.longitude);
     if (selectedStop && isValidCoordinate(lat, lon)) safeFlyTo(mapRef.current, lat, lon, 16.5);
   };
-  // Mudar de paragem fecha o percurso aberto
-  useEffect(() => { pedidoLinhaRef.current++; setLinhaAberta(null); }, [selectedStop?.id]);
+  // Mudar de paragem fecha o percurso aberto (a não ser que se tenha tocado numa partida do cartão dessa paragem:
+  // aí abre-se logo o percurso dessa linha)
+  const linhaPendenteRef = useRef<{ stopId: string; dep: any } | null>(null);
+  useEffect(() => {
+    pedidoLinhaRef.current++;
+    setLinhaAberta(null);
+    const pendente = linhaPendenteRef.current;
+    linhaPendenteRef.current = null;
+    if (pendente && pendente.stopId === selectedStop?.id) abrirLinha(pendente.dep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStop?.id]);
+  // Tocar numa partida de um cartão da lista: abre a paragem e, nela, o percurso da linha
+  const abrirLinhaDoCartao = (stop: NearbyStopItem, dep: any) => {
+    if (selectedStop?.id === stop.id) { abrirLinha(dep); return; }
+    linhaPendenteRef.current = { stopId: stop.id, dep };
+    setSelectedStop(stop);
+  };
 
   // Percurso da linha desenhado no mapa: o que falta percorrer a laranja, o que já passou esbatido
   useEffect(() => {
@@ -2208,8 +2230,20 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         const lineColor = dep.lineColor || stop.lines?.[0]?.color;
                         const destination = destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name || stop.lines?.[0]?.name) || 'Destino';
 
+                        const podeAbrir = podeAbrirLinha(dep);
+                        const abrir = () => abrirLinhaDoCartao(stop, dep);
+
                         return (
-                          <div key={dIdx} className="py-2 flex items-center justify-between gap-3">
+                          <div
+                            key={dIdx}
+                            data-teste="partida-perto"
+                            role={podeAbrir ? 'button' : undefined}
+                            tabIndex={podeAbrir ? 0 : undefined}
+                            onClick={podeAbrir ? (e) => { e.stopPropagation(); abrir(); } : undefined}
+                            onKeyDown={podeAbrir ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); abrir(); } } : undefined}
+                            aria-label={podeAbrir ? `Ver o percurso da linha ${lineCode} para ${destination}` : undefined}
+                            className={`py-2 flex items-center justify-between gap-3 ${podeAbrir ? 'cursor-pointer active:bg-[#F4F4F2]' : ''}`}
+                          >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <LineChip number={lineCode} color={lineColor} />
                               <div className="min-w-0">
@@ -2219,24 +2253,27 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="mt-1" />}
                               </div>
                             </div>
-                            <div className="shrink-0 flex flex-col items-end text-right pl-2">
-                              <div className="flex items-center gap-1">
-                                {parsed.isRealtime && (
-                                  <Radio 
-                                    className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
-                                  />
+                            <div className="shrink-0 flex items-center gap-1 pl-2">
+                              <div className="flex flex-col items-end text-right">
+                                <div className="flex items-center gap-1">
+                                  {parsed.isRealtime && (
+                                    <Radio 
+                                      className={`w-3.5 h-3.5 stroke-[2] ${parsed.textColorClass}`} 
+                                    />
+                                  )}
+                                  <span 
+                                    className={`font-condensada text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
+                                  >
+                                    {parsed.bigText}
+                                  </span>
+                                </div>
+                                {parsed.subText && (
+                                  <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
+                                    {parsed.subText}
+                                  </span>
                                 )}
-                                <span 
-                                  className={`font-condensada text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
-                                >
-                                  {parsed.bigText}
-                                </span>
                               </div>
-                              {parsed.subText && (
-                                <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
-                                  {parsed.subText}
-                                </span>
-                              )}
+                              {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
                             </div>
                           </div>
                         );
@@ -2524,7 +2561,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     {sorted.map((dep: any, dIdx: number) => {
                       const parsed = parseDepartureTime(dep);
                       const destination = destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name) || 'Destino';
-                      const podeAbrir = Boolean(dep.tripId || (dep.operatorId === 'unir' && dep.unirLinha && dep.unirParagem));
+                      const podeAbrir = podeAbrirLinha(dep);
                       return (
                         <div
                           key={dIdx}
