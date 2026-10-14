@@ -74,3 +74,25 @@ export function marcarBemVindoVisto() {
 export function guardarBemVindoEmCurso(passo: number) {
   try { localStorage.setItem(CHAVE, `curso:${passo}`); } catch {}
 }
+
+// ---- Demonstração (administração) ----
+// Quem vê o carrossel pelo botão de administração não mexe no estado acima, mas se mudar de idioma a página recarrega:
+// guarda-se o passo só nesta aba (sessionStorage) e lê-se uma única vez ao carregar, para a demonstração continuar.
+const CHAVE_DEMO = 'parou_bemvindo_demo';
+
+function lerDemo(): number | null {
+  try {
+    const v = sessionStorage.getItem(CHAVE_DEMO);
+    if (v === null) return null;
+    sessionStorage.removeItem(CHAVE_DEMO);
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 1 && n < 20 ? n : null;
+  } catch { return null; }
+}
+
+/** Passo a retomar na demonstração depois de mudar de idioma (ou null) */
+export const BEM_VINDO_DEMO_AO_ABRIR: number | null = typeof window === 'undefined' ? null : lerDemo();
+
+export function guardarDemoEmCurso(passo: number) {
+  try { sessionStorage.setItem(CHAVE_DEMO, String(passo)); } catch {}
+}

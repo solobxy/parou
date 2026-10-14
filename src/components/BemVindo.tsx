@@ -6,7 +6,7 @@ import { Bandeira } from './Bandeira';
 import { Logo } from './Logo';
 import { LineChip } from './LineChip';
 import { Avatar } from './Avatar';
-import { guardarBemVindoEmCurso, marcarBemVindoVisto } from '../utils/bemVindo';
+import { guardarBemVindoEmCurso, guardarDemoEmCurso, marcarBemVindoVisto } from '../utils/bemVindo';
 
 // Boas-vindas em carrossel para quem abre a PAROU pela primeira vez: escolha de idioma e depois um passo por ideia
 // (Perto, vários destinos, Horários, Alertas e notícias, Comunidade, Conta). Pouco texto, ilustrações desenhadas com as
@@ -286,7 +286,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
   const escolherIdioma = (l: Idioma) => {
     if (l === idioma) { ir(1); return; }
     // Muda o idioma e a página recarrega: ao voltar, retoma no passo seguinte
-    if (!demo) guardarBemVindoEmCurso(1);
+    if (demo) guardarDemoEmCurso(1); else guardarBemVindoEmCurso(1);
     mudarIdioma(l);
   };
 
