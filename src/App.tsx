@@ -1328,6 +1328,7 @@ export default function App() {
         onOpenWhatsApp={() => { setIsUserProfileModalOpen(false); setIsWhatsAppOpen(true); }}
         onOpenEstatisticas={() => { setIsUserProfileModalOpen(false); setIsEstatisticasOpen(true); }}
         onOpenModeracao={() => { setIsUserProfileModalOpen(false); setIsAdminModalOpen(true); }}
+        onOpenBemVindo={() => { setIsUserProfileModalOpen(false); setBemVindo({ demo: true, passo: 0 }); }}
         pendentesModeracao={pendingModerationCount}
       /></React.Suspense>}
 

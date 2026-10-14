@@ -67,7 +67,7 @@ const CARTAO = 'bg-[#FFFFFF] border border-[#E6E6E3] rounded-[12px] shadow-[0_2p
 
 const Palco: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div
-    className="relative h-[208px] rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
+    className="relative flex-1 min-h-[208px] rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
     aria-hidden="true"
   >
     {children}
@@ -262,14 +262,20 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
   const raiz = useRef<HTMLDivElement>(null);
   const primeiraVez = useRef(true);
 
-  // Ao mudar de passo o foco acompanha: vai para o botão principal (ou para o 1.º idioma, no primeiro passo)
+  // Ao mudar de passo o foco acompanha, para não ficar num botão de um passo escondido.
+  // Quem usa o teclado (foco visível) vai para o botão principal (ou para o 1.º idioma, no primeiro passo);
+  // quem toca fica com o foco na janela, sem anel à volta de um botão que ninguém escolheu.
   useEffect(() => {
     if (primeiraVez.current) { primeiraVez.current = false; return; }
-    const caixa = raiz.current?.closest('[role="dialog"]');
-    const alvo = passo === 0
-      ? caixa?.querySelector<HTMLElement>('[data-primeiro-idioma]')
-      : caixa?.querySelector<HTMLElement>('footer [data-foco]');
-    alvo?.focus({ preventScroll: true });
+    const caixa = raiz.current?.closest<HTMLElement>('[role="dialog"]');
+    let teclado = false;
+    try { teclado = !!document.activeElement?.matches(':focus-visible'); } catch {}
+    const alvo = !teclado
+      ? caixa
+      : passo === 0
+        ? caixa?.querySelector<HTMLElement>('[data-primeiro-idioma]')
+        : caixa?.querySelector<HTMLElement>('footer [data-avancar]');
+    (alvo || caixa)?.focus({ preventScroll: true });
   }, [passo]);
 
   const ir = (n: number) => setPasso(Math.min(Math.max(0, n), total - 1));
@@ -331,7 +337,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
           )}
           <button
             type="button"
-            data-foco
+            data-avancar
             onClick={() => (ultimo ? fechar() : ir(passo + 1))}
             className={`flex-1 min-h-[48px] rounded-[12px] text-[15px] font-bold cursor-pointer ${ultimo ? 'bg-[#FF6B1A] text-[#111111] brand-chamfer' : 'bg-[#111111] text-[#FFFFFF]'}`}
           >
@@ -373,7 +379,6 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
                             type="button"
                             lang={l.lang}
                             tabIndex={ativo ? 0 : -1}
-                            data-foco={ativo && k === 0 ? true : undefined}
                             data-primeiro-idioma={k === 0 ? true : undefined}
                             data-teste={`bv-idioma-${l.id}`}
                             onClick={() => escolherIdioma(l.id)}
@@ -395,7 +400,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
               const Ilustracao = ILUSTRACAO[id];
               const txt = TEXTOS[id];
               return (
-                <section key={id} className="w-full shrink-0" aria-hidden={!ativo} aria-label={t(txt.titulo)} data-passo={id}>
+                <section key={id} className="w-full shrink-0 flex flex-col" aria-hidden={!ativo} aria-label={t(txt.titulo)} data-passo={id}>
                   <Ilustracao />
                   <h3 className="mt-4 font-condensada text-[27px] leading-[1.05] font-bold tracking-tight text-[#111111] text-balance">{t(txt.titulo)}</h3>
                   <p className="mt-1.5 text-[15px] leading-snug text-[#6B6B6B]">{t(txt.texto)}</p>
