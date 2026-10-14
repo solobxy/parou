@@ -813,7 +813,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6 min-h-[100dvh] lg:min-h-[75dvh]'}`}>
+      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6 min-h-[100dvh]'}`}>
         {/* Título da página (só para leitores de ecrã e motores de pesquisa) nos separadores que não têm título visível;
             os restantes (Notícias, Comunidade, Favoritos, Catálogo, Cobertura, Reclamações, páginas informativas e detalhe) já têm o seu h1 */}
         {!isNotFound && !paginaInfo && !selectedOccurrence && (activeNavTab === 'perto' || activeNavTab === 'horarios' || activeNavTab === 'mapa') && <h1 className="sr-only">

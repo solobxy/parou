@@ -1923,6 +1923,19 @@ async function startServer() {
       });
     }
 
+    // Pedidos mal formados (JSON inválido, corpo demasiado grande, endereço com erros): resposta curta
+    // e sem despejar a pilha de erros no registo (um robô podia enchê-lo com pedidos maus).
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      if (res.headersSent) return next(err);
+      const estado = Number(err?.status || err?.statusCode) || 500;
+      if (estado >= 400 && estado < 500) {
+        res.status(estado).json({ error: estado === 413 ? 'Pedido demasiado grande' : 'Pedido inválido' });
+        return;
+      }
+      console.error('[Erro]', String(err?.message || err).slice(0, 300));
+      res.status(500).json({ error: 'Erro interno' });
+    });
+
     // 2. REQUIREMENT 1: O servidor escuta IMEDIATAMENTE em 0.0.0.0 na porta process.env.PORT antes de qualquer importação
     const httpServer = app.listen(port, '0.0.0.0', () => {
       console.log(`[PAROU.PT Server] A escutar imediatamente em http://0.0.0.0:${port}`);
