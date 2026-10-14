@@ -48,6 +48,7 @@ import {
 import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
+import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { InputPesquisa } from './InputPesquisa';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
@@ -859,6 +860,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             isRealtime: d.state === 'TEMPO REAL',
             state: d.state,
             statusDescription: d.state_reason || d.state,
+            ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
           }));
           setPartidasExtra({ id, deps, aCarregar: false });
         })
@@ -2164,8 +2166,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
                           <div key={dIdx} className="py-2 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <LineChip number={lineCode} color={lineColor} />
-                              <div className="text-[15px] font-medium text-[#111111] leading-tight truncate">
-                                {destination}
+                              <div className="min-w-0">
+                                <div className="text-[15px] font-medium text-[#111111] leading-tight truncate">
+                                  {destination}
+                                </div>
+                                {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="mt-1" />}
                               </div>
                             </div>
                             <div className="shrink-0 flex flex-col items-end text-right pl-2">
@@ -2490,8 +2495,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               <div className="text-[15px] font-medium text-[#111111] truncate">
                                 {destination}
                               </div>
-                              {dep.operatorName && (
-                                <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>
+                              {(dep.operatorName || parsed.delayMinutes != null) && (
+                                <div className="flex items-center gap-1.5 min-w-0 text-xs text-[#6B6B6B]">
+                                  {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="my-0.5" />}
+                                  {dep.operatorName && <span className="truncate">{dep.operatorName}</span>}
+                                </div>
                               )}
                             </div>
                           </div>

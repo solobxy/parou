@@ -108,6 +108,33 @@ function contextoAgora(now: Date) {
   return agoraCache;
 }
 
+/** Atraso a partir do qual se avisa (o servidor só marca atraso acima de 1,5 min, que arredonda para 2) */
+const ATRASO_MINIMO_MIN = 2;
+/** Acima disto, quase de certeza a hora está trocada (viagem mal associada): não se mostra um atraso destes */
+const ATRASO_MAXIMO_MIN = 120;
+
+/**
+ * Atraso da partida, em minutos, ou null. Só conta quando a partida é em tempo real e a própria fonte (GPS do autocarro,
+ * API da STCP, previsões da Carris Metropolitana) diz quanto vem atrasada: o servidor envia-o em `delay_seconds`
+ * (partidas da paragem) ou `delay_minutes` (partidas da linha). Sem esse dado (horários, UNIR, CP, metros) não há
+ * etiqueta, porque não há como saber.
+ */
+export function atrasoConhecido(dep: any, isRealtime: boolean): number | null {
+  if (!dep || !isRealtime) return null;
+  if (/supr/i.test(String(dep.state || ''))) return null;
+  let min: number | null = null;
+  const segundos = dep.delay_seconds ?? dep.delaySeconds;
+  if (typeof segundos === 'number' && Number.isFinite(segundos)) {
+    // Mesma regra do servidor: mais de 1,5 min de atraso (90 s ou menos é a margem normal do GPS)
+    min = segundos > 90 ? Math.round(segundos / 60) : null;
+  } else {
+    const minutos = dep.delay_minutes ?? dep.delayMinutes;
+    if (typeof minutos === 'number' && Number.isFinite(minutos)) min = Math.round(minutos);
+  }
+  if (min === null || min < ATRASO_MINIMO_MIN || min > ATRASO_MAXIMO_MIN) return null;
+  return min;
+}
+
 export interface FormattedDeparture {
   minutesDiff: number;
   bigText: string;    // "4 min" ou "a chegar"
@@ -116,6 +143,8 @@ export interface FormattedDeparture {
   isRealtime: boolean;
   isOutdated: boolean;
   isUrgent: boolean;  // minutos até 5 min (urgência)
+  /** Minutos de atraso face ao horário, só quando a própria fonte em tempo real o indica (senão null: nunca se inventa) */
+  delayMinutes: number | null;
   textColor: string;  // "#C2410C" até 5 min, "#111111" acima disso
   textColorClass: string; // "text-[#C2410C]" até 5 min, "text-[#111111]" acima disso
 }
@@ -137,6 +166,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
       isRealtime: false,
       isOutdated: false,
       isUrgent: false,
+      delayMinutes: null,
       textColor: '#111111',
       textColorClass: 'text-[#111111]',
     };
@@ -301,6 +331,7 @@ export function parseDepartureTime(dep: any): FormattedDeparture {
     isRealtime,
     isOutdated,
     isUrgent,
+    delayMinutes: atrasoConhecido(dep, isRealtime),
     textColor,
     textColorClass,
   };

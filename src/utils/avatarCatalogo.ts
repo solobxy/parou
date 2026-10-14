@@ -210,7 +210,7 @@ export function validarAvatar(entrada: unknown, reputacao: number, tudoAberto = 
     const item = cat.itens.find((i) => i.id === v);
     if (!item) return { ok: false, erro: 'Avatar inválido.' };
     if (!pecaPermitida(item, exclusivas)) return { ok: false, erro: 'Uma das peças escolhidas não está disponível para a tua conta.' };
-    if (!tudoAberto && (item.rep || 0) > reputacao) return { ok: false, erro: 'Ainda não tens reputação para uma das peças escolhidas.' };
+    if (!tudoAberto && (item.rep || 0) > reputacao) return { ok: false, erro: 'Ainda não tens pontos para uma das peças escolhidas.' };
     config[cat.id] = v;
   }
   return { ok: true, config };

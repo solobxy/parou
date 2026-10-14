@@ -140,8 +140,8 @@ export const PontoDiario: React.FC<{ user: UserProfile | null }> = ({ user }) =>
 
   const titulo = pronto ? t('O teu ponto de hoje') : resgatadoAgora ? t('Ponto resgatado!') : t('Já resgataste o ponto de hoje');
   const subtitulo = pronto
-    ? t('Resgata 1 ponto de reputação para abrires peças novas no teu avatar.')
-    : tn(pontos, 'Tens {n} ponto de reputação.', 'Tens {n} pontos de reputação.');
+    ? t('Resgata 1 ponto para abrires peças novas no teu avatar.')
+    : tn(pontos, 'Tens {n} ponto.', 'Tens {n} pontos.');
 
   return (
     <>

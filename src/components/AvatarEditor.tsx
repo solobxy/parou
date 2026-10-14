@@ -68,7 +68,7 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
 
   const escolher = (cat: CategoriaId, id: string, rep?: number) => {
     if ((rep || 0) > pontos) {
-      mostrarAviso(t('Faltam {n} pontos de reputação para desbloquear esta peça.', { n: (rep as number) - pontos }));
+      mostrarAviso(t('Faltam {n} pontos para desbloquear esta peça.', { n: (rep as number) - pontos }));
       return;
     }
     if (cfg[cat] === id) return;
@@ -181,10 +181,10 @@ const Conteudo: React.FC<Omit<AvatarEditorProps, 'aberta'>> = ({ onFechar, avata
             <span className="text-[12.5px] text-[#6B6B6B] leading-tight">{t('Assim aparece nos comentários')}</span>
           </div>
 
-          {/* Reputação e próxima peça */}
+          {/* Pontos e próxima peça */}
           <div className="rounded-[12px] bg-[#F4F4F2] border border-[#E6E6E3] p-3 mt-1">
             <div className="flex items-baseline justify-between">
-              <span className="text-[13px] font-semibold text-[#111111]">{t('Reputação')}</span>
+              <span className="text-[13px] font-semibold text-[#111111]">{t('Pontos')}</span>
               <span className="font-condensada text-[24px] leading-none font-bold tabular-nums text-[#111111]">{pontosReais} <span className="text-[14px] text-[#6B6B6B]">{t('pts')}</span></span>
             </div>
             <div className="h-2 rounded-full bg-[#E6E6E3] mt-2 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progresso} aria-label={t('Progresso para a próxima peça')}>
