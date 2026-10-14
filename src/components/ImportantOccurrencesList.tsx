@@ -53,9 +53,9 @@ export const ImportantOccurrencesList: React.FC<ImportantOccurrencesListProps> =
                     {isSevere && (
                       <AlertTriangle className="w-3.5 h-3.5 text-[#D92D20] stroke-[2] shrink-0" />
                     )}
-                    <h4 className="text-sm font-semibold text-[#111111] truncate">
+                    <h3 className="text-sm font-semibold text-[#111111] truncate">
                       {item.title}
-                    </h4>
+                    </h3>
                   </div>
                   <div className="text-xs text-[#6B6B6B] mt-0.5 truncate">
                     {item.district}{item.concelho ? ` · ${item.concelho}` : ''}

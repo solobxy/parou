@@ -57,6 +57,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   });
   const [nearLines, setNearLines] = useState<ApiLineItem[]>(lastNearLines);
   const [isNearLoading, setIsNearLoading] = useState<boolean>(false);
+  // Já chegou (ou falhou) a primeira resposta das linhas perto? Até lá reserva-se o espaço, para a lista não saltar
+  const [nearPronto, setNearPronto] = useState<boolean>(lastNearLines.length > 0);
 
   // Favorites
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>(() => {
@@ -89,7 +91,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [allLinesTotal, setAllLinesTotal] = useState<number>(lastAllLinesTotal);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
-  const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(false);
+  // A carregar desde o início (quando ainda não há linhas guardadas), para não piscar "Sem linhas…" antes do primeiro pedido
+  const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(lastAllLines.length === 0);
 
   // DB Loading status ("A carregar horários… 12/29")
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
@@ -243,6 +246,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     } catch {
     } finally {
       setIsNearLoading(false);
+      setNearPronto(true);
       isNearFetchingRef.current = false;
     }
   }, [userCoords]);
@@ -596,7 +600,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         )}
 
         {/* Perto de si */}
-        {!aPesquisar && userCoords && (sortedNearLines.length > 0 || isDbLoading) && (
+        {!aPesquisar && userCoords && (sortedNearLines.length > 0 || isDbLoading || !nearPronto) && (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
@@ -618,7 +622,11 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             )}
 
             {/* A carregar durante importação ou próximas partidas (dos próximos 90 minutos) */}
-            {isDbLoading && sortedNearLines.length === 0 ? (
+            {!nearPronto && sortedNearLines.length === 0 && !isDbLoading ? (
+              <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden" aria-hidden="true">
+                {[0, 1, 2].map((i) => <div key={i} className="h-[76px] parou-esqueleto rounded-none" />)}
+              </div>
+            ) : isDbLoading && sortedNearLines.length === 0 ? (
               <div className="p-4 border border-[#E6E6E3] rounded-[8px] text-xs text-[#6B6B6B] flex items-center justify-center gap-2 bg-[#FFFFFF]">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2]" />
                 <span>{dbLoadingMessage || 'A carregar horários…'}</span>
