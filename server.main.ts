@@ -24,6 +24,7 @@ import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite, ipDe } from './src/server/limites';
+import { memoComJuncao } from './src/server/memoJuncao';
 import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
 import { registarCspScripts } from './src/server/cspScripts';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
@@ -1568,7 +1569,14 @@ app.get('/api/transit/destinations', async (req: Request, res: Response) => {
   }
 });
 
+const planosRecentes = memoComJuncao<Awaited<ReturnType<typeof planearViagem>>>({ max: 300, validadeMs: 20_000 });
 app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
+  // Cada planeamento ocupa o servidor entre 20 e 250 ms: por endereço, 60 por minuto chegam de sobra a uma pessoa
+  // (e 900 por minuto no total protegem todos os outros de um robô que use vários endereços).
+  if (!dentroDoLimite(`plano:${ipDe(req)}`, 60, 60_000) || !dentroDoLimite('plano', 900, 60_000)) {
+    res.setHeader('Retry-After', '30');
+    return res.status(429).json({ error: 'Demasiados pedidos de percurso. Tenta daqui a pouco.' });
+  }
   try {
     const originLat = Number(req.query.originLat);
     const originLon = Number(req.query.originLon);
@@ -1591,7 +1599,10 @@ app.get('/api/transit/plan-route', async (req: Request, res: Response) => {
     // ponte=0: a app já está a continuar uma viagem a partir de uma paragem da UNIR (não voltar a propor outra ponte)
     // nv=0|1|2: a app usa o modo geral da UNIR (combinações de qualquer tipo; o nível é a profundidade da continuação)
     const nv = req.query.nv === undefined ? undefined : Math.max(0, Math.min(2, Number(req.query.nv) || 0));
-    const routeData = await planearViagem(originLat, originLon, destLat, destLon, destName, quando, { ponte: String(req.query.ponte) !== '0', nivel: nv });
+    // Pedidos iguais ao mesmo tempo (duplo toque, atualizar) partilham o cálculo; o resultado fica 20 s em memória. Só vale para "agora":
+    // com hora marcada a chave leva a hora pedida.
+    const chavePlano = [originLat, originLon, destLat, destLon].map((n) => n.toFixed(5)).join(',') + `|${destName}|${quandoTxt || Math.floor(Date.now() / 20_000)}|${String(req.query.ponte)}|${nv ?? '-'}`;
+    const routeData = await planosRecentes(chavePlano, () => planearViagem(originLat, originLon, destLat, destLon, destName, quando, { ponte: String(req.query.ponte) !== '0', nivel: nv }));
     console.log(`[Planeador] ${routeData.routes.length} percursos + ${routeData.unir.length} UNIR + ${routeData.hibridas?.length || 0}/${routeData.pontes?.length || 0} híbridas + ${routeData.ligacoes?.length ?? '-'} gerais em ${Date.now() - t0} ms`);
     return res.json(routeData);
   } catch (err: any) {

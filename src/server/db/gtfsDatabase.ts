@@ -1393,44 +1393,70 @@ export function getFrequenciesForTrip(feedId: string, tripId: string) {
   }
 }
 
-export function getLinesServingStop(stopId: string): {
+export interface LinhaDaParagem {
   route_id: string;
   route_short_name: string;
   route_long_name: string;
   route_type: number;
   route_color?: string;
   feed_id: string;
-}[] {
+}
+
+// As linhas que servem uma paragem só mudam quando a base é trocada, mas calculá-las percorre todos os horários da
+// paragem (~1 ms cada; ~140 ms para o centro de Lisboa em cada abertura de "Perto"). Guarda-se o resultado por paragem,
+// ligado à ligação de base em uso (base nova = cache nova) e com validade de 6 h por segurança.
+const VALIDADE_LINHAS_MS = 6 * 3600_000;
+const MAX_LINHAS_GUARDADAS = 150_000;
+let linhasDb: unknown = null;
+let linhasDesde = 0;
+const linhasPorParagem = new Map<string, LinhaDaParagem[]>();
+registerCacheClearCallback(() => linhasPorParagem.clear());
+
+export function getLinesServingStop(stopId: string): LinhaDaParagem[] {
   try {
     const db = getDatabase();
-    const query = `
-      SELECT DISTINCT 
-        r.route_id, 
-        r.route_short_name, 
-        r.route_long_name, 
-        r.route_type, 
-        r.route_color,
-        r.feed_id
-      FROM stop_times st
-      JOIN trips t ON st.trip_id = t.trip_id
-      JOIN routes r ON t.route_id = r.route_id
-      WHERE st.stop_id = ?
-      LIMIT 50
-    `;
-    const linhas = db.prepare(query).all(stopId) as any[];
-    if (linhas.length > 0 || !stopId.startsWith('unir:')) return linhas;
-    // Operadores sem horários na base (UNIR): linhas da tabela stop_routes
-    try {
-      return db.prepare(`
-        SELECT DISTINCT r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color, r.feed_id
-        FROM stop_routes sr JOIN routes r ON r.route_id = sr.route_id
-        WHERE sr.stop_id = ? ORDER BY r.route_short_name LIMIT 50
-      `).all(stopId) as any[];
-    } catch {
-      return [];
+    if (linhasDb !== db || Date.now() - linhasDesde > VALIDADE_LINHAS_MS) {
+      linhasPorParagem.clear();
+      linhasDb = db;
+      linhasDesde = Date.now();
     }
+    const guardadas = linhasPorParagem.get(stopId);
+    if (guardadas) return guardadas;
+    const linhas = linhasDaParagemNaBase(db, stopId);
+    if (linhasPorParagem.size >= MAX_LINHAS_GUARDADAS) linhasPorParagem.clear();
+    linhasPorParagem.set(stopId, linhas);
+    return linhas;
   } catch (err: any) {
     if (err?.message?.includes('malformed')) reloadDatabaseConnection();
+    return [];
+  }
+}
+
+function linhasDaParagemNaBase(db: DatabaseSync, stopId: string): LinhaDaParagem[] {
+  const query = `
+    SELECT DISTINCT
+      r.route_id,
+      r.route_short_name,
+      r.route_long_name,
+      r.route_type,
+      r.route_color,
+      r.feed_id
+    FROM stop_times st
+    JOIN trips t ON st.trip_id = t.trip_id
+    JOIN routes r ON t.route_id = r.route_id
+    WHERE st.stop_id = ?
+    LIMIT 50
+  `;
+  const linhas = db.prepare(query).all(stopId) as any[];
+  if (linhas.length > 0 || !stopId.startsWith('unir:')) return linhas;
+  // Operadores sem horários na base (UNIR): linhas da tabela stop_routes
+  try {
+    return db.prepare(`
+      SELECT DISTINCT r.route_id, r.route_short_name, r.route_long_name, r.route_type, r.route_color, r.feed_id
+      FROM stop_routes sr JOIN routes r ON r.route_id = sr.route_id
+      WHERE sr.stop_id = ? ORDER BY r.route_short_name LIMIT 50
+    `).all(stopId) as any[];
+  } catch {
     return [];
   }
 }
