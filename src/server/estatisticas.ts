@@ -16,6 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
 import path from 'path';
 import { base, emTransacao } from './comunidade/baseDados';
+import { dentroDoLimite } from './limites';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const COOKIE_VISITA = 'parou_visita';
@@ -73,6 +74,12 @@ function bd(): DatabaseSync {
         PRIMARY KEY (dia, visitante)
       ) WITHOUT ROWID;
       CREATE INDEX IF NOT EXISTS idx_visitas_visitante ON visitas_dia (visitante, dia);
+      CREATE TABLE IF NOT EXISTS leituras_flyer (
+        dia TEXT NOT NULL,
+        local TEXT NOT NULL,
+        n INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (dia, local)
+      ) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS resumo_dia (
         dia TEXT PRIMARY KEY,
         visitantes INTEGER NOT NULL DEFAULT 0,
@@ -87,6 +94,18 @@ function bd(): DatabaseSync {
     pronto = true;
   }
   return b;
+}
+
+/** Conta uma leitura do código QR do flyer: só o dia e o sítio (nunca a pessoa, o IP ou o aparelho). */
+export function registarLeituraFlyer(local: string, agora = Date.now()): void {
+  const sitio = /^[a-z0-9-]{1,24}$/.test(local) ? local : 'geral';
+  bd().prepare('INSERT INTO leituras_flyer (dia, local, n) VALUES (?, ?, 1) ON CONFLICT(dia, local) DO UPDATE SET n = n + 1').run(diaDe(agora), sitio);
+}
+function resumoDoFlyer(hoje: string) {
+  const b = bd();
+  const soma = (desde: string) => Number((b.prepare('SELECT COALESCE(SUM(n), 0) AS c FROM leituras_flyer WHERE dia >= ?').get(desde) as any)?.c || 0);
+  const porLocal = Object.fromEntries((b.prepare('SELECT local AS k, SUM(n) AS c FROM leituras_flyer GROUP BY local ORDER BY c DESC LIMIT 20').all() as any[]).map((r) => [r.k, Number(r.c)]));
+  return { hoje: soma(hoje), ultimos7Dias: soma(somarDias(hoje, -6)), ultimos30Dias: soma(somarDias(hoje, -29)), total: soma('0000-00-00'), porLocal };
 }
 
 const resumirId = (idBruto: string) => crypto.createHash('sha256').update(idBruto).digest('hex').slice(0, 32);
@@ -292,6 +311,7 @@ export function resumoEstatisticas(agora = Date.now()) {
       pessoasQueUsaramEm3OuMaisDiasNosUltimos30: frequentes,
       percentagemDoMes: pct(frequentes, p30.pessoas),
     },
+    flyer: resumoDoFlyer(hoje),
     porOrigemUltimos30Dias: por('origem'),
     porIdiomaUltimos30Dias: por('idioma'),
     // Como chegam as pessoas novas: pela app ou por uma página pública do site (linha, paragem, greve…)
@@ -408,6 +428,19 @@ export function registarRotasEstatisticas(app: Express, opcoes: { eAdmin: (req: 
   const conferir = () => { try { verificarIntegridade(Date.now(), true); } catch (err: any) { console.warn('[Estatísticas] Erro ao conferir:', err?.message || err); } };
   setTimeout(conferir, 90_000).unref?.();
   setInterval(conferir, 24 * 3600_000).unref?.();
+
+  // Código QR do flyer: conta a leitura (só dia e sítio) e leva para a página inicial.
+  // /f é o flyer geral; /f/<sítio> serve para separar distribuições (ex.: /f/universidade).
+  const aoFlyer = (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const ua = String(req.headers['user-agent'] || '');
+      if (ua && !ROBOS.test(ua) && dentroDoLimite(`flyer:${ipDe(req)}`, 20, 3600_000)) registarLeituraFlyer(String(req.params.local || 'geral').toLowerCase());
+    } catch (err: any) { console.warn('[Estatísticas] Flyer:', err?.message || err); }
+    res.redirect(302, '/');
+  };
+  app.get('/f', aoFlyer);
+  app.get('/f/:local', aoFlyer);
 
   // A app avisa que foi aberta. Responde sempre 204 e nunca diz se contou ou não.
   app.post('/api/estatisticas/visita', (req: Request, res: Response) => {
