@@ -71,7 +71,7 @@ parou.pt`,
 
 Pergunta como está a tua linha, avisa do que está mal e agradece a quem ajudou. Sem anúncios.
 
-Participar dá reputação, e a reputação desbloqueia personagens, fundos e medalhas para o teu avatar.
+Participar dá pontos, e os pontos desbloqueiam personagens, fundos e medalhas para o teu avatar.
 
 🏅 Quem criar conta até 31/12/2026 fica com a medalha *Pioneiro*.
 
@@ -87,7 +87,7 @@ parou.pt/comunidade`,
 
 Escolhe entre 7 personagens (Paro, Estrela, Gato, Cato, Camaleão, Autocarro e Paragem) e veste-a com chapéus, óculos, roupas e objetos. Há 18 fundos para o teu ícone.
 
-Umas peças são livres; as outras abrem com reputação.
+Umas peças são livres; as outras abrem com pontos.
 
 parou.pt/comunidade`,
     imagens: ['/novidades/avatar-1.jpg', '/novidades/avatar-2.jpg'],
@@ -100,13 +100,13 @@ parou.pt/comunidade`,
     titulo: 'Chegaram as medalhas',
     texto: `🏅 *Chegaram as medalhas*
 
-São só para quem ganha reputação: coração e laço aos 50 pontos, estrela e trevo aos 75, roseta e escudo aos 100, diamante e medalha de ouro aos 200.
+São só para quem ganha pontos: coração e laço aos 50 pontos, estrela e trevo aos 75, roseta e escudo aos 100, diamante e medalha de ouro aos 200.
 
 Aparecem junto ao teu avatar nos comentários.
 
 parou.pt/comunidade`,
     imagens: ['/novidades/medalhas-1.jpg', '/novidades/medalhas-2.jpg'],
-    comunidade: 'Coração, laço, estrela, trevo, roseta, escudo, diamante e ouro. Ganham-se com reputação e aparecem junto ao teu avatar.',
+    comunidade: 'Coração, laço, estrela, trevo, roseta, escudo, diamante e ouro. Ganham-se com pontos e aparecem junto ao teu avatar.',
   },
   {
     id: 'alertas-noticias',
@@ -270,13 +270,13 @@ parou.pt`,
     titulo: 'Um ponto por dia, só por voltares',
     texto: `🎁 *Ponto diário na PAROU*
 
-Entra na tua conta e resgata 1 ponto de reputação por dia. Os pontos abrem peças novas para o teu avatar.
+Entra na tua conta e resgata 1 ponto por dia. Os pontos abrem peças novas para o teu avatar.
 ⏱️ Aparece um aviso pequeno quando abres a app; se o fechares, volta na próxima vez (ou resgatas no teu perfil, onde vês a contagem até ao próximo ponto)
 📆 Um ponto a cada 24 h, a contar do último que resgataste: se faltares, não acumula
 
 parou.pt`,
     imagens: ['/novidades/ponto-diario-1.jpg'],
-    comunidade: 'Já há ponto diário: quem tem conta resgata 1 ponto de reputação por dia (aparece um aviso pequeno ao abrir a app, e no perfil vê-se a contagem até ao próximo). Os pontos abrem peças novas do avatar.',
+    comunidade: 'Já há ponto diário: quem tem conta resgata 1 ponto por dia (aparece um aviso pequeno ao abrir a app, e no perfil vê-se a contagem até ao próximo). Os pontos abrem peças novas do avatar.',
   },
   {
     id: 'idiomas-de-fr',

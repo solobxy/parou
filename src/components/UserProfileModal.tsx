@@ -154,10 +154,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <ChevronRight className="w-4 h-4 text-[#6B6B6B] shrink-0" aria-hidden="true" />
         </button>
 
-        {/* Reputation strip */}
+        {/* Pontos e ocorrências */}
         <div className="grid grid-cols-2 gap-2 my-4">
           <div className="p-3 bg-[#F4F4F2] rounded-[8px] border border-[#E6E6E3]">
-            <span className="text-[11px] text-[#6B6B6B]">{t('Pontos de reputação')}</span>
+            <span className="text-[11px] text-[#6B6B6B]">{t('Pontos')}</span>
             <div className="font-condensada text-2xl font-bold text-[#111111] tabular-nums mt-0.5">
               {user.reputationPoints}
             </div>

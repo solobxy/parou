@@ -2,6 +2,7 @@ import React from 'react';
 import { Star, Radio, MapPin } from 'lucide-react';
 import { ApiLineItem } from '../services/transitApi';
 import { LineChip } from './LineChip';
+import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoGenerico } from '../utils/transitFormatter';
 import { t } from '../i18n';
 
@@ -37,6 +38,8 @@ export const LineCard: React.FC<LineCardProps> = ({
       ? destinosUteis.map(d => formatTransitName(d)).join(' ⇄ ')
       : formatTransitName(line.name || 'Destino');
   const paragemProxima: string | undefined = (proxima as any)?.stop_name || line.nearest_stop?.name;
+  // Atraso da próxima partida, só quando o operador o indica em tempo real
+  const atraso = proxima && proxima.state !== 'Sem dados' ? parseDepartureTime(proxima).delayMinutes : null;
 
   return (
     <div
@@ -53,9 +56,14 @@ export const LineCard: React.FC<LineCardProps> = ({
               {rawDest}
             </h3>
           </div>
-          {(paragemProxima || (mostrarOperador && line.operator)) && (
-            <div className="text-xs text-[#6B6B6B] truncate mt-0.5">
-              {[mostrarOperador ? line.operator : '', paragemProxima ? formatTransitName(paragemProxima) : ''].filter(Boolean).join(' · ')}
+          {(paragemProxima || (mostrarOperador && line.operator) || atraso != null) && (
+            <div className="flex items-center gap-1.5 min-w-0 text-xs text-[#6B6B6B] mt-0.5">
+              {atraso != null && <EtiquetaAtraso minutos={atraso} horario={proxima?.scheduled_time} />}
+              {(paragemProxima || (mostrarOperador && line.operator)) && (
+                <span className="truncate">
+                  {[mostrarOperador ? line.operator : '', paragemProxima ? formatTransitName(paragemProxima) : ''].filter(Boolean).join(' · ')}
+                </span>
+              )}
             </div>
           )}
         </div>

@@ -170,13 +170,13 @@ export const RASCUNHOS: Array<{ nome: string; tipo: TipoNovidade; titulo: string
     nome: 'Comunidade',
     tipo: 'novidade',
     titulo: 'Já há Comunidade na PAROU',
-    texto: 'Perguntas, queixas e elogios sobre os transportes, sem anúncios. Pergunta como está a tua linha, avisa do que está mal, agradece a quem ajudou.\n\nParticipar dá reputação, e a reputação desbloqueia personagens e peças para o teu avatar.\n\nparou.pt/comunidade',
+    texto: 'Perguntas, queixas e elogios sobre os transportes, sem anúncios. Pergunta como está a tua linha, avisa do que está mal, agradece a quem ajudou.\n\nParticipar dá pontos, e os pontos desbloqueiam personagens e peças para o teu avatar.\n\nparou.pt/comunidade',
   },
   {
     nome: 'Avatares',
     tipo: 'novidade',
     titulo: 'Escolhe a tua personagem',
-    texto: 'Há 7 personagens para o teu avatar: Paro, Estrela e Gato desde o início, e o Cato, o Camaleão, o Autocarro e a Paragem à medida que ganhas reputação. Todas se vestem com chapéus, óculos, roupas e objetos.',
+    texto: 'Há 7 personagens para o teu avatar: Paro, Estrela e Gato desde o início, e o Cato, o Camaleão, o Autocarro e a Paragem à medida que ganhas pontos. Todas se vestem com chapéus, óculos, roupas e objetos.',
   },
   {
     nome: 'Dica',

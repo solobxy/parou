@@ -1133,6 +1133,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         state: d.state,
         statusDescription: d.state_reason || d.state,
         isDelayed: d.is_delayed,
+        // Atraso indicado pela própria fonte em tempo real (GPS / API do operador); sem ele não há aviso de atraso
+        ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
       }));
 
       // Calculate real frequency between departures of the same line if multiple departures exist

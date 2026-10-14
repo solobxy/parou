@@ -16,6 +16,7 @@ import { CIDADES_OPTIONS } from '../data/mockData';
 import { LineChip } from './LineChip';
 import { InstalarApp } from './InstalarApp';
 import { formatTransitName, parseDepartureTime } from '../utils/transitFormatter';
+import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { t } from '../i18n';
 
 interface FavoritosViewProps {
@@ -261,6 +262,11 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
                     <p className="text-xs text-[#6B6B6B] mt-0.5 truncate">
                       {[formatTransitName(item.operatorName || item.locality || item.subtitle), live?.stopName ? formatTransitName(live.stopName) : ''].filter(Boolean).join(' · ')}
                     </p>
+                    {(() => {
+                      // Só com atraso indicado pelo operador em tempo real (nunca se adivinha)
+                      const atraso = live?.nextDeparture ? parseDepartureTime(live.nextDeparture).delayMinutes : null;
+                      return atraso != null ? <EtiquetaAtraso minutos={atraso} horario={live?.nextDeparture?.scheduled_time} className="mt-1" /> : null;
+                    })()}
                   </div>
                 </div>
 
