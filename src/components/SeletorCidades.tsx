@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, MapPin, Search, ChevronRight } from 'lucide-react';
 import { Folha } from './Folha';
 import { CIDADES } from '../data/cidades';
@@ -6,6 +6,25 @@ import { MAX_CIDADES, listaDeCidades } from '../utils/cidades';
 import { t, tn } from '../i18n';
 
 const semAcentos = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Quantas linhas tem cada cidade (vem do servidor; guarda-se enquanto a app está aberta)
+let contagens: Record<string, number> | null = null;
+function useContagens(aberto: boolean): Record<string, number> | null {
+  const [dados, setDados] = useState<Record<string, number> | null>(contagens);
+  useEffect(() => {
+    if (!aberto || contagens) return;
+    let cancelado = false;
+    fetch('/api/lines/cidades', { signal: AbortSignal.timeout(15000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        // (o servidor responde "a carregar" logo depois de arrancar: nesse caso fica sem números e tenta na próxima abertura)
+        if (j && !j.isLoading && j.cidades && Object.keys(j.cidades).length > 0) { contagens = j.cidades; if (!cancelado) setDados(j.cidades); }
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [aberto]);
+  return dados;
+}
 
 /** Janela para escolher as cidades (até MAX_CIDADES). Cada toque aplica logo. */
 export const SeletorCidades: React.FC<{
@@ -20,6 +39,7 @@ export const SeletorCidades: React.FC<{
     return CIDADES.filter((c) => !f || semAcentos(c.nome).includes(f));
   }, [filtro]);
   const cheio = escolhidas.length >= MAX_CIDADES;
+  const numeros = useContagens(aberto);
 
   const alternar = (slug: string) => {
     if (escolhidas.includes(slug)) onMudar(escolhidas.filter((s) => s !== slug));
@@ -91,12 +111,19 @@ export const SeletorCidades: React.FC<{
                 onClick={() => alternar(c.slug)}
                 className={`w-full min-h-[48px] flex items-center justify-between gap-3 text-left cursor-pointer disabled:cursor-default ${bloqueada ? 'opacity-40' : 'active:bg-[#F4F4F2]'}`}
               >
-                <span className="text-[15px] font-medium text-[#111111]">{c.nome}</span>
-                <span
-                  className={`shrink-0 w-6 h-6 rounded-[7px] border-2 flex items-center justify-center ${ativa ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#D4D4D0] text-transparent'}`}
-                  aria-hidden="true"
-                >
-                  <Check className="w-4 h-4 stroke-[3]" />
+                <span className="min-w-0 text-[15px] font-medium text-[#111111]">{c.nome}</span>
+                <span className="ml-auto flex items-center gap-3 shrink-0">
+                  {numeros && typeof numeros[c.slug] === 'number' && (
+                    <span className="text-[12.5px] text-[#6B6B6B] tabular-nums" data-teste="cidade-linhas">
+                      {numeros[c.slug] === 0 ? t('sem linhas ainda') : tn(numeros[c.slug], '{n} linha', '{n} linhas')}
+                    </span>
+                  )}
+                  <span
+                    className={`shrink-0 w-6 h-6 rounded-[7px] border-2 flex items-center justify-center ${ativa ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#D4D4D0] text-transparent'}`}
+                    aria-hidden="true"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  </span>
                 </span>
               </button>
             </li>

@@ -1155,4 +1155,8 @@ export const FR: Record<string, string> = {
   '{n} cidade escolhida.': '{n} ville choisie.',
   '{n} cidades escolhidas (o máximo).': '{n} villes choisies (le maximum).',
   '{n} cidades escolhidas.': '{n} villes choisies.',
+  'sem linhas ainda': 'pas encore de lignes',
+  '{n} linha': '{n} ligne',
+  '{n} linhas': '{n} lignes',
+  'Ainda não temos linhas de {cidades}.': 'Nous n’avons pas encore de lignes pour {cidades}.',
 };

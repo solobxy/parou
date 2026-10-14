@@ -776,7 +776,9 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           ) : allLines.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]" data-teste="sem-linhas">
               {cidadesEfetivas.length > 0
-                ? t('Nenhuma linha em {cidades} para esta pesquisa.', { cidades: listaDeCidades(cidadesEfetivas, t('e')) })
+                ? (aPesquisar || selectedMode !== 'Todos'
+                  ? t('Nenhuma linha em {cidades} para esta pesquisa.', { cidades: listaDeCidades(cidadesEfetivas, t('e')) })
+                  : t('Ainda não temos linhas de {cidades}.', { cidades: listaDeCidades(cidadesEfetivas, t('e')) }))
                 : t('Sem linhas para os filtros indicados.')}
               {cidadesEfetivas.length > 0 && (
                 <button
