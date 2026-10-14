@@ -1022,7 +1022,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         iconAnchor: [12, 12],
       });
 
-      userMarkerRef.current = L.marker([latitude, longitude], { icon: userIcon, interactive: false })
+      userMarkerRef.current = L.marker([latitude, longitude], { icon: userIcon, interactive: false, keyboard: false })
         .addTo(mapRef.current);
       pintarRumoRef.current?.(rumoAtual());
     }
@@ -2516,7 +2516,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       </aside>
 
       {/* Mapa */}
-      <main
+      <section
+        aria-label={t('Mapa')}
         ref={mapaElRef}
         className={`perto-mapa relative order-first lg:order-none w-full shrink-0 lg:shrink lg:flex-1 lg:h-full lg:max-h-none bg-[#F4F4F2] overflow-hidden select-none transition-[height] duration-300 ${
           !localizacaoPronta
@@ -2617,7 +2618,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <div className="my-auto w-full flex justify-center">{conviteLocalizacao()}</div>
           </div>
         )}
-      </main>
+      </section>
 
       {editor && (
         <EditorParagens

@@ -74,7 +74,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             <Compass className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
             <span>{t('Distrito')}</span>
           </div>
-          <select
+          <select aria-label={t('Distrito')}
             value={filters.distrito || 'Todos'}
             onChange={(e) => {
               const val = e.target.value;
@@ -100,7 +100,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             <MapPin className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
             <span>{t('Concelho')}</span>
           </div>
-          <select
+          <select aria-label={t('Concelho')}
             value={filters.concelho || 'Todos'}
             onChange={(e) => onFilterChange('concelho', e.target.value)}
             disabled={filters.distrito === 'Todos'}
@@ -123,7 +123,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             <Layers className="w-3.5 h-3.5 stroke-[2] text-[#111111] shrink-0" />
             <span>{t('Operador')}</span>
           </div>
-          <select
+          <select aria-label={t('Operador')}
             value={filters.operador || 'Todos'}
             onChange={(e) => onFilterChange('operador', e.target.value)}
             className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
@@ -150,7 +150,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             {/* Serviço */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
               <span className="text-xs text-[#111111]">{t('Serviço')}</span>
-              <select
+              <select aria-label={t('Serviço')}
                 value={filters.servico || 'Todos'}
                 onChange={(e) => onFilterChange('servico', e.target.value)}
                 className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
@@ -166,7 +166,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             {/* Tipo */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
               <span className="text-xs text-[#111111]">{t('Tipo de transporte')}</span>
-              <select
+              <select aria-label={t('Tipo de transporte')}
                 value={filters.tipoTransporte || 'Todos'}
                 onChange={(e) => onFilterChange('tipoTransporte', e.target.value)}
                 className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"
@@ -182,7 +182,7 @@ export const FiltersPanel: React.FC<FiltersPanelProps> = ({
             {/* Categoria */}
             <div className="flex items-center justify-between p-2 rounded-[8px] bg-[#F4F4F2] border border-[#E6E6E3]">
               <span className="text-xs text-[#111111]">{t('Categoria')}</span>
-              <select
+              <select aria-label={t('Categoria')}
                 value={filters.categoria || 'Todas'}
                 onChange={(e) => onFilterChange('categoria', e.target.value)}
                 className="bg-transparent text-xs text-[#111111] font-semibold text-right focus:outline-none cursor-pointer pr-1 max-w-[150px] truncate"

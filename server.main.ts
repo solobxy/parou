@@ -23,7 +23,7 @@ import {
 import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
-import { dentroDoLimite } from './src/server/limites';
+import { dentroDoLimite, ipDe } from './src/server/limites';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
@@ -71,11 +71,26 @@ dotenv.config();
 process.env.DISABLE_HMR = 'true';
 
 const app = express();
+app.disable('x-powered-by');
 app.use(compression());
 // Ninguém pode meter a PAROU dentro de outro site (proteção contra cliques enganadores)
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=()');
+  next();
+});
+// Parâmetros repetidos (?q=a&q=b) ou aninhados (?q[a]=1) deixavam de ser texto e partiam as rotas:
+// fica sempre o primeiro valor, e só se for texto.
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const q = req.query as Record<string, unknown>;
+  for (const k of Object.keys(q)) {
+    const v = q[k];
+    if (typeof v === 'string') continue;
+    q[k] = Array.isArray(v) && typeof v[0] === 'string' ? v[0] : '';
+  }
   next();
 });
 app.use(express.json({ limit: '2mb' }));
@@ -333,10 +348,29 @@ app.post('/api/public-sources/sync', async (req: Request, res: Response) => {
 });
 
 // Preview normalized live data without writing
+// A app pede isto ao abrir e sempre que muda um filtro: guarda-se o resultado 90 s e partilha-se
+// entre pedidos (antes, cada pedido ia buscar todas as fontes de novo, ~10 s de trabalho de cada vez).
+let previewFontes: { result: any; occurrences: any[] } | null = null;
+let previewFontesEm = 0;
+let previewFontesPendente: Promise<void> | null = null;
+function atualizarPreviewFontes(): Promise<void> {
+  if (!previewFontesPendente) {
+    previewFontesPendente = runAllPublicSourcesIngestion()
+      .then((d) => { previewFontes = d; previewFontesEm = Date.now(); })
+      .finally(() => { previewFontesPendente = null; });
+  }
+  return previewFontesPendente;
+}
 app.get('/api/public-sources/preview', async (req: Request, res: Response) => {
   try {
-    const { result, occurrences } = await runAllPublicSourcesIngestion();
-    return res.json({ result, occurrences });
+    const velho = !previewFontes || Date.now() - previewFontesEm > 90_000;
+    if (velho) {
+      const p = atualizarPreviewFontes();
+      if (!previewFontes) await p; // primeira vez: espera; depois serve a cópia e atualiza em segundo plano
+      else p.catch(() => {});
+    }
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.json({ result: previewFontes?.result, occurrences: previewFontes?.occurrences || [] });
   } catch (error: any) {
     return res.status(500).json({ error: 'Erro ao recolher antevisão de fontes públicas.' });
   }
@@ -1008,6 +1042,7 @@ app.post('/api/central-alerts/sync', async (req: Request, res: Response) => {
 });
 
 app.post('/api/central-alerts/notify-sent', (req: Request, res: Response) => {
+  if (!dentroDoLimite('notify-sent:' + ipDe(req), 120, 3600_000)) return res.status(429).json({ success: false });
   incrementNotificationCounter();
   return res.json({ success: true });
 });

@@ -84,6 +84,14 @@ const AdminModerationModal = React.lazy(() => import('./components/AdminModerati
 const PainelWhatsApp = React.lazy(() => import('./components/PainelWhatsApp').then((m) => ({ default: m.PainelWhatsApp })));
 const PainelEstatisticas = React.lazy(() => import('./components/PainelEstatisticas').then((m) => ({ default: m.PainelEstatisticas })));
 
+const FUNDO_PAGINA = (
+  <div className="p-4 space-y-3" aria-hidden="true">
+    <div className="parou-esqueleto h-10 w-2/3" />
+    <div className="parou-esqueleto h-24" />
+    <div className="parou-esqueleto h-24" />
+  </div>
+);
+
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
   const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'>('perto');
@@ -805,7 +813,11 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6'}`}>
+      <main className={`flex-1 w-full mx-auto overflow-x-clip ${activeNavTab === 'perto' ? 'p-0 max-w-none' : 'max-w-[1600px] px-3 sm:px-6 lg:px-8 py-3 sm:py-6 min-h-[75dvh]'}`}>
+        {/* Título da página (só para leitores de ecrã e motores de pesquisa): cada separador tem o seu */}
+        <h1 className="sr-only">
+          PAROU · {t(activeNavTab === 'perto' ? 'Perto' : activeNavTab === 'horarios' ? 'Horários' : activeNavTab === 'alertas' ? 'Notícias' : activeNavTab === 'comunidade' ? 'Comunidade' : activeNavTab === 'catalogo' ? 'Catálogo' : activeNavTab === 'favoritos' ? 'Favoritos' : activeNavTab === 'coverage' ? 'Cobertura' : 'Alertas')}
+        </h1>
         {/* Separador Alertas: convite para seguir o canal de WhatsApp (no lugar das antigas caixas "Tempo real" e filtros) */}
         {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
           <BotaoWhatsApp variante="cartao" className="mb-3 sm:mb-4" />
@@ -892,7 +904,7 @@ export default function App() {
             </div>
           ) : activeNavTab === 'catalogo' ? (
             <div className="max-w-6xl mx-auto py-2">
-              <React.Suspense fallback={null}><NationalTransitCatalogView
+              <React.Suspense fallback={FUNDO_PAGINA}><NationalTransitCatalogView
                 onBackToMap={() => handleTabSelect('mapa')}
                 onSelectOperatorForReports={(opName) => {
                   handleFilterChange('operador', opName);
@@ -902,14 +914,14 @@ export default function App() {
             </div>
           ) : activeNavTab === 'reclamacoes' ? (
             <div className="max-w-5xl mx-auto py-2">
-              <React.Suspense fallback={null}><ReclamacoesView
+              <React.Suspense fallback={FUNDO_PAGINA}><ReclamacoesView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
               /></React.Suspense>
             </div>
           ) : activeNavTab === 'comunidade' ? (
             <div className="py-2">
-              <React.Suspense fallback={null}><ComunidadeView
+              <React.Suspense fallback={FUNDO_PAGINA}><ComunidadeView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
                 minhasOcorrencias={userPersonalReports}
@@ -928,7 +940,7 @@ export default function App() {
             </div>
           ) : activeNavTab === 'coverage' ? (
             <div className="w-full mx-auto py-2">
-              <React.Suspense fallback={null}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
+              <React.Suspense fallback={FUNDO_PAGINA}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
             </div>
           ) : (
             /* Standard 3-Column Homepage with dynamic PortugalMap in the center */
@@ -1117,7 +1129,7 @@ export default function App() {
           {/* 4. Tab Catálogo Nacional */}
           {((activeMobileView === 'catalogo' && activeNavTab !== 'coverage') || activeNavTab === 'catalogo') && (
             <div className="space-y-3.5">
-              <React.Suspense fallback={null}><NationalTransitCatalogView
+              <React.Suspense fallback={FUNDO_PAGINA}><NationalTransitCatalogView
                 onBackToMap={() => handleTabSelect('mapa')}
                 onSelectOperatorForReports={(opName) => {
                   handleFilterChange('operador', opName);
@@ -1174,7 +1186,7 @@ export default function App() {
           {/* 5. View Reclamações (acessível pelo cabeçalho no mobile) */}
           {activeMobileView === 'reclamacoes' && (
             <div className="space-y-3.5">
-              <React.Suspense fallback={null}><ReclamacoesView
+              <React.Suspense fallback={FUNDO_PAGINA}><ReclamacoesView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
               /></React.Suspense>
@@ -1184,7 +1196,7 @@ export default function App() {
           {/* 6. Comunidade */}
           {activeMobileView === 'comunidade' && (
             <div>
-              <React.Suspense fallback={null}><ComunidadeView
+              <React.Suspense fallback={FUNDO_PAGINA}><ComunidadeView
                 currentUser={currentUserProfile}
                 onOpenLoginModal={() => setIsLoginModalOpen(true)}
                 minhasOcorrencias={userPersonalReports}
@@ -1197,7 +1209,7 @@ export default function App() {
           {/* View Cobertura (/coverage) no mobile */}
           {activeNavTab === 'coverage' && (
             <div className="space-y-3.5 pb-10">
-              <React.Suspense fallback={null}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
+              <React.Suspense fallback={FUNDO_PAGINA}><CoverageView onBackToMap={() => handleTabSelect('mapa')} /></React.Suspense>
             </div>
           )}
         </div>
@@ -1236,13 +1248,13 @@ export default function App() {
                 key={href}
                 href={href}
                 onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); abrir(); }}
-                className="text-[#6B6B6B] hover:text-[#111111] transition-colors"
+                className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center min-h-[28px]"
               >
                 {t(nome)}
               </a>
             ))}
-            <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{t('Linhas e horários')}</a>
-            <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{t('Greves')}</a>
+            <a href="/linhas" className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center min-h-[28px]">{t('Linhas e horários')}</a>
+            <a href="/greves" className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center min-h-[28px]">{t('Greves')}</a>
           </nav>
         </div>
         <div className="max-w-[1600px] mx-auto mt-4">
@@ -1253,7 +1265,7 @@ export default function App() {
               ['stcp', 'STCP'], ['metro-do-porto', 'Metro do Porto'], ['fertagus', 'Fertagus'], ['transtejo-soflusa', 'Transtejo e Soflusa'],
               ['mobicascais', 'MobiCascais'], ['metro-sul-do-tejo', 'Metro Sul do Tejo'], ['smtuc', 'SMTUC'], ['tub-braga', 'TUB Braga'],
             ].map(([slug, nome]) => (
-              <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors">{nome}</a>
+              <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center min-h-[28px]">{nome}</a>
             ))}
           </nav>
         </div>

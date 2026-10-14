@@ -270,9 +270,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     {isSevere && (
                       <AlertTriangle className="w-4 h-4 text-[#D92D20] stroke-[2] shrink-0" />
                     )}
-                    <h3 className="text-base font-semibold text-[#111111] leading-tight truncate">
+                    <p className="text-base font-semibold text-[#111111] leading-tight truncate">
                       {occ.title}
-                    </h3>
+                    </p>
                   </div>
 
                   <p className="text-xs text-[#6B6B6B] mt-1 line-clamp-1">

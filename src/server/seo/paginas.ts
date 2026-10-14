@@ -18,6 +18,7 @@ import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../da
 import { obterGreves, type GreveResumo } from '../alertasEngine';
 import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
 import { scriptVisita } from './scriptVisita';
+import { chipLegivel } from '../../utils/contraste';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -81,7 +82,7 @@ header.topo{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px so
 .marca{display:flex;align-items:center;gap:9px;text-decoration:none;font:700 24px/1 "Barlow Condensed",Barlow,sans-serif;letter-spacing:.06em}
 .btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:12px;background:#111;color:#fff;text-decoration:none;font-weight:600;font-size:15px;white-space:nowrap}
 .btn.laranja{background:#FF6B1A;color:#111}.btn.claro{background:#F4F4F2;color:#111}
-nav.migalhas{font-size:13px;color:#6B6B6B;margin:4px 0 10px;display:flex;flex-wrap:wrap;gap:4px}nav.migalhas a{color:#6B6B6B;text-decoration:none}nav.migalhas a:hover{text-decoration:underline}
+nav.migalhas{font-size:13px;color:#6B6B6B;margin:4px 0 10px;display:flex;flex-wrap:wrap;gap:4px}nav.migalhas a{color:#6B6B6B;text-decoration:none;display:inline-flex;align-items:center;min-height:24px}nav.migalhas a:hover{text-decoration:underline}
 h1{font-size:30px;line-height:1.12;margin:6px 0 10px;letter-spacing:-.01em}h2{font-size:20px;margin:28px 0 10px;line-height:1.2}h3{font-size:16px;margin:16px 0 8px}
 .sub{color:#4A4A4A;margin:0 0 14px}.nota{font-size:13px;color:#6B6B6B}
 .chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:28px;padding:0 8px;border-radius:7px;font:700 15px/1 "Barlow Condensed",Barlow,sans-serif;letter-spacing:.02em;color:#fff;background:#111;flex-shrink:0}
@@ -113,7 +114,7 @@ ul.lista li.fogo{padding:12px 14px}.fogo .l1{display:flex;flex-wrap:wrap;align-i
 .estado{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
 .estado:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 footer.rodape{border-top:1px solid #E6E6E3;background:#F4F4F2;color:#4A4A4A;font-size:14px}footer .in{max-width:880px;margin:0 auto;padding:22px 16px 30px}
-footer nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}footer a{text-decoration:none}footer a:hover{text-decoration:underline}
+footer nav{display:flex;flex-wrap:wrap;gap:4px 16px;margin:10px 0}footer nav a{display:inline-flex;align-items:center;min-height:28px}footer a{text-decoration:none}footer a:hover{text-decoration:underline}
 footer .idiomas{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}footer button.idioma{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:999px;padding:5px 14px 5px 10px;min-height:36px;cursor:pointer;opacity:.85;display:inline-flex;align-items:center;gap:8px}footer button.idioma:hover{opacity:1}footer button.idioma.ativo{opacity:1;font-weight:700;border-width:2px;cursor:default}footer button.idioma svg{width:24px;height:16px;border-radius:2px;box-shadow:0 0 0 1px rgba(128,128,128,.45);flex:none}
 @media(max-width:520px){h1{font-size:26px}.btn.esconde{display:none}}
 `;
@@ -127,7 +128,7 @@ html[data-tema=escuro] header.topo{background:#161618;border-color:#2A2A2E}
 html[data-tema=escuro] .btn{background:#F2F2F0;color:#111}
 html[data-tema=escuro] .btn.laranja{background:#FF6B1A;color:#111}
 html[data-tema=escuro] .btn.claro{background:#26262B;color:#F2F2F0}
-html[data-tema=escuro] nav.migalhas,html[data-tema=escuro] nav.migalhas a,html[data-tema=escuro] .nota,html[data-tema=escuro] .resumo span,html[data-tema=escuro] .lista .t small,html[data-tema=escuro] .lista .dir,html[data-tema=escuro] ol.percurso small,html[data-tema=escuro] .partidas .hora small,html[data-tema=escuro] .grelha small,html[data-tema=escuro] .fogo .meta,html[data-tema=escuro] details>summary:after,html[data-tema=escuro] h1 span[style]{color:#A9A9AF!important}
+html[data-tema=escuro] nav.migalhas,html[data-tema=escuro] nav.migalhas a,html[data-tema=escuro] .nota,html[data-tema=escuro] .resumo span,html[data-tema=escuro] .lista .t small,html[data-tema=escuro] .lista .dir,html[data-tema=escuro] ol.percurso small,html[data-tema=escuro] .partidas .hora small,html[data-tema=escuro] .grelha small,html[data-tema=escuro] .fogo .meta,html[data-tema=escuro] details>summary:after,html[data-tema=escuro] h1 span[style]:not(.chip){color:#A9A9AF!important}
 html[data-tema=escuro] .sub{color:#C9C9CD}
 html[data-tema=escuro] .chip{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
 html[data-tema=escuro] .cartao,html[data-tema=escuro] details{background:#1E1E21;border-color:#34343A}
@@ -154,7 +155,7 @@ html[data-tema=ambar] body{color:#2A170B;background-color:#FFE3C8;background-ima
 html[data-tema=ambar] header.topo{background:rgba(255,248,240,.72);border-color:rgba(255,255,255,.7);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)}
 html[data-tema=ambar] .btn{background:linear-gradient(180deg,#FF8A3D,#FF6B1A);color:#1F0F05;box-shadow:0 6px 16px rgba(255,107,26,.32)}
 html[data-tema=ambar] .btn.claro{background:rgba(255,250,245,.7);color:#2A170B;box-shadow:none;border:1px solid rgba(255,255,255,.8)}
-html[data-tema=ambar] nav.migalhas,html[data-tema=ambar] nav.migalhas a,html[data-tema=ambar] .nota,html[data-tema=ambar] .resumo span,html[data-tema=ambar] .lista .t small,html[data-tema=ambar] .lista .dir,html[data-tema=ambar] ol.percurso small,html[data-tema=ambar] .partidas .hora small,html[data-tema=ambar] .grelha small,html[data-tema=ambar] .fogo .meta,html[data-tema=ambar] details>summary:after,html[data-tema=ambar] h1 span[style]{color:#70513C!important}
+html[data-tema=ambar] nav.migalhas,html[data-tema=ambar] nav.migalhas a,html[data-tema=ambar] .nota,html[data-tema=ambar] .resumo span,html[data-tema=ambar] .lista .t small,html[data-tema=ambar] .lista .dir,html[data-tema=ambar] ol.percurso small,html[data-tema=ambar] .partidas .hora small,html[data-tema=ambar] .grelha small,html[data-tema=ambar] .fogo .meta,html[data-tema=ambar] details>summary:after,html[data-tema=ambar] h1 span[style]:not(.chip){color:#70513C!important}
 html[data-tema=ambar] .sub{color:#5A3B27}
 html[data-tema=ambar] .cartao,html[data-tema=ambar] details,html[data-tema=ambar] ul.lista,html[data-tema=ambar] .grelha a{background:rgba(255,250,245,.62);border-color:rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(160,80,20,.1);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 html[data-tema=ambar] .resumo div{background:rgba(255,250,245,.66);border:1px solid rgba(255,255,255,.8)}
@@ -249,22 +250,11 @@ ${o.script ? `<script>${o.script}</script>` : ''}
 </body></html>`;
 }
 
-function corTexto(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  if (!m) return '#fff';
-  const n = parseInt(m[1], 16);
-  // Preto ou branco, o que tiver mais contraste com o fundo (luminância relativa, WCAG)
-  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
-  const comBranco = 1.05 / (L + 0.05);
-  const comPreto = (L + 0.05) / (0.0137 + 0.05); // #111
-  return comPreto >= comBranco ? '#111' : '#fff';
-}
-
 function chip(l: Linha): string {
   const cor = /^#[0-9a-f]{6}$/i.test(l.cor) && l.cor.toLowerCase() !== '#ffffff' ? l.cor : '#111111';
   const txt = l.sigla || l.codigo.slice(0, 5);
-  return `<span class="chip" style="background:${cor};color:${corTexto(cor)}">${html(txt || '•')}</span>`;
+  const { fundo, texto } = chipLegivel(cor);
+  return `<span class="chip" style="background:${fundo};color:${texto}">${html(txt || '•')}</span>`;
 }
 
 function nomeLinha(l: Linha): string {
@@ -1346,7 +1336,7 @@ function linhaIncendio(i: IncidenteProtecaoCivil, comDistrito: boolean): string 
   const onde = [i.local, i.concelho && i.concelho !== i.local ? i.concelho : ''].filter(Boolean).join(', ');
   const sitio = [onde, comDistrito ? i.distrito : ''].filter(Boolean).join(' · ');
   const meta = [haQuanto(i.inicio), meiosTexto(i.meios)].filter(Boolean).join(' · ');
-  return `<li class="fogo"><div class="l1"><b>${html(i.natureza)}</b><span class="estado" style="background:#${cor};color:${corTexto('#' + cor)}">${html(estadoTexto(i))}</span></div>${sitio ? `<div class="onde">${html(sitio)}</div>` : ''}${meta ? `<div class="meta">${html(meta)}</div>` : ''}</li>`;
+  return `<li class="fogo"><div class="l1"><b>${html(i.natureza)}</b><span class="estado" style="background:${chipLegivel('#' + cor).fundo};color:${chipLegivel('#' + cor).texto}">${html(estadoTexto(i))}</span></div>${sitio ? `<div class="onde">${html(sitio)}</div>` : ''}${meta ? `<div class="meta">${html(meta)}</div>` : ''}</li>`;
 }
 
 function paginaIncendios(d?: Distrito): string {

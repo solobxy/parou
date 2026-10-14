@@ -314,6 +314,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         euMarcadorRef.current?.remove();
         euMarcadorRef.current = L.marker([latitude, longitude], {
           interactive: false,
+          keyboard: false,
           zIndexOffset: 2000,
           icon: L.divIcon({
             className: 'parou-eu',
@@ -589,7 +590,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
           iconAnchor: [tamanho / 2, tamanho / 2],
           popupAnchor: [0, -tamanho / 2],
         });
-        const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: p.gravidade === 'Grave' ? 1000 : 500 });
+        const marker = L.marker([p.lat, p.lon], { icon, title: String(p.titulo || ''), zIndexOffset: p.gravidade === 'Grave' ? 1000 : 500 });
         marcador = marker;
         // A janela só se monta quando alguém toca no ponto (antes montava-se uma por ponto, a cada zoom)
         marker.bindPopup(() => {

@@ -19,9 +19,9 @@ export const ImportantOccurrencesList: React.FC<ImportantOccurrencesListProps> =
     <div className="w-full rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] overflow-hidden">
       {/* Header */}
       <div className="p-3.5 bg-[#F4F4F2] border-b border-[#E6E6E3] flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#111111]">
+        <h2 className="text-sm font-bold text-[#111111]">
           {t('Ocorrências importantes')}
-        </h3>
+        </h2>
         <button
           onClick={onViewAll}
           className="text-xs font-semibold text-[#111111] hover:underline cursor-pointer min-h-[32px] flex items-center"

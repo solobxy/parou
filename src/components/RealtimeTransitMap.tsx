@@ -414,6 +414,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
             {/* Quick District Focus Dropdown */}
             <div className="relative">
               <select
+                aria-label="Escolher distrito"
                 value={selectedDistrictName || ''}
                 onChange={(e) => {
                   const d = ACCURATE_PORTUGAL_DISTRICTS.find(x => x.name === e.target.value);
@@ -482,6 +483,7 @@ export const RealtimeTransitMap: React.FC<RealtimeTransitMapProps> = ({
 
           {/* Agency Filter */}
           <select
+            aria-label="Operador"
             value={selectedAgency}
             onChange={(e) => handleAgencyChange(e.target.value)}
             className="px-3 py-2 bg-[#FFFFFF] border border-[#E6E6E3] rounded-[8px] text-xs text-[#111111] focus:outline-none focus:border-[#111111] shadow-sm cursor-pointer"
