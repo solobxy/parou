@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { filtroGps, type LeituraGps } from '../utils/filtroGps';
+import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -79,9 +81,9 @@ function esquecerPosicao() {
   try { localStorage.removeItem(CHAVE_ULTIMA_POSICAO); } catch {}
 }
 
-// Filtro de Kalman simples: junta as leituras do GPS pesando cada uma pela sua precisão.
-// Parado, o ponto deixa de "tremer"; a andar ou de autocarro, acompanha sem atraso notável.
-interface EstadoFiltro { lat: number; lon: number; variancia: number; t: number }
+// A posição do GPS passa por um filtro (utils/filtroGps.ts): pesa cada leitura pela sua precisão, usa a velocidade e o
+// rumo medidos pelo GPS, ignora leituras más e fica quase quieto quando se está parado. O ponto no mapa desliza a cada
+// fotograma (utils/posicaoSuave.ts); aqui só se guarda a posição filtrada, para o resto da app (paragens perto, distâncias).
 
 function metrosEntrePontos(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const dy = (lat2 - lat1) * 111_320;
@@ -89,22 +91,17 @@ function metrosEntrePontos(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.hypot(dx, dy);
 }
 
-function filtrarPosicao(prev: EstadoFiltro | null, lat: number, lon: number, acc: number, t: number, velMs: number | null): EstadoFiltro {
-  const medida = Math.max(acc, 3); // nenhum GPS de telemóvel é melhor do que ~3 m
-  const v2 = medida * medida;
-  if (!prev) return { lat, lon, variancia: v2, t };
-  // A mesma leitura chegou por dois caminhos (pedido único + vigilância): conta uma vez
-  if (t <= prev.t) return prev;
-  const dt = (t - prev.t) / 1000;
-  const d = metrosEntrePontos(prev.lat, prev.lon, lat, lon);
-  // Salto grande (GPS que acordou, viagem rápida): recomeça nesta leitura em vez de arrastar o ponto
-  if (dt > 30 || d > Math.max(60, 4 * (medida + Math.sqrt(prev.variancia)))) return { lat, lon, variancia: v2, t };
-  // Quanto mais depressa se anda, menos se confia na posição anterior
-  const vel = velMs !== null && Number.isFinite(velMs) ? velMs : d / Math.max(dt, 1);
-  const q = Math.min(30, Math.max(3, vel * 1.5 + 2));
-  const variancia = prev.variancia + dt * q * q;
-  const k = variancia / (variancia + v2);
-  return { lat: prev.lat + (lat - prev.lat) * k, lon: prev.lon + (lon - prev.lon) * k, variancia: (1 - k) * variancia, t };
+/** Leitura do browser no formato do filtro (velocidade e rumo só se o telemóvel os der) */
+function leituraDoBrowser(position: GeolocationPosition): LeituraGps {
+  const c = position.coords;
+  return {
+    lat: Number(c.latitude),
+    lon: Number(c.longitude),
+    precisao: Number(c.accuracy),
+    t: Number(position.timestamp) || Date.now(),
+    velocidade: typeof c.speed === 'number' && Number.isFinite(c.speed) && c.speed >= 0 ? c.speed : null,
+    rumo: typeof c.heading === 'number' && Number.isFinite(c.heading) ? c.heading : null,
+  };
 }
 
 export function useUserLocation() {
@@ -118,14 +115,13 @@ export function useUserLocation() {
 
   const watchIdRef = useRef<number | null>(null);
   const previousCoordsRef = useRef<UserCoords | null>(memoriaPosicao && !memoriaPosicao.isManual ? memoriaPosicao : null);
-  const filtroRef = useRef<EstadoFiltro | null>(null);
   // O que o ecrã já recebeu: só se avisa a página quando há mudança que se veja (poupa trabalho ao telemóvel)
   const emitidoRef = useRef<UserCoords | null>(memoriaPosicao);
   const statusAtualRef = useRef<LocationPermissionStatus>(status);
   statusAtualRef.current = status;
   const setCoords = useCallback((c: UserCoords | null) => {
     emitidoRef.current = c;
-    if (!c || c.isManual) filtroRef.current = null; // posição nova à mão ou perdida: o filtro recomeça
+    if (!c || c.isManual) reiniciarPosicaoSuave(); // posição nova à mão ou perdida: o filtro recomeça
     lembrarPosicao(c);
     setCoordsEstado(c);
   }, []);
@@ -172,35 +168,22 @@ export function useUserLocation() {
         return;
       }
 
-      const accuracy = Math.round(position.coords.accuracy || 10);
-      const timestamp = position.timestamp || Date.now();
+      // Filtro: junta a leitura ao que já se sabe (velocidade, precisão, rumo). Se a leitura foi posta de parte
+      // (repetida, antiga, ou "por rede" com o GPS bom), fica a estimativa atual.
+      const est = filtroGps.atualizar(leituraDoBrowser(position)) ?? filtroGps.atual();
+      if (!est) return;
+      const rumoBruto = position.coords.heading;
       const newCoords: UserCoords = {
-        latitude: lat,
-        longitude: lon,
-        accuracy,
-        heading: position.coords.heading,
-        speed: position.coords.speed ? Math.round(position.coords.speed * 3.6) : null,
-        timestamp,
+        latitude: est.lat,
+        longitude: est.lon,
+        accuracy: Math.round(est.precisao),
+        heading: est.rumo ?? (typeof rumoBruto === 'number' && Number.isFinite(rumoBruto) ? rumoBruto : null),
+        speed: Math.round(est.velocidade * 3.6),
+        timestamp: est.t,
         source,
         isManual: false,
       };
-
-      // Uma leitura aproximada (rede) não substitui uma melhor e recente do GPS
-      const anterior = previousCoordsRef.current;
-      if (
-        anterior && !anterior.isManual && gpsNestaSessao &&
-        newCoords.accuracy > anterior.accuracy * 2 && newCoords.accuracy > 60 &&
-        Date.now() - anterior.timestamp < 60_000
-      ) {
-        return;
-      }
-
-      // Posição suavizada: cada leitura pesa conforme a sua precisão (o ponto deixa de saltar)
-      const velMs = typeof position.coords.speed === 'number' && Number.isFinite(position.coords.speed) ? position.coords.speed : null;
-      const filtrada = filtrarPosicao(filtroRef.current, lat, lon, accuracy, timestamp, velMs);
-      filtroRef.current = filtrada;
-      newCoords.latitude = filtrada.lat;
-      newCoords.longitude = filtrada.lon;
+      const timestamp = newCoords.timestamp;
 
       gpsNestaSessao = true;
       previousCoordsRef.current = newCoords;
@@ -271,7 +254,7 @@ export function useUserLocation() {
             handlePositionError(err);
           }
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 2000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
       watchIdRef.current = id;
       setFollowMode(true);
@@ -336,18 +319,18 @@ export function useUserLocation() {
             return;
           }
 
+          const est = filtroGps.atualizar(leituraDoBrowser(pos)) ?? filtroGps.atual();
           const freshCoords: UserCoords = {
-            latitude: lat,
-            longitude: lon,
-            accuracy: Math.round(pos.coords.accuracy || 10),
-            heading: pos.coords.heading,
-            speed: pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : null,
-            timestamp: pos.timestamp || Date.now(),
+            latitude: est ? est.lat : lat,
+            longitude: est ? est.lon : lon,
+            accuracy: est ? Math.round(est.precisao) : Math.round(pos.coords.accuracy || 10),
+            heading: est?.rumo ?? (typeof pos.coords.heading === 'number' && Number.isFinite(pos.coords.heading) ? pos.coords.heading : null),
+            speed: est ? Math.round(est.velocidade * 3.6) : null,
+            timestamp: est ? est.t : (pos.timestamp || Date.now()),
             source: 'gps_high',
             isManual: false,
           };
           setCoords(freshCoords);
-          filtroRef.current = { lat, lon, variancia: Math.max(freshCoords.accuracy, 3) ** 2, t: freshCoords.timestamp };
           setStatus('active');
           setErrorMessage(null);
           setIsRefreshingGps(false);
