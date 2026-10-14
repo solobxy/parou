@@ -27,7 +27,7 @@ import { RecentOccurrencesFeed } from './components/RecentOccurrencesFeed';
 import { ReportsView } from './components/ReportsView';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { fecharJanelas, navegarHistorico } from './utils/janelas';
-import { BEM_VINDO_AO_ABRIR } from './utils/bemVindo';
+import { BEM_VINDO_AO_ABRIR, BEM_VINDO_DEMO_AO_ABRIR } from './utils/bemVindo';
 import { ReportDetailPage } from './components/ReportDetailPage';
 import { PertoView } from './components/PertoView';
 import { NotificationModal } from './components/NotificationModal';
@@ -238,6 +238,11 @@ export default function App() {
   // Boas-vindas em carrossel: só a quem abre a PAROU pela primeira vez (ver utils/bemVindo.ts); o administrador vê-as quando quiser
   const [bemVindo, setBemVindo] = useState<{ demo: boolean; passo: number } | null>(null);
   useEffect(() => {
+    // Demonstração de administração a meio de uma mudança de idioma: continua onde estava
+    if (BEM_VINDO_DEMO_AO_ABRIR !== null) {
+      const id = setTimeout(() => setBemVindo({ demo: true, passo: BEM_VINDO_DEMO_AO_ABRIR }), 250);
+      return () => clearTimeout(id);
+    }
     if (!BEM_VINDO_AO_ABRIR.mostrar) return;
     const passo = BEM_VINDO_AO_ABRIR.passo;
     // Deixa o início aparecer primeiro; ao retomar depois de mudar de idioma abre quase logo
