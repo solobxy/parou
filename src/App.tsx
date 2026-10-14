@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { 
   AlertTriangle, 
   MapPin, 
@@ -92,10 +92,24 @@ const FUNDO_PAGINA = (
   </div>
 );
 
+const ABAS_POR_CAMINHO: Record<string, 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'> = {
+  '/': 'perto', '/perto': 'perto', '/mapa': 'mapa', '/transportes': 'horarios', '/horarios': 'horarios',
+  '/ocorrencias': 'reports', '/reports': 'reports', '/atrasos': 'reports', '/greves': 'reports', '/acidentes': 'reports',
+  '/avarias': 'reports', '/cortes': 'reports', '/interrupcoes': 'reports', '/catalogo': 'catalogo', '/favoritos': 'favoritos',
+  '/reclamacoes': 'reclamacoes', '/alertas': 'alertas', '/coverage': 'coverage', '/cobertura': 'coverage',
+};
+function abaDoEndereco(): 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage' {
+  if (typeof window === 'undefined') return 'perto';
+  const caminho = window.location.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  if (/^\/comunidade(\/pub-[a-z0-9]{1,12}-[a-f0-9]{10})?$/.test(caminho)) return 'comunidade';
+  return ABAS_POR_CAMINHO[caminho] || 'perto';
+}
+
 export default function App() {
   // Navigation & View state - abrir sempre inicialmente a aba 'perto' em vez do mapa
-  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'>('perto');
-  const [activeMobileView, setActiveMobileView] = useState<MobileTab>('perto');
+  // O separador certo logo na primeira imagem (sem passar pelo "Perto" e saltar): o resto da rota é resolvido antes de pintar
+  const [activeNavTab, setActiveNavTab] = useState<'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'>(abaDoEndereco);
+  const [activeMobileView, setActiveMobileView] = useState<MobileTab>(() => (abaDoEndereco() === 'coverage' ? 'catalogo' : abaDoEndereco()) as MobileTab);
   // Ecrã grande (computador) ou telemóvel: só um dos dois layouts é montado
   const [ecraGrande, setEcraGrande] = useState<boolean>(() => {
     try { return window.matchMedia('(min-width: 1024px)').matches; } catch { return false; }
@@ -760,8 +774,8 @@ export default function App() {
     aplicarMetaRota(pathname);
   }, [handleFilterChange]);
 
-  // Only resolve route on initial mount and real browser popstate events
-  useEffect(() => {
+  // Só resolve a rota no arranque e nos eventos reais de navegação do browser (antes da primeira pintura, para não haver saltos)
+  useLayoutEffect(() => {
     resolveRouteFromPath();
     const handlePopState = () => {
       resolveRouteFromPath();
