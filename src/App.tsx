@@ -905,6 +905,7 @@ export default function App() {
                 }}
                 onAbrirFavoritos={() => handleTabSelect('favoritos')}
                 totalFavoritos={favoritesTotalCount}
+                onAbrirPrivacidade={() => abrirPaginaInfo('privacidade')}
               />
             </div>
           ) : activeNavTab === 'horarios' ? (
@@ -1121,6 +1122,7 @@ export default function App() {
                 }}
                 onAbrirFavoritos={() => handleTabSelect('favoritos')}
                 totalFavoritos={favoritesTotalCount}
+                onAbrirPrivacidade={() => abrirPaginaInfo('privacidade')}
               />
             </div>
           )}

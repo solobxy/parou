@@ -25,6 +25,7 @@ export const CHAVES_DADOS_UTILIZADOR = [
   'parou_alertas_area',
   'parou_notification_preferences_v1',
   'parou_central_alerts_prefs_v1',
+  'parou_cidades',
 ];
 const MAX_VALOR = 200_000;
 

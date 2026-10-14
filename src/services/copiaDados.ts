@@ -11,6 +11,7 @@ const CHAVES = [
   'parou_alertas_area',
   'parou_notification_preferences_v1',
   'parou_central_alerts_prefs_v1',
+  'parou_cidades',
 ];
 const CHAVE_ATUALIZADO = 'parou_dados_atualizado';
 const URL = '/api/dados-utilizador';

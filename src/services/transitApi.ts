@@ -729,11 +729,13 @@ export async function searchAllLines(
   q?: string,
   mode?: string,
   page = 1,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  cidades?: string[]
 ): Promise<{ lines: ApiLineItem[]; total: number; page: number; total_pages: number; isLoading?: boolean; message?: string }> {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (mode && mode !== 'Todos') params.set('mode', mode);
+  if (cidades && cidades.length) params.set('cidades', cidades.join(','));
   params.set('page', String(page));
   const reqSignal = signal || AbortSignal.timeout(15000);
   const res = await fetch(`/api/lines?${params.toString()}`, { signal: reqSignal });

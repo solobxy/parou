@@ -27,6 +27,8 @@ import { LineCard } from './LineCard';
 import { LineDetailModal } from './LineDetailModal';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
+import { SeletorCidades, BotaoCidades } from './SeletorCidades';
+import { useCidades, lerCidades, listaDeCidades } from '../utils/cidades';
 import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
 import { t, tn } from '../i18n';
 
@@ -43,6 +45,7 @@ interface HorariosViewProps {
 let lastNearLines: ApiLineItem[] = [];
 let lastAllLines: ApiLineItem[] = [];
 let lastAllLinesTotal = 0;
+let lastAllLinesCidades = '';
 
 export const HorariosView: React.FC<HorariosViewProps> = ({ 
   filters: propFilters,
@@ -94,12 +97,23 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [isFavLoading, setIsFavLoading] = useState<boolean>(false);
 
   // All lines
-  const [allLines, setAllLines] = useState<ApiLineItem[]>(lastAllLines);
-  const [allLinesTotal, setAllLinesTotal] = useState<number>(lastAllLinesTotal);
+  // "As minhas cidades": os Horários mostram só as linhas que passam nelas (vazio = todo o país).
+  // "ampliar" deixa procurar em todo o país só desta vez, sem mexer na escolha.
+  const [cidades, mudarCidades] = useCidades();
+  const [ampliar, setAmpliar] = useState(false);
+  const [seletorAberto, setSeletorAberto] = useState(false);
+  const cidadesEfetivas = ampliar ? [] : cidades;
+  const cidadesChave = cidadesEfetivas.join(',');
+  const cidadesRef = useRef<string[]>(cidadesEfetivas);
+  cidadesRef.current = cidadesEfetivas;
+  // As linhas guardadas do módulo só servem se eram das mesmas cidades
+  const [cacheServe] = useState<boolean>(() => lastAllLines.length > 0 && lastAllLinesCidades === lerCidades().join(','));
+  const [allLines, setAllLines] = useState<ApiLineItem[]>(cacheServe ? lastAllLines : []);
+  const [allLinesTotal, setAllLinesTotal] = useState<number>(cacheServe ? lastAllLinesTotal : 0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   // A carregar desde o início (quando ainda não há linhas guardadas), para não piscar "Sem linhas…" antes do primeiro pedido
-  const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(lastAllLines.length === 0);
+  const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(!cacheServe);
 
   // DB Loading status ("A carregar horários… 12/29")
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
@@ -107,7 +121,9 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
 
   // Request concurrency guards e retry backoff (Regra 5)
   const isNearFetchingRef = useRef<boolean>(false);
-  const isAllLinesFetchingRef = useRef<boolean>(false);
+  // Pedido das "todas as linhas": o mais recente ganha (mudar de cidades ou de pesquisa cancela o anterior)
+  const pedidoTodasRef = useRef<number>(0);
+  const abortarTodasRef = useRef<AbortController | null>(null);
   const retryAttemptRef = useRef<number>(0);
 
   // Line Detail Modal (abre logo se o endereço trouxer ?linha=…, ex.: vindo da página pública da linha)
@@ -268,13 +284,18 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     return () => clearInterval(t);
   }, [loadNearLines]);
 
-  // Load all lines com timeout de 15s e sem sobreposição de pedidos (Regra 5)
+  // Load all lines com timeout de 15s; o pedido mais recente ganha e os antigos são cancelados (Regra 5)
   const loadAllLines = useCallback(async (q?: string, mode?: string, page = 1) => {
-    if (isAllLinesFetchingRef.current) return;
-    isAllLinesFetchingRef.current = true;
+    const meu = ++pedidoTodasRef.current;
+    abortarTodasRef.current?.abort();
+    const ctrl = new AbortController();
+    abortarTodasRef.current = ctrl;
+    const limite = setTimeout(() => ctrl.abort(), 15000);
+    const cidadesPedidas = cidadesRef.current;
     setIsAllLinesLoading(true);
     try {
-      const res = await searchAllLines(q, mode, page, AbortSignal.timeout(15000));
+      const res = await searchAllLines(q, mode, page, ctrl.signal, cidadesPedidas);
+      if (meu !== pedidoTodasRef.current) return;
       if (res.isLoading) {
         setIsDbLoading(true);
         if (res.message) setDbLoadingMessage(res.message);
@@ -284,6 +305,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         if (res.lines) {
           lastAllLines = res.lines;
           lastAllLinesTotal = res.total || 0;
+          lastAllLinesCidades = cidadesPedidas.join(',');
           setAllLines(res.lines);
           setAllLinesTotal(res.total || 0);
           setCurrentPage(res.page || page);
@@ -292,10 +314,19 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       }
     } catch {
     } finally {
-      setIsAllLinesLoading(false);
-      isAllLinesFetchingRef.current = false;
+      clearTimeout(limite);
+      if (meu === pedidoTodasRef.current) setIsAllLinesLoading(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cidadesChave]);
+
+  // Mudou a escolha das cidades: volta à primeira página e à escolha (sem "todo o país" temporário)
+  const primeiraCidadesRef = useRef(true);
+  useEffect(() => {
+    if (primeiraCidadesRef.current) { primeiraCidadesRef.current = false; return; }
+    setAmpliar(false);
+    setCurrentPage(1);
+  }, [cidades.join(',')]);
 
   // Retries com backoff: espera 5 s, depois 10 s e depois 20 s (Regra 5)
   useEffect(() => {
@@ -717,16 +748,25 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         {/* Todas as Linhas */}
         {!aguardarPerto && (
         <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[18px] font-semibold text-[#111111]">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="shrink-0 flex items-baseline gap-2 text-[18px] font-semibold text-[#111111]">
               {aPesquisar ? t('Resultados') : t('Todas as linhas')}
+              {allLinesTotal > 0 && (
+                <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
+                  {allLinesTotal}
+                </span>
+              )}
             </h2>
-            {allLinesTotal > 0 && (
-              <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
-                {allLinesTotal}
-              </span>
-            )}
+            <BotaoCidades escolhidas={cidades} onAbrir={() => setSeletorAberto(true)} className="min-w-0 shrink" />
           </div>
+          {cidades.length > 0 && ampliar && (
+            <p className="text-[12.5px] text-[#6B6B6B] flex flex-wrap items-center gap-x-2" data-teste="aviso-todo-o-pais">
+              <span>{t('A mostrar as linhas de todo o país.')}</span>
+              <button type="button" onClick={() => setAmpliar(false)} className="min-h-[36px] font-semibold text-[#111111] underline underline-offset-2 cursor-pointer">
+                {t('Voltar às minhas cidades')}
+              </button>
+            </p>
+          )}
 
           {isDbLoading || isAllLinesLoading ? (
             <div className="p-8 text-center text-xs text-[#6B6B6B] flex items-center justify-center gap-2 border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF]">
@@ -734,8 +774,20 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
               <span>{dbLoadingMessage || 'A carregar horários…'}</span>
             </div>
           ) : allLines.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]">
-              {t('Sem linhas para os filtros indicados.')}
+            <div className="p-8 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]" data-teste="sem-linhas">
+              {cidadesEfetivas.length > 0
+                ? t('Nenhuma linha em {cidades} para esta pesquisa.', { cidades: listaDeCidades(cidadesEfetivas, t('e')) })
+                : t('Sem linhas para os filtros indicados.')}
+              {cidadesEfetivas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAmpliar(true)}
+                  data-teste="procurar-todo-o-pais"
+                  className="mt-3 mx-auto flex items-center justify-center min-h-[44px] px-4 rounded-[10px] bg-[#F4F4F2] text-[13.5px] font-semibold text-[#111111] cursor-pointer"
+                >
+                  {t('Procurar em todo o país')}
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -754,6 +806,17 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                   />
                 ))}
               </div>
+
+              {aPesquisar && cidadesEfetivas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAmpliar(true)}
+                  data-teste="procurar-todo-o-pais"
+                  className="w-full min-h-[44px] text-[13px] font-semibold text-[#6B6B6B] underline underline-offset-2 cursor-pointer"
+                >
+                  {t('Não encontras a linha? Procurar em todo o país')}
+                </button>
+              )}
 
               {/* Pagination */}
               {totalPages > 1 && (
@@ -784,6 +847,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         </section>
         )}
       </div>
+
+      <SeletorCidades aberto={seletorAberto} onFechar={() => setSeletorAberto(false)} escolhidas={cidades} onMudar={mudarCidades} />
 
       {/* Line Detail Modal */}
       {selectedLineId && (

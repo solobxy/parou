@@ -29,6 +29,12 @@ export interface UserCoords {
 
 // Lembra que o utilizador já deu a localização (para browsers sem Permissions API)
 const CHAVE_LOCALIZACAO_OK = 'parou_localizacao_ok';
+// A pessoa desligou a localização na app ("Desligar e apagar a posição guardada"): não volta a ligar sozinha ao abrir
+const CHAVE_DESLIGADA = 'parou_localizacao_desligada';
+
+function desligadaPelaPessoa(): boolean {
+  try { return localStorage.getItem(CHAVE_DESLIGADA) === '1'; } catch { return false; }
+}
 
 function jaDeuLocalizacao(): boolean {
   try { return localStorage.getItem(CHAVE_LOCALIZACAO_OK) === '1'; } catch { return false; }
@@ -135,8 +141,13 @@ export function useUserLocation() {
     setStatus('idle');
     setCoords(null);
     esquecerPosicao();
+    previousCoordsRef.current = null;
     setErrorMessage(null);
-    setFollowMode(false);
+    // Fica registado: ao abrir a app outra vez a localização não liga sozinha (só com "Ativar localização")
+    try {
+      localStorage.setItem(CHAVE_DESLIGADA, '1');
+      localStorage.removeItem(CHAVE_LOCALIZACAO_OK);
+    } catch {}
   }, [setCoords]);
 
   // Request & activate location (with high accuracy priority + graceful standard fallback)
@@ -147,6 +158,7 @@ export function useUserLocation() {
       return;
     }
 
+    try { localStorage.removeItem(CHAVE_DESLIGADA); } catch {}
     // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
     if (!previousCoordsRef.current) setStatus('requesting');
     setErrorMessage(null);
@@ -402,6 +414,8 @@ export function useUserLocation() {
   const permissionStatusRef = useRef<PermissionStatus | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    // A pessoa desligou a localização: fica desligada até tocar em "Ativar localização"
+    if (desligadaPelaPessoa()) return;
     // Um local escolhido à mão mantém-se ao trocar de separador (não é trocado pelo GPS)
     const localEscolhido = Boolean(memoriaPosicao?.isManual);
     if (!('permissions' in navigator) || !navigator.permissions?.query) {

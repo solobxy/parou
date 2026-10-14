@@ -15,6 +15,8 @@ import { INITIAL_TRANSIT_CATALOG } from '../data/nationalTransitCatalog';
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { LineChip } from './LineChip';
 import { InstalarApp } from './InstalarApp';
+import { SeletorCidades, BotaoCidades } from './SeletorCidades';
+import { useCidades } from '../utils/cidades';
 import { formatTransitName, parseDepartureTime } from '../utils/transitFormatter';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { t } from '../i18n';
@@ -43,6 +45,8 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
     liveStatuses,
   } = useFavorites();
 
+  const [cidades, mudarCidades] = useCidades();
+  const [seletorAberto, setSeletorAberto] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddSearch, setQuickAddSearch] = useState('');
@@ -154,6 +158,17 @@ export const FavoritosView: React.FC<FavoritosViewProps> = ({
           <span>{t('Adicionar')}</span>
         </button>
       </div>
+
+      {/* As minhas cidades: os Horários passam a mostrar só as linhas delas */}
+      <div className="flex flex-col items-start gap-1" data-teste="cidades-favoritos">
+        <BotaoCidades escolhidas={cidades} onAbrir={() => setSeletorAberto(true)} />
+        <p className="text-[12.5px] text-[#6B6B6B] leading-snug">
+          {cidades.length > 0
+            ? t('Nos Horários só vês as linhas que passam nestas cidades.')
+            : t('Escolhe as cidades onde viajas e os Horários mostram só as linhas delas.')}
+        </p>
+      </div>
+      <SeletorCidades aberto={seletorAberto} onFechar={() => setSeletorAberto(false)} escolhidas={cidades} onMudar={mudarCidades} />
 
       {/* Instalar no ecrã principal (só aparece quando faz sentido) */}
       <InstalarApp />
