@@ -29,6 +29,7 @@ export interface EstatisticasAdmin {
     pessoasQueUsaramEm3OuMaisDiasNosUltimos30: number;
     percentagemDoMes: number | null;
   };
+  flyer: { hoje: number; ultimos7Dias: number; ultimos30Dias: number; total: number; porLocal: Record<string, number> };
   comoChegamUltimos30Dias: { novasPelaApp: number; novasPorPaginasPublicas: number; pessoasQueUsaramPaginasPublicas: number };
   integridade: {
     verificadoEm: string;

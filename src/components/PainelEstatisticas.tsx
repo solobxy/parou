@@ -272,6 +272,24 @@ const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ 
         </Cartao>
       )}
 
+      {d.flyer && d.flyer.total > 0 && (
+        <Cartao
+          titulo="Flyer: leituras do código QR"
+          nota="Conta cada vez que alguém abre o endereço do código QR do flyer (no máximo 20 por hora e por ligação, sem robôs). Mostra o interesse que o papel gera; não diz quantas dessas pessoas ficaram a usar a app."
+        >
+          <div className="grid grid-cols-3 gap-2.5">
+            <Valor rotulo="Hoje" valor={num(d.flyer.hoje)} />
+            <Valor rotulo="7 dias" valor={num(d.flyer.ultimos7Dias)} />
+            <Valor rotulo="Total" valor={num(d.flyer.total)} />
+          </div>
+          {Object.keys(d.flyer.porLocal).length > 1 && (
+            <ul className="mt-3 space-y-3">
+              {Object.entries(d.flyer.porLocal).map(([k, v]) => <BarraH key={k} nome={k === 'geral' ? 'Flyer geral' : `Flyer · ${k}`} valor={v} total={d.flyer.total} />)}
+            </ul>
+          )}
+        </Cartao>
+      )}
+
       <Cartao titulo="Como abriram da última vez (30 dias)">
         {totalOrigens === 0 ? <p className="text-[14px] text-[#6B6B6B]">Ainda sem dados.</p> : (
           <ul className="space-y-3">{origens.map(([k, v]) => <BarraH key={k} nome={NOME_ORIGEM[k] || k} valor={v} total={totalOrigens} />)}</ul>
