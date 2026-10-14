@@ -28,6 +28,8 @@ export const CHAVES_DADOS_UTILIZADOR = [
   'parou_cidades',
 ];
 const MAX_VALOR = 200_000;
+// Teto por telemóvel (todas as chaves juntas): impede que um robô encha o disco com cópias enormes
+const MAX_TOTAL = 600_000;
 
 let db: DatabaseSync | null = null;
 function base(): DatabaseSync {
@@ -71,9 +73,12 @@ function idDoTelemovel(req: Request, res: Response): string {
 function limpar(dados: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (!dados || typeof dados !== 'object') return out;
+  let total = 0;
   for (const chave of CHAVES_DADOS_UTILIZADOR) {
     const v = (dados as Record<string, unknown>)[chave];
-    if (typeof v === 'string' && v.length <= MAX_VALOR) out[chave] = v;
+    if (typeof v !== 'string' || v.length > MAX_VALOR || total + v.length > MAX_TOTAL) continue;
+    out[chave] = v;
+    total += v.length;
   }
   return out;
 }
