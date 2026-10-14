@@ -61,6 +61,7 @@ import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel }
 import { t, tn, LOCALE } from '../i18n';
 import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
+import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
 
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
@@ -472,6 +473,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const pintarRumoRef = useRef<((graus: number | null) => void) | null>(null);
+  // Posição suave (a 60 fotogramas por segundo): círculo de precisão, rumo da viagem e se o mapa segue o ponto
+  const haloRef = useRef<L.Circle | null>(null);
+  const rumoViagemRef = useRef<number | null>(null);
+  const seguirRef = useRef<boolean>(true);
   const rotaLayerRef = useRef<L.LayerGroup | null>(null);
   const linhaLayerRef = useRef<L.LayerGroup | null>(null);
   const pedidoLinhaRef = useRef(0);
@@ -516,6 +521,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   }, []);
 
   useEffect(() => { ultimoSeguir = followMode; }, [followMode]);
+  seguirRef.current = followMode;
   useEffect(() => { ultimoFiltro = activeFilterTab; }, [activeFilterTab]);
 
   const repetirPedidoRef = useRef<boolean>(false);
@@ -971,6 +977,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (ultimaVistaMapa) ultimaVistaMapa = { ...ultimaVistaMapa, t: Date.now() };
       userMarkerRef.current?.remove();
       userMarkerRef.current = null;
+      haloRef.current?.remove();
+      haloRef.current = null;
       stopsMarkersRef.current.forEach((m) => m.marker.remove());
       stopsMarkersRef.current.clear();
       filaExtrasRef.current = [];
@@ -986,7 +994,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
     if (!mapRef.current || !userCoords) return;
     if (!isValidCoordinate(userCoords.latitude, userCoords.longitude)) return;
 
-    if (followMode || !hasCenteredInitiallyRef.current) {
+    // Com GPS, o mapa segue o ponto suave a cada fotograma (mais abaixo); aqui fica só o primeiro enquadramento
+    // e o local escolhido à mão
+    if ((followMode && userCoords.isManual) || !hasCenteredInitiallyRef.current) {
       safeFlyTo(mapRef.current, userCoords.latitude, userCoords.longitude, 16);
       hasCenteredInitiallyRef.current = true;
     }
@@ -999,7 +1009,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
     if (!isValidCoordinate(latitude, longitude)) return;
 
     if (userMarkerRef.current) {
-      userMarkerRef.current.setLatLng([latitude, longitude]);
+      // Com o GPS a ser seguido, quem mexe no ponto é a posição suave; aqui só o local escolhido à mão (ou ainda sem GPS)
+      if (userCoords.isManual || !posicaoSuaveAtiva()) userMarkerRef.current.setLatLng([latitude, longitude]);
+      if (userCoords.isManual && haloRef.current) { haloRef.current.remove(); haloRef.current = null; }
     } else {
       const userIcon = L.divIcon({
         className: 'custom-user-marker-icon',
@@ -1030,9 +1042,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   // Cone de direção (para onde o telemóvel aponta), pela bússola do aparelho
   useEffect(() => {
-    const pintar = (graus: number | null) => {
+    const pintar = (bussola: number | null) => {
       const cone = userMarkerRef.current?.getElement()?.querySelector<SVGElement>('[data-cone]');
       if (!cone) return;
+      // Em andamento (autocarro, a pé depressa) manda o rumo da viagem; parado, a bússola do telemóvel
+      const graus = rumoViagemRef.current ?? bussola;
       if (graus === null) { cone.style.opacity = '0'; return; }
       cone.style.opacity = '1';
       cone.style.transform = `rotate(${graus.toFixed(1)}deg)`;
@@ -1040,6 +1054,59 @@ export const PertoView: React.FC<PertoViewProps> = ({
     pintarRumoRef.current = pintar;
     const parar = observarRumo(pintar);
     return () => { parar(); pintarRumoRef.current = null; };
+  }, []);
+
+  // Ponto da posição a deslizar: o filtro dá a posição estimada para agora, a cada fotograma, e o mapa segue-a
+  useEffect(() => {
+    let ultimoHalo = 0;
+    let ultimoPan = 0;
+    const parar = observarPosicaoSuave((q) => {
+      const map = mapRef.current;
+      const marcador = userMarkerRef.current;
+      if (!map || !marcador || coordsRef.current?.isManual) return;
+      if (!isValidCoordinate(q.lat, q.lon)) return;
+      marcador.setLatLng([q.lat, q.lon]);
+
+      if (rumoViagemRef.current !== q.rumo) {
+        rumoViagemRef.current = q.rumo;
+        pintarRumoRef.current?.(rumoAtual());
+      }
+
+      const agora = performance.now();
+      // Círculo de precisão (só quando a incerteza se vê; com histerese para não piscar)
+      if (agora - ultimoHalo >= 100) {
+        ultimoHalo = agora;
+        if (q.precisao >= 12) {
+          if (!haloRef.current) {
+            haloRef.current = L.circle([q.lat, q.lon], { radius: q.precisao, stroke: false, fillColor: '#FF6B1A', fillOpacity: 0.13, interactive: false }).addTo(map);
+          } else {
+            haloRef.current.setLatLng([q.lat, q.lon]);
+            haloRef.current.setRadius(q.precisao);
+          }
+        } else if (q.precisao < 8 && haloRef.current) {
+          haloRef.current.remove();
+          haloRef.current = null;
+        }
+      }
+
+      // O mapa segue o ponto em passos de 1 px (sem animações a competir: voos, zoom)
+      if (seguirRef.current && agora - ultimoPan >= 40) {
+        try {
+          const ocupado = Boolean((map as any)._animatingZoom || (map as any)._panAnim?._inProgress);
+          if (!ocupado) {
+            const centro = map.getSize().divideBy(2);
+            const alvo = map.latLngToContainerPoint([q.lat, q.lon]);
+            const dx = alvo.x - centro.x;
+            const dy = alvo.y - centro.y;
+            if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) {
+              map.panBy([dx, dy], { animate: false });
+              ultimoPan = agora;
+            }
+          }
+        } catch {}
+      }
+    });
+    return () => { parar(); };
   }, []);
 
   // Tocar numa partida: mostra no mapa o percurso da linha e as suas paragens
