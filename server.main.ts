@@ -25,6 +25,7 @@ import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite, ipDe } from './src/server/limites';
 import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
+import { registarCspScripts } from './src/server/cspScripts';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
@@ -75,9 +76,10 @@ const app = express();
 app.disable('x-powered-by');
 app.use(compression());
 // Ninguém pode meter a PAROU dentro de outro site (proteção contra cliques enganadores)
+const CSP_BASE = "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', CSP_BASE);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=()');
@@ -99,6 +101,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 });
 // Registo de segurança: só eventos suspeitos, sem dados pessoais legíveis (ver src/server/registoSeguranca.ts)
 registarSeguranca(app);
+// Política de scripts (começa em modo de teste: só avisa; ver src/server/cspScripts.ts)
+registarCspScripts(app, CSP_BASE);
 // Parâmetros repetidos (?q=a&q=b) ou aninhados (?q[a]=1) deixavam de ser texto e partiam as rotas:
 // fica sempre o primeiro valor, e só se for texto.
 app.use((req: Request, _res: Response, next: NextFunction) => {

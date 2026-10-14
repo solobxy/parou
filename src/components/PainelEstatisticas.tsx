@@ -197,6 +197,7 @@ const NOME_EVENTO: Record<string, string> = {
   erro_servidor: 'Erros internos',
   pedido_grande: 'Pedidos grandes demais',
   sondagem: 'Sondagens de robôs',
+  csp: 'Scripts estranhos (aviso do browser)',
 };
 const NIVEL_AVISO: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' };
 

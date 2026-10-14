@@ -32,9 +32,10 @@ export type TipoEvento =
   | 'origem_recusada' // pedido de escrita vindo de outro site
   | 'erro_servidor' // erro interno (5xx)
   | 'pedido_grande' // corpo grande demais (413)
-  | 'sondagem'; // ferramenta à procura de ficheiros/painéis que não existem aqui
+  | 'sondagem' // ferramenta à procura de ficheiros/painéis que não existem aqui
+  | 'csp'; // o browser avisa que bloqueou (ou bloquearia) um script que não é da PAROU
 
-export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem'];
+export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem', 'csp'];
 
 const contexto = new AsyncLocalStorage<Request>();
 
