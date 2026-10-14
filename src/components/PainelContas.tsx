@@ -61,8 +61,11 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
 
   const lista = useMemo(() => {
     if (!contas) return [];
-    const q = semAcentos(texto.trim());
-    const filtradas = q ? contas.filter((c) => semAcentos(c.nome).includes(q) || semAcentos(c.email).includes(q)) : contas.slice();
+    // Várias palavras: todas têm de aparecer no nome ou no email (por exemplo "ana gmail").
+    const palavras = semAcentos(texto.trim()).split(/\s+/).filter(Boolean);
+    const filtradas = palavras.length
+      ? contas.filter((c) => { const alvo = semAcentos(`${c.nome} ${c.email}`); return palavras.every((w) => alvo.includes(w)); })
+      : contas.slice();
     if (ordem === 'recentes') filtradas.sort((a, b) => b.criado - a.criado);
     else if (ordem === 'acesso') filtradas.sort((a, b) => b.ultimoAcesso - a.ultimoAcesso);
     else filtradas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { sensitivity: 'base' }));
