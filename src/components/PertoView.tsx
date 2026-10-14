@@ -409,6 +409,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
   const [pesquisarLocal, setPesquisarLocal] = useState<boolean>(false);
   const [pedidoLento, setPedidoLento] = useState<boolean>(false);
+  // Posição com pouca precisão (acima de 300 m) durante mais de 20 s: explica o que costuma resolver
+  const [pocaPrecisao, setPocaPrecisao] = useState<boolean>(false);
+  const [precisaoDispensada, setPrecisaoDispensada] = useState<boolean>(false);
+  const precisaoUser = userCoords && !userCoords.isManual && gpsStatus === 'active' ? userCoords.accuracy : 0;
+  useEffect(() => {
+    if (precisaoUser > 300) {
+      const id = setTimeout(() => setPocaPrecisao(true), 20000);
+      return () => clearTimeout(id);
+    }
+    // Histerese: só desaparece quando a posição melhora a sério (e volta a poder avisar se piorar outra vez)
+    if (precisaoUser === 0 || precisaoUser < 200) { setPocaPrecisao(false); if (precisaoUser !== 0) setPrecisaoDispensada(false); }
+  }, [precisaoUser > 300, precisaoUser === 0 || precisaoUser < 200]);
   // Coordenadas arredondadas (~100 m): evita pedir paragens a cada atualização do GPS
   const chaveCoords = userCoords ? `${userCoords.latitude.toFixed(3)},${userCoords.longitude.toFixed(3)}` : '';
   const coordsRef = useRef(userCoords);
@@ -2143,6 +2155,24 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Lista de paragens */}
         {!emRota && (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-4 lg:px-3 lg:pt-3 space-y-2">
+          {localizacaoPronta && pocaPrecisao && !precisaoDispensada && precisaoUser > 200 && (
+            <div className="rounded-[14px] border border-[#E6E6E3] bg-[#F4F4F2] p-3.5" data-teste="aviso-precisao" role="status">
+              <p className="text-[14px] font-semibold text-[#111111] leading-snug">
+                {t('A tua posição está pouco precisa (cerca de {d}).', { d: precisaoUser >= 1000 ? `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(precisaoUser / 1000)} km` : textoMetros(Math.round(precisaoUser / 50) * 50) })}
+              </p>
+              <p className="mt-1 text-[13px] text-[#6B6B6B] leading-snug">
+                {t('Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.')}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPrecisaoDispensada(true)}
+                data-teste="aviso-precisao-fechar"
+                className="mt-1 -mb-1 min-h-[44px] pr-2 text-[13px] font-semibold text-[#111111] underline underline-offset-2 cursor-pointer"
+              >
+                {t('Percebi')}
+              </button>
+            </div>
+          )}
           {!localizacaoPronta ? (
             <div className="space-y-2" aria-hidden="true">
               {[0, 1, 2].map((i) => (
