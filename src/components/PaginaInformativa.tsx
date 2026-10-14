@@ -363,9 +363,9 @@ export const PaginaInformativa: React.FC<Props> = ({ pagina, onVoltar, onAbrir }
       {idioma === 'en'
         ? (pagina === 'sobre' ? <SobreEn onAbrir={onAbrir} /> : pagina === 'privacidade' ? <PrivacidadeEn /> : pagina === 'contactar' ? <ContactarEn /> : pagina === 'apagar-conta' ? <ApagarContaEn /> : <TermosEn />)
         : idioma === 'de'
-          ? <React.Suspense fallback={null}><PaginaDe pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
+          ? <React.Suspense fallback={<div className="min-h-[100dvh]" aria-hidden="true" />}><PaginaDe pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
           : idioma === 'fr'
-            ? <React.Suspense fallback={null}><PaginaFr pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
+            ? <React.Suspense fallback={<div className="min-h-[100dvh]" aria-hidden="true" />}><PaginaFr pagina={pagina} onAbrir={onAbrir} /></React.Suspense>
             : (pagina === 'sobre' ? <Sobre onAbrir={onAbrir} /> : pagina === 'privacidade' ? <Privacidade /> : pagina === 'contactar' ? <Contactar /> : pagina === 'apagar-conta' ? <ApagarConta /> : <Termos />)}
     </article>
   );

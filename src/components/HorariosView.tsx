@@ -59,6 +59,13 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [isNearLoading, setIsNearLoading] = useState<boolean>(false);
   // Já chegou (ou falhou) a primeira resposta das linhas perto? Até lá reserva-se o espaço, para a lista não saltar
   const [nearPronto, setNearPronto] = useState<boolean>(lastNearLines.length > 0);
+  // Com posição já conhecida e sem cache, só se mostra o resto da página quando chegam as linhas perto (ou passados 2,5 s), para nada saltar
+  const [aguardarPerto, setAguardarPerto] = useState<boolean>(() => lastNearLines.length === 0 && !!ultimaPosicaoConhecida());
+  useEffect(() => {
+    if (!aguardarPerto) return;
+    const id = setTimeout(() => setAguardarPerto(false), 2500);
+    return () => clearTimeout(id);
+  }, [aguardarPerto]);
 
   // Favorites
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>(() => {
@@ -247,6 +254,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     } finally {
       setIsNearLoading(false);
       setNearPronto(true);
+      setAguardarPerto(false);
       isNearFetchingRef.current = false;
     }
   }, [userCoords]);
@@ -685,7 +693,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         )}
 
         {/* As tuas linhas: as que mais abres (as mais recentes pesam mais) */}
-        {!aPesquisar && tuasLinhasVisiveis.length > 0 && (
+        {!aPesquisar && !aguardarPerto && tuasLinhasVisiveis.length > 0 && (
           <section className="space-y-2" data-teste="tuas-linhas">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">{t('As tuas linhas')}</h2>
@@ -707,6 +715,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         )}
 
         {/* Todas as Linhas */}
+        {!aguardarPerto && (
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[18px] font-semibold text-[#111111]">
@@ -773,6 +782,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             </div>
           )}
         </section>
+        )}
       </div>
 
       {/* Line Detail Modal */}
