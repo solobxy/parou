@@ -92,7 +92,8 @@ export function PrivacidadeFr() {
           de passe (jamais le mot de passe lui-même) sur notre serveur, pour synchroniser les favoris entre appareils et identifier les
           incidents que vous publiez. Quand vous vous connectez, nous enregistrons sur votre téléphone un cookie technique de session
           (<em>parou_sessao</em>, 30 jours) pour que vous n’ayez pas à vous reconnecter à chaque fois. Votre e-mail n’est jamais montré aux
-          autres personnes.
+          autres personnes. Nous conservons aussi la langue de l’appli ainsi que la date et l’heure de la dernière utilisation du compte,
+          que seule l’administration de PAROU peut voir.
         </p>
         <p>
           <strong>Incidents et commentaires que vous publiez.</strong> Ils sont publics (titre, description, lieu, heure, la photo si vous en

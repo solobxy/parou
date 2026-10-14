@@ -99,7 +99,8 @@ function Privacidade() {
           <strong>Conta (opcional).</strong> Se criares conta, guardamos no nosso servidor o teu nome, o teu email e uma versão
           cifrada da palavra-passe (nunca a palavra-passe em si), para sincronizar os favoritos entre dispositivos e para
           identificar as ocorrências que publicas. Ao entrares, guardamos no telemóvel um cookie técnico de sessão
-          (<em>parou_sessao</em>, 30 dias) para não teres de entrar de cada vez. O email nunca é mostrado a outras pessoas.
+          (<em>parou_sessao</em>, 30 dias) para não teres de entrar de cada vez. O email nunca é mostrado a outras pessoas. Guardamos também o idioma da app e o dia e hora do último acesso à conta,
+          que só a administração da PAROU vê.
         </p>
         <p>
           <strong>Ocorrências e comentários que publicas.</strong> São públicos (título, descrição, local, hora, a foto, se

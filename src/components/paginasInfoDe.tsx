@@ -92,7 +92,8 @@ export function PrivacidadeDe() {
           verschlüsselte Version deines Passworts (niemals das Passwort selbst) auf unserem Server, um Favoriten zwischen Geräten zu
           synchronisieren und die von dir gemeldeten Vorfälle zuzuordnen. Wenn du dich anmeldest, speichern wir auf deinem Telefon ein
           technisches Sitzungs-Cookie (<em>parou_sessao</em>, 30 Tage), damit du dich nicht jedes Mal neu anmelden musst. Deine
-          E-Mail-Adresse wird anderen Personen nie angezeigt.
+          E-Mail-Adresse wird anderen Personen nie angezeigt. Außerdem speichern wir die App-Sprache sowie Datum und Uhrzeit der letzten
+          Nutzung des Kontos; diese sieht nur die Verwaltung von PAROU.
         </p>
         <p>
           <strong>Vorfälle und Kommentare, die du veröffentlichst.</strong> Sie sind öffentlich (Titel, Beschreibung, Ort, Uhrzeit, das Foto,

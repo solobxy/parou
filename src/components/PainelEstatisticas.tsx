@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Users } from 'lucide-react';
 import { Folha } from './Folha';
+import { PainelContas } from './PainelContas';
 import { eAdmin } from '../utils/admin';
 import { utilizadorAutenticado } from '../services/conta';
 import { fetchEstatisticasAdmin, type EstatisticasAdmin } from '../services/estatisticasAdmin';
@@ -28,6 +29,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   const [dados, setDados] = useState<EstatisticasAdmin | null>(null);
   const [erro, setErro] = useState('');
   const [aCarregar, setACarregar] = useState(true);
+  const [verContas, setVerContas] = useState(false);
 
   const carregar = useCallback(async () => {
     setACarregar(true);
@@ -39,6 +41,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
   useEffect(() => { void carregar(); }, [carregar]);
 
   return (
+    <>
     <Folha aberta titulo="Estatísticas" onFechar={onFechar} largura="larga">
       <div className="space-y-4" data-teste="painel-estatisticas">
         <div className="flex items-center justify-between gap-3">
@@ -61,9 +64,11 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
           <p role="alert" className="rounded-[12px] border border-[#F2B8B2] bg-[#FDECEA] px-3 py-2.5 text-[14px] text-[#9F1D14]">{erro}</p>
         )}
 
-        {dados && <Numeros d={dados} />}
+        {dados && <Numeros d={dados} aoVerContas={() => setVerContas(true)} />}
       </div>
     </Folha>
+    <PainelContas aberta={verContas} onFechar={() => setVerContas(false)} />
+    </>
   );
 };
 
@@ -180,7 +185,7 @@ function amostraTexto(r: { amostra: number; voltaram: number }): string {
   return `${num(r.voltaram)} de ${num(r.amostra)} pessoas${r.amostra < 30 ? ' · amostra pequena' : ''}`;
 }
 
-const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
+const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ d, aoVerContas }) => {
   const origens = Object.entries(d.porOrigemUltimos30Dias);
   const totalOrigens = origens.reduce((a, [, v]) => a + v, 0);
   const idiomas = Object.entries(d.porIdiomaUltimos30Dias);
@@ -284,6 +289,15 @@ const Numeros: React.FC<{ d: EstatisticasAdmin }> = ({ d }) => {
         <div className="mt-4">
           <Barras unidade="contas novas" singular="conta nova" dados={c.serieDiaria30Dias.map((x) => ({ dia: x.dia, valor: x.novas }))} />
         </div>
+        <button
+          type="button"
+          onClick={aoVerContas}
+          className="mt-4 w-full h-11 rounded-[10px] inline-flex items-center justify-center gap-2 bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer"
+          data-teste="abrir-contas"
+        >
+          <Users className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />
+          Ver todas as contas ({num(c.total)})
+        </button>
       </Cartao>
 
       <Cartao titulo="Comunidade">
