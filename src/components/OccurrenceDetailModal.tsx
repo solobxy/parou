@@ -58,9 +58,9 @@ export const OccurrenceDetailModal: React.FC<OccurrenceDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-lg rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] overflow-hidden shadow-xl text-[#111111] animate-in fade-in duration-150"
+        className="relative w-full max-w-lg my-auto rounded-[8px] bg-[#FFFFFF] border border-[#E6E6E3] overflow-hidden shadow-xl text-[#111111] animate-in fade-in duration-150"
         role="dialog"
         aria-modal="true"
       >
