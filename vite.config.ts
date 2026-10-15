@@ -148,8 +148,9 @@ export default defineConfig(async ({ command }) => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
-          // Páginas feitas no servidor (linhas, paragens, greves, sitemaps) nunca vêm da cópia da app
-          navigateFallbackDenylist: [/^\/api\//, /^\/_estado/, /^\/health/, /^\/linhas/, /^\/paragens/, /^\/linha\//, /^\/paragem\//, /^\/greves/, /^\/incendios/, /^\/fogos/, /^\/pesquisa/, /^\/diagnostico/, /^\/sitemap/, /^\/robots/, /^\/llms/, /^\/\.well-known/],
+          // Páginas feitas no servidor (linhas, paragens, greves, sitemaps) e ficheiros (imagens, ícones, letras) nunca vêm da cópia da app:
+          // abrir o endereço de uma imagem tem de mostrar a imagem, não arrancar a app nesse endereço («Página não encontrada»)
+          navigateFallbackDenylist: [/^\/api\//, /^\/_estado/, /^\/health/, /^\/linhas/, /^\/paragens/, /^\/linha\//, /^\/paragem\//, /^\/greves/, /^\/incendios/, /^\/fogos/, /^\/pesquisa/, /^\/diagnostico/, /^\/sitemap/, /^\/robots/, /^\/llms/, /^\/\.well-known/, /^\/novidades\//, /^\/avisos\//, /^\/fontes\//, /\/[^/?]+\.[^/]+$/],
         },
         manifest: {
           id: '/',
