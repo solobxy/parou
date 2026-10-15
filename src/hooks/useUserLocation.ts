@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { filtroGps, type LeituraGps } from '../utils/filtroGps';
 import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
+import { ligarMovimento, estadoAparelho } from '../utils/movimentoAparelho';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -120,6 +121,12 @@ export function useUserLocation() {
   const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
 
   const watchIdRef = useRef<number | null>(null);
+  // Última vez que o browser deu uma leitura (mesmo que o filtro a tenha posto de parte): se o GPS "adormece", recomeça-se
+  const ultimaLeituraRef = useRef(0);
+  const reiniciarGpsRef = useRef<(() => void) | null>(null);
+  const ultimoReinicioRef = useRef(0);
+  const reiniciosSeguidosRef = useRef(0);
+  const pararMovimentoRef = useRef<(() => void) | null>(null);
   const previousCoordsRef = useRef<UserCoords | null>(memoriaPosicao && !memoriaPosicao.isManual ? memoriaPosicao : null);
   // O que o ecrã já recebeu: só se avisa a página quando há mudança que se veja (poupa trabalho ao telemóvel)
   const emitidoRef = useRef<UserCoords | null>(memoriaPosicao);
@@ -138,6 +145,9 @@ export function useUserLocation() {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    pararMovimentoRef.current?.();
+    pararMovimentoRef.current = null;
+    reiniciarGpsRef.current = null;
     setStatus('idle');
     setCoords(null);
     esquecerPosicao();
@@ -159,6 +169,11 @@ export function useUserLocation() {
     }
 
     try { localStorage.removeItem(CHAVE_DESLIGADA); } catch {}
+    ultimaLeituraRef.current = Date.now();
+    reiniciosSeguidosRef.current = 0;
+    // Acelerómetro: com o telemóvel quieto o filtro não deixa o ponto andar sozinho dentro de casa
+    pararMovimentoRef.current?.();
+    pararMovimentoRef.current = ligarMovimento();
     // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
     if (!previousCoordsRef.current) setStatus('requesting');
     setErrorMessage(null);
@@ -170,6 +185,8 @@ export function useUserLocation() {
     }
 
     const handleSuccess = (position: GeolocationPosition, source: 'gps_high' | 'gps_low' = 'gps_high') => {
+      ultimaLeituraRef.current = Date.now();
+      reiniciosSeguidosRef.current = 0;
       const lat = Number(position?.coords?.latitude);
       const lon = Number(position?.coords?.longitude);
 
@@ -182,6 +199,7 @@ export function useUserLocation() {
 
       // Filtro: junta a leitura ao que já se sabe (velocidade, precisão, rumo). Se a leitura foi posta de parte
       // (repetida, antiga, ou "por rede" com o GPS bom), fica a estimativa atual.
+      filtroGps.aparelho = estadoAparelho();
       const est = filtroGps.atualizar(leituraDoBrowser(position)) ?? filtroGps.atual();
       if (!est) return;
       const rumoBruto = position.coords.heading;
@@ -255,24 +273,42 @@ export function useUserLocation() {
       primaryOptions
     );
 
-    // Start watchPosition for continuous tracking
-    try {
-      const id = navigator.geolocation.watchPosition(
-        (pos) => handleSuccess(pos, 'gps_high'),
-        (err) => {
-          console.warn('[PAROU GPS watchPosition error]:', err.code, err.message);
-          // If already got a position from getCurrentPosition, keep active
-          if (!previousCoordsRef.current || err.code === err.PERMISSION_DENIED) {
-            handlePositionError(err);
-          }
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-      watchIdRef.current = id;
-      setFollowMode(true);
-    } catch (err) {
-      console.error('[PAROU GPS] Exceção watchPosition:', err);
-    }
+    // Seguimento contínuo. Fica numa função para se poder recomeçar se o GPS adormecer (ver o vigia mais abaixo)
+    const iniciarSeguimento = () => {
+      if (watchIdRef.current !== null) {
+        try { navigator.geolocation.clearWatch(watchIdRef.current); } catch {}
+        watchIdRef.current = null;
+      }
+      try {
+        const id = navigator.geolocation.watchPosition(
+          (pos) => handleSuccess(pos, 'gps_high'),
+          (err) => {
+            console.warn('[PAROU GPS watchPosition error]:', err.code, err.message);
+            // If already got a position from getCurrentPosition, keep active
+            if (!previousCoordsRef.current || err.code === err.PERMISSION_DENIED) {
+              handlePositionError(err);
+            }
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+        watchIdRef.current = id;
+      } catch (err) {
+        console.error('[PAROU GPS] Exceção watchPosition:', err);
+      }
+    };
+    reiniciarGpsRef.current = () => {
+      iniciarSeguimento();
+      // Um pedido único acorda o recetor de GPS; a leitura entra no mesmo filtro
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => handleSuccess(pos, 'gps_high'),
+          () => {},
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } catch {}
+    };
+    iniciarSeguimento();
+    setFollowMode(true);
   }, [setCoords]);
 
   const handlePositionError = (error: GeolocationPositionError) => {
@@ -331,6 +367,8 @@ export function useUserLocation() {
             return;
           }
 
+          ultimaLeituraRef.current = Date.now();
+          filtroGps.aparelho = estadoAparelho();
           const est = filtroGps.atualizar(leituraDoBrowser(pos)) ?? filtroGps.atual();
           const freshCoords: UserCoords = {
             latitude: est ? est.lat : lat,
@@ -364,6 +402,12 @@ export function useUserLocation() {
       );
     });
   }, [setCoords]);
+
+  // "Tentar outra vez" no aviso de precisão: recomeça o seguimento e pede já uma leitura de alta precisão
+  const afinarPosicao = useCallback(async (): Promise<UserCoords | null> => {
+    reiniciarGpsRef.current?.();
+    return refreshHighAccuracyLocation();
+  }, [refreshHighAccuracyLocation]);
 
   // Set manual coordinates when user clicks on map or searches address to fix inaccurate GPS
   const setManualLocation = useCallback((lat: number, lon: number, label?: string) => {
@@ -474,6 +518,12 @@ export function useUserLocation() {
       if (document.visibilityState !== 'visible') return;
       if (Date.now() - ultimaTentativaRef.current < 3000) return;
       const st = statusRef.current;
+      // De volta à app com o GPS a seguir mas calado há mais de 8 s: acorda-o já (o telemóvel pode ter parado o seguimento)
+      if (st === 'active' && watchIdRef.current !== null && Date.now() - ultimaLeituraRef.current > 8000 && !memoriaPosicao?.isManual) {
+        ultimaTentativaRef.current = Date.now();
+        reiniciarGpsRef.current?.();
+        return;
+      }
       if (st === 'unavailable' || (st === 'denied' && motivoRef.current !== 'recusado')) {
         ultimaTentativaRef.current = Date.now();
         activateLocation(true);
@@ -487,12 +537,33 @@ export function useUserLocation() {
     };
   }, [activateLocation]);
 
+  // Vigia: com o ecrã visível e o GPS a seguir, se não chega nenhuma leitura há 25 s o seguimento recomeça
+  // (acontece com o browser a poupar bateria). Se continua calado espera cada vez mais (25 s, 50 s, 100 s… até 5 min):
+  // dentro de um edifício sem sinal não vale a pena ligar o recetor de GPS sem parar.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (statusRef.current !== 'active' || watchIdRef.current === null) return;
+      if (memoriaPosicao?.isManual) return;
+      const agora = Date.now();
+      if (agora - ultimaLeituraRef.current < 25_000) return;
+      const espera = Math.min(300_000, 25_000 * Math.pow(2, reiniciosSeguidosRef.current));
+      if (agora - ultimoReinicioRef.current < espera) return;
+      ultimoReinicioRef.current = agora;
+      reiniciosSeguidosRef.current++;
+      reiniciarGpsRef.current?.();
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
   // Clean up watcher on unmount
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
+      pararMovimentoRef.current?.();
+      pararMovimentoRef.current = null;
     };
   }, []);
 
@@ -506,6 +577,7 @@ export function useUserLocation() {
     setFollowMode,
     activateLocation,
     refreshHighAccuracyLocation,
+    afinarPosicao,
     setManualLocation,
     stopLocation,
     recenter,

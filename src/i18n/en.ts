@@ -1162,4 +1162,8 @@ export const EN: Record<string, string> = {
   'A tua posição está pouco precisa (cerca de {d}).': 'Your position is not very precise (about {d}).',
   'Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.': 'In your phone settings, turn on precise location for this browser. Indoors, moving to a window or outside helps.',
   'Percebi': 'Got it',
+  'Posição aproximada (cerca de {d})': 'Approximate position (about {d})',
+  'Estamos a mostrar a última posição conhecida.': 'We’re showing your last known position.',
+  'Dentro de edifícios e em túneis o sinal costuma falhar. Volta ao normal quando o GPS apanhar sinal.': 'Signal often drops inside buildings and tunnels. It goes back to normal once the GPS picks up a signal.',
+  'A tentar…': 'Trying…',
 };

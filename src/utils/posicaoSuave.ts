@@ -15,6 +15,8 @@ export interface QuadroPosicao {
   /** m/s */
   velocidade: number;
   parado: boolean;
+  /** segundos desde a última leitura do GPS que entrou no filtro */
+  semLeituras: number;
 }
 
 type Ouvinte = (q: QuadroPosicao) => void;
@@ -32,6 +34,7 @@ function mudou(a: QuadroPosicao, b: QuadroPosicao): boolean {
   const dx = (b.lon - a.lon) * M_POR_GRAU * Math.cos((a.lat * Math.PI) / 180);
   if (dx * dx + dy * dy > 0.03 * 0.03) return true; // 3 cm
   if (Math.abs(a.precisao - b.precisao) > 0.5) return true;
+  if (Math.floor(a.semLeituras) !== Math.floor(b.semLeituras)) return true;
   if ((a.rumo === null) !== (b.rumo === null)) return true;
   if (a.rumo !== null && b.rumo !== null && Math.abs(a.rumo - b.rumo) > 0.5) return true;
   return false;
@@ -50,7 +53,7 @@ function quadro(ts: number) {
   const dt = anterior ? (ts - anterior) / 1000 : 1 / 60;
   anterior = ts;
   deslizador.passo(dt, est);
-  const q: QuadroPosicao = { lat: deslizador.lat, lon: deslizador.lon, precisao: est.precisao, rumo: deslizador.rumo, velocidade: est.velocidade, parado: est.parado };
+  const q: QuadroPosicao = { lat: deslizador.lat, lon: deslizador.lon, precisao: est.precisao, rumo: deslizador.rumo, velocidade: est.velocidade, parado: est.parado, semLeituras: est.semLeituras };
   if (ultimo && !mudou(ultimo, q)) return;
   ultimo = q;
   ouvintes.forEach((f) => { try { f(q); } catch {} });
