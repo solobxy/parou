@@ -5,6 +5,7 @@ import { caixaDoEcra, type Caixa } from '../utils/caixaVeiculos';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
 import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
+import { observarPosicaoSuave, type QuadroPosicao } from '../utils/posicaoSuave';
 
 // Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB). Por defeito (`todos`) mostra TODOS os que estão no ecrã do mapa,
 // de qualquer operador e linha, e acompanha o mapa quando a pessoa o arrasta ou afasta (até um raio de ~30 km; mais longe pede para aproximar).
@@ -12,6 +13,7 @@ import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, rodarPeloCaminhoMa
 // Os operadores só enviam uma posição de 15 em 15 s (STCP de 30 em 30) e ela chega com 10 a 30 s de idade. Para o autocarro não
 // «teleportar» de uma posição para a seguinte, o marcador não vai direto para a última posição: segue-a com um movimento suave
 // (src/utils/trajetoVeiculo.ts), desenhado 30 vezes por segundo só para o que está à vista.
+// Quando a pessoa está a bordo, a bola do autocarro dela segue o ponto da sua localização (a posição suave do GPS), e não a posição atrasada do operador.
 // Tocar num autocarro avisa a PertoView, que mostra o cartão «Estou a bordo» (um cartão da app, não uma janela do mapa, para não ficar tapado pelos botões do mapa).
 
 /** De quanto em quanto tempo se pedem as posições ao servidor (ms); o servidor só as renova de ~10 em 10 s */
@@ -31,6 +33,10 @@ const ESPERA_MAPA_MS = 300;
 const IDADE_ESBATIDA_S = 75;
 /** Rotação mínima (graus) para atualizar a ponta que aponta para onde vai */
 const ROTACAO_MIN_GRAUS = 3;
+/** A bordo, a bola do «meu» autocarro vai em cima do ponto da pessoa (o GPS dela é em tempo real; a posição do operador chega com 10 a 40 s de atraso),
+ *  mas só enquanto o GPS for bom e recente: com precisão pior do que isto (m), ou sem leituras há mais do que isto (s), volta à posição do operador */
+const PRECISAO_MAX_SEGUIR_M = 60;
+const LEITURA_MAX_SEGUIR_S = 8;
 
 /** Tempo entre imagens do movimento: com o mapa afastado um autocarro mexe menos de 0,3 px por imagem, por isso desenha-se menos vezes */
 const intervaloQuadro = (zoom: number, n: number): number =>
@@ -149,6 +155,14 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     ajustarPontos();
     mapa.on('zoomend', ajustarPontos);
 
+    // Posição suave da pessoa (a mesma que desenha o ponto dela no mapa), para a bola do «meu» autocarro ir em cima dele
+    let eu: QuadroPosicao | null = null;
+    let euEm = 0;
+    const pararEu = observarPosicaoSuave((q) => { eu = q; euEm = performance.now(); });
+    const euUtilizavel = (): QuadroPosicao | null =>
+      eu && performance.now() - euEm < 3000 && eu.semLeituras <= LEITURA_MAX_SEGUIR_S && eu.precisao <= PRECISAO_MAX_SEGUIR_M
+        && Number.isFinite(eu.lat) && Number.isFinite(eu.lon) ? eu : null;
+
     const agoraServidor = (): number => {
       const r = relogioRef.current;
       return r ? agoraDoServidor(r, performance.now()) : Math.floor(Date.now() / 1000);
@@ -196,7 +210,9 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     };
 
     const posicionar = (e: Entrada, agoraS: number, visivel: L.LatLngBounds | null) => {
-      const p = e.mov.mostrar(agoraS);
+      // A bordo (e com bom GPS) o autocarro está onde a pessoa está; senão, onde o modelo do operador o põe
+      const dela = e.v.id === meuRef.current ? euUtilizavel() : null;
+      const p = dela ? { lat: dela.lat, lon: dela.lon, rumo: dela.rumo ?? undefined } : e.mov.mostrar(agoraS);
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return;
       // Fora do ecrã não se mexe no DOM; quando voltar a estar à vista, o modelo já sabe onde ele está
       if (visivel && !visivel.contains([p.lat, p.lon])) return;
@@ -340,6 +356,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       if (esperaMapa) clearTimeout(esperaMapa);
       if (quadro !== null) cancelAnimationFrame(quadro);
       document.removeEventListener('visibilitychange', aoVoltar);
+      pararEu();
       mapa.off('zoomanim', aoComecarZoom);
       mapa.off('zoomend', aoAcabarZoom);
       mapa.off('zoomend', ajustarPontos);
