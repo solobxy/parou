@@ -13,7 +13,7 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
-import { caminhoDoTroco } from './caminhos';
+import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, type Indice, type Jornada } from './planeadorIndice';
 
@@ -633,12 +633,18 @@ export async function planearViagem(
      WHERE sr.route_id = ? AND sr.direction_id = ? AND sr.stop_sequence BETWEEN ? AND ? ORDER BY sr.stop_sequence`,
   );
   /** Paragens anteriores a `sb` e percurso entre `sa` e `sb`, para a app completar a hora da UNIR e desenhar a linha */
-  const detalheLinhaUnir = (route: string, sentido: number, sa: number, sb: number) => ({
-    anteriores: (queAnteriores.all(route, sentido, sa, sb) as Array<{ id: string; seq: number }>)
-      .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: sb - a.seq })),
-    pontos: (quePercurso.all(route, sentido, sa, sb) as Array<{ lat: number; lon: number; nome: string }>)
-      .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)),
-  });
+  const detalheLinhaUnir = (route: string, sentido: number, sa: number, sb: number) => {
+    const pontos = (quePercurso.all(route, sentido, sa, sb) as Array<{ lat: number; lon: number; nome: string }>)
+      .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+    // O desenho da linha pela estrada (feito pelo mapa de estradas), cortado entre a paragem onde se entra e a de saída
+    const caminho = caminhoDoTrocoUnir(route, sentido, pontos);
+    return {
+      anteriores: (queAnteriores.all(route, sentido, sa, sb) as Array<{ id: string; seq: number }>)
+        .map((a) => ({ codigo: a.id.replace(/^unir:/, ''), passos: sb - a.seq })),
+      pontos,
+      ...(caminho ? { caminho } : {}),
+    };
+  };
   try {
     if (uO.length && uD.length) {
       const rows = db.prepare(`

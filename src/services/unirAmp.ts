@@ -277,6 +277,7 @@ export async function viagemUnir(
         departureTime: horaSaidaBus,
         arrivalTime: horaChegadaBus,
         ...(pontosLinha.length ? { pontos: pontosLinha } : {}),
+        ...(pontosLinha.length && c.caminho ? { caminho: c.caminho } : {}),
       },
       { mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: c.destino.minutos, distanceMeters: c.destino.metros, ...(coordDestino && pontosLinha.length ? { pontos: [pontosLinha[pontosLinha.length - 1], coordDestino] } : {}) },
     ],
