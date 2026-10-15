@@ -349,6 +349,11 @@ html[data-tema="escuro"] .bus-pin--meu .bus-pin__num { box-shadow: 0 0 0 3px #F2
 .mapa-bus-ponto .bus-pin__seta::before { top: 4px; margin-left: -5px; border-left-width: 5px; border-right-width: 5px; border-bottom-width: 9px; }
 .mapa-bus-longe .bus-pin__num { min-width: 22px; height: 22px; padding: 0 3px; border-radius: 11px; font-size: 11px; }
 .mapa-bus-longe .bus-pin__seta::before { top: 6px; border-bottom-width: 8px; }
+/* A bordo, com a bola do «meu» autocarro em cima da pessoa: um só marcador («tu no autocarro»); o ponto dela e o círculo de precisão escondem-se
+   e voltam sozinhos quando a bola deixa de a seguir (GPS fraco, longe do autocarro, «Já saí»). Só a opacidade tem transição: a posição nunca. */
+.custom-user-marker-icon { transition: opacity .25s ease; }
+.mapa-eu-no-bus .custom-user-marker-icon { opacity: 0; }
+.mapa-eu-no-bus .parou-halo-precisao { display: none; }
 /* Aviso quando o mapa está tão afastado que seria um pedido enorme (texto branco sobre #111111: 18:1) */
 .bus-dica { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 450; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 9999px; background: #111111; color: #FFFFFF; border: 1px solid rgba(255, 255, 255, 0.25); font-weight: 600; font-size: 13px; line-height: 1.25; text-align: center; pointer-events: none; box-shadow: 0 4px 14px rgba(17, 17, 17, 0.25); }
 .bus-dica[hidden] { display: none; }

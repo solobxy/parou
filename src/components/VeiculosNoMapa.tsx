@@ -37,6 +37,8 @@ const ROTACAO_MIN_GRAUS = 3;
  *  mas só enquanto o GPS for bom e recente: com precisão pior do que isto (m), ou sem leituras há mais do que isto (s), volta à posição do operador */
 const PRECISAO_MAX_SEGUIR_M = 60;
 const LEITURA_MAX_SEGUIR_S = 8;
+/** Classe posta no contentor do mapa enquanto a bola do «meu» autocarro vai em cima da pessoa: esconde o ponto dela e o círculo de precisão (index.css) */
+const CLASSE_EU_NO_BUS = 'mapa-eu-no-bus';
 
 /** Tempo entre imagens do movimento: com o mapa afastado um autocarro mexe menos de 0,3 px por imagem, por isso desenha-se menos vezes */
 const intervaloQuadro = (zoom: number, n: number): number =>
@@ -132,6 +134,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     let ultimoQuadro = 0;
     let ultimoEstado = 0;
     let aAmpliar = false;
+    let euNoBus = false;
     let inicioZoom = 0;
     const grupo = L.layerGroup().addTo(mapa);
     grupoRef.current = grupo;
@@ -249,6 +252,10 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       const agoraS = agoraServidor();
       const visivel = mapa.getBounds().pad(0.25);
       entradas.forEach((e) => posicionar(e, agoraS, visivel));
+      // Com a bola do autocarro em cima da pessoa o ponto dela esconde-se (um só marcador: «tu no autocarro»); volta quando deixa de seguir
+      let aSeguir = false;
+      entradas.forEach((e) => { if (e.aSeguir) aSeguir = true; });
+      if (aSeguir !== euNoBus) { euNoBus = aSeguir; contentor.classList.toggle(CLASSE_EU_NO_BUS, aSeguir); }
       if (ts - ultimoEstado > 1000) { ultimoEstado = ts; entradas.forEach((e) => atualizarEstado(e, agoraS)); }
     };
     // Durante a animação de zoom o Leaflet move os marcadores sozinho; mexer-lhes aqui dava saltos
@@ -374,7 +381,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       mapa.off('zoomend', ajustarPontos);
       mapa.off('moveend', aoMexerMapa);
       mapa.off('resize', aoMexerMapa);
-      contentor.classList.remove('mapa-bus-ponto', 'mapa-bus-longe');
+      contentor.classList.remove('mapa-bus-ponto', 'mapa-bus-longe', CLASSE_EU_NO_BUS);
       dica?.remove();
       estadoRef.current = () => {};
       recarregarRef.current = () => {};

@@ -1188,7 +1188,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           // Com a posição fraca (≥ 100 m) o círculo ganha um contorno tracejado, para se ver até onde vai a dúvida
           const fraca = q.precisao >= 100;
           if (!haloRef.current) {
-            haloRef.current = L.circle([q.lat, q.lon], { radius: q.precisao, stroke: fraca, color: '#FF6B1A', weight: 1.5, opacity: 0.55, dashArray: '5 5', fillColor: '#FF6B1A', fillOpacity: 0.13, interactive: false }).addTo(map);
+            haloRef.current = L.circle([q.lat, q.lon], { className: 'parou-halo-precisao', radius: q.precisao, stroke: fraca, color: '#FF6B1A', weight: 1.5, opacity: 0.55, dashArray: '5 5', fillColor: '#FF6B1A', fillOpacity: 0.13, interactive: false }).addTo(map);
             haloForteRef.current = fraca;
           } else {
             haloRef.current.setLatLng([q.lat, q.lon]);
