@@ -319,6 +319,10 @@ h1, h2, h3, h4 {
 .bus-pin--tub { --bus-fundo: #C8102E; --bus-texto: #FFFFFF; }
 html[data-tema="porto"] .bus-pin--stcp { --bus-fundo: #0B46B0; }
 .bus-pin__seta { position: absolute; inset: 0; pointer-events: none; }
+/* A ponta existe sempre; fica escondida até se saber para onde o autocarro vai, e roda suavemente (sem refazer o ícone) */
+.bus-pin__seta--oculta { opacity: 0; }
+.bus-pin__seta--anima { transition: transform 0.9s linear; }
+@media (prefers-reduced-motion: reduce) { .bus-pin__seta--anima { transition: none; } }
 .bus-pin__seta::before {
   content: ""; position: absolute; left: 50%; top: 0; margin-left: -8px;
   border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid var(--bus-fundo);

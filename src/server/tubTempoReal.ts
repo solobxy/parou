@@ -15,7 +15,7 @@ export const URL_VIAGENS_TUB = 'https://mobibus-gateway.fleetaware.pt/gtfs-rt/fe
 /** Dados com mais de 2 minutos não se usam */
 export const IDADE_MAXIMA_TUB_S = 120;
 
-const TTL_MS = 15_000;
+const TTL_MS = 11_000; // a TUB atualiza de 15 em 15 s; 11 s (acima do mínimo de 10 s entre pedidos) deixa as posições frescas
 const INTERVALO_MIN_MS = 10_000;
 const ESPERA_APOS_FALHA_MS = 30_000;
 const TIMEOUT_MS = 5_000;

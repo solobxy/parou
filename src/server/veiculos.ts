@@ -47,6 +47,8 @@ export function paraVeiculoLeve(v: LiveVehicle): VeiculoLeve | null {
     ...(typeof v.bearing === 'number' && Number.isFinite(v.bearing) ? { rumo: Math.round(v.bearing) } : {}),
     ...(typeof v.speed === 'number' && Number.isFinite(v.speed) ? { vel: Math.round(v.speed) } : {}),
     t: Math.round(v.timestamp),
+    ...(v.prev && Number.isFinite(v.prev.lat) && Number.isFinite(v.prev.lon) && v.prev.timestamp < v.timestamp
+      ? { ant: { lat: arredondar(v.prev.lat, 5), lon: arredondar(v.prev.lon, 5), t: Math.round(v.prev.timestamp) } } : {}),
     ...(v.trip_id ? { viagem: v.trip_id } : {}),
   };
 }

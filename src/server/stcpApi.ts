@@ -37,7 +37,7 @@ export function stcpApiConfigurada(): boolean {
 
 // Limites da STCP (confirmados por eles): 15 000 pedidos por dia e, para não pesar na API, no máximo um
 // pedido a cada 10 s a cada endpoint de tempo real. Por isso:
-//  - as posições (um só ficheiro para todos os autocarros) pedem-se no máximo de 20 em 20 s (<= 4 320 por dia);
+//  - as posições (um só ficheiro para todos os autocarros) pedem-se no máximo de 14 em 14 s e no máximo 5 500 por dia;
 //  - as chegadas por paragem têm orçamento próprio por hora e por dia (<= 8 500 por dia);
 //  - o resto (horários, verificações) fica com mais de 2 000 pedidos de folga.
 // Quando o orçamento acaba, a PAROU usa a fonte anterior até o período seguinte; nunca fica sem tempo real.
@@ -245,7 +245,18 @@ export function lerPosicoes(buf: Uint8Array, mapaLinhas: Map<string, InfoLinha> 
 }
 
 let posicoesCache: { dados: PosicaoStcpOficial[]; quando: number } = { dados: [], quando: 0 };
-const POSICOES_TTL_MS = 20 * 1000; // a STCP pede no máximo um pedido a cada 10 s; 20 s dá folga
+const POSICOES_TTL_MS = 14 * 1000; // a STCP pede no máximo um pedido a cada 10 s; 14 s deixa as posições frescas sem passar o orçamento diário
+const MAX_POSICOES_DIA = 5500;
+const orcamentoPosicoes = { dia: '', n: 0 };
+
+/** Conta um pedido de posições; false se o orçamento do dia acabou (a app usa a fonte anterior até amanhã) */
+function temOrcamentoPosicoes(): boolean {
+  const dia = new Date().toISOString().slice(0, 10);
+  if (orcamentoPosicoes.dia !== dia) { orcamentoPosicoes.dia = dia; orcamentoPosicoes.n = 0; }
+  if (orcamentoPosicoes.n >= MAX_POSICOES_DIA) return false;
+  orcamentoPosicoes.n++;
+  return true;
+}
 const MAX_POSICOES_BYTES = 5 * 1024 * 1024;
 
 let posicoesEmCurso: Promise<PosicaoStcpOficial[] | null> | null = null;
@@ -259,6 +270,7 @@ export async function posicoesStcpOficial(): Promise<PosicaoStcpOficial[] | null
   // Pedidos ao mesmo tempo partilham um só; e nunca há dois pedidos com menos de 10 s de intervalo (pedido da STCP)
   if (posicoesEmCurso) return posicoesEmCurso;
   if (agora - ultimoPedidoPosicoes < 10_000) return null;
+  if (!temOrcamentoPosicoes()) return null;
   ultimoPedidoPosicoes = agora;
   posicoesEmCurso = pedirPosicoes(agora).finally(() => { posicoesEmCurso = null; });
   return posicoesEmCurso;

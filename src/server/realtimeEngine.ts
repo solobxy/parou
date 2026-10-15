@@ -4,6 +4,7 @@ import { getStcpLiveVehicles } from './portoOpenDataService';
 import { chegadasStcpOficial } from './stcpApi';
 import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
 import { estimativaTub, posicoesTub, viagensTub } from './tubTempoReal';
+import { anotarAnteriores } from './historicoPosicoes';
 
 registerCacheClearCallback(() => RealtimeEngine.clearCaches());
 
@@ -51,6 +52,8 @@ export interface LiveVehicle {
   /** Viagem e linha que o operador diz que o veículo está a fazer (nem sempre existem no horário da base) */
   trip_id?: string;
   route_id?: string;
+  /** Posição medida antes da atual (para o mapa mostrar o autocarro já em movimento); ver historicoPosicoes.ts */
+  prev?: { lat: number; lon: number; timestamp: number };
 }
 
 // In-memory Server Cache with TTL
@@ -64,7 +67,7 @@ const arrivalsCache = new Map<string, CacheEntry<any[]>>();
 const metroStatusCache: { data: any; timestamp: number } = { data: null, timestamp: 0 };
 
 // TTLs in Milliseconds strictly according to Rule 4
-const VEHICLES_CACHE_TTL_MS = 15 * 1000; // 15 s
+const VEHICLES_CACHE_TTL_MS = 6 * 1000; // 6 s: quanto mais fresca a posição, mais exato o mapa (os operadores só mudam de 15 em 15 s)
 const ARRIVALS_CACHE_TTL_MS = 30 * 1000; // 30 s
 // STCP: chegadas em tempo real por paragem. Fonte principal: API oficial da STCP (stcpApi.ts, atualiza de
 // 10 em 10 s, com limite de 15 000 pedidos por dia); reserva: https://stcp.pt/api/stops/{código}/realtime
@@ -208,6 +211,7 @@ export class RealtimeEngine {
     }
 
     if (validVehicles.length > 0) {
+      anotarAnteriores(validVehicles, now);
       vehiclesCache.data = validVehicles;
       vehiclesCache.timestamp = now;
       return validVehicles;
