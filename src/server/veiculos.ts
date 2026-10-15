@@ -4,13 +4,12 @@
 import type { LiveVehicle } from './realtimeEngine';
 import { chaveDeLinha, type OperadorVeiculos } from '../utils/chaveLinha';
 import type { VeiculoLeve } from '../types/aBordo';
+import { LADO_MAX_GRAUS, LIMITES_PORTUGAL, TOLERANCIA_GRAUS, type Caixa } from '../utils/caixaVeiculos';
 
-export type { VeiculoLeve };
+export type { VeiculoLeve, Caixa };
 
-export interface Caixa { sul: number; oeste: number; norte: number; leste: number }
-
-/** Largura máxima de uma caixa, em graus (≈ 33 km): chega para um ecrã de mapa e impede pedidos do país inteiro */
-const MAX_LADO_GRAUS = 0.3;
+/** Quantos autocarros no máximo numa resposta: com o mapa muito afastado ficam os mais perto do centro do ecrã (resposta leve) */
+export const MAX_VEICULOS_RESPOSTA = 700;
 
 export function operadorDoVeiculo(v: Pick<LiveVehicle, 'operator'>): OperadorVeiculos | null {
   if (v.operator === 'STCP') return 'stcp';
@@ -26,8 +25,9 @@ export function lerCaixa(texto: unknown): Caixa | null {
   if (n.length !== 4 || n.some((x) => !Number.isFinite(x))) return null;
   const [sul, oeste, norte, leste] = n;
   if (sul >= norte || oeste >= leste) return null;
-  if (sul < 30 || norte > 45 || oeste < -35 || leste > -5) return null; // Portugal, Açores e Madeira incluídos
-  if (norte - sul > MAX_LADO_GRAUS || leste - oeste > MAX_LADO_GRAUS) return null;
+  if (sul < LIMITES_PORTUGAL.sul || norte > LIMITES_PORTUGAL.norte || oeste < LIMITES_PORTUGAL.oeste || leste > LIMITES_PORTUGAL.leste) return null; // Portugal, Açores e Madeira incluídos
+  // Raio largo (até 0,6° de lado): chega para ver uma cidade ou uma região; impede pedidos do país inteiro
+  if (norte - sul > LADO_MAX_GRAUS + TOLERANCIA_GRAUS || leste - oeste > LADO_MAX_GRAUS + TOLERANCIA_GRAUS) return null;
   return { sul, oeste, norte, leste };
 }
 
@@ -55,12 +55,14 @@ export function paraVeiculoLeve(v: LiveVehicle): VeiculoLeve | null {
 
 /**
  * Veículos que pertencem a uma das linhas (chaves "stcp:803") e/ou estão dentro da caixa.
+ * Só caixa = TODOS os autocarros de todos os operadores e linhas dentro dela (é o que o mapa pede para mostrar o que se vê).
  * Sem linhas nem caixa devolve vazio: ninguém pede "todos os autocarros do país".
+ * Se houver mais do que `max`, ficam os que estão mais perto do centro da caixa.
  */
 export function filtrarVeiculos(lista: LiveVehicle[], o: { linhas?: Set<string> | null; caixa?: Caixa | null; max?: number }): VeiculoLeve[] {
   const temLinhas = !!o.linhas && o.linhas.size > 0;
   if (!temLinhas && !o.caixa) return [];
-  const max = o.max ?? 400;
+  const max = o.max ?? MAX_VEICULOS_RESPOSTA;
   const saida: VeiculoLeve[] = [];
   for (const v of lista) {
     const leve = paraVeiculoLeve(v);
@@ -71,9 +73,14 @@ export function filtrarVeiculos(lista: LiveVehicle[], o: { linhas?: Set<string> 
       if (!chave || !o.linhas!.has(chave)) continue;
     }
     saida.push(leve);
-    if (saida.length >= max) break;
   }
-  return saida;
+  if (saida.length <= max) return saida;
+  if (!o.caixa) return saida.slice(0, max);
+  // Mais do que o limite: ficam os mais perto do centro do ecrã (distância em graus, com a longitude corrigida pela latitude)
+  const cLat = (o.caixa.sul + o.caixa.norte) / 2, cLon = (o.caixa.oeste + o.caixa.leste) / 2;
+  const cos = Math.cos((cLat * Math.PI) / 180);
+  const distancia = (l: VeiculoLeve) => (l.lat - cLat) ** 2 + ((l.lon - cLon) * cos) ** 2;
+  return saida.sort((a, b) => distancia(a) - distancia(b)).slice(0, max);
 }
 
 /** Chaves de linha vindas do pedido ("stcp:803,cm:4436"): máximo 40, só o que tem o feitio certo */

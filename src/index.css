@@ -342,6 +342,13 @@ html[data-tema="porto"] .bus-pin--stcp { --bus-fundo: #0B46B0; }
 .bus-pin--esbatido { opacity: 0.55; }
 .bus-pin--meu .bus-pin__num { box-shadow: 0 0 0 3px #111111, 0 0 0 5px #FFFFFF, 0 3px 8px rgba(0, 0, 0, 0.4); }
 html[data-tema="escuro"] .bus-pin--meu .bus-pin__num { box-shadow: 0 0 0 3px #F2F2F0, 0 0 0 5px #161618, 0 3px 8px rgba(0, 0, 0, 0.5); }
+/* Mapa afastado (zoom até 14, vendo todos os autocarros da zona): as rodas viram pontos coloridos, sem número, para não taparem o mapa.
+   O ícone continua a ter 48 px de área de toque; ao tocar abre-se o cartão com a linha. Ao aproximar voltam as rodas com o número. */
+.mapa-bus-ponto .bus-pin__num { width: 16px; height: 16px; border-width: 2px; font-size: 0; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.4); }
+.mapa-bus-ponto .bus-pin__seta::before { top: 10px; margin-left: -5px; border-left-width: 5px; border-right-width: 5px; border-bottom-width: 8px; }
+/* Aviso quando o mapa está tão afastado que seria um pedido enorme (texto branco sobre #111111: 18:1) */
+.bus-dica { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 450; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 9999px; background: #111111; color: #FFFFFF; border: 1px solid rgba(255, 255, 255, 0.25); font-weight: 600; font-size: 13px; line-height: 1.25; text-align: center; pointer-events: none; box-shadow: 0 4px 14px rgba(17, 17, 17, 0.25); }
+.bus-dica[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .parou-pg { transition: none; } }
 
 /* Folhas (janelas) da comunidade: sobem do fundo no telemóvel e esmaecem no computador */
