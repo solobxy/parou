@@ -4,7 +4,7 @@ import { fetchVeiculos } from '../services/veiculosApi';
 import { caixaDoEcra, type Caixa } from '../utils/caixaVeiculos';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
-import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
+import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, distanciaM, pessoaPodeIrABordo, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
 import { observarPosicaoSuave, type QuadroPosicao } from '../utils/posicaoSuave';
 
 // Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB). Por defeito (`todos`) mostra TODOS os que estão no ecrã do mapa,
@@ -68,6 +68,8 @@ interface Entrada {
   rumoCss: number | null;
   esbatido: boolean;
   meu: boolean;
+  /** A bola está agora em cima do ponto da pessoa (a bordo, com bom GPS e perto do autocarro) */
+  aSeguir: boolean;
   /** Último desvio de subpixel aplicado ao pino (px) */
   fx: number;
   fy: number;
@@ -175,6 +177,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       e.rumoCss = null;
       e.esbatido = false;
       e.meu = false;
+      e.aSeguir = false;
       e.fx = 0;
       e.fy = 0;
     };
@@ -210,9 +213,18 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     };
 
     const posicionar = (e: Entrada, agoraS: number, visivel: L.LatLngBounds | null) => {
-      // A bordo (e com bom GPS) o autocarro está onde a pessoa está; senão, onde o modelo do operador o põe
+      // O modelo do operador anda sempre (mesmo quando a bola vai em cima da pessoa), para estar certo quando deixar de a seguir
+      const m = e.mov.mostrar(agoraS);
+      // A bordo, com bom GPS e perto do autocarro (o que o atraso do operador explica), a bola vai onde a pessoa está.
+      // Longe do autocarro (por teste, em casa, por engano) não se segue ninguém: a bola fica onde o operador a põe.
+      let p: { lat: number; lon: number; rumo?: number } = m;
       const dela = e.v.id === meuRef.current ? euUtilizavel() : null;
-      const p = dela ? { lat: dela.lat, lon: dela.lon, rumo: dela.rumo ?? undefined } : e.mov.mostrar(agoraS);
+      if (dela && Number.isFinite(m.lat) && Number.isFinite(m.lon)) {
+        e.aSeguir = pessoaPodeIrABordo(distanciaM(dela, m), Math.max(m.vel, dela.velocidade), e.aSeguir);
+        if (e.aSeguir) p = { lat: dela.lat, lon: dela.lon, rumo: dela.rumo ?? m.rumo };
+      } else {
+        e.aSeguir = false;
+      }
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return;
       // Fora do ecrã não se mexe no DOM; quando voltar a estar à vista, o modelo já sabe onde ele está
       if (visivel && !visivel.contains([p.lat, p.lon])) return;
@@ -282,7 +294,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
           keyboard: true,
           title: t('Linha {l}', { l: v.linha }),
         });
-        const entrada: Entrada = { marker, v, mov, chaveIcone: chave, pino: null, seta: null, rumoCss: null, esbatido: false, meu: false, fx: 0, fy: 0 };
+        const entrada: Entrada = { marker, v, mov, chaveIcone: chave, pino: null, seta: null, rumoCss: null, esbatido: false, meu: false, aSeguir: false, fx: 0, fy: 0 };
         marker.on('click', () => aoTocarRef.current?.(entrada.v, Math.floor(agoraServidor())));
         marker.addTo(grupo);
         ligarElementos(entrada);
