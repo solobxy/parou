@@ -247,22 +247,22 @@ export const PerguntaABordo: React.FC<{ controlo: ControloABordo }> = ({ control
       role="group"
       aria-label={t('Estás num autocarro?')}
       data-teste="pergunta-a-bordo"
-      className="absolute z-30 left-3 right-3 bottom-8 lg:bottom-4 lg:left-4 lg:right-auto lg:w-[360px] rounded-[16px] bg-[#FFFFFF] shadow-[0_8px_28px_rgba(17,17,17,0.22)] border border-[#E6E6E3] p-3.5"
+      className="absolute z-30 left-3 right-3 bottom-8 lg:bottom-4 lg:left-4 lg:right-auto lg:w-[380px] rounded-[16px] bg-[#FFFFFF] shadow-[0_8px_28px_rgba(17,17,17,0.22)] border border-[#E6E6E3] px-3 pt-3 pb-1.5"
     >
-      <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="shrink-0 w-10 h-10 rounded-full bg-[#FF6B1A] text-[#111111] flex items-center justify-center">
-          <Bus className="w-5 h-5 stroke-[2.25]" />
+      <div className="flex items-center gap-2.5">
+        <span aria-hidden="true" className="shrink-0 w-9 h-9 rounded-full bg-[#FF6B1A] text-[#111111] flex items-center justify-center">
+          <Bus className="w-[18px] h-[18px] stroke-[2.25]" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[16px] font-bold text-[#111111] leading-snug">
             {varias ? t('Em qual destes autocarros estás?') : t('Estás no autocarro {l}?', { l: principal.veiculo.linha })}
           </p>
-          <p className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">
-            {varias ? t('Estás a ir ao lado de mais do que um. Escolhe o teu.') : t('Parece que vais com ele. Se sim, mostro-te as próximas paragens.')}
-          </p>
+          {varias
+            ? <p className="text-[12.5px] text-[#6B6B6B] leading-snug mt-0.5">{t('Estás a ir ao lado de mais do que um. Escolhe o teu.')}</p>
+            : <p className="sr-only">{t('Parece que vais com ele. Se sim, mostro-te as próximas paragens.')}</p>}
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2">
         {candidatos.map((c) => (
           <button
             key={c.veiculo.id}
@@ -282,15 +282,15 @@ export const PerguntaABordo: React.FC<{ controlo: ControloABordo }> = ({ control
         >
           {varias ? t('Nenhum') : t('Não')}
         </button>
+        <button
+          type="button"
+          onClick={desligarPerguntas}
+          data-teste="a-bordo-desligar"
+          className="ml-auto h-11 px-1 text-[12.5px] font-medium text-[#6B6B6B] underline underline-offset-2 cursor-pointer"
+        >
+          {t('Não perguntar mais')}
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={desligarPerguntas}
-        data-teste="a-bordo-desligar"
-        className="mt-1.5 -mb-1 h-11 text-[12.5px] font-medium text-[#6B6B6B] underline underline-offset-2 cursor-pointer"
-      >
-        {t('Não perguntar mais')}
-      </button>
     </div>
   );
 };

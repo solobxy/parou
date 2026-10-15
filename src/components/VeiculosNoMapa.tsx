@@ -47,7 +47,7 @@ function conteudoPopup(v: VeiculoLeve, agoraS: number, aoEstarABordo?: (v: Veicu
   if (aoEstarABordo) {
     const botao = document.createElement('button');
     botao.type = 'button';
-    botao.className = 'mt-2 h-11 w-full px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer';
+    botao.className = 'mt-1.5 h-11 w-full px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer';
     botao.textContent = t('Estou a bordo');
     botao.setAttribute('data-teste', 'estou-a-bordo');
     botao.addEventListener('click', (e) => { e.stopPropagation(); aoEstarABordo(v); });
@@ -143,7 +143,10 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoEstarABordo }: Prop
             title: t('Linha {l}', { l: v.linha }),
           });
           const entrada: Entrada = { marker, v, chaveIcone: chave, raf: null };
-          marker.bindPopup(() => conteudoPopup(entrada.v, agoraRef.current, aoEstarRef.current), { closeButton: false, offset: [0, -14], autoPanPadding: [24, 90] });
+          // Margens para o mapa deslizar até a janela ficar à vista: em cima, abaixo da barra de pesquisa; à direita, longe dos botões do mapa
+          marker.bindPopup(() => conteudoPopup(entrada.v, agoraRef.current, aoEstarRef.current), {
+            closeButton: false, offset: [0, -14], autoPanPaddingTopLeft: [12, 66], autoPanPaddingBottomRight: [64, 20],
+          });
           marker.addTo(grupo);
           entradas.set(v.id, entrada);
         }

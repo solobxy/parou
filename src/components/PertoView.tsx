@@ -2437,7 +2437,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                     />
                                   )}
                                   <span 
-                                    className={`font-condensada text-[22px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
+                                    className={`font-condensada text-[26px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
                                   >
                                     {parsed.bigText}
                                   </span>
