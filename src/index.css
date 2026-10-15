@@ -312,7 +312,7 @@ h1, h2, h3, h4 {
 /* Autocarros em direto: uma roda com o número da linha lá dentro (801, 4436, ZC…) e uma ponta a apontar para onde vai.
    A cor diz de que operador é, para se distinguir logo: STCP azul, Carris Metropolitana amarelo, TUB vermelho.
    (A cor nunca é a única pista: o cartão do autocarro diz o operador por extenso.)
-   As cores vêm de variáveis; o Azul Porto troca o azul da STCP por um mais fundo. Contraste do número: azul 6,7:1, amarelo 11,8:1, vermelho 5,9:1. */
+   As cores vêm de variáveis; o tema Azul troca o azul da STCP por um mais fundo. Contraste do número: azul 6,7:1, amarelo 11,8:1, vermelho 5,9:1. */
 .parou-bus-icone { background: transparent; border: 0; }
 .bus-pin { --bus-fundo: #1553C9; --bus-texto: #FFFFFF; --bus-borda: #FFFFFF; position: relative; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
 .bus-pin--cm { --bus-fundo: #FFC400; --bus-texto: #111111; }

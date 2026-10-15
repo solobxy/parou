@@ -1,4 +1,4 @@
-// Temas da PAROU (Escuro, Âmbar e Azul Porto), gerados no build a partir do CSS que o Tailwind já produziu.
+// Temas da PAROU (Escuro, Âmbar e Azul), gerados no build a partir do CSS que o Tailwind já produziu.
 //
 // A app usa as cores da marca escritas nas próprias classes (bg-[#F4F4F2], text-[#6B6B6B], border-[#E6E6E3]…).
 // Em vez de reescrever milhares de classes, este módulo lê o CSS final, encontra cada regra que usa uma
@@ -133,7 +133,7 @@ const AMBAR: Tema = {
   },
 };
 
-// ---------------------------------------------------------------- Azul Porto ----------------------------------------------------------------
+// ---------------------------------------------------------------- Azul ----------------------------------------------------------------
 // Claro, em azul e branco: o laranja da marca passa a azul (#0B46B0, 8,3:1 com branco), os cinzentos ganham um tom frio
 // e o que era preto (botões, separadores ativos) passa a azul-marinho. Os avisos (laranja escuro, amarelo, vermelho, verde) ficam como estão.
 const AZUL = '#0B46B0';

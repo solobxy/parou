@@ -985,7 +985,6 @@ export const EN: Record<string, string> = {
   'A posição do autocarro vem do operador e pode ter alguns segundos de atraso.': 'The bus position comes from the operator and may be a few seconds behind.',
   'Perguntar se estou num autocarro': 'Ask me if I am on a bus',
   'Só com a app aberta. A comparação com os autocarros faz-se no teu telemóvel.': 'Only while the app is open. The comparison with the buses happens on your phone.',
-  'Azul Porto': 'Porto Blue',
   'Azul e branco, à moda do Porto': 'Blue and white, Porto style',
   // Textos que faltavam (revisão do inglês)
   'Liga a localização': 'Turn on location',

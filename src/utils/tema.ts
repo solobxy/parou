@@ -1,4 +1,4 @@
-// Temas da app: Claro (o de sempre, para toda a gente), Escuro, Âmbar (laranja, mais "premium") e Azul Porto (azul e branco).
+// Temas da app: Claro (o de sempre, para toda a gente), Escuro, Âmbar (laranja, mais "premium") e Azul (azul e branco).
 // A escolha fica guardada neste aparelho. O <html> leva data-tema="escuro", "ambar" ou "porto" (o claro não leva nada),
 // e é o CSS (gerado no build a partir das cores da app, ver vite.temas.ts, e src/temas.css) que muda as cores.
 export type TemaId = 'claro' | 'escuro' | 'ambar' | 'porto';
@@ -17,7 +17,7 @@ export const TEMAS: InfoTema[] = [
   { id: 'claro', nome: 'Claro', descricao: 'O de sempre', corBarra: '#FFFFFF', mini: { fundo: '#F4F4F2', cartao: '#FFFFFF', texto: '#111111', destaque: '#FF6B1A' } },
   { id: 'escuro', nome: 'Escuro', descricao: 'Descansa a vista à noite', corBarra: '#161618', mini: { fundo: '#0F0F10', cartao: '#222225', texto: '#F2F2F0', destaque: '#FF6B1A' } },
   { id: 'ambar', nome: 'Âmbar', descricao: 'Mais laranja, em vidro', corBarra: '#FFE9D2', mini: { fundo: '#FFD9B5', cartao: '#FFF4E8', texto: '#2A170B', destaque: '#FF6B1A' } },
-  { id: 'porto', nome: 'Azul Porto', descricao: 'Azul e branco, à moda do Porto', corBarra: '#FFFFFF', mini: { fundo: '#EDF2FA', cartao: '#FFFFFF', texto: '#0B1A36', destaque: '#0B46B0' } },
+  { id: 'porto', nome: 'Azul', descricao: 'Azul e branco, à moda do Porto', corBarra: '#FFFFFF', mini: { fundo: '#EDF2FA', cartao: '#FFFFFF', texto: '#0B1A36', destaque: '#0B46B0' } },
 ];
 
 const CHAVE = 'parou_tema';
