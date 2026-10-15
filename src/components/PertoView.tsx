@@ -71,6 +71,7 @@ import { VeiculosNoMapa } from './VeiculosNoMapa';
 import { useABordo, PerguntaABordo, PainelABordo, ABordoNoMapa, CartaoAutocarro } from './ABordo';
 import type { VeiculoLeve } from '../types/aBordo';
 import { chaveDaPartida } from '../utils/chaveLinha';
+import { descodificarPolilinha, trocosDoPercurso } from '../utils/caminho';
 import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
 import { useQualidadeGps } from '../utils/qualidadeGps';
 
@@ -234,7 +235,9 @@ function desenharPercurso(grupo: L.LayerGroup, legs: TransitRouteOption['legs'],
   legs.forEach((leg) => {
     const pts = (leg.pontos || []).filter((p) => isValidCoordinate(p.lat, p.lon));
     if (pts.length < 2) return;
-    const linha: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
+    // Troço de transporte com desenho da estrada (ou do carril): segue-o; sem desenho, as paragens unidas em linha reta
+    const estrada = leg.mode !== 'WALK' && leg.caminho ? descodificarPolilinha(leg.caminho).filter((p) => isValidCoordinate(p.lat, p.lon)) : [];
+    const linha: L.LatLngTuple[] = estrada.length >= 2 ? estrada.map((p) => [p.lat, p.lon]) : pts.map((p) => [p.lat, p.lon]);
     linha.forEach((p) => limites.push(p));
 
     if (leg.mode === 'WALK') {
@@ -265,9 +268,9 @@ function desenharPercurso(grupo: L.LayerGroup, legs: TransitRouteOption['legs'],
       .addTo(grupo);
 
     // Número da linha a meio do percurso
-    const meio = pts[Math.floor(pts.length / 2)];
+    const meio = linha[Math.floor(linha.length / 2)];
     const fundo = leg.lineColor || '#111111';
-    L.marker([meio.lat, meio.lon], {
+    L.marker(meio, {
       interactive: false,
       zIndexOffset: 500,
       icon: L.divIcon({
@@ -524,7 +527,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     linha: string; cor?: string; destino: string; estado: 'a-carregar' | 'ok' | 'erro';
     /** Identificador da linha (o da lista de linhas) e dados para a guardar nos favoritos */
     id?: string; dados?: DadosLinhaFavorita;
-    percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number };
+    percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number; caminho?: string; cortes?: Array<number | null> };
   } | null>(null);
   // O percurso (de uma linha aberta ou do autocarro em que vais) ocupa o mapa: as outras paragens saem
   const linhaNoMapa = Boolean(linhaAberta?.percurso) || aBordoNoMapa;
@@ -1266,7 +1269,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
           id: base.id || (p.rota ? String(p.rota) : undefined),
           dados: { ...base.dados, name: base.dados.name || (p.nome ? String(p.nome) : undefined) },
           estado: 'ok',
-          percurso: { paragens: p.paragens, indice: Number.isFinite(p.indice) ? p.indice : -1 },
+          percurso: {
+            paragens: p.paragens,
+            indice: Number.isFinite(p.indice) ? p.indice : -1,
+            ...(typeof p.caminho === 'string' && Array.isArray(p.cortes) ? { caminho: p.caminho, cortes: p.cortes } : {}),
+          },
         });
       })
       .catch(() => { if (pedido === pedidoLinhaRef.current) setLinhaAberta({ ...base, estado: 'erro' }); });
@@ -1309,14 +1316,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
     if (pts.length < 2) return;
     const indice = percurso.indice >= 0 && percurso.indice < pts.length ? percurso.indice : 0;
     const todos: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
-    const restante = todos.slice(indice);
+    // Pela estrada (desenho do horário) entre as paragens; sem desenho, as paragens unidas em linha reta
+    const igual = pts.length === percurso.paragens.length;
+    const trocos = trocosDoPercurso(pts, indice, igual ? percurso.caminho : undefined, igual ? percurso.cortes : undefined);
+    const passado: L.LatLngTuple[] = trocos.passado.map((p) => [p.lat, p.lon]);
+    const restante: L.LatLngTuple[] = trocos.restante.map((p) => [p.lat, p.lon]);
     const grupo = L.layerGroup();
     const nomeTip = (nome: string, extra?: string) =>
       `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${escaparHtmlMapa(formatTransitName(nome))}${extra ? `<span style="font-weight:500;opacity:.75"> · ${escaparHtmlMapa(extra)}</span>` : ''}</span>`;
 
     if (indice > 0) {
-      L.polyline(todos.slice(0, indice + 1), { color: '#FFFFFF', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
-      L.polyline(todos.slice(0, indice + 1), { color: '#FF6B1A', weight: 5, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+      L.polyline(passado, { color: '#FFFFFF', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+      L.polyline(passado, { color: '#FF6B1A', weight: 5, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
     }
     L.polyline(restante, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
     L.polyline(restante, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);

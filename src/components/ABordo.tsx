@@ -6,6 +6,7 @@ import { DetetorABordo, type Candidato } from '../utils/aBordo';
 import { abordoLigado, definirAbordo, EVENTO_ABORDO } from '../utils/abordoPref';
 import { chaveDeLinha } from '../utils/chaveLinha';
 import { formatTransitName } from '../utils/transitFormatter';
+import { trocosDoPercurso } from '../utils/caminho';
 import { fetchABordo, fetchVeiculos, SemSinalError } from '../services/veiculosApi';
 import type { ParagemABordo, RespostaABordo, VeiculoLeve } from '../types/aBordo';
 import { LineChip } from './LineChip';
@@ -45,6 +46,8 @@ export interface ControloABordo {
   alvo: Alvo | null;
   dados: RespostaABordo | null;
   paragens: ParagemABordo[];
+  /** Desenho do percurso pela estrada, se a viagem o tem (senão as paragens unem-se em linha reta) */
+  desenho: { caminho: string; cortes: Array<number | null> } | null;
   /** Há quanto tempo (ms desde 1970) o servidor deixou de ter sinal deste autocarro */
   semSinalDesde: number | null;
   /** Parece que a pessoa já saiu do autocarro */
@@ -68,6 +71,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
   const [alvo, setAlvo] = useState<Alvo | null>(inicial);
   const [dados, setDados] = useState<RespostaABordo | null>(null);
   const [paragens, setParagens] = useState<ParagemABordo[]>([]);
+  const [desenho, setDesenho] = useState<{ caminho: string; cortes: Array<number | null> } | null>(null);
   const [semSinalDesde, setSemSinalDesde] = useState<number | null>(null);
   const [afastada, setAfastada] = useState(false);
   const [perguntar, setPerguntar] = useState<boolean>(() => abordoLigado());
@@ -160,7 +164,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
         });
         if (!vivo) return;
         setDados(r);
-        if (r.paragens && r.paragens.length) setParagens(r.paragens);
+        if (r.paragens && r.paragens.length) { setParagens(r.paragens); setDesenho(r.caminho && r.cortes ? { caminho: r.caminho, cortes: r.cortes } : null); }
         if (typeof r.indice === 'number') indiceRef.current = r.indice;
         setSemSinalDesde(null);
         detetor.current.acertarRelogio(r.agora ?? Math.floor(Date.now() / 1000), Date.now());
@@ -199,6 +203,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
     setAlvo(novo);
     setDados(null);
     setParagens([]);
+    setDesenho(null);
     setSemSinalDesde(null);
     setAfastada(false);
     setCandidatos([]);
@@ -219,6 +224,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
     setAlvo(null);
     setDados(null);
     setParagens([]);
+    setDesenho(null);
     setSemSinalDesde(null);
     setAfastada(false);
     setCandidatos([]);
@@ -232,7 +238,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
   useEffect(() => { if (fase === 'a-bordo' && alvo) guardado = { alvo, quando: Date.now() }; }, [fase, alvo, dados]);
 
   const chaveLinha = alvo ? chaveDeLinha(alvo.op, alvo.linha) : null;
-  return { fase, candidatos, alvo, dados, paragens, semSinalDesde, afastada, perguntar, chaveLinha, confirmar, recusar, sair, continuar, desligarPerguntas };
+  return { fase, candidatos, alvo, dados, paragens, desenho, semSinalDesde, afastada, perguntar, chaveLinha, confirmar, recusar, sair, continuar, desligarPerguntas };
 }
 
 // ---------------------------------------------------------------- pergunta ----------------------------------------------------------------
@@ -515,7 +521,7 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
 export function ABordoNoMapa({ mapa, controlo }: { mapa: L.Map | null; controlo: ControloABordo }) {
   const grupoRef = useRef<L.LayerGroup | null>(null);
   const ajustadoRef = useRef<string>('');
-  const { fase, paragens, dados } = controlo;
+  const { fase, paragens, dados, desenho } = controlo;
   const indice = typeof dados?.indice === 'number' ? dados.indice : -1;
 
   useEffect(() => {
@@ -526,14 +532,17 @@ export function ABordoNoMapa({ mapa, controlo }: { mapa: L.Map | null; controlo:
     if (pts.length < 2) return;
     const i = Math.min(indice, pts.length - 1);
     const todos: L.LatLngTuple[] = pts.map((p) => [p.lat, p.lon]);
+    // Pela estrada (desenho do horário) entre as paragens; sem desenho, as paragens unidas em linha reta
+    const trocos = trocosDoPercurso(pts, i, pts.length === paragens.length ? desenho?.caminho : undefined, pts.length === paragens.length ? desenho?.cortes : undefined);
+    const passado: L.LatLngTuple[] = trocos.passado.map((p) => [p.lat, p.lon]);
+    const restante: L.LatLngTuple[] = trocos.restante.map((p) => [p.lat, p.lon]);
     const grupo = L.layerGroup();
     const nome = (p: ParagemABordo) =>
       `<span style="font:600 12px/1.2 Inter,system-ui,sans-serif">${formatTransitName(p.nome).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))}${p.hora ? `<span style="font-weight:500;opacity:.75"> · ${p.hora}</span>` : ''}</span>`;
     if (i > 0) {
-      L.polyline(todos.slice(0, i + 1), { color: '#FFFFFF', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
-      L.polyline(todos.slice(0, i + 1), { color: '#FF6B1A', weight: 5, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
+      L.polyline(passado, { color: '#FFFFFF', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+      L.polyline(passado, { color: '#FF6B1A', weight: 5, opacity: 0.35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
     }
-    const restante = todos.slice(i);
     L.polyline(restante, { color: '#FFFFFF', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
     L.polyline(restante, { color: '#FF6B1A', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(grupo);
     pts.forEach((p, k) => {
@@ -556,7 +565,7 @@ export function ABordoNoMapa({ mapa, controlo }: { mapa: L.Map | null; controlo:
         mapa.fitBounds(L.latLngBounds(restante.length > 1 ? restante : todos), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 40], maxZoom: 16, animate: true });
       } catch { /* mapa ainda sem tamanho */ }
     }
-  }, [mapa, fase, paragens, indice, controlo.alvo?.id]);
+  }, [mapa, fase, paragens, desenho, indice, controlo.alvo?.id]);
 
   useEffect(() => () => { grupoRef.current?.remove(); grupoRef.current = null; }, []);
   useEffect(() => { if (fase !== 'a-bordo') ajustadoRef.current = ''; }, [fase]);

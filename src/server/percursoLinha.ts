@@ -5,6 +5,7 @@
 //    o sentido vem da AMP e, se não bater certo, escolhe-se pelo destino da partida.
 
 import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
+import { caminhoDaViagem } from './caminhos';
 import { pontuarPercurso } from '../utils/geoPercurso';
 import type { OperadorVeiculos } from '../utils/chaveLinha';
 
@@ -28,6 +29,9 @@ export interface PercursoLinha {
   paragens: ParagemDoPercurso[];
   /** Posição da paragem de onde se partiu (-1 se não se sabe) */
   indice: number;
+  /** Desenho da viagem pela estrada (polilinha codificada) e a posição de cada paragem nele; sem eles a app une as paragens em linha reta */
+  caminho?: string;
+  cortes?: Array<number | null>;
 }
 
 function hm(segs: number): string {
@@ -80,6 +84,7 @@ export function percursoDeViagem(tripIdPedido: string, paragemId?: string): Perc
     const ids = new Set(filhos.map((f) => f.stop_id));
     indice = paragens.findIndex((p) => ids.has(p.id));
   }
+  const desenho = caminhoDaViagem(tripId, paragens);
   return {
     fonte: 'horarios',
     linha: String(info?.curto || info?.longo || ''),
@@ -89,6 +94,7 @@ export function percursoDeViagem(tripIdPedido: string, paragemId?: string): Perc
     ...(info?.longo ? { nome: String(info.longo) } : {}),
     paragens,
     indice,
+    ...(desenho ? { caminho: desenho.caminho, cortes: desenho.cortes } : {}),
   };
 }
 
