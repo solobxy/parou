@@ -1188,12 +1188,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const abrirLinha = (dep: any) => {
     const pedido = ++pedidoLinhaRef.current;
     const linha = String(dep.lineCode || dep.route_short_name || '');
+    // Identificador da linha na lista de linhas (Horários): o da partida; nas da UNIR (AMP) é "unir:<código>"
+    const eUnir = dep.operatorId === 'unir' && Boolean(dep.unirLinha);
+    const idLinha = dep.routeId ? String(dep.routeId) : (eUnir ? `unir:${dep.unirLinha}` : undefined);
+    // As partidas da UNIR não trazem o nome da linha: vem da lista de linhas da paragem
+    const nomeDaLinha = dep.lineName || dep.route_long_name
+      || (selectedStop?.lines || []).find((l) => String(l.code) === linha)?.name || undefined;
     const base = {
       linha,
       cor: dep.lineColor as string | undefined,
       destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name),
-      id: dep.routeId ? String(dep.routeId) : undefined,
-      dados: { name: dep.lineName || dep.route_long_name, code: linha, color: dep.lineColor, operatorId: dep.operatorId, operatorName: dep.operatorName } as DadosLinhaFavorita,
+      id: idLinha,
+      dados: { name: nomeDaLinha, code: linha, color: dep.lineColor, operatorId: dep.operatorId, operatorName: eUnir ? 'UNIR' : dep.operatorName } as DadosLinhaFavorita,
     };
     let url = '';
     if (dep.tripId) {
