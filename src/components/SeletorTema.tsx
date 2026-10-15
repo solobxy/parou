@@ -3,7 +3,7 @@ import { Check, Palette } from 'lucide-react';
 import { t } from '../i18n';
 import { EVENTO_TEMA, TEMAS, TemaId, mudarTema, temaAtual } from '../utils/tema';
 
-/** Botão do topo para escolher o tema (Claro, Escuro ou Âmbar). A escolha fica guardada neste aparelho. */
+/** Botão do topo para escolher o tema (Claro, Escuro, Âmbar ou Azul Porto). A escolha fica guardada neste aparelho. */
 export const SeletorTema: React.FC = () => {
   const [aberto, setAberto] = useState(false);
   const [atual, setAtual] = useState<TemaId>(() => temaAtual());

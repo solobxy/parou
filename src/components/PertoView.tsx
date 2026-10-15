@@ -67,6 +67,9 @@ import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula,
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
 import { NotaLocalizacao, FolhaLocalizacao } from './PrivacidadeLocalizacao';
+import { VeiculosNoMapa } from './VeiculosNoMapa';
+import { useABordo, PerguntaABordo, PainelABordo, ABordoNoMapa } from './ABordo';
+import { chaveDaPartida } from '../utils/chaveLinha';
 import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
 import { useQualidadeGps } from '../utils/qualidadeGps';
 
@@ -132,8 +135,8 @@ function isValidCoordinate(lat: unknown, lon: unknown): lat is number {
 // Ícones das paragens partilhados (um por tipo e estado): criar um novo por marcador a cada
 // atualização era a maior fatia do trabalho do mapa
 const iconesParagem = new Map<string, L.DivIcon>();
-function iconeParagem(modo: 'Autocarro' | 'Metro' | 'Comboio' | 'Barco', selecionada: boolean): L.DivIcon {
-  const chave = `${modo}|${selecionada ? 1 : 0}`;
+function iconeParagem(modo: 'Autocarro' | 'Metro' | 'Comboio' | 'Barco', selecionada: boolean, extra = false): L.DivIcon {
+  const chave = `${modo}|${selecionada ? 1 : 0}|${extra ? 1 : 0}`;
   let icone = iconesParagem.get(chave);
   if (!icone) {
     const estilo = ESTILO_MODO[modo] || ESTILO_MODO.Autocarro;
@@ -141,7 +144,7 @@ function iconeParagem(modo: 'Autocarro' | 'Metro' | 'Comboio' | 'Barco', selecio
     icone = L.divIcon({
       className: 'custom-stop-marker-icon',
       html: `
-        <div title="${estilo.plural}" style="width:${tamanho}px;height:${tamanho}px;background:${estilo.cor};border:2px solid #FFFFFF;border-radius:9999px;display:flex;align-items:center;justify-content:center;box-shadow:${selecionada ? '0 0 0 3px #FF6B1A, 0 4px 10px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.28)'};cursor:pointer;transition:transform .15s">
+        <div class="parou-pg${selecionada ? ' parou-pg-sel' : ''}${extra ? ' parou-pg-extra' : ''}" title="${estilo.plural}" style="width:${tamanho}px;height:${tamanho}px;background:${estilo.cor};border:2px solid #FFFFFF;border-radius:9999px;display:flex;align-items:center;justify-content:center;box-shadow:${selecionada ? '0 0 0 3px var(--cor-destaque,#FF6B1A), 0 4px 10px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.28)'};cursor:pointer;transition:transform .15s">
           ${estilo.simbolo}
         </div>
       `,
@@ -363,6 +366,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   useEffect(() => { if (gpsStatus === 'active') setAjudaLocalizacao(false); }, [gpsStatus]);
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
+  // «A bordo»: deteta (ou a pessoa diz) que vai num autocarro e acompanha-o. Só com GPS real (não com um local escolhido à mão)
+  const aBordo = useABordo(userCoords, localizacaoPronta && !userCoords?.isManual);
+  const aBordoNoMapa = aBordo.fase === 'a-bordo' && aBordo.paragens.length > 1;
   const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
   // Painel de baixo (telemóvel) arrastável com o dedo, como nas apps de mapas: segue o dedo e,
   // ao largar, encaixa na posição mais próxima (ou na direção de um gesto rápido).
@@ -493,6 +499,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Map & Controls
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // O mapa como estado: os componentes que desenham por cima (autocarros, A bordo) só arrancam quando ele existe
+  const [mapaLeaflet, setMapaLeaflet] = useState<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const pintarRumoRef = useRef<((graus: number | null) => void) | null>(null);
   // Posição suave (a 60 fotogramas por segundo): círculo de precisão, rumo da viagem e se o mapa segue o ponto
@@ -509,7 +517,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
     id?: string; dados?: DadosLinhaFavorita;
     percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number };
   } | null>(null);
-  const linhaNoMapa = Boolean(linhaAberta?.percurso);
+  // O percurso (de uma linha aberta ou do autocarro em que vais) ocupa o mapa: as outras paragens saem
+  const linhaNoMapa = Boolean(linhaAberta?.percurso) || aBordoNoMapa;
   const stopsMarkersRef = useRef<Map<string, { marker: L.Marker; modo: string; sel: boolean; lat: number; lon: number }>>(new Map());
   const paragensPorIdRef = useRef<Map<string, NearbyStopItem>>(new Map());
   // Paragens de outras zonas do mapa (as que se vão descobrindo ao arrastar); separadas das de perto de ti,
@@ -1028,12 +1037,23 @@ export const PertoView: React.FC<PertoViewProps> = ({
       position: 'bottomright',
     }).addTo(map);
 
+    // Menos ícones com o mapa afastado: as paragens viram pontos (ver .parou-pg em index.css)
+    const ajustarEscala = () => {
+      const z = map.getZoom();
+      const c = map.getContainer();
+      c.classList.toggle('mapa-longe', z <= 15);
+      c.classList.toggle('mapa-medio', z <= 16);
+    };
+    ajustarEscala();
+    map.on('zoomend', ajustarEscala);
+
     map.on('dragstart', () => setFollowMode(false));
     map.on('moveend', () => {
       const c = map.getCenter();
       ultimaVistaMapa = { lat: c.lat, lon: c.lng, zoom: map.getZoom(), t: Date.now() };
     });
     mapRef.current = map;
+    setMapaLeaflet(map);
 
     // ResizeObserver para manter o mapa atualizado
     let ro: ResizeObserver | null = null;
@@ -1061,6 +1081,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       extrasMarkersRef.current.clear();
       map.remove();
       mapRef.current = null;
+      setMapaLeaflet(null);
     };
   }, []);
 
@@ -1095,12 +1116,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <svg data-cone viewBox="-50 -50 100 100" width="100" height="100" aria-hidden="true"
               style="position:absolute;left:50%;top:50%;margin:-50px 0 0 -50px;pointer-events:none;opacity:0;transition:opacity .25s;will-change:transform">
               <defs><radialGradient id="cone-parou" cx="0" cy="0" r="46" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stop-color="#FF6B1A" stop-opacity=".6"/><stop offset="1" stop-color="#FF6B1A" stop-opacity="0"/>
+                <stop offset="0" style="stop-color:var(--cor-destaque,#FF6B1A)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--cor-destaque,#FF6B1A)" stop-opacity="0"/>
               </radialGradient></defs>
               <path d="M0 0 L-26.4 -37.7 A46 46 0 0 1 26.4 -37.7 Z" fill="url(#cone-parou)"/>
             </svg>
             <div class="w-6 h-6 rounded-full bg-[#FF6B1A]/20 animate-ping absolute"></div>
-            <div style="background-color: #FF6B1A; border: 2.5px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" class="w-5 h-5 rounded-full flex items-center justify-center z-10">
+            <div style="background-color: var(--cor-destaque,#FF6B1A); border: 2.5px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" class="w-5 h-5 rounded-full flex items-center justify-center z-10">
               <div style="background-color: #111111;" class="w-1.5 h-1.5 rounded-full"></div>
             </div>
           </div>
@@ -1310,7 +1331,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         zIndexOffset: 900,
         icon: L.divIcon({
           className: 'parou-rota-destino',
-          html: '<div style="width:26px;height:26px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
+          html: '<div style="width:26px;height:26px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px var(--cor-destaque,#FF6B1A),0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
           iconSize: [26, 26],
           iconAnchor: [13, 13],
         }),
@@ -1326,6 +1347,54 @@ export const PertoView: React.FC<PertoViewProps> = ({
       console.warn('[PertoView] fitBounds da linha:', err);
     }
   }, [linhaAberta?.percurso]);
+
+  // Ao ir a bordo, fecham-se a paragem e a linha que estavam abertas (o painel «A bordo» ocupa o seu lugar)
+  useEffect(() => {
+    if (aBordo.fase !== 'a-bordo') return;
+    pedidoLinhaRef.current++;
+    setLinhaAberta(null);
+    setSelectedStop(null);
+    setFollowMode(false);
+  }, [aBordo.fase]);
+
+  // Autocarros em direto no mapa: só os das linhas que estás a ver (paragem aberta, linha aberta ou paragens perto) e perto do que o mapa mostra
+  const { linhasVeiculos, caixaVeiculos } = useMemo(() => {
+    const redondo = (x: number) => Math.round(x / 0.005) * 0.005;
+    const caixaEm = (lat: number, lon: number, dLat: number, dLon: number) => ({ sul: redondo(lat - dLat), norte: redondo(lat + dLat), oeste: redondo(lon - dLon), leste: redondo(lon + dLon) });
+    if (aBordo.fase === 'a-bordo') return { linhasVeiculos: aBordo.chaveLinha ? [aBordo.chaveLinha] : [], caixaVeiculos: undefined };
+    const chaves = new Set<string>();
+    const dePartidas = (paragem: NearbyStopItem) => {
+      for (const d of paragem.nextDepartures || []) {
+        const k = chaveDaPartida({ routeId: d.routeId, operatorId: d.operatorId || paragem.operatorId, operatorName: d.operatorName || paragem.operatorName, lineCode: d.lineCode });
+        if (k) chaves.add(k);
+      }
+      if (!(paragem.nextDepartures || []).length) {
+        for (const l of paragem.lines || []) {
+          const k = chaveDaPartida({ operatorId: paragem.operatorId, operatorName: paragem.operatorName, lineCode: l.code });
+          if (k) chaves.add(k);
+        }
+      }
+    };
+    if (linhaAberta) {
+      const k = chaveDaPartida({ routeId: linhaAberta.id, operatorId: linhaAberta.dados?.operatorId, operatorName: linhaAberta.dados?.operatorName, lineCode: linhaAberta.linha });
+      if (k) chaves.add(k);
+      const pts = (linhaAberta.percurso?.paragens || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+      if (pts.length > 1) {
+        const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon);
+        const sul = Math.min(...lats) - 0.01, norte = Math.max(...lats) + 0.01, oeste = Math.min(...lons) - 0.01, leste = Math.max(...lons) + 0.01;
+        if (norte - sul <= 0.28 && leste - oeste <= 0.28) return { linhasVeiculos: [...chaves], caixaVeiculos: { sul, norte, oeste, leste } };
+      }
+      return { linhasVeiculos: [...chaves], caixaVeiculos: undefined };
+    }
+    if (selectedStop) {
+      dePartidas(selectedStop);
+      const lat = Number(selectedStop.latitude), lon = Number(selectedStop.longitude);
+      return { linhasVeiculos: [...chaves].slice(0, 30), caixaVeiculos: isValidCoordinate(lat, lon) ? caixaEm(lat, lon, 0.03, 0.04) : undefined };
+    }
+    if (!userCoords) return { linhasVeiculos: [], caixaVeiculos: undefined };
+    stops.slice(0, 6).forEach(dePartidas);
+    return { linhasVeiculos: [...chaves].slice(0, 30), caixaVeiculos: caixaEm(userCoords.latitude, userCoords.longitude, 0.008, 0.011) };
+  }, [aBordo.fase, aBordo.chaveLinha, linhaAberta, selectedStop, stops, userCoords?.latitude, userCoords?.longitude]);
 
   // Ao abrir o percurso, a lista fica na paragem onde estou
   const paragemAquiRef = useRef<HTMLLIElement | null>(null);
@@ -1365,7 +1434,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         title: selectedDestination.title,
         icon: L.divIcon({
           className: 'parou-rota-destino',
-          html: '<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
+          html: '<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px var(--cor-destaque,#FF6B1A),0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22V4"/><path d="M5 4h13l-2.5 4.5L18 13H5"/></svg></div>',
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         }),
@@ -1423,7 +1492,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         title,
         icon: L.divIcon({
           className: 'parou-rota-destino',
-          html: `<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px #FF6B1A,0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font:700 14px/1 'Barlow Condensed',Inter,sans-serif">${i + 1}</div>`,
+          html: `<div style="width:28px;height:28px;border-radius:9999px;background:#111111;border:3px solid #FFFFFF;box-shadow:0 0 0 3px var(--cor-destaque,#FF6B1A),0 4px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font:700 14px/1 'Barlow Condensed',Inter,sans-serif">${i + 1}</div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         }),
@@ -1667,7 +1736,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     marcadores.forEach((m, id) => {
       const sel = id === selecionadaId;
       if (m.sel !== sel) {
-        m.marker.setIcon(iconeParagem(normalizeTransportMode(m.modo), sel));
+        m.marker.setIcon(iconeParagem(normalizeTransportMode(m.modo), sel, true));
         m.marker.setZIndexOffset(sel ? 1000 : 0);
         m.sel = sel;
       }
@@ -1720,7 +1789,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         const sel = p.id === ctx.selecionadaId;
         const estilo = ESTILO_MODO[p.modo] || ESTILO_MODO.Autocarro;
         const marker = L.marker([p.lat, p.lon], {
-          icon: iconeParagem(p.modo, sel),
+          icon: iconeParagem(p.modo, sel, true),
           zIndexOffset: sel ? 1000 : 0,
           keyboard: false,
           title: `${estilo.plural} – ${formatTransitName(p.nome)}`,
@@ -2735,7 +2804,21 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </div>
           </div>
         )}
+        {/* A bordo: ocupa o painel enquanto vais num autocarro */}
+        <PainelABordo controlo={aBordo} aoVerNoMapa={(lat, lon) => safeFlyTo(mapRef.current, lat, lon, 16.5)} />
       </aside>
+
+      {/* Autocarros em direto e percurso do autocarro em que vais (desenham-se no mapa) */}
+      {localizacaoPronta && !emRota && (
+        <VeiculosNoMapa
+          mapa={mapaLeaflet}
+          linhas={linhasVeiculos}
+          caixa={caixaVeiculos}
+          meu={aBordo.alvo?.id ?? null}
+          aoEstarABordo={(v) => { mapaLeaflet?.closePopup(); aBordo.confirmar(v, 'manual'); }}
+        />
+      )}
+      <ABordoNoMapa mapa={mapaLeaflet} controlo={aBordo} />
 
       {/* Mapa */}
       <section
@@ -2832,6 +2915,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </button>
           </div>
         )}
+
+        {/* «Estás no autocarro 801?» */}
+        <PerguntaABordo controlo={aBordo} />
 
         {/* Aviso de precisão da posição (só quando está fraca ou sem sinal) */}
         {localizacaoPronta && !userCoords?.isManual && (

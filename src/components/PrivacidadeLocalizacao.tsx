@@ -1,7 +1,8 @@
-import React from 'react';
-import { Lock, Server, Smartphone, MapPin, ChevronRight, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Lock, Server, Smartphone, MapPin, ChevronRight, ShieldCheck, Bus } from 'lucide-react';
 import { Folha } from './Folha';
 import { t } from '../i18n';
+import { abordoLigado, definirAbordo, EVENTO_ABORDO } from '../utils/abordoPref';
 
 /**
  * Linha curta e visível sobre o que se faz com a localização. Toda a linha é um botão (alvo de toque ≥ 44 px)
@@ -41,6 +42,35 @@ const Linha: React.FC<{ icone: React.ReactNode; titulo: string; texto: string }>
   </li>
 );
 
+/** Interruptor «Perguntar se estou num autocarro» (A bordo): a linha toda é o botão */
+const InterruptorABordo: React.FC = () => {
+  const [ligado, setLigado] = useState<boolean>(() => abordoLigado());
+  useEffect(() => {
+    const aoMudar = () => setLigado(abordoLigado());
+    window.addEventListener(EVENTO_ABORDO, aoMudar);
+    return () => window.removeEventListener(EVENTO_ABORDO, aoMudar);
+  }, []);
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ligado}
+      data-teste="interruptor-a-bordo"
+      onClick={() => definirAbordo(!ligado)}
+      className="mt-3 w-full min-h-[56px] flex items-center gap-3 rounded-[12px] bg-[#F4F4F2] px-3 py-2 text-left cursor-pointer active:bg-[#E6E6E3]"
+    >
+      <span className="shrink-0 w-9 h-9 rounded-full bg-[#FFFFFF] text-[#111111] flex items-center justify-center" aria-hidden="true"><Bus className="w-[18px] h-[18px] stroke-[2]" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14.5px] font-semibold text-[#111111] leading-tight">{t('Perguntar se estou num autocarro')}</span>
+        <span className="block mt-0.5 text-[12.5px] text-[#6B6B6B] leading-snug">{t('Só com a app aberta. A comparação com os autocarros faz-se no teu telemóvel.')}</span>
+      </span>
+      <span aria-hidden="true" className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${ligado ? 'bg-[#FF6B1A]' : 'bg-[#C9C9C4]'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[#FFFFFF] shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
+      </span>
+    </button>
+  );
+};
+
 /** O que se faz (e o que não se faz) com a localização, e como a apagar */
 export const FolhaLocalizacao: React.FC<FolhaLocalizacaoProps> = ({ aberta, onFechar, ativa, onDesligar, onPrivacidade }) => (
   <Folha
@@ -79,7 +109,7 @@ export const FolhaLocalizacao: React.FC<FolhaLocalizacaoProps> = ({ aberta, onFe
       <Linha
         icone={<Server className="w-[18px] h-[18px] stroke-[2]" />}
         titulo={t('No servidor')}
-        texto={t('A posição segue para o nosso servidor só para calcular o que está perto, e não fica guardada lá.')}
+        texto={t('A posição segue para o nosso servidor só para calcular o que está perto (e os autocarros da zona), e não fica guardada lá.')}
       />
       <Linha
         icone={<Smartphone className="w-[18px] h-[18px] stroke-[2]" />}
@@ -97,6 +127,7 @@ export const FolhaLocalizacao: React.FC<FolhaLocalizacaoProps> = ({ aberta, onFe
         texto={t('Podes escolher um local à mão e ver o que passa por lá.')}
       />
     </ul>
+    <InterruptorABordo />
     <p className="mt-2 text-[12.5px] text-[#6B6B6B] leading-snug">
       {t('Para retirar a autorização ao browser, usa as definições do telemóvel ou do browser.')}
     </p>

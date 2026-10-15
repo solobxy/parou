@@ -77,6 +77,13 @@ export function PrivacidadeEn() {
           those readings are not stored or sent. You can withdraw permission at any time in your browser or phone settings.
         </p>
         <p>
+          <strong>Live buses and “On board”.</strong> To show the buses of your area on the map, the app asks the server only for the
+          buses of the lines and the area you are looking at, and your position is not stored. With the app open and you moving like
+          a vehicle, your phone compares its own GPS path with the paths of nearby buses, on the device, to ask you “Are you on the
+          801?”. It never decides on its own: the trip is shown only if you answer yes. The app detects nothing with the screen off
+          or in the background. You can turn this question off under “Your location”.
+        </p>
+        <p>
           <strong>Favourites and preferences.</strong> They are stored on your phone. So they are not lost (some browsers delete
           this data), we keep a copy on the server linked to a random identifier in a technical cookie
           (<em>parou_id</em>). This identifier does not say who you are and is not used for anything else.

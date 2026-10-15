@@ -47,7 +47,7 @@ export const Logo: React.FC<LogoProps> = ({
           strokeWidth="10"
           mask={`url(#${maskId})`}
         />
-        <circle cx="49" cy="57" r="6.5" fill="#FF6B1A" />
+        <circle cx="49" cy="57" r="6.5" fill="#FF6B1A" className="logo-ponto" />
       </svg>
 
       {showText && (

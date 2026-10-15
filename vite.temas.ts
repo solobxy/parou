@@ -1,4 +1,4 @@
-// Temas da PAROU (Escuro e Âmbar), gerados no build a partir do CSS que o Tailwind já produziu.
+// Temas da PAROU (Escuro, Âmbar e Azul Porto), gerados no build a partir do CSS que o Tailwind já produziu.
 //
 // A app usa as cores da marca escritas nas próprias classes (bg-[#F4F4F2], text-[#6B6B6B], border-[#E6E6E3]…).
 // Em vez de reescrever milhares de classes, este módulo lê o CSS final, encontra cada regra que usa uma
@@ -14,7 +14,7 @@ export type Papel = 'fundo' | 'texto' | 'borda';
 type Tabela = Record<string, string>;
 
 interface Tema {
-  id: 'escuro' | 'ambar';
+  id: 'escuro' | 'ambar' | 'porto';
   fundo: Tabela;
   texto: Tabela;
   borda: Tabela;
@@ -133,7 +133,36 @@ const AMBAR: Tema = {
   },
 };
 
-export const TEMAS_GERADOS: Tema[] = [ESCURO, AMBAR];
+// ---------------------------------------------------------------- Azul Porto ----------------------------------------------------------------
+// Claro, em azul e branco: o laranja da marca passa a azul (#0B46B0, 8,3:1 com branco), os cinzentos ganham um tom frio
+// e o que era preto (botões, separadores ativos) passa a azul-marinho. Os avisos (laranja escuro, amarelo, vermelho, verde) ficam como estão.
+const AZUL = '#0B46B0';
+const PORTO: Tema = {
+  id: 'porto',
+  fundo: {
+    FAFAF8: '#F7FAFE', F9F9F7: '#F7FAFE', F4F4F2: '#EDF2FA', F1F1EE: '#E8EEF8', EFEFEC: '#E4EBF6', ECECE8: '#E1E8F4', E6E6E3: '#DAE3F1',
+    D9D9D6: '#CCD8EA', D6D6D2: '#CCD8EA', D4D4D0: '#CCD8EA', C9C9C4: '#B8C8E0', B5B5B0: '#A3B6D3', '6B6B6B': '#4F5C76',
+    '111111': '#0A1F4D', '1F1F1F': '#0F2860', '2B2B2B': '#1B3D78', '000000': '#06183A',
+    FF6B1A: AZUL, FFF1E8: '#E6EEFA', FFF4EC: '#EAF1FB',
+  },
+  texto: {
+    '111111': '#0B1A36', '1F1F1F': '#101E3C', '2B2B2B': '#1B2B4B', '4A4A4A': '#3C4B68', '6B6B6B': '#4F5C76', D9D9D6: '#A9B7D0',
+    FF6B1A: AZUL,
+  },
+  borda: {
+    E6E6E3: '#DAE3F1', EFEFEC: '#E4EBF6', D5D5D0: '#C5D2E6', C9C9C4: '#B8C8E0', '111111': '#0A1F4D', '6B6B6B': '#4F5C76', '000000': '#06183A',
+    FF6B1A: AZUL,
+  },
+  alternativa(papel, r, g, b) {
+    const [L, C] = paraOklch(r, g, b);
+    if (C > 0.03) return null; // cores com tom próprio (verdes, vermelhos, amarelos…) ficam como estão
+    if (L > 0.985) return null; // branco continua branco
+    // cinzentos neutros passam a cinzentos frios, com a mesma luminosidade
+    return deOklch(L, papel === 'texto' ? 0.02 : 0.014, 255);
+  },
+};
+
+export const TEMAS_GERADOS: Tema[] = [ESCURO, AMBAR, PORTO];
 
 // ---------------------------------------------------------------- leitor de CSS (simples, serve para o CSS do Tailwind) ----------------------------------------------------------------
 interface Decl { prop: string; val: string }

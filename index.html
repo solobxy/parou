@@ -47,9 +47,9 @@
       (function () {
         try {
           var t = localStorage.getItem('parou_tema');
-          if (t === 'escuro' || t === 'ambar') {
+          if (t === 'escuro' || t === 'ambar' || t === 'porto') {
             document.documentElement.setAttribute('data-tema', t);
-            var cores = { escuro: '#161618', ambar: '#FFE9D2' };
+            var cores = { escuro: '#161618', ambar: '#FFE9D2', porto: '#FFFFFF' };
             var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', cores[t]);
             var c = document.querySelector('meta[name="color-scheme"]'); if (c) c.setAttribute('content', t === 'escuro' ? 'dark' : 'light');
           }

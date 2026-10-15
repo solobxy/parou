@@ -4,7 +4,9 @@
 //  - UNIR: não há viagens na base, só a ordem das paragens de cada linha e sentido (stop_routes);
 //    o sentido vem da AMP e, se não bater certo, escolhe-se pelo destino da partida.
 
-import { getDatabase } from './db/gtfsDatabase';
+import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
+import { pontuarPercurso } from '../utils/geoPercurso';
+import type { OperadorVeiculos } from '../utils/chaveLinha';
 
 export interface ParagemDoPercurso {
   id: string;
@@ -157,4 +159,76 @@ export function percursoUnir(route: string, paragemId: string, sentido?: string,
     paragens: melhor.paragens,
     indice: melhor.indice,
   };
+}
+
+// ---------------------------------------------------------------- percurso de um autocarro em circulação ----------------------------------------------------------------
+// O "A bordo" precisa do percurso do autocarro em que a pessoa está. Se o operador diz a viagem e ela existe no horário, usa-se essa.
+// Se não (o STCP usa outros códigos de serviço), escolhe-se, entre os percursos da linha, o que passa por baixo do autocarro e vai no mesmo sentido.
+
+const percursosPorViagem = new Map<string, PercursoLinha | null>();
+registerCacheClearCallback(() => { percursosPorViagem.clear(); });
+
+function percursoDeViagemEmCache(tripId: string): PercursoLinha | null {
+  if (percursosPorViagem.has(tripId)) return percursosPorViagem.get(tripId) ?? null;
+  if (percursosPorViagem.size > 600) percursosPorViagem.clear();
+  const p = percursoDeViagem(tripId);
+  percursosPorViagem.set(tripId, p);
+  return p;
+}
+
+/** Identificadores (como a app os usa) das linhas do horário que correspondem à linha de um autocarro em direto */
+export function rotasDaLinha(op: OperadorVeiculos, linha: string, rotaDoOperador?: string): string[] {
+  const db = getDatabase();
+  const ids = new Set<string>();
+  if (op === 'cm') {
+    ids.add(`cm:${linha}`);
+  } else {
+    if (rotaDoOperador) ids.add(`stcp:${rotaDoOperador}`);
+    const rows = db.prepare("SELECT route_id AS id FROM routes WHERE route_id LIKE 'stcp:%' AND UPPER(route_short_name) = ? LIMIT 8").all(linha.toUpperCase()) as Array<{ id: string }>;
+    for (const r of rows) ids.add(r.id);
+  }
+  return [...ids].slice(0, 8);
+}
+
+/** Um percurso por sentido e destino de cada linha (as viagens de uma linha repetem-se ao longo do dia) */
+function percursosDaRota(rotaId: string): PercursoLinha[] {
+  const db = getDatabase();
+  const viagens = db.prepare(`
+    SELECT MIN(t.trip_id) AS id FROM trips t WHERE t.route_id = ? GROUP BY t.direction_id, t.trip_headsign LIMIT 12
+  `).all(paraViagens(rotaId)) as Array<{ id: string }>;
+  const saida: PercursoLinha[] = [];
+  for (const v of viagens) {
+    const p = percursoDeViagemEmCache(v.id);
+    if (p) saida.push(p);
+  }
+  return saida;
+}
+
+/**
+ * Percurso que o autocarro está a fazer, a partir da viagem que o operador indica ou, se essa não existir no horário,
+ * da linha e da posição. As horas só vêm quando a viagem é mesmo a deste autocarro.
+ */
+export function percursoPorVeiculo(
+  v: { op: OperadorVeiculos; linha: string; lat: number; lon: number; rumo?: number; vel?: number; viagem?: string; rota?: string },
+): { percurso: PercursoLinha; origem: 'viagem' | 'posicao' } | null {
+  const mover = (v.vel ?? 0) >= 3;
+  const ponto = { lat: v.lat, lon: v.lon };
+  if (v.viagem) {
+    const ids = v.op === 'stcp' ? [`stcp:${v.viagem}`, v.viagem] : [v.viagem, `cmh:${v.viagem}`];
+    for (const id of ids) {
+      const p = percursoDeViagemEmCache(id);
+      if (p) return { percurso: p, origem: 'viagem' };
+    }
+  }
+  let melhor: { p: PercursoLinha; pontos: number } | null = null;
+  for (const rota of rotasDaLinha(v.op, v.linha, v.rota)) {
+    for (const p of percursosDaRota(rota)) {
+      const r = pontuarPercurso(p.paragens, ponto, v.rumo, mover);
+      if (!r || r.distanciaM > 150) continue;
+      if (!melhor || r.pontos < melhor.pontos) melhor = { p, pontos: r.pontos };
+    }
+  }
+  if (!melhor) return null;
+  // As horas são de outra viagem da mesma linha: não se mostram
+  return { percurso: { ...melhor.p, paragens: melhor.p.paragens.map(({ hora: _hora, ...resto }) => resto) }, origem: 'posicao' };
 }

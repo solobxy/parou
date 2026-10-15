@@ -158,3 +158,48 @@ html[data-tema="ambar"] .leaflet-tooltip-bottom.parou-rota-tip::before { border-
 html[data-tema="ambar"] .leaflet-control-attribution { background-color: rgba(255,247,238,.8) !important; color: #7A5C47 !important; }
 html[data-tema="ambar"] .leaflet-control-attribution a { color: #2A170B !important; }
 html[data-tema="ambar"] .leaflet-bar a { background-color: rgba(255,249,242,.9); color: #2A170B; border-color: rgba(160,90,40,.25); }
+
+/* =========================================================================================== AZUL PORTO */
+/* Claro, em azul e branco. As classes de cor são trocadas no build (vite.temas.ts): o laranja da marca passa a azul #0B46B0
+   (branco por cima: 8,3:1), os cinzentos ficam frios e o preto passa a azul-marinho. Aqui está o que não é classe. */
+html[data-tema="porto"] { color-scheme: light; --cor-destaque: #0B46B0; }
+html[data-tema="porto"] ::selection { background: #0B46B0; color: #FFFFFF; }
+html[data-tema="porto"] ::-webkit-scrollbar-track { background: #EDF2FA; }
+html[data-tema="porto"] ::-webkit-scrollbar-thumb { background: #B8C8E0; }
+html[data-tema="porto"] ::-webkit-scrollbar-thumb:hover { background: #8FA6C9; }
+html[data-tema="porto"] :where(button, a[href], summary, [role='button'], [role='tab'], [role='switch'], [tabindex]:not([tabindex='-1'])):not(.leaflet-container):focus-visible {
+  outline-color: #0A1F4D; box-shadow: 0 0 0 2px #FFFFFF;
+}
+html[data-tema="porto"] .parou-esqueleto { background: linear-gradient(90deg, #EDF2FA 25%, #DAE3F1 40%, #EDF2FA 60%); background-size: 300% 100%; }
+
+/* uma faixa azul no topo do cabeçalho (o detalhe que dá o ar do Porto, sem mexer nas cores do que lá está) */
+html[data-tema="porto"] header.sticky { box-shadow: inset 0 3px 0 #0B46B0; }
+
+/* botões azuis: texto branco (no laranja era escuro) */
+html[data-tema="porto"] .bg-\[\#FF6B1A\],
+html[data-tema="porto"] .bg-\[\#FF6B1A\] .text-\[\#111111\], html[data-tema="porto"] .bg-\[\#FF6B1A\] .text-\[\#FFFFFF\] { color: #FFFFFF !important; }
+html[data-tema="porto"] .bg-\[\#D92D20\], html[data-tema="porto"] .bg-\[\#1F7A3A\], html[data-tema="porto"] .bg-\[\#16A34A\],
+html[data-tema="porto"] .bg-\[\#1F9D55\], html[data-tema="porto"] .bg-\[\#14693A\] { color: #FFFFFF !important; }
+/* o laranja que quer dizer fogo ou aviso continua laranja */
+html[data-tema="porto"] .bg-\[\#FFF1E8\].text-\[\#C2410C\] { background-color: #FFF1E8; }
+html[data-tema="porto"] .bg-\[\#111111\] { color: #FFFFFF; }
+
+/* logótipo: o ponto passa a azul */
+html[data-tema="porto"] .logo-ponto { fill: #0B46B0; }
+
+/* mapa: em tons de azul; a linha, as paragens e a tua posição ficam em azul forte */
+html[data-tema="porto"] .leaflet-container { background-color: #DCE7F6 !important; }
+html[data-tema="porto"] .leaflet-tile-pane {
+  filter: grayscale(0.75) sepia(0.45) hue-rotate(172deg) saturate(1.5) brightness(1.04) contrast(0.95);
+  -webkit-filter: grayscale(0.75) sepia(0.45) hue-rotate(172deg) saturate(1.5) brightness(1.04) contrast(0.95);
+}
+html[data-tema="porto"] path[stroke="#FF6B1A"] { stroke: #0B46B0; }
+html[data-tema="porto"] path[fill="#FF6B1A"] { fill: #0B46B0; }
+html[data-tema="porto"] .leaflet-tooltip { background: #0A1F4D !important; color: #FFFFFF !important; }
+html[data-tema="porto"] .leaflet-tooltip-top:before { border-top-color: #0A1F4D !important; }
+html[data-tema="porto"] .leaflet-tooltip-bottom:before { border-bottom-color: #0A1F4D !important; }
+html[data-tema="porto"] .leaflet-tooltip-left:before { border-left-color: #0A1F4D !important; }
+html[data-tema="porto"] .leaflet-tooltip-right:before { border-right-color: #0A1F4D !important; }
+html[data-tema="porto"] .leaflet-control-attribution { background-color: rgba(255,255,255,.85) !important; color: #4F5C76 !important; }
+html[data-tema="porto"] .leaflet-control-attribution a { color: #0B46B0 !important; }
+html[data-tema="porto"] .leaflet-bar a { border-color: #DAE3F1; color: #0A1F4D; }

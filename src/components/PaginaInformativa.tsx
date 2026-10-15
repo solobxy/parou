@@ -88,6 +88,13 @@ function Privacidade() {
           definições do browser ou do telemóvel.
         </p>
         <p>
+          <strong>Autocarros em direto e «A bordo».</strong> Para mostrar no mapa os autocarros da zona, a app pede ao servidor só
+          os autocarros das linhas e da área que estás a ver, e a tua posição não fica guardada. Com a app aberta e a deslocares-te
+          como num veículo, o telemóvel compara o seu próprio percurso (GPS) com o dos autocarros da zona, no próprio aparelho, para
+          te perguntar «Está a bordo do 801?». Nunca decide sozinho: só mostras a viagem se responderes que sim. A app não deteta
+          nada com o ecrã fechado nem em segundo plano. Podes desligar esta pergunta em «A tua localização».
+        </p>
+        <p>
           <strong>Favoritos e preferências.</strong> Ficam guardados no teu telemóvel. Para não se perderem (alguns browsers apagam
           estes dados), guardamos uma cópia no servidor associada a um identificador aleatório num cookie técnico
           (<em>parou_id</em>). Esse identificador não diz quem és e não é usado para mais nada.
