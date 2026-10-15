@@ -270,17 +270,24 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       }
     };
 
-    // O mapa a meio de um voo ou arrasto tem limites que não são os do ecrã final: espera-se (no máximo ~1,5 s) para pedir a zona certa
-    let aMover = false;
+    // O mapa a meio de um voo (da posição antiga até à pessoa), de um arrasto ou de um zoom com os dedos tem limites que não são os do ecrã final:
+    // só se pede quando duas leituras seguidas, com 250 ms de intervalo, dão o mesmo zoom e quase o mesmo centro (no máximo espera-se ~5 s).
+    // Com o mapa a seguir a pessoa a andar o zoom é o mesmo e o centro quase não muda, por isso não atrasa nada.
     let adiamentos = 0;
-    const aoComecarMover = () => { aMover = true; };
-    const aoAcabarMover = () => { aMover = false; };
-    if (emTodos) { mapa.on('movestart', aoComecarMover); mapa.on('moveend', aoAcabarMover); }
+    let leituraAnterior: { z: number; lat: number; lon: number } | null = null;
+    const mapaAssentou = (): boolean => {
+      const c = mapa.getCenter(), z = mapa.getZoom(), b = mapa.getBounds();
+      const antes = leituraAnterior;
+      leituraAnterior = { z, lat: c.lat, lon: c.lng };
+      if (!antes) return false;
+      const h = Math.max(1e-9, b.getNorth() - b.getSouth()), w = Math.max(1e-9, b.getEast() - b.getWest());
+      return Math.abs(z - antes.z) < 1e-6 && Math.abs(c.lat - antes.lat) < 0.3 * h && Math.abs(c.lng - antes.lon) < 0.3 * w;
+    };
 
     const carregar = async () => {
       if (!ativo) return;
       if (document.visibilityState === 'hidden') { temporizador = setTimeout(carregar, INTERVALO_MS); return; }
-      if (emTodos && aMover && adiamentos < 5) { adiamentos++; temporizador = setTimeout(carregar, 300); return; }
+      if (emTodos && !mapaAssentou() && adiamentos < 20) { adiamentos++; temporizador = setTimeout(carregar, 250); return; }
       adiamentos = 0;
       pedido?.abort();
       const este = new AbortController();
@@ -318,8 +325,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     recarregarRef.current = recarregar;
     document.addEventListener('visibilitychange', aoVoltar);
     quadro = requestAnimationFrame(passo);
-    // No modo «todos» o mapa pode estar a meio do voo até à pessoa quando isto arranca: dá-se um instante para ele assentar
-    if (emTodos) temporizador = setTimeout(carregar, 350); else carregar();
+    carregar();
 
     return () => {
       ativo = false;
@@ -332,8 +338,6 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       mapa.off('zoomend', aoAcabarZoom);
       mapa.off('zoomend', ajustarPontos);
       mapa.off('moveend', aoMexerMapa);
-      mapa.off('movestart', aoComecarMover);
-      mapa.off('moveend', aoAcabarMover);
       mapa.off('resize', aoMexerMapa);
       contentor.classList.remove('mapa-bus-ponto');
       dica?.remove();
