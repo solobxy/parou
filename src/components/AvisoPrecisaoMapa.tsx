@@ -31,17 +31,12 @@ export const AvisoPrecisaoMapa: React.FC<Props> = ({ nivel, precisao, aTentar, o
     <div className="absolute left-3 bottom-3 z-20 flex flex-col items-start gap-2 max-w-[calc(100%-1.5rem)]" data-teste="aviso-precisao-mapa" role="status">
       {aberto && (
         <div className="w-[min(21rem,calc(100vw-1.5rem))] rounded-[14px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_4px_14px_rgba(17,17,17,0.12)] p-3.5" data-teste="aviso-precisao-detalhe">
-          <p className="text-[14px] font-semibold text-[#111111] leading-snug">
+          <p className="text-[13.5px] text-[#111111] leading-snug">
             {semSinal
-              ? t('Estamos a mostrar a última posição conhecida.')
-              : t('A tua posição está pouco precisa (cerca de {d}).', { d: distancia })}
-          </p>
-          <p className="mt-1 text-[13px] text-[#6B6B6B] leading-snug">
-            {semSinal
-              ? t('Dentro de edifícios e em túneis o sinal costuma falhar. Volta ao normal quando o GPS apanhar sinal.')
+              ? t('A mostrar a última posição conhecida. Dentro de edifícios e em túneis o sinal costuma falhar; volta ao normal quando o GPS apanhar sinal.')
               : t('Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.')}
           </p>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2.5 flex items-center gap-2">
             <button
               type="button"
               onClick={onTentar}
