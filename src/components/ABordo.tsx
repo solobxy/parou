@@ -120,7 +120,7 @@ export function useABordo(coords: UserCoords | null | undefined, ativo: boolean)
       if (!detetor.current.emMovimento()) return;
       ocupado = true;
       try {
-        const r = await fetchVeiculos({ caixa: { sul: c.latitude - GRAUS_LAT, norte: c.latitude + GRAUS_LAT, oeste: c.longitude - GRAUS_LON, leste: c.longitude + GRAUS_LON } });
+        const r = await fetchVeiculos({ origem: 'deteccao', caixa: { sul: c.latitude - GRAUS_LAT, norte: c.latitude + GRAUS_LAT, oeste: c.longitude - GRAUS_LON, leste: c.longitude + GRAUS_LON } });
         if (!vivo) return;
         detetor.current.adicionarVeiculos(r.veiculos, { agoraServidorS: r.agora, recebidoEmMs: Date.now() });
         const e = detetor.current.escolher();

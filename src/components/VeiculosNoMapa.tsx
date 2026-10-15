@@ -270,9 +270,18 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       }
     };
 
+    // O mapa a meio de um voo ou arrasto tem limites que não são os do ecrã final: espera-se (no máximo ~1,5 s) para pedir a zona certa
+    let aMover = false;
+    let adiamentos = 0;
+    const aoComecarMover = () => { aMover = true; };
+    const aoAcabarMover = () => { aMover = false; };
+    if (emTodos) { mapa.on('movestart', aoComecarMover); mapa.on('moveend', aoAcabarMover); }
+
     const carregar = async () => {
       if (!ativo) return;
       if (document.visibilityState === 'hidden') { temporizador = setTimeout(carregar, INTERVALO_MS); return; }
+      if (emTodos && aMover && adiamentos < 5) { adiamentos++; temporizador = setTimeout(carregar, 300); return; }
+      adiamentos = 0;
       pedido?.abort();
       const este = new AbortController();
       pedido = este;
@@ -287,7 +296,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
           if (!cx) esvaziar(); // mapa afastado de mais, ou fora de Portugal: não há nada para pedir
         }
         if (!emTodos || cx) {
-          const r = await fetchVeiculos({ linhas: emTodos ? [] : linhas, caixa: cx }, este.signal);
+          const r = await fetchVeiculos({ origem: 'mapa', linhas: emTodos ? [] : linhas, caixa: cx }, este.signal);
           if (ativo) desenhar(r.veiculos, r.agora);
         }
       } catch {
@@ -309,7 +318,8 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
     recarregarRef.current = recarregar;
     document.addEventListener('visibilitychange', aoVoltar);
     quadro = requestAnimationFrame(passo);
-    carregar();
+    // No modo «todos» o mapa pode estar a meio do voo até à pessoa quando isto arranca: dá-se um instante para ele assentar
+    if (emTodos) temporizador = setTimeout(carregar, 350); else carregar();
 
     return () => {
       ativo = false;
@@ -322,6 +332,8 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       mapa.off('zoomend', aoAcabarZoom);
       mapa.off('zoomend', ajustarPontos);
       mapa.off('moveend', aoMexerMapa);
+      mapa.off('movestart', aoComecarMover);
+      mapa.off('moveend', aoAcabarMover);
       mapa.off('resize', aoMexerMapa);
       contentor.classList.remove('mapa-bus-ponto');
       dica?.remove();
