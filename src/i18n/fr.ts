@@ -945,6 +945,7 @@ export const FR: Record<string, string> = {
   'Mais laranja, em vidro': 'Plus d’orange, effet verre',
   // A bordo e autocarros em direto
   'A posição segue para o nosso servidor só para calcular o que está perto (e os autocarros da zona), e não fica guardada lá.': 'Votre position est envoyée à notre serveur uniquement pour calculer ce qui est à proximité (et les bus de la zone), et elle n’y est pas conservée.',
+  'Aproxima o mapa para ver os autocarros em direto': 'Zoomez pour voir les bus en direct',
   'Linha {l}': 'Ligne {l}',
   'há {s} s': 'il y a {s} s',
   'Estou a bordo': 'Je suis à bord',

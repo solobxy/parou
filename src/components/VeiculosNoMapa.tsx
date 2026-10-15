@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { fetchVeiculos, type Caixa } from '../services/veiculosApi';
+import { fetchVeiculos } from '../services/veiculosApi';
+import { caixaDoEcra, type Caixa } from '../utils/caixaVeiculos';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
 import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
 
-// Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB): só os das linhas pedidas, perto do que a pessoa está a ver.
+// Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB). Por defeito (`todos`) mostra TODOS os que estão no ecrã do mapa,
+// de qualquer operador e linha, e acompanha o mapa quando a pessoa o arrasta ou afasta (até um raio de ~30 km; mais longe pede para aproximar).
+// Só quando há uma linha escolhida (percurso aberto) ou a pessoa vai a bordo é que mostra só os autocarros dessa linha.
 // Os operadores só enviam uma posição de 15 em 15 s (STCP de 30 em 30) e ela chega com 10 a 30 s de idade. Para o autocarro não
 // «teleportar» de uma posição para a seguinte, o marcador não vai direto para a última posição: segue-a com um movimento suave
 // (src/utils/trajetoVeiculo.ts), desenhado 30 vezes por segundo só para o que está à vista.
@@ -15,10 +18,21 @@ import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, rodarPeloCaminhoMa
 const INTERVALO_MS = 6_000;
 /** Imagens por segundo do movimento (a ~9 px/s num mapa muito ampliado, 30 imagens chegam para parecer contínuo) */
 const QUADRO_MS = 33;
+/** Com mais de 300 autocarros à vista (mapa afastado) pede-se de 10 em 10 s: a resposta é maior e as posições só mudam de ~15 em 15 s */
+const MUITOS = 300;
+const INTERVALO_MUITOS_MS = 10_000;
+/** Até este nível de zoom (no modo «todos») os autocarros viram pontos coloridos sem número, para não taparem o mapa */
+const ZOOM_PONTOS = 14;
+/** Depois de o mapa parar de mexer, espera-se isto antes de pedir os autocarros da zona nova (ms) */
+const ESPERA_MAPA_MS = 300;
 /** Posição com mais de 75 s: o autocarro fica esbatido (pode já não estar ali) */
 const IDADE_ESBATIDA_S = 75;
 /** Rotação mínima (graus) para atualizar a ponta que aponta para onde vai */
 const ROTACAO_MIN_GRAUS = 3;
+
+/** Tempo entre imagens do movimento: com o mapa afastado um autocarro mexe menos de 0,3 px por imagem, por isso desenha-se menos vezes */
+const intervaloQuadro = (zoom: number, n: number): number =>
+  zoom >= 15 ? (n > 120 ? 2 * QUADRO_MS : QUADRO_MS) : zoom >= 14 ? 100 : zoom >= 13 ? 250 : 500;
 
 const escapar = (s: string) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
@@ -53,17 +67,19 @@ interface Entrada {
 
 interface Props {
   mapa: L.Map | null;
-  /** Chaves de linha ("stcp:803", "cm:4436", "tub:45"); vazio = não mostra nada */
+  /** Chaves de linha ("stcp:803", "cm:4436", "tub:45"); com `todos` não conta */
   linhas: string[];
-  /** Só os autocarros dentro desta caixa (menos marcadores e menos dados) */
+  /** Só os autocarros dentro desta caixa (percurso aberto) */
   caixa?: Caixa;
+  /** Mostra todos os autocarros que estão no ecrã do mapa (qualquer operador e linha) e acompanha o mapa */
+  todos?: boolean;
   /** Autocarro em que a pessoa vai (fica destacado) */
   meu?: string | null;
   /** Tocar num autocarro: devolve-o, com a hora do servidor (segundos) para saber há quanto tempo é a posição */
   aoTocar?: (v: VeiculoLeve, agoraServidorS: number) => void;
 }
 
-export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
+export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Props) {
   const entradasRef = useRef<Map<string, Entrada>>(new Map());
   const grupoRef = useRef<L.LayerGroup | null>(null);
   const relogioRef = useRef<Relogio | null>(null);
@@ -86,14 +102,18 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
 
   useEffect(() => {
     const entradas = entradasRef.current;
-    const limpar = () => {
+    const esvaziar = () => {
       entradas.forEach((e) => e.marker.remove());
       entradas.clear();
+    };
+    const limpar = () => {
+      esvaziar();
       grupoRef.current?.remove();
       grupoRef.current = null;
       relogioRef.current = null;
     };
-    if (!mapa || !linhas.length) { limpar(); estadoRef.current = () => {}; return; }
+    const emTodos = !!todos;
+    if (!mapa || (!emTodos && !linhas.length)) { limpar(); estadoRef.current = () => {}; return; }
 
     let ativo = true;
     let temporizador: ReturnType<typeof setTimeout> | null = null;
@@ -105,6 +125,23 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
     let inicioZoom = 0;
     const grupo = L.layerGroup().addTo(mapa);
     grupoRef.current = grupo;
+    const contentor = mapa.getContainer();
+
+    // Mapa muito afastado: não se pede nada e diz-se para aproximar (um aviso pequeno por cima do mapa)
+    let dica: HTMLElement | null = null;
+    if (emTodos) {
+      dica = document.createElement('div');
+      dica.className = 'bus-dica';
+      dica.setAttribute('role', 'status');
+      dica.hidden = true;
+      dica.textContent = t('Aproxima o mapa para ver os autocarros em direto');
+      contentor.appendChild(dica);
+    }
+    const mostrarDica = (v: boolean) => { if (dica) dica.hidden = !v; };
+    // Com o mapa afastado os autocarros são pontos (ver .mapa-bus-ponto em index.css)
+    const ajustarPontos = () => { contentor.classList.toggle('mapa-bus-ponto', emTodos && mapa.getZoom() <= ZOOM_PONTOS); };
+    ajustarPontos();
+    mapa.on('zoomend', ajustarPontos);
 
     const agoraServidor = (): number => {
       const r = relogioRef.current;
@@ -171,7 +208,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
     const passo = (ts: number) => {
       quadro = requestAnimationFrame(passo);
       // Com muitos autocarros (centenas) desenha-se a metade das imagens por segundo, para não pesar no telemóvel
-      if (ts - ultimoQuadro < (entradas.size > 120 ? 2 * QUADRO_MS : QUADRO_MS) - 2) return;
+      if (ts - ultimoQuadro < intervaloQuadro(mapa.getZoom(), entradas.size) - 2) return;
       ultimoQuadro = ts;
       if (aAmpliar && ts - inicioZoom > 1500) aAmpliar = false; // se o fim do zoom se perder, não ficar parado
       if (!relogioRef.current || document.visibilityState === 'hidden' || aAmpliar) return;
@@ -237,16 +274,37 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
       if (!ativo) return;
       if (document.visibilityState === 'hidden') { temporizador = setTimeout(carregar, INTERVALO_MS); return; }
       pedido?.abort();
-      pedido = new AbortController();
+      const este = new AbortController();
+      pedido = este;
       try {
-        const r = await fetchVeiculos({ linhas, caixa: caixaRef.current }, pedido.signal);
-        if (ativo) desenhar(r.veiculos, r.agora);
+        // «todos»: a caixa é o ecrã do mapa neste momento (com folga); as outras vistas usam a caixa que a PertoView dá
+        let cx: Caixa | undefined = caixaRef.current;
+        if (emTodos) {
+          const b = mapa.getBounds();
+          const r = caixaDoEcra({ sul: b.getSouth(), oeste: b.getWest(), norte: b.getNorth(), leste: b.getEast() });
+          mostrarDica(r.longe === true);
+          cx = r.caixa;
+          if (!cx) esvaziar(); // mapa afastado de mais, ou fora de Portugal: não há nada para pedir
+        }
+        if (!emTodos || cx) {
+          const r = await fetchVeiculos({ linhas: emTodos ? [] : linhas, caixa: cx }, este.signal);
+          if (ativo) desenhar(r.veiculos, r.agora);
+        }
       } catch {
         /* sem rede ou o servidor falhou: ficam os que já estão e tenta-se outra vez */
       }
-      if (ativo) temporizador = setTimeout(carregar, INTERVALO_MS);
+      // Se o mapa mexeu enquanto este pedido andava, outro pedido tomou o seu lugar e é esse que marca o seguinte (senão acumulavam-se temporizadores)
+      if (este.signal.aborted) return;
+      if (ativo) temporizador = setTimeout(carregar, entradas.size > MUITOS ? INTERVALO_MUITOS_MS : INTERVALO_MS);
     };
     const recarregar = () => { if (ativo) { if (temporizador) clearTimeout(temporizador); carregar(); } };
+    // O mapa mexeu (arrastou, zoom, mudou de tamanho): pedem-se os autocarros do ecrã novo quando ele parar
+    let esperaMapa: ReturnType<typeof setTimeout> | null = null;
+    const aoMexerMapa = () => {
+      if (esperaMapa) clearTimeout(esperaMapa);
+      esperaMapa = setTimeout(() => { esperaMapa = null; recarregar(); }, ESPERA_MAPA_MS);
+    };
+    if (emTodos) { mapa.on('moveend', aoMexerMapa); mapa.on('resize', aoMexerMapa); }
     const aoVoltar = () => { if (document.visibilityState === 'visible') recarregar(); };
     recarregarRef.current = recarregar;
     document.addEventListener('visibilitychange', aoVoltar);
@@ -257,16 +315,22 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
       ativo = false;
       if (temporizador) clearTimeout(temporizador);
       pedido?.abort();
+      if (esperaMapa) clearTimeout(esperaMapa);
       if (quadro !== null) cancelAnimationFrame(quadro);
       document.removeEventListener('visibilitychange', aoVoltar);
       mapa.off('zoomanim', aoComecarZoom);
       mapa.off('zoomend', aoAcabarZoom);
+      mapa.off('zoomend', ajustarPontos);
+      mapa.off('moveend', aoMexerMapa);
+      mapa.off('resize', aoMexerMapa);
+      contentor.classList.remove('mapa-bus-ponto');
+      dica?.remove();
       estadoRef.current = () => {};
       recarregarRef.current = () => {};
       limpar();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapa, chaveLinhas]);
+  }, [mapa, chaveLinhas, todos]);
 
   return null;
 }

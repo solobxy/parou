@@ -1366,44 +1366,25 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setFollowMode(false);
   }, [aBordo.fase]);
 
-  // Autocarros em direto no mapa: só os das linhas que estás a ver (paragem aberta, linha aberta ou paragens perto) e perto do que o mapa mostra
-  const { linhasVeiculos, caixaVeiculos } = useMemo(() => {
-    const redondo = (x: number) => Math.round(x / 0.005) * 0.005;
-    const caixaEm = (lat: number, lon: number, dLat: number, dLon: number) => ({ sul: redondo(lat - dLat), norte: redondo(lat + dLat), oeste: redondo(lon - dLon), leste: redondo(lon + dLon) });
-    if (aBordo.fase === 'a-bordo') return { linhasVeiculos: aBordo.chaveLinha ? [aBordo.chaveLinha] : [], caixaVeiculos: undefined };
-    const chaves = new Set<string>();
-    const dePartidas = (paragem: NearbyStopItem) => {
-      for (const d of paragem.nextDepartures || []) {
-        const k = chaveDaPartida({ routeId: d.routeId, operatorId: d.operatorId || paragem.operatorId, operatorName: d.operatorName || paragem.operatorName, lineCode: d.lineCode });
-        if (k) chaves.add(k);
-      }
-      if (!(paragem.nextDepartures || []).length) {
-        for (const l of paragem.lines || []) {
-          const k = chaveDaPartida({ operatorId: paragem.operatorId, operatorName: paragem.operatorName, lineCode: l.code });
-          if (k) chaves.add(k);
-        }
-      }
-    };
+  // Autocarros em direto no mapa: por defeito TODOS os que estão no ecrã do mapa, de qualquer operador e linha; o mapa acompanha-te
+  // quando o arrastas ou afastas (ver VeiculosNoMapa). Só com o percurso de uma linha aberto, ou a bordo, aparecem só os dessa linha.
+  // (Antes só se pedia as linhas das 6 paragens mais perto, e em sítios como Campanhã, com metro e comboio ao lado, quase não se via nenhum.)
+  const { linhasVeiculos, caixaVeiculos, todosVeiculos } = useMemo(() => {
+    if (aBordo.fase === 'a-bordo') return { linhasVeiculos: aBordo.chaveLinha ? [aBordo.chaveLinha] : [], caixaVeiculos: undefined, todosVeiculos: false };
     if (linhaAberta) {
+      const chaves = new Set<string>();
       const k = chaveDaPartida({ routeId: linhaAberta.id, operatorId: linhaAberta.dados?.operatorId, operatorName: linhaAberta.dados?.operatorName, lineCode: linhaAberta.linha });
       if (k) chaves.add(k);
       const pts = (linhaAberta.percurso?.paragens || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
       if (pts.length > 1) {
         const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon);
         const sul = Math.min(...lats) - 0.01, norte = Math.max(...lats) + 0.01, oeste = Math.min(...lons) - 0.01, leste = Math.max(...lons) + 0.01;
-        if (norte - sul <= 0.28 && leste - oeste <= 0.28) return { linhasVeiculos: [...chaves], caixaVeiculos: { sul, norte, oeste, leste } };
+        if (norte - sul <= 0.28 && leste - oeste <= 0.28) return { linhasVeiculos: [...chaves], caixaVeiculos: { sul, norte, oeste, leste }, todosVeiculos: false };
       }
-      return { linhasVeiculos: [...chaves], caixaVeiculos: undefined };
+      return { linhasVeiculos: [...chaves], caixaVeiculos: undefined, todosVeiculos: false };
     }
-    if (selectedStop) {
-      dePartidas(selectedStop);
-      const lat = Number(selectedStop.latitude), lon = Number(selectedStop.longitude);
-      return { linhasVeiculos: [...chaves].slice(0, 30), caixaVeiculos: isValidCoordinate(lat, lon) ? caixaEm(lat, lon, 0.03, 0.04) : undefined };
-    }
-    if (!userCoords) return { linhasVeiculos: [], caixaVeiculos: undefined };
-    stops.slice(0, 6).forEach(dePartidas);
-    return { linhasVeiculos: [...chaves].slice(0, 30), caixaVeiculos: caixaEm(userCoords.latitude, userCoords.longitude, 0.008, 0.011) };
-  }, [aBordo.fase, aBordo.chaveLinha, linhaAberta, selectedStop, stops, userCoords?.latitude, userCoords?.longitude]);
+    return { linhasVeiculos: [] as string[], caixaVeiculos: undefined, todosVeiculos: true };
+  }, [aBordo.fase, aBordo.chaveLinha, linhaAberta]);
 
   // Ao abrir o percurso, a lista fica na paragem onde estou
   const paragemAquiRef = useRef<HTMLLIElement | null>(null);
@@ -2823,6 +2804,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           mapa={mapaLeaflet}
           linhas={linhasVeiculos}
           caixa={caixaVeiculos}
+          todos={todosVeiculos}
           meu={aBordo.alvo?.id ?? null}
           aoTocar={(v, agora) => setBusTocado({ v, agora })}
         />
