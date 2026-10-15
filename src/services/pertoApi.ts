@@ -169,6 +169,64 @@ export function getFavoriteStopIds(): Set<string> {
   }
 }
 
+// Linhas favoritas: a mesma lista dos Horários (parou_favorite_line_ids) e do separador Favoritos (id "line-…"),
+// por isso a estrela fica igual no Perto, nos Horários e nos Favoritos.
+const FAVORITE_LINES_KEY = 'parou_favorite_line_ids';
+
+export interface DadosLinhaFavorita {
+  name?: string;
+  code?: string;
+  color?: string;
+  operatorId?: string;
+  operatorName?: string;
+}
+
+export function getFavoriteLineIds(): Set<string> {
+  const set = new Set<string>();
+  if (typeof window === 'undefined') return set;
+  try {
+    const v = JSON.parse(localStorage.getItem(FAVORITE_LINES_KEY) || '[]');
+    if (Array.isArray(v)) v.forEach((id) => { if (typeof id === 'string') set.add(id); });
+  } catch { /* lista ilegível: conta só a dos favoritos */ }
+  try {
+    for (const f of getLocalFavorites()) if (f.id.startsWith('line-')) set.add(f.id.slice(5));
+  } catch { /* sem favoritos locais */ }
+  return set;
+}
+
+/** Marca ou desmarca uma linha (id = o da lista de linhas, ex. "carris:245_0"). Devolve se ficou favorita. */
+export function toggleFavoriteLineId(lineId: string, meta?: DadosLinhaFavorita): boolean {
+  if (typeof window === 'undefined' || !lineId) return false;
+  const eraFavorita = getFavoriteLineIds().has(lineId);
+  // Primeiro a lista dos Horários; depois a dos Favoritos (que avisa as outras janelas já com tudo gravado)
+  let guardadas: string[] = [];
+  try {
+    const v = JSON.parse(localStorage.getItem(FAVORITE_LINES_KEY) || 'null');
+    if (Array.isArray(v)) guardadas = v.filter((id) => typeof id === 'string');
+  } catch { /* começa vazia */ }
+  const seguinte = eraFavorita
+    ? guardadas.filter((id) => id !== lineId)
+    : (guardadas.includes(lineId) ? guardadas : [...guardadas, lineId]);
+  try { localStorage.setItem(FAVORITE_LINES_KEY, JSON.stringify(seguinte)); } catch { /* sem espaço: fica só nos Favoritos */ }
+  if (eraFavorita) {
+    removeFavorite(`line-${lineId}`).catch(() => {});
+  } else {
+    addFavorite({
+      id: `line-${lineId}`,
+      type: 'linha',
+      category: 'transportes',
+      title: meta?.name || meta?.code || lineId,
+      subtitle: meta?.operatorName,
+      lineCode: meta?.code,
+      lineName: meta?.name,
+      lineColor: meta?.color,
+      operatorId: meta?.operatorId,
+      operatorName: meta?.operatorName,
+    } as any).catch(() => {});
+  }
+  return !eraFavorita;
+}
+
 export function toggleFavoriteStopId(stopId: string, stopMeta?: Partial<NearbyStopItem>): boolean {
   if (typeof window === 'undefined') return false;
   try {
