@@ -38,7 +38,10 @@ import {
   searchDestinations, 
   planTransitRoute,
   getFavoriteStopIds,
-  toggleFavoriteStopId
+  toggleFavoriteStopId,
+  getFavoriteLineIds,
+  toggleFavoriteLineId,
+  type DadosLinhaFavorita
 } from '../services/pertoApi';
 import { 
   NearbyStopItem, 
@@ -501,6 +504,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const pedidoLinhaRef = useRef(0);
   const [linhaAberta, setLinhaAberta] = useState<{
     linha: string; cor?: string; destino: string; estado: 'a-carregar' | 'ok' | 'erro';
+    /** Identificador da linha (o da lista de linhas) e dados para a guardar nos favoritos */
+    id?: string; dados?: DadosLinhaFavorita;
     percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number };
   } | null>(null);
   const linhaNoMapa = Boolean(linhaAberta?.percurso);
@@ -527,10 +532,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const isFetchingNearbyRef = useRef<boolean>(false);
   const retryAttemptRef = useRef<number>(0);
 
+  const [favoriteLineIds, setFavoriteLineIds] = useState<Set<string>>(() => getFavoriteLineIds());
   useEffect(() => {
     setFavoriteStopIds(getFavoriteStopIds());
+    setFavoriteLineIds(getFavoriteLineIds());
     // Também quando os favoritos mudam noutro sítio ou são repostos da cópia no servidor
-    const reler = () => setFavoriteStopIds(getFavoriteStopIds());
+    const reler = () => { setFavoriteStopIds(getFavoriteStopIds()); setFavoriteLineIds(getFavoriteLineIds()); };
     window.addEventListener('parou_favorites_updated', reler);
     window.addEventListener('parou_dados_repostos', reler);
     return () => {
@@ -559,22 +566,29 @@ export const PertoView: React.FC<PertoViewProps> = ({
     // Ler depois de gravar: o aviso de "favoritos mudaram" chega antes de a lista de paragens ficar atualizada
     setFavoriteStopIds(getFavoriteStopIds());
   };
-  const botaoFavorito = (stop: NearbyStopItem, extra: string) => {
-    const guardada = paragemEFavorita(stop);
+  // Mesma estrela para paragens e linhas (mesmo tamanho, textos e estilo das estrelas dos Horários)
+  const estrelaFavorito = (guardada: boolean, nome: string, aoAlternar: () => void, extra: string, teste: string) => {
     const rotulo = guardada ? t('Remover dos favoritos') : t('Guardar nos favoritos');
     return (
       <button
         type="button"
-        data-teste="favorito-paragem"
-        onClick={(e) => { e.stopPropagation(); alternarParagemFavorita(stop); }}
+        data-teste={teste}
+        onClick={(e) => { e.stopPropagation(); aoAlternar(); }}
         className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-full text-[#6B6B6B] hover:text-[#111111] active:bg-[#F4F4F2] cursor-pointer ${extra}`}
         title={rotulo}
-        aria-label={`${rotulo}: ${formatTransitName(stop.name)}`}
+        aria-label={`${rotulo}: ${nome}`}
         aria-pressed={guardada}
       >
         <Star className={`w-5 h-5 stroke-[2] ${guardada ? 'fill-[#111111] text-[#111111]' : ''}`} />
       </button>
     );
+  };
+  const botaoFavorito = (stop: NearbyStopItem, extra: string) =>
+    estrelaFavorito(paragemEFavorita(stop), formatTransitName(stop.name), () => alternarParagemFavorita(stop), extra, 'favorito-paragem');
+  // Linha aberta (percurso): só quando se sabe o identificador da linha (as de outros operadores sem ele não têm estrela)
+  const alternarLinhaFavorita = (id: string, dados?: DadosLinhaFavorita) => {
+    toggleFavoriteLineId(id, dados);
+    setFavoriteLineIds(getFavoriteLineIds());
   };
 
   useEffect(() => { ultimoSeguir = followMode; }, [followMode]);
@@ -1174,7 +1188,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const abrirLinha = (dep: any) => {
     const pedido = ++pedidoLinhaRef.current;
     const linha = String(dep.lineCode || dep.route_short_name || '');
-    const base = { linha, cor: dep.lineColor as string | undefined, destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name) };
+    const base = {
+      linha,
+      cor: dep.lineColor as string | undefined,
+      destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name),
+      id: dep.routeId ? String(dep.routeId) : undefined,
+      dados: { name: dep.lineName || dep.route_long_name, code: linha, color: dep.lineColor, operatorId: dep.operatorId, operatorName: dep.operatorName } as DadosLinhaFavorita,
+    };
     let url = '';
     if (dep.tripId) {
       url = `/api/transit/percurso?trip=${encodeURIComponent(dep.tripId)}${dep.stopId ? `&stop=${encodeURIComponent(dep.stopId)}` : ''}${dep.routeId ? `&rota=${encodeURIComponent(dep.routeId)}&dest=${encodeURIComponent(dep.destination || dep.headsign || '')}` : ''}`;
@@ -1195,6 +1215,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
           linha: base.linha || p.linha || '',
           cor: base.cor || p.cor,
           destino: base.destino || formatTransitName(p.destino || ''),
+          id: base.id,
+          dados: base.dados,
           estado: 'ok',
           percurso: { paragens: p.paragens, indice: Number.isFinite(p.indice) ? p.indice : -1 },
         });
@@ -2507,7 +2529,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     aria-label={t('Voltar às partidas da paragem')}
                   >
                     <ArrowLeft className="w-4 h-4 stroke-[2.25]" />
-                    {t('Partidas')}
+                    {/* Em ecrãs estreitos fica só a seta (o espaço faz falta ao destino e à estrela) */}
+                    <span className="max-[379px]:hidden">{t('Partidas')}</span>
                   </button>
                   <LineChip number={linhaAberta.linha || '—'} color={linhaAberta.cor} />
                   <div className="min-w-0 flex-1">
@@ -2522,6 +2545,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
                       );
                     })()}
                   </div>
+                  {linhaAberta.id && estrelaFavorito(
+                    favoriteLineIds.has(linhaAberta.id),
+                    `${linhaAberta.linha || ''} ${linhaAberta.destino || ''}`.trim(),
+                    () => alternarLinhaFavorita(linhaAberta.id!, linhaAberta.dados),
+                    '-mx-1',
+                    'favorito-linha',
+                  )}
                   <button
                     onClick={() => setMapaExpandido((v) => !v)}
                     className="lg:hidden shrink-0 w-10 h-10 -mr-1.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
