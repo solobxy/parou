@@ -48,7 +48,7 @@ const Visualizador: React.FC<{ imagens: string[]; inicio: number; alt: string; a
       aria-label={alt}
       tabIndex={-1}
       data-teste="imagem-grande"
-      className="folha-fundo fixed inset-0 z-[80] flex flex-col bg-black/90 outline-none overscroll-contain select-none"
+      className="folha-fundo fixed inset-0 z-[80] flex flex-col bg-black/95 outline-none overscroll-contain select-none"
       style={{ touchAction: 'pinch-zoom' }}
       onClick={(e) => {
         // Esta janela está dentro do cartão do post (para o React): o toque não pode abrir a conversa
