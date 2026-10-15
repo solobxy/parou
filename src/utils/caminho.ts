@@ -228,6 +228,19 @@ export function encaixeValido(desenho: Ponto[], paragens: Ponto[]): EncaixeParag
 }
 
 /**
+ * Encaixe das paragens no desenho, com o desenho ao contrário se for o caso: alguns operadores desenham a viagem no sentido
+ * oposto ao das paragens (o desenho vai de Corroios a Cacilhas e a viagem de Cacilhas a Corroios). Devolve o desenho a usar
+ * (já invertido, se foi preciso) e o encaixe; null se não serve de nenhuma maneira.
+ */
+export function encaixarNoDesenho(desenho: Ponto[], paragens: Ponto[]): { desenho: Ponto[]; invertido: boolean; encaixe: EncaixeParagens } | null {
+  const direto = encaixeValido(desenho, paragens);
+  if (direto) return { desenho, invertido: false, encaixe: direto };
+  const ao_contrario = [...desenho].reverse();
+  const inverso = encaixeValido(ao_contrario, paragens);
+  return inverso ? { desenho: ao_contrario, invertido: true, encaixe: inverso } : null;
+}
+
+/**
  * Posição de cada paragem no desenho, para enviar à app: null nas paragens por onde o desenho não passa
  * (nesses troços a app une as paragens em linha reta, em vez de inventar um caminho).
  */
