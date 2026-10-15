@@ -4,7 +4,7 @@ import { Mail, Heart, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide
 import type { PaginaInfo } from './PaginaInformativa';
 import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 
-const ATUALIZADO_FR = '11 octobre 2026';
+const ATUALIZADO_FR = '15 octobre 2026';
 
 export function SobreFr({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
   return (
@@ -73,7 +73,9 @@ export function PrivacidadeFr() {
         <p>
           <strong>Position (uniquement si vous l’autorisez).</strong> Elle sert à afficher les arrêts et les services près de vous. Votre position
           n’est envoyée à notre serveur que pour calculer les arrêts proches et n’y est pas conservée. Votre dernière position reste sur votre
-          téléphone, jusqu’à 12 heures, pour que l’application s’ouvre au bon endroit. Vous pouvez retirer l’autorisation à tout moment dans
+          téléphone, jusqu’à 12 heures, pour que l’application s’ouvre au bon endroit. Tant que la position est activée, l’application lit aussi
+          le capteur de mouvement du téléphone, uniquement sur l’appareil, pour savoir si vous êtes immobile et éviter que le point tremble sur
+          la carte ; ces valeurs ne sont ni conservées ni envoyées. Vous pouvez retirer l’autorisation à tout moment dans
           les paramètres de votre navigateur ou de votre téléphone.
         </p>
         <p>
