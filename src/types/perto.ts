@@ -97,6 +97,8 @@ export interface RouteLeg {
   arrivalTime?: string;
   /** Para desenhar no mapa: paragens do percurso (embarque → desembarque) ou os dois extremos do troço a pé */
   pontos?: PontoRota[];
+  /** Troço de transporte: o desenho da estrada (ou do carril) entre o embarque e o desembarque, em polilinha codificada; sem ele a app une as paragens em linha reta */
+  caminho?: string;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }

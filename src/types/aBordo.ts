@@ -42,6 +42,9 @@ export interface RespostaABordo {
   total?: number;
   /** Só com `completo`: as paragens por ordem */
   paragens?: ParagemABordo[];
+  /** Só com `completo`, se a viagem tem desenho: o caminho pela estrada (polilinha codificada) e a posição de cada paragem nele */
+  caminho?: string;
+  cortes?: Array<number | null>;
   /** Posição da paragem seguinte (ou da paragem onde está, se `naParagem`) */
   indice?: number;
   naParagem?: boolean;

@@ -13,6 +13,7 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
+import { caminhoDoTroco } from './caminhos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, type Indice, type Jornada } from './planeadorIndice';
 
@@ -148,6 +149,14 @@ export function ligarTrocosAPe(legs: RouteLeg[], origem: { lat: number; lon: num
     const fim = prox ? prox.pontos![0] : destino;
     l.pontos = [{ lat: atual.lat, lon: atual.lon }, { lat: fim.lat, lon: fim.lon }];
   });
+}
+
+/** Junta ao troço de transporte o desenho da estrada (ou do carril) entre o embarque e o desembarque, se a viagem o tem */
+function juntarCaminho(l: { pontos?: Array<{ lat: number; lon: number }>; caminho?: string }, trip: string): void {
+  try {
+    const c = l.pontos && l.pontos.length > 1 ? caminhoDoTroco(trip, l.pontos) : undefined;
+    if (c) l.caminho = c;
+  } catch { /* sem desenho, a app une as paragens em linha reta */ }
 }
 
 export interface RespostaPlano {
@@ -593,6 +602,7 @@ export async function planearViagem(
           l.pontos = (qPontos.all(p.trip, p.sa, p.sb) as Array<{ lat: number; lon: number; nome: string }>)
             .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
         } catch { /* sem desenho, o resto funciona */ }
+        juntarCaminho(l, p.trip);
       }
     }
     ligarTrocosAPe(o.legs, { lat: oLat, lon: oLon }, { lat: dLat, lon: dLon });
@@ -748,6 +758,7 @@ export async function planearViagem(
                 delete lg._perna;
                 if (lg.mode === 'TRANSIT' && pn?.sa != null && pn?.sb != null) {
                   try { lg.pontos = (qPontosL.all(pn.trip, pn.sa, pn.sb) as Array<{ lat: number; lon: number }>).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)); } catch { /* sem desenho */ }
+                  juntarCaminho(lg, pn.trip);
                 }
               }
               const xi = ix.stopIdx.get(ult.para);
@@ -923,6 +934,7 @@ export async function planearViagem(
             delete l._perna;
             if (l.mode === 'TRANSIT' && pn?.sa != null && pn?.sb != null) {
               try { l.pontos = (qPontos.all(pn.trip, pn.sa, pn.sb) as Array<{ lat: number; lon: number }>).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)); } catch { /* sem desenho */ }
+              juntarCaminho(l, pn.trip);
             }
           }
           const xLat = ix.lat[c.x.idx], xLon = ix.lon[c.x.idx];

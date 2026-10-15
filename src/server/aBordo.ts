@@ -41,7 +41,7 @@ export async function calcularABordo(id: string, opcoes: { desde?: number; compl
     ...(percurso.cor ? { cor: percurso.cor } : {}),
     destino: percurso.destino,
     total: percurso.paragens.length,
-    ...(opcoes.completo ? { paragens: percurso.paragens } : {}),
+    ...(opcoes.completo ? { paragens: percurso.paragens, ...(percurso.caminho && percurso.cortes ? { caminho: percurso.caminho, cortes: percurso.cortes } : {}) } : {}),
   };
   if (prog) {
     dados.indice = prog.indice;

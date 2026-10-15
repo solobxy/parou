@@ -444,7 +444,15 @@ function initSchema(db: DatabaseSync) {
       route_id TEXT NOT NULL,
       service_id TEXT,
       trip_headsign TEXT,
-      direction_id INTEGER DEFAULT 0
+      direction_id INTEGER DEFAULT 0,
+      shape_id TEXT
+    );
+    -- Desenho do percurso de cada viagem (shapes.txt dos horários oficiais), simplificado e em polilinha codificada
+    -- (a base diária vem pronta do repositório dos dados; ver construir_dados.py)
+    CREATE TABLE IF NOT EXISTS shapes (
+      shape_id TEXT PRIMARY KEY,
+      feed_id TEXT NOT NULL,
+      pontos TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_trips_route ON trips (route_id);
     CREATE INDEX IF NOT EXISTS idx_trips_feed ON trips (feed_id);
