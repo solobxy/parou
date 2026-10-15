@@ -1163,7 +1163,6 @@ export const DE: Record<string, string> = {
   'Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.': 'Aktiviere in den Handy-Einstellungen die genaue Standortbestimmung für diesen Browser. In Gebäuden hilft es, ans Fenster oder nach draußen zu gehen.',
   'Percebi': 'Verstanden',
   'Posição aproximada (cerca de {d})': 'Ungefährer Standort (etwa {d})',
-  'Estamos a mostrar a última posição conhecida.': 'Wir zeigen dir deinen zuletzt bekannten Standort.',
-  'Dentro de edifícios e em túneis o sinal costuma falhar. Volta ao normal quando o GPS apanhar sinal.': 'In Gebäuden und Tunneln fällt das Signal oft aus. Sobald das GPS wieder Empfang hat, ist alles wie zuvor.',
+  'A mostrar a última posição conhecida. Dentro de edifícios e em túneis o sinal costuma falhar; volta ao normal quando o GPS apanhar sinal.': 'Es wird dein zuletzt bekannter Standort angezeigt. In Gebäuden und Tunneln fällt das Signal oft aus; sobald das GPS wieder Empfang hat, ist alles wie zuvor.',
   'A tentar…': 'Wird versucht …',
 };
