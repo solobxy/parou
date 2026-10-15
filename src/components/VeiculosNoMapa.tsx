@@ -21,8 +21,10 @@ const QUADRO_MS = 33;
 /** Com mais de 300 autocarros à vista (mapa afastado) pede-se de 10 em 10 s: a resposta é maior e as posições só mudam de ~15 em 15 s */
 const MUITOS = 300;
 const INTERVALO_MUITOS_MS = 10_000;
-/** Até este nível de zoom (no modo «todos») os autocarros viram pontos coloridos sem número, para não taparem o mapa */
+/** Até este nível de zoom (no modo «todos») as rodas encolhem para bolas pequenas (sempre com o número da linha), para não taparem o mapa */
 const ZOOM_PONTOS = 14;
+/** Até este (muitos autocarros à vista) encolhem mais um bocadinho */
+const ZOOM_LONGE = 12;
 /** Depois de o mapa parar de mexer, espera-se isto antes de pedir os autocarros da zona nova (ms) */
 const ESPERA_MAPA_MS = 300;
 /** Posição com mais de 75 s: o autocarro fica esbatido (pode já não estar ali) */
@@ -138,8 +140,12 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       contentor.appendChild(dica);
     }
     const mostrarDica = (v: boolean) => { if (dica) dica.hidden = !v; };
-    // Com o mapa afastado os autocarros são pontos (ver .mapa-bus-ponto em index.css)
-    const ajustarPontos = () => { contentor.classList.toggle('mapa-bus-ponto', emTodos && mapa.getZoom() <= ZOOM_PONTOS); };
+    // Com o mapa afastado as rodas encolhem mas mantêm o número da linha (ver .mapa-bus-ponto e .mapa-bus-longe em index.css)
+    const ajustarPontos = () => {
+      const z = mapa.getZoom();
+      contentor.classList.toggle('mapa-bus-ponto', emTodos && z <= ZOOM_PONTOS);
+      contentor.classList.toggle('mapa-bus-longe', emTodos && z <= ZOOM_LONGE);
+    };
     ajustarPontos();
     mapa.on('zoomend', ajustarPontos);
 
@@ -339,7 +345,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       mapa.off('zoomend', ajustarPontos);
       mapa.off('moveend', aoMexerMapa);
       mapa.off('resize', aoMexerMapa);
-      contentor.classList.remove('mapa-bus-ponto');
+      contentor.classList.remove('mapa-bus-ponto', 'mapa-bus-longe');
       dica?.remove();
       estadoRef.current = () => {};
       recarregarRef.current = () => {};
