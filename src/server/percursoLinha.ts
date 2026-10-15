@@ -20,6 +20,9 @@ export interface PercursoLinha {
   linha: string;
   cor?: string;
   destino: string;
+  /** Identificador da linha na lista de linhas (para a guardar nos favoritos) e o nome completo dela */
+  rota?: string;
+  nome?: string;
   paragens: ParagemDoPercurso[];
   /** Posição da paragem de onde se partiu (-1 se não se sabe) */
   indice: number;
@@ -65,9 +68,9 @@ export function percursoDeViagem(tripIdPedido: string, paragemId?: string): Perc
     .map((r) => ({ id: r.id, nome: String(r.nome || ''), lat: r.lat, lon: r.lon, hora: hm((r.chega ?? r.parte ?? 0)) }));
   if (paragens.length < 2) return null;
   const info = db.prepare(`
-    SELECT t.trip_headsign AS hs, r.route_short_name AS curto, r.route_long_name AS longo, r.route_color AS cor
+    SELECT t.trip_headsign AS hs, r.route_id AS rid, r.route_short_name AS curto, r.route_long_name AS longo, r.route_color AS cor
     FROM trips t JOIN routes r ON r.route_id = ${LINHA_DA_APP} WHERE t.trip_id = ?
-  `).get(tripId) as { hs?: string; curto?: string; longo?: string; cor?: string } | undefined;
+  `).get(tripId) as { hs?: string; rid?: string; curto?: string; longo?: string; cor?: string } | undefined;
   let indice = paragemId ? paragens.findIndex((p) => p.id === paragemId) : -1;
   if (indice < 0 && paragemId) {
     // Paragem da partida pode ser a "estação" e o percurso usar uma plataforma dela
@@ -80,6 +83,8 @@ export function percursoDeViagem(tripIdPedido: string, paragemId?: string): Perc
     linha: String(info?.curto || info?.longo || ''),
     cor: info?.cor ? `#${String(info.cor).replace(/^#/, '')}` : undefined,
     destino: String(info?.hs || paragens[paragens.length - 1].nome),
+    ...(info?.rid ? { rota: String(info.rid) } : {}),
+    ...(info?.longo ? { nome: String(info.longo) } : {}),
     paragens,
     indice,
   };
@@ -147,6 +152,8 @@ export function percursoUnir(route: string, paragemId: string, sentido?: string,
     linha: String(linha?.curto || rotaId.replace(/^unir:/, '')),
     cor: linha?.cor ? `#${String(linha.cor).replace(/^#/, '')}` : '#CE9926',
     destino: String(destino || melhor.paragens[melhor.paragens.length - 1].nome).trim(),
+    rota: rotaId,
+    ...(linha?.longo ? { nome: String(linha.longo) } : {}),
     paragens: melhor.paragens,
     indice: melhor.indice,
   };

@@ -475,6 +475,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedDestination, setSelectedDestination] = useState<DestinationSuggestion | null>(null);
   const [calculatedRoutes, setCalculatedRoutes] = useState<TransitRouteOption[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteOption | null>(null);
+  // Opção de viagem aberta (passo a passo e avisos): nenhuma até a pessoa tocar numa
+  const [rotaAbertaId, setRotaAbertaId] = useState<string | null>(null);
   const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
   const [rotasCalculadas, setRotasCalculadas] = useState<boolean>(false);
   const [longeRota, setLongeRota] = useState<LongeDeParagens | undefined>(undefined);
@@ -753,6 +755,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setIsCalculatingRoutes(true);
     setCalculatedRoutes([]);
     setSelectedRoute(null);
+    setRotaAbertaId(null);
     setRotasCalculadas(false);
     setLongeRota(undefined);
     setDestinosViagem([]);
@@ -882,6 +885,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setIsCalculatingRoutes(false);
     setCalculatedRoutes([]);
     setSelectedRoute(null);
+    setRotaAbertaId(null);
     setRotasCalculadas(false);
     setSelectedDestination(lista[0].dest);
     setDestinationQuery('');
@@ -899,6 +903,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setDestinationQuery('');
     setCalculatedRoutes([]);
     setSelectedRoute(null);
+    setRotaAbertaId(null);
     setIsCalculatingRoutes(false);
     setRotasCalculadas(false);
   };
@@ -1221,8 +1226,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
           linha: base.linha || p.linha || '',
           cor: base.cor || p.cor,
           destino: base.destino || formatTransitName(p.destino || ''),
-          id: base.id,
-          dados: base.dados,
+          // Se a partida não trazia o identificador da linha, vem com o percurso
+          id: base.id || (p.rota ? String(p.rota) : undefined),
+          dados: { ...base.dados, name: base.dados.name || (p.nome ? String(p.nome) : undefined) },
           estado: 'ok',
           percurso: { paragens: p.paragens, indice: Number.isFinite(p.indice) ? p.indice : -1 },
         });
@@ -2212,8 +2218,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   key={route.id}
                   route={route}
                   selecionada={selectedRoute?.id === route.id}
+                  detalhes={rotaAbertaId === route.id}
                   destinoNome={selectedDestination.title}
-                  onSelecionar={() => setSelectedRoute(route)}
+                  onSelecionar={() => { setSelectedRoute(route); setRotaAbertaId((aberta) => (aberta === route.id ? null : route.id)); }}
                 />
               ))}
             </div>

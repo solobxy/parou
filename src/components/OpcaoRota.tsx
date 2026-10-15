@@ -1,18 +1,11 @@
 import React from 'react';
-import { Footprints } from 'lucide-react';
+import { Footprints, ChevronDown, ChevronRight } from 'lucide-react';
 import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { formatTransitName } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
-import { formatarDuracao } from '../services/rotaVarios';
 import type { TransitRouteOption } from '../types/perto';
-
-/** Etiquetas dos percursos que vêm do servidor ("Direto", "2 transbordos", "A pé") */
-function traduzirBadge(label: string): string {
-  const m = /^(\d+) transbordos?$/.exec(label);
-  return m ? tn(+m[1], '{n} transbordo', '{n} transbordos') : t(label);
-}
 
 /** "450 metros", "1,3 km" */
 function textoDistancia(metros: number): string {
@@ -25,73 +18,113 @@ interface Props {
   selecionada: boolean;
   /** Nome do sítio onde esta opção acaba (o último troço a pé vai até lá) */
   destinoNome: string;
-  /** Mostra o passo a passo por baixo (por omissão, quando está selecionada) */
+  /** Mostra o passo a passo por baixo (por omissão, só se estiver selecionada e aberta por quem a usa) */
   detalhes?: boolean;
   /** Mostra o "Avisar-me" para sair a horas (só faz sentido na viagem que começa agora) */
   avisar?: boolean;
   onSelecionar: () => void;
 }
 
-/** Uma opção de viagem: duração, horas, linhas e (se escolhida) o passo a passo */
-export function OpcaoRota({ route, selecionada, destinoNome, detalhes, avisar = true, onSelecionar }: Props) {
-  const mostrarDetalhes = (detalhes ?? selecionada) && route.id !== 'a-pe';
+/** Duração em duas partes, como no Google Maps: "1 h" grande e "5 min" por baixo; "27" grande e "min" por baixo */
+function partesDuracao(minutos: number): { grande: string; pequena: string } {
+  const m = Math.max(0, Math.round(minutos));
+  if (m < 60) return { grande: String(m), pequena: 'min' };
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return { grande: `${h} h`, pequena: r ? `${r} min` : '' };
+}
+
+/**
+ * Uma opção de viagem, no modo calmo: duração, horas de saída e chegada, a cadeia de linhas e uma única linha de apoio.
+ * O passo a passo e o "Avisar-me" só aparecem quando se toca na opção (detalhes).
+ */
+export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, avisar = true, onSelecionar }: Props) {
+  const aPe = route.id === 'a-pe';
+  const podeAbrir = !aPe;
+  const mostrarDetalhes = detalhes && podeAbrir;
+  const { grande, pequena } = partesDuracao(route.totalDurationMinutes);
+
+  // Cadeia: a pé > linha > linha > a pé. Os troços a pé de 1-2 min entre duas linhas ficam só nos detalhes (ruído)
+  const cadeia = route.legs.filter((leg, i, todas) => {
+    if (leg.mode !== 'WALK') return true;
+    if (leg.durationMinutes <= 0) return false;
+    return i === 0 || i === todas.length - 1 || leg.durationMinutes >= 3;
+  });
+
+  const primeira = route.legs.find((l) => l.mode === 'TRANSIT');
+  const apoio = aPe
+    ? t('{m} m a pé', { m: route.walkingDistanceMeters })
+    : primeira
+      ? t('Apanha {l} às {h} em {p}', {
+          l: `${t('linha')} ${primeira.lineCode || ''}`.trim(),
+          h: primeira.departureTime || route.departureTime,
+          p: formatTransitName(primeira.fromStopName || ''),
+        })
+      : '';
+
+  const salto = (route.arrivalDayOffset || 0) - (route.departureDayOffset || 0);
+  const maisRapida = /^Mais rápido/.test(route.badgeLabel || '');
+
   return (
     <div
-      className={`rounded-[12px] border bg-[#FFFFFF] transition-all ${
-        selecionada ? 'border-[#111111] shadow-xs' : 'border-[#E6E6E3] hover:border-[#6B6B6B]'
+      className={`rounded-[12px] border bg-[#FFFFFF] transition-colors ${
+        selecionada ? 'border-[#111111]' : 'border-[#E6E6E3] hover:border-[#6B6B6B]'
       }`}
     >
       <button
         type="button"
         onClick={onSelecionar}
-        aria-pressed={selecionada}
-        className={`block w-full text-left p-3 cursor-pointer rounded-[12px] ${mostrarDetalhes ? 'pb-1.5' : ''}`}
+        aria-expanded={podeAbrir ? mostrarDetalhes : undefined}
+        aria-pressed={podeAbrir ? undefined : selecionada}
+        className="grid w-full grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 text-left p-3 cursor-pointer rounded-[12px]"
+        data-teste="opcao-rota"
       >
-        <div className="flex items-center justify-between mb-1 gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-condensada text-xl font-bold text-[#111111] tabular-nums shrink-0">
-              {route.totalDurationMinutes >= 120 ? formatarDuracao(route.totalDurationMinutes) : `${route.totalDurationMinutes} min`}
-            </span>
-            <span className="text-xs text-[#6B6B6B] truncate">· {route.arrivalDayOffset ? t('Chegada amanhã ~{h}', { h: route.arrivalTime }) : `${t('Chegada')} ~${route.arrivalTime}`}</span>
-          </div>
-          <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide text-right shrink-0">
-            {traduzirBadge(route.badgeLabel)}
-          </span>
-        </div>
-        <div className="text-xs text-[#6B6B6B] mb-1.5">
-          {route.id === 'a-pe'
-            ? t('{m} m a pé', { m: route.walkingDistanceMeters })
-            : `${route.departureDayOffset ? t('Sair amanhã às {h}', { h: route.departureTime }) : t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
+        <div className="font-condensada text-[#111111] leading-none tabular-nums pt-0.5">
+          <div className="text-[30px] font-bold">{grande}</div>
+          {pequena && <div className="mt-1 text-[14px] font-semibold text-[#6B6B6B]">{pequena}</div>}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {route.legs.map((leg, lIdx) => (
-            <React.Fragment key={lIdx}>
-              {lIdx > 0 && <span className="text-[#6B6B6B] text-xs">→</span>}
-              {leg.mode === 'WALK' ? (
-                <div className="flex items-center gap-1 text-xs text-[#6B6B6B]">
-                  <Footprints className="w-3.5 h-3.5 stroke-[2]" />
-                  <span className="tabular-nums">
-                    {lIdx === route.legs.length - 1 && route.legs.length > 1 && leg.durationMinutes >= 1
-                      ? t('{n} min até ao destino', { n: leg.durationMinutes })
-                      : t('{n} min', { n: leg.durationMinutes })}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <LineChip number={leg.lineCode || '—'} color={leg.lineColor} />
-                  <span className="text-xs text-[#111111] font-medium truncate max-w-[120px]">
-                    {formatTransitName(leg.toStopName || leg.instruction || '')}
-                  </span>
-                </div>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[15px] font-semibold text-[#111111] tabular-nums leading-snug">
+              {route.departureDayOffset ? `${t('amanhã')} ` : ''}{route.departureTime} – {route.arrivalTime}{salto > 0 ? ` +${salto}` : ''}
+            </span>
+            <span className="shrink-0 flex items-center gap-1.5 h-[22px]">
+              {maisRapida && (
+                <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide">{t('Mais rápido')}</span>
               )}
-            </React.Fragment>
-          ))}
+              {podeAbrir && (
+                <ChevronDown className={`w-4 h-4 text-[#6B6B6B] stroke-[2.25] transition-transform ${mostrarDetalhes ? 'rotate-180' : ''}`} aria-hidden="true" />
+              )}
+            </span>
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-1 gap-y-1.5">
+            {cadeia.map((leg, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-[#6B6B6B] stroke-[2]" aria-hidden="true" />}
+                {leg.mode === 'WALK' ? (
+                  <span className="inline-flex items-center gap-0.5 text-[13px] text-[#6B6B6B] tabular-nums">
+                    <Footprints className="w-4 h-4 stroke-[2]" aria-hidden="true" />
+                    {leg.durationMinutes}
+                    <span className="sr-only"> min</span>
+                  </span>
+                ) : (
+                  <LineChip number={leg.lineCode || '—'} color={leg.lineColor} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {apoio && <p className="mt-1.5 text-[12.5px] text-[#6B6B6B] leading-snug">{apoio}</p>}
         </div>
       </button>
 
       {mostrarDetalhes && (
         <div className="px-3 pb-3">
+          <p className="text-[12.5px] text-[#6B6B6B] leading-snug">
+            {`${route.departureDayOffset ? t('Sair amanhã às {h}', { h: route.departureTime }) : t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
+          </p>
           {avisar && <AvisoPartida route={route} />}
           <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
             {route.legs.map((leg, i) => {
