@@ -138,6 +138,8 @@ export interface CandidatoUnir {
   anteriores?: Array<{ codigo: string; passos: number }>;
   /** Paragens da linha entre a origem e o destino, para desenhar o percurso no mapa */
   pontos?: PontoRota[];
+  /** O mesmo percurso pela estrada (polilinha codificada); sem ele a app une as paragens em linha reta */
+  caminho?: string;
 }
 
 /**

@@ -5,7 +5,7 @@
 //    o sentido vem da AMP e, se não bater certo, escolhe-se pelo destino da partida.
 
 import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
-import { caminhoDaViagem } from './caminhos';
+import { caminhoDaLinhaUnir, caminhoDaViagem } from './caminhos';
 import { pontuarPercurso } from '../utils/geoPercurso';
 import type { OperadorVeiculos } from '../utils/chaveLinha';
 
@@ -155,6 +155,7 @@ export function percursoUnir(route: string, paragemId: string, sentido?: string,
   }
   if (!melhor || melhor.paragens.length < 2) return null;
   const linha = db.prepare('SELECT route_short_name AS curto, route_long_name AS longo, route_color AS cor FROM routes WHERE route_id = ?').get(rotaId) as { curto?: string; longo?: string; cor?: string } | undefined;
+  const desenho = caminhoDaLinhaUnir(rotaId, melhor.d, melhor.paragens);
   return {
     fonte: 'unir',
     linha: String(linha?.curto || rotaId.replace(/^unir:/, '')),
@@ -164,6 +165,7 @@ export function percursoUnir(route: string, paragemId: string, sentido?: string,
     ...(linha?.longo ? { nome: String(linha.longo) } : {}),
     paragens: melhor.paragens,
     indice: melhor.indice,
+    ...(desenho ? { caminho: desenho.caminho, cortes: desenho.cortes } : {}),
   };
 }
 
