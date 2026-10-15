@@ -165,6 +165,28 @@ export function alvoNoRelogio(tr: Trajeto, agora: number): PosicaoModelo {
   };
 }
 
+/**
+ * Até que distância (m) do autocarro uma pessoa pode estar a bordo dele: a posição que o operador dá chega com 10 a 45 s de idade,
+ * por isso quem vai lá dentro está à frente do modelo à velocidade do autocarro durante esse tempo, mais a folga do GPS.
+ * Nunca menos de 200 m nem mais de 900 m.
+ */
+export function raioABordoM(velMs: number): number {
+  const v = Number.isFinite(velMs) ? Math.max(velMs, VEL_MINIMA_A_BORDO_MS) : VEL_MINIMA_A_BORDO_MS;
+  return Math.min(900, Math.max(200, 150 + 45 * v));
+}
+const VEL_MINIMA_A_BORDO_MS = 6;
+
+/**
+ * A bola do autocarro «meu» pode ir em cima do ponto da pessoa? Só se ela está perto do autocarro (`distM`: do ponto da pessoa ao
+ * modelo do operador). Longe (em casa, por teste, ou por engano) a bola fica onde o operador diz: seguir a pessoa pô-la
+ * parada num sítio onde o autocarro não está. Depois de começar a seguir tolera-se um pouco mais (histerese) para não oscilar.
+ */
+export function pessoaPodeIrABordo(distM: number, velMs: number, jaASeguir: boolean): boolean {
+  if (!Number.isFinite(distM) || distM < 0) return false;
+  const r = raioABordoM(velMs);
+  return distM <= (jaASeguir ? r * 1.4 : r);
+}
+
 /** Rumo mais curto entre dois ângulos, para o marcador rodar pelo lado certo (devolve o novo ângulo acumulado) */
 export function rodarPeloCaminhoMaisCurto(atual: number, novo: number): number {
   let d = ((novo - atual) % 360 + 540) % 360 - 180;
