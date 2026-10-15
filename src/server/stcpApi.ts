@@ -8,6 +8,7 @@
 // recorre à fonte anterior (stcp.pt), como acontecia antes.
 
 import { getDatabase } from './db/gtfsDatabase';
+import { lerCampos, texto } from './protobufMinimo';
 
 const BASE = 'https://api.stcp.pt:8443';
 const TIMEOUT_MS = 2500;
@@ -200,56 +201,7 @@ export interface PosicaoStcpOficial {
   epoch: number;
 }
 
-interface CampoProto { n: number; t: number; num: number; bytes?: Uint8Array }
-
-function lerVarint(buf: Uint8Array, pos: number): [number, number] {
-  let valor = 0;
-  let mult = 1;
-  let p = pos;
-  while (p < buf.length && mult <= 2 ** 49) {
-    const b = buf[p++];
-    valor += (b & 0x7f) * mult;
-    if ((b & 0x80) === 0) return [valor, p];
-    mult *= 128;
-  }
-  throw new Error('protobuf: número inválido');
-}
-
-function lerCampos(buf: Uint8Array): CampoProto[] {
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  const campos: CampoProto[] = [];
-  let p = 0;
-  while (p < buf.length) {
-    const [chave, depoisChave] = lerVarint(buf, p);
-    p = depoisChave;
-    const n = Math.floor(chave / 8);
-    const t = chave % 8;
-    if (t === 0) {
-      const [v, q] = lerVarint(buf, p);
-      p = q;
-      campos.push({ n, t, num: v });
-    } else if (t === 1) {
-      if (p + 8 > buf.length) throw new Error('protobuf: truncado');
-      campos.push({ n, t, num: dv.getFloat64(p, true) });
-      p += 8;
-    } else if (t === 2) {
-      const [len, q] = lerVarint(buf, p);
-      p = q;
-      if (p + len > buf.length) throw new Error('protobuf: truncado');
-      campos.push({ n, t, num: 0, bytes: buf.subarray(p, p + len) });
-      p += len;
-    } else if (t === 5) {
-      if (p + 4 > buf.length) throw new Error('protobuf: truncado');
-      campos.push({ n, t, num: dv.getFloat32(p, true) });
-      p += 4;
-    } else {
-      throw new Error('protobuf: tipo de campo desconhecido');
-    }
-  }
-  return campos;
-}
-
-const texto = (c?: CampoProto): string => (c?.bytes ? new TextDecoder().decode(c.bytes) : '');
+// (leitura de protobuf em protobufMinimo.ts, partilhada com a TUB)
 
 /** Lê um ficheiro GTFS-Realtime de posições. Exportado para testes. */
 export function lerPosicoes(buf: Uint8Array, mapaLinhas: Map<string, InfoLinha> = new Map()): PosicaoStcpOficial[] {

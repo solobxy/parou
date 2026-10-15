@@ -182,6 +182,10 @@ export function rotasDaLinha(op: OperadorVeiculos, linha: string, rotaDoOperador
   const ids = new Set<string>();
   if (op === 'cm') {
     ids.add(`cm:${linha}`);
+  } else if (op === 'tub') {
+    if (rotaDoOperador) ids.add(`tub_braga:${rotaDoOperador}`);
+    const rows = db.prepare("SELECT route_id AS id FROM routes WHERE route_id LIKE 'tub_braga:%' AND UPPER(route_short_name) = ? LIMIT 8").all(linha.toUpperCase()) as Array<{ id: string }>;
+    for (const r of rows) ids.add(r.id);
   } else {
     if (rotaDoOperador) ids.add(`stcp:${rotaDoOperador}`);
     const rows = db.prepare("SELECT route_id AS id FROM routes WHERE route_id LIKE 'stcp:%' AND UPPER(route_short_name) = ? LIMIT 8").all(linha.toUpperCase()) as Array<{ id: string }>;
@@ -214,7 +218,7 @@ export function percursoPorVeiculo(
   const mover = (v.vel ?? 0) >= 3;
   const ponto = { lat: v.lat, lon: v.lon };
   if (v.viagem) {
-    const ids = v.op === 'stcp' ? [`stcp:${v.viagem}`, v.viagem] : [v.viagem, `cmh:${v.viagem}`];
+    const ids = v.op === 'stcp' ? [`stcp:${v.viagem}`, v.viagem] : v.op === 'tub' ? [`tub_braga:${v.viagem}`, v.viagem] : [v.viagem, `cmh:${v.viagem}`];
     for (const id of ids) {
       const p = percursoDeViagemEmCache(id);
       if (p) return { percurso: p, origem: 'viagem' };

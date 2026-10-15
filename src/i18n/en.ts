@@ -974,6 +974,7 @@ export const EN: Record<string, string> = {
   'Na paragem': 'At the stop',
   'Próxima paragem': 'Next stop',
   'horário {h}': 'timetable {h}',
+  'previsto {h}': 'expected {h}',
   'Depois, mais {n} paragem até ao fim': 'Then {n} more stop to the end',
   'Depois, mais {n} paragens até ao fim': 'Then {n} more stops to the end',
   'O autocarro saiu do percurso habitual (desvio).': 'The bus has left its usual route (detour).',

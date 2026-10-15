@@ -1,5 +1,5 @@
 // Lista leve de autocarros em direto para o mapa e para o "A bordo": só o que a app precisa, filtrado por linhas e/ou por uma caixa no mapa.
-// Não inventa nada: são as posições que os operadores enviam (Carris Metropolitana e STCP), com a hora a que cada uma foi medida.
+// Não inventa nada: são as posições que os operadores enviam (Carris Metropolitana, STCP e TUB), com a hora a que cada uma foi medida.
 
 import type { LiveVehicle } from './realtimeEngine';
 import { chaveDeLinha, type OperadorVeiculos } from '../utils/chaveLinha';
@@ -15,6 +15,7 @@ const MAX_LADO_GRAUS = 0.3;
 export function operadorDoVeiculo(v: Pick<LiveVehicle, 'operator'>): OperadorVeiculos | null {
   if (v.operator === 'STCP') return 'stcp';
   if (v.operator === 'Carris Metropolitana') return 'cm';
+  if (v.operator === 'TUB') return 'tub';
   return null;
 }
 
@@ -79,7 +80,7 @@ export function lerLinhas(texto: unknown): Set<string> {
   if (typeof texto !== 'string') return saida;
   for (const parte of texto.split(',')) {
     const p = parte.trim().toUpperCase();
-    const m = /^(STCP|CM):([A-Z0-9 ._-]{1,12})$/.exec(p);
+    const m = /^(STCP|CM|TUB):([A-Z0-9 ._-]{1,12})$/.exec(p);
     if (m) saida.add(`${m[1].toLowerCase()}:${m[2]}`);
     if (saida.size >= 40) break;
   }

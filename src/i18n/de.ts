@@ -973,6 +973,7 @@ export const DE: Record<string, string> = {
   'Na paragem': 'An der Haltestelle',
   'Próxima paragem': 'Nächste Haltestelle',
   'horário {h}': 'Fahrplan {h}',
+  'previsto {h}': 'voraussichtlich {h}',
   'Depois, mais {n} paragem até ao fim': 'Danach noch {n} Haltestelle bis zum Ende',
   'Depois, mais {n} paragens até ao fim': 'Danach noch {n} Haltestellen bis zum Ende',
   'O autocarro saiu do percurso habitual (desvio).': 'Der Bus ist von seiner üblichen Strecke abgewichen (Umleitung).',

@@ -205,7 +205,7 @@ export const SEED_FEEDS: FeedItem[] = [
     lines_count: 0,
     stops_count: 0,
     trips_count: 0,
-    realtime_entities: 'não integrado',
+    realtime_entities: 'Veículos e previsões por paragem (GTFS-RT cedido pela TUB)',
   },
   {
     id: 'guimabus',

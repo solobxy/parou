@@ -60,6 +60,7 @@ export const CONCRETE_REALTIME_SOURCES: Record<string, string> = {
   stcp: 'https://api.stcp.pt:8443/v1/real',
   unir: 'https://paragens.amp.pt/geoserver/paragens/ows',
   metro_lisboa: 'https://api.metrolisboa.pt',
+  tub_braga: 'https://mobibus-gateway.fleetaware.pt/gtfs-rt/feed/',
 };
 
 /**

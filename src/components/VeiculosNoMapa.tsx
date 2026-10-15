@@ -4,7 +4,7 @@ import { fetchVeiculos, type Caixa } from '../services/veiculosApi';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
 
-// Autocarros em direto no mapa (STCP e Carris Metropolitana): só os das linhas pedidas, perto do que a pessoa está a ver.
+// Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB): só os das linhas pedidas, perto do que a pessoa está a ver.
 // A posição é a que o operador envia; mexe-se de 15 em 15 segundos, e o marcador desliza até lá em vez de saltar.
 // Tocar num autocarro avisa a PertoView, que mostra o cartão «Estou a bordo» (um cartão da app, não uma janela do mapa, para não ficar tapado pelos botões do mapa).
 
@@ -15,14 +15,15 @@ const IDADE_ESBATIDA_S = 75;
 
 const escapar = (s: string) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-/** Marcador de um autocarro: o número da linha numa etiqueta, com uma seta a apontar para onde vai */
+/** Marcador de um autocarro: uma roda com o número da linha lá dentro (azul STCP, amarelo Carris Metropolitana, vermelho TUB), com uma ponta a apontar para onde vai */
 function iconeAutocarro(v: VeiculoLeve, esbatido: boolean, meu: boolean): L.DivIcon {
   const rumo = typeof v.rumo === 'number' ? Math.round(v.rumo / 10) * 10 : null;
+  const n = Math.min(5, Math.max(1, String(v.linha || '').length));
   return L.divIcon({
     className: 'parou-bus-icone',
-    html: `<div class="bus-pin${esbatido ? ' bus-pin--esbatido' : ''}${meu ? ' bus-pin--meu' : ''}">${rumo === null ? '' : `<i class="bus-pin__seta" style="transform:rotate(${rumo}deg)"></i>`}<b class="bus-pin__num">${escapar(v.linha)}</b></div>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
+    html: `<div class="bus-pin bus-pin--${v.op}${esbatido ? ' bus-pin--esbatido' : ''}${meu ? ' bus-pin--meu' : ''}">${rumo === null ? '' : `<i class="bus-pin__seta" style="transform:rotate(${rumo}deg)"></i>`}<b class="bus-pin__num${n >= 3 ? ` bus-pin__num--${n}` : ''}">${escapar(v.linha)}</b></div>`,
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
   });
 }
 
@@ -35,7 +36,7 @@ interface Entrada {
 
 interface Props {
   mapa: L.Map | null;
-  /** Chaves de linha ("stcp:803", "cm:4436"); vazio = não mostra nada */
+  /** Chaves de linha ("stcp:803", "cm:4436", "tub:45"); vazio = não mostra nada */
   linhas: string[];
   /** Só os autocarros dentro desta caixa (menos marcadores e menos dados) */
   caixa?: Caixa;

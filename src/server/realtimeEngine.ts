@@ -2,7 +2,8 @@ import { UnifiedStop } from './stopsEngine';
 import { DateTime } from 'luxon';
 import { getStcpLiveVehicles } from './portoOpenDataService';
 import { chegadasStcpOficial } from './stcpApi';
-import { registerCacheClearCallback } from './db/gtfsDatabase';
+import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
+import { estimativaTub, posicoesTub, viagensTub } from './tubTempoReal';
 
 registerCacheClearCallback(() => RealtimeEngine.clearCaches());
 
@@ -83,6 +84,29 @@ function motivoStcp(atrasoSegundos: number, porGps: boolean): string {
   return porGps ? 'Hora estimada em direto pelo GPS do autocarro (STCP)' : 'Hora estimada pela STCP';
 }
 
+/** Texto que explica de onde vem a hora em tempo real da TUB */
+function motivoTub(atrasoSegundos: number): string {
+  return atrasoSegundos > 90
+    ? `Atraso de ${Math.round(atrasoSegundos / 60)} min transmitido por GPS do autocarro (TUB)`
+    : 'Hora estimada em direto pelo GPS do autocarro (TUB)';
+}
+
+// TUB: o GTFS-Realtime usa o código da linha do GTFS (na base "tub_braga:<código>"); o número que as pessoas conhecem é o nome curto.
+let nomesCurtosTub: Map<string, string> | null = null;
+registerCacheClearCallback(() => { nomesCurtosTub = null; });
+function nomeCurtoTub(routeId: string): string {
+  if (!nomesCurtosTub) {
+    const mapa = new Map<string, string>();
+    try {
+      const rows = getDatabase().prepare("SELECT route_id AS id, route_short_name AS curto FROM routes WHERE route_id LIKE 'tub_braga:%'").all() as Array<{ id: string; curto: string | null }>;
+      for (const r of rows) if (r.curto) mapa.set(r.id.replace(/^tub_braga:/, ''), String(r.curto).trim());
+    } catch { /* a base ainda está a carregar: usa-se o código e tenta-se outra vez à próxima */ }
+    if (mapa.size === 0) return routeId;
+    nomesCurtosTub = mapa;
+  }
+  return nomesCurtosTub.get(routeId) || routeId;
+}
+
 export class RealtimeEngine {
   public static clearCaches(): void {
     vehiclesCache.data = [];
@@ -105,7 +129,7 @@ export class RealtimeEngine {
     const validVehicles: LiveVehicle[] = [];
 
     // Parallel execution of all operators with complete fault tolerance (Requirement 3 & 4)
-    const [cmResult, stcpResult] = await Promise.allSettled([
+    const [cmResult, stcpResult, tubResult] = await Promise.allSettled([
       // 1. Carris Metropolitana
       (async () => {
         const res = await fetch('https://api.carrismetropolitana.pt/v2/vehicles', {
@@ -139,6 +163,9 @@ export class RealtimeEngine {
 
       // 2. STCP (Porto Open Data: urban-platform-bus-location)
       getStcpLiveVehicles(),
+
+      // 3. TUB (Braga): GTFS-Realtime cedido pela TUB, pedido partilhado e com cache (tubTempoReal.ts)
+      posicoesTub(4000),
     ]);
 
     if (cmResult.status === 'fulfilled' && Array.isArray(cmResult.value)) {
@@ -158,6 +185,24 @@ export class RealtimeEngine {
           timestamp: b.timestamp,
           ...(b.trip_id ? { trip_id: b.trip_id } : {}),
           ...(b.route_id ? { route_id: b.route_id } : {}),
+        });
+      }
+    }
+
+    if (tubResult.status === 'fulfilled' && tubResult.value) {
+      for (const p of tubResult.value.dados) {
+        if (now / 1000 - p.epoch > MAX_STALE_AGE_SECS) continue;
+        validVehicles.push({
+          id: `tub:${p.veiculo}`,
+          line_id: nomeCurtoTub(p.routeId),
+          operator: 'TUB',
+          lat: p.lat,
+          lon: p.lon,
+          bearing: p.rumo,
+          speed: p.velocidade,
+          timestamp: p.epoch,
+          ...(p.tripId ? { trip_id: p.tripId } : {}),
+          route_id: p.routeId,
         });
       }
     }
@@ -504,6 +549,9 @@ export class RealtimeEngine {
       }
     }
 
+    // TUB (Braga): previsões por viagem e paragem (só se esta paragem tem partidas da TUB)
+    const tubViagens = departures.some((d) => d.feed_id === 'tub_braga') ? await viagensTub(1000) : null;
+
     // Check CP feature flag (Rule 3: CP real-time unofficial endpoints only behind feature flag, OFF by default)
     const cpRealtimeEnabled = process.env.ENABLE_CP_REALTIME === 'true';
 
@@ -580,6 +628,26 @@ export class RealtimeEngine {
           mergedDep.is_delayed = atraso > 90;
           mergedDep.vehicle_id = rt.vehicleId;
           mergedDep.state_reason = motivoStcp(atraso, rt.porGps);
+        }
+      }
+
+      // Case A3: TUB com previsão em direto para esta viagem e paragem (sem previsão fica o horário, como estava)
+      else if (dep.feed_id === 'tub_braga') {
+        const e = tubViagens ? estimativaTub(dep, tubViagens.dados) : null;
+        if (e?.tipo === 'suprimida') {
+          mergedDep.state = 'SUPRIMIDO';
+          mergedDep.is_realtime = true;
+          mergedDep.state_reason = e.motivo === 'viagem' ? 'Viagem suprimida pela TUB' : 'A TUB indica que o autocarro não pára nesta paragem';
+        } else if (e?.tipo === 'hora') {
+          const atraso = e.epoch - dep.dep_epoch_secs;
+          mergedDep.state = 'TEMPO REAL';
+          mergedDep.is_realtime = true;
+          mergedDep.realtime_epoch_secs = e.epoch;
+          mergedDep.realtime_time = DateTime.fromSeconds(e.epoch, { zone: 'Europe/Lisbon' }).toFormat('HH:mm');
+          mergedDep.delay_seconds = atraso;
+          mergedDep.is_delayed = atraso > 90;
+          if (e.veiculo) mergedDep.vehicle_id = e.veiculo;
+          mergedDep.state_reason = motivoTub(atraso);
         }
       }
 
