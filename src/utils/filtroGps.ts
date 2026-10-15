@@ -50,7 +50,7 @@ export interface EstimativaGps {
   parado: boolean;
   /** instante a que a estimativa se refere (ms, relógio do GPS) */
   t: number;
-  /** segundos desde a última leitura que entrou no filtro (0 na hora da leitura): serve para avisar de "sem sinal" */
+  /** segundos desde que o telemóvel deu a última leitura (mesmo posta de parte): serve para avisar de "sem sinal" */
   semLeituras: number;
 }
 
@@ -131,6 +131,8 @@ export class FiltroGps {
   private ignoradas = 0;
   private nis = 2;
   private accMedia = 15;
+  /** quando chegou a última leitura, boa ou má (relógio local, ms) */
+  private ultimaRecebida = 0;
   /** leituras seguidas sem velocidade do GPS utilizável */
   private semVel = 0;
   /** o que o acelerómetro diz do telemóvel (utils/movimentoAparelho.ts); null = não se sabe (o filtro funciona como sem sensor) */
@@ -220,6 +222,7 @@ export class FiltroGps {
     if (!Number.isFinite(l.lat) || !Number.isFinite(l.lon) || !Number.isFinite(l.t)) return null;
     const acc = Number.isFinite(l.precisao) && l.precisao > 0 ? l.precisao : 30;
     const chegada = l.chegada ?? agora;
+    this.ultimaRecebida = chegada;
 
     // 1. Relógio e atraso
     const desf = chegada - l.t;
@@ -244,6 +247,8 @@ export class FiltroGps {
     // Leitura "por rede" (Wi-Fi/antenas) com o GPS bom: ignora, mas não para sempre (túnel longo)
     if (accEf > 120 && sigmaAtual < 50 && dtSeg < 60 && this.ignoradas < 10) {
       this.ignoradas++;
+      // Não entra na posição, mas conta para a precisão que se mostra: o telemóvel só tem isto
+      this.accMedia = 0.7 * this.accMedia + 0.3 * Math.min(accEf, 2000);
       return null;
     }
     this.ignoradas = 0;
@@ -354,7 +359,7 @@ export class FiltroGps {
     this.surpresas = 0;
   }
 
-  private estimativa(t: number, dt: number, semLeituras: number = dt): EstimativaGps {
+  private estimativa(t: number, dt: number, semLeituras: number = dt, semChegada: number = semLeituras): EstimativaGps {
     const mover = this.parado ? 0 : dt;
     const x = this.x.p + this.x.v * mover;
     const y = this.y.p + this.y.v * mover;
@@ -368,7 +373,7 @@ export class FiltroGps {
       rumo = norm360(Math.atan2(this.x.v, this.y.v) / RAD);
       this.ultimoRumo = rumo;
     }
-    return { lat, lon, precisao, velocidade: this.parado ? 0 : vel, ve: this.parado ? 0 : this.x.v, vn: this.parado ? 0 : this.y.v, rumo, parado: this.parado, t: t + dt * 1000, semLeituras };
+    return { lat, lon, precisao, velocidade: this.parado ? 0 : vel, ve: this.parado ? 0 : this.x.v, vn: this.parado ? 0 : this.y.v, rumo, parado: this.parado, t: t + dt * 1000, semLeituras: semChegada };
   }
 
   /**
@@ -381,7 +386,7 @@ export class FiltroGps {
     const bruto = Math.max(0, (tGps - this.t) / 1000);
     // Até 4 s avança à velocidade da última leitura; daí a 12 s avança a metade (travar/curvar sem sinal); depois pára
     const dt = bruto <= 4 ? bruto : 4 + 0.5 * (Math.min(bruto, 12) - 4);
-    return this.estimativa(this.t, dt, bruto);
+    return this.estimativa(this.t, dt, bruto, Math.max(0, (agoraLocal - this.ultimaRecebida) / 1000));
   }
 
   /** Estimativa à hora da última leitura (sem avançar) */
