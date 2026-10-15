@@ -1826,6 +1826,8 @@ app.post('/api/feeds/:id/refresh', exigirAdmin, async (req: Request, res: Respon
 import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
+import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
+import { calcularABordo } from './src/server/aBordo';
 import { cidadesValidas, linhasDasCidades } from './src/server/linhasDasCidades';
 import { CIDADES } from './src/data/cidades';
 import { DebugEngine } from './src/server/debugEngine';
@@ -1907,6 +1909,44 @@ app.get('/api/transit/vehicles', async (_req: Request, res: Response) => {
     return res.json({ vehicles, total: vehicles.length, timestamp: new Date().toISOString() });
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao obter veículos em direto', details: err?.message });
+  }
+});
+
+// Autocarros em direto (STCP e Carris Metropolitana) para o mapa: só os das linhas pedidas e/ou dentro de uma caixa.
+//   ?linhas=stcp:803,cm:4436   ?caixa=sul,oeste,norte,leste   (pelo menos um dos dois)
+// A posição fica só em memória no pedido; a lista vem da mesma cache de 15 s dos veículos.
+app.get('/api/transit/veiculos', async (req: Request, res: Response) => {
+  try {
+    const linhas = lerLinhas(req.query.linhas);
+    const caixa = lerCaixa(req.query.caixa);
+    if (!linhas.size && !caixa) return res.status(400).json({ error: 'Indica as linhas ou uma caixa do mapa.' });
+    const todos = await RealtimeEngine.getLiveVehicles();
+    const veiculos = filtrarVeiculos(todos, { linhas, caixa });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ veiculos, agora: Math.floor(Date.now() / 1000) });
+  } catch (err: any) {
+    console.error('[API /transit/veiculos] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter os autocarros em direto' });
+  }
+});
+
+// "A bordo": percurso e paragens seguintes do autocarro em que a pessoa está.
+//   ?veiculo=<id>[&desde=<segmento onde ia>][&completo=1]   (sem `completo` não repete a lista de paragens)
+app.get('/api/transit/a-bordo', async (req: Request, res: Response) => {
+  try {
+    const id = typeof req.query.veiculo === 'string' ? req.query.veiculo.slice(0, 80) : '';
+    if (!id) return res.status(400).json({ error: 'Indica o veículo.' });
+    const desdeN = Number(req.query.desde);
+    const r = await calcularABordo(id, {
+      desde: Number.isFinite(desdeN) && desdeN >= 0 ? Math.floor(desdeN) : undefined,
+      completo: req.query.completo === '1',
+    });
+    res.set('Cache-Control', 'no-store');
+    if (!r.ok) return res.status(404).json({ error: 'Sem sinal deste autocarro.' });
+    return res.json({ ...r.dados, agora: Math.floor(Date.now() / 1000) });
+  } catch (err: any) {
+    console.error('[API /transit/a-bordo] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter o percurso do autocarro' });
   }
 });
 

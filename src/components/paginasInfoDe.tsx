@@ -79,6 +79,13 @@ export function PrivacidadeDe() {
           jederzeit in den Einstellungen deines Browsers oder Telefons widerrufen.
         </p>
         <p>
+          <strong>Busse live und „An Bord“.</strong> Um die Busse deiner Umgebung auf der Karte zu zeigen, fragt die App beim Server nur
+          die Busse der Linien und des Bereichs ab, den du gerade siehst; deine Position wird nicht gespeichert. Ist die App geöffnet und
+          bewegst du dich wie in einem Fahrzeug, vergleicht dein Telefon seinen eigenen GPS-Weg mit dem der Busse in der Nähe, auf dem
+          Gerät, um dich zu fragen: „Bist du im 801?“. Es entscheidet nie allein: Die Fahrt wird nur angezeigt, wenn du mit Ja antwortest.
+          Bei ausgeschaltetem Bildschirm oder im Hintergrund erkennt die App nichts. Du kannst diese Frage unter „Dein Standort“ ausschalten.
+        </p>
+        <p>
           <strong>Favoriten und Einstellungen.</strong> Sie werden auf deinem Telefon gespeichert. Damit sie nicht verloren gehen (manche
           Browser löschen diese Daten), halten wir eine Kopie auf dem Server vor, verknüpft mit einer zufälligen Kennung in einem
           technischen Cookie (<em>parou_id</em>). Diese Kennung sagt nichts darüber aus, wer du bist, und wird für nichts anderes verwendet.

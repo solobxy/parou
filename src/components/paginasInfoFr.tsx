@@ -79,6 +79,14 @@ export function PrivacidadeFr() {
           les paramètres de votre navigateur ou de votre téléphone.
         </p>
         <p>
+          <strong>Bus en direct et « À bord ».</strong> Pour afficher sur la carte les bus de votre zone, l’application demande au
+          serveur uniquement les bus des lignes et de la zone que vous regardez, et votre position n’est pas conservée. Lorsque
+          l’application est ouverte et que vous vous déplacez comme dans un véhicule, votre téléphone compare son propre trajet GPS à
+          celui des bus proches, sur l’appareil, pour vous demander « Êtes-vous à bord du 801 ? ». Il ne décide jamais seul : le trajet
+          n’est affiché que si vous répondez oui. L’application ne détecte rien écran éteint ni en arrière-plan. Vous pouvez désactiver
+          cette question dans « Votre position ».
+        </p>
+        <p>
           <strong>Favoris et préférences.</strong> Ils sont enregistrés sur votre téléphone. Pour qu’ils ne se perdent pas (certains
           navigateurs effacent ces données), nous gardons une copie sur le serveur, liée à un identifiant aléatoire placé dans un cookie
           technique (<em>parou_id</em>). Cet identifiant ne dit pas qui vous êtes et n’est utilisé pour rien d’autre.

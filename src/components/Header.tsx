@@ -457,7 +457,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Idioma: bandeira do idioma em uso; abre a lista (Português, English, Deutsch, Français) */}
           <SeletorIdioma />
 
-          {/* Tema: Claro, Escuro ou Âmbar */}
+          {/* Tema: Claro, Escuro, Âmbar ou Azul Porto */}
           <SeletorTema />
 
           {/* Instalar a app (só aparece quando o browser permite e ainda não está instalada) */}

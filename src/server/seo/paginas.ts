@@ -123,7 +123,7 @@ footer .idiomas{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}footer butto
 @media(max-width:520px){h1{font-size:26px}.btn.esconde{display:none}}
 `;
 
-// Temas (Escuro e Âmbar) para as páginas feitas no servidor. O tema vem do localStorage (mesma chave da app) e é aplicado
+// Temas (Escuro, Âmbar e Azul Porto) para as páginas feitas no servidor. O tema vem do localStorage (mesma chave da app) e é aplicado
 // antes de desenhar a página, para não piscar. O Claro é o de sempre e não leva nada.
 const CSS_TEMAS = `
 html[data-tema=escuro]{color-scheme:dark;background:#0F0F10}
@@ -176,9 +176,28 @@ html[data-tema=ambar] .paginas a{background:rgba(255,250,245,.7)}
 html[data-tema=ambar] .paginas span{background:#FF6B1A;color:#1F0F05}
 html[data-tema=ambar] .aviso{background:rgba(255,236,218,.85);border-color:#FFC49A}
 html[data-tema=ambar] footer.rodape{background:rgba(255,244,232,.7);border-color:rgba(255,255,255,.8);color:#4A2F1C}
+
+html[data-tema=porto]{color-scheme:light}
+html[data-tema=porto] body{color:#0B1A36}
+html[data-tema=porto] header.topo{border-color:#DAE3F1;box-shadow:inset 0 3px 0 #0B46B0}
+html[data-tema=porto] .btn{background:#0A1F4D;color:#fff}
+html[data-tema=porto] .btn.laranja{background:#0B46B0;color:#fff}
+html[data-tema=porto] .btn.claro{background:#EDF2FA;color:#0A1F4D}
+html[data-tema=porto] nav.migalhas,html[data-tema=porto] nav.migalhas a,html[data-tema=porto] .nota,html[data-tema=porto] .resumo span,html[data-tema=porto] .lista .t small,html[data-tema=porto] .lista .dir,html[data-tema=porto] ol.percurso small,html[data-tema=porto] .partidas .hora small,html[data-tema=porto] .grelha small,html[data-tema=porto] .fogo .meta,html[data-tema=porto] details>summary:after{color:#4F5C76}
+html[data-tema=porto] .sub{color:#3C4B68}
+html[data-tema=porto] .cartao,html[data-tema=porto] details,html[data-tema=porto] ul.lista,html[data-tema=porto] .grelha a{border-color:#DAE3F1}
+html[data-tema=porto] ul.lista li{border-color:#DAE3F1}
+html[data-tema=porto] .resumo div,html[data-tema=porto] form.pesquisa input,html[data-tema=porto] .paginas a{background:#EDF2FA}
+html[data-tema=porto] form.pesquisa input{border-color:#DAE3F1}
+html[data-tema=porto] ul.lista a:hover{background:#F7FAFE}
+html[data-tema=porto] .grelha a:hover{border-color:#0B46B0}
+html[data-tema=porto] ol.percurso li{border-color:#C5D2E6}
+html[data-tema=porto] ol.percurso li:before{border-color:#0B46B0}
+html[data-tema=porto] .paginas span{background:#0B46B0;color:#fff}
+html[data-tema=porto] footer.rodape{background:#EDF2FA;border-color:#DAE3F1;color:#3C4B68}
 `;
 
-const SCRIPT_TEMA = `try{var t=localStorage.getItem('parou_tema');if(t==='escuro'||t==='ambar'){document.documentElement.setAttribute('data-tema',t);var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',t==='escuro'?'#161618':'#FFE9D2')}}catch(e){}`;
+const SCRIPT_TEMA = `try{var t=localStorage.getItem('parou_tema');if(t==='escuro'||t==='ambar'||t==='porto'){document.documentElement.setAttribute('data-tema',t);var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',t==='escuro'?'#161618':t==='ambar'?'#FFE9D2':'#FFFFFF')}}catch(e){}`;
 
 const NOME_IDIOMA: Record<Lang, string> = { pt: 'Português', en: 'English', de: 'Deutsch', fr: 'Français' };
 // Bandeiras (as mesmas da app) em SVG simples

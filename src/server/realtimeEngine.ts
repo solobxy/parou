@@ -47,6 +47,9 @@ export interface LiveVehicle {
   bearing?: number;
   speed?: number;
   timestamp: number;
+  /** Viagem e linha que o operador diz que o veículo está a fazer (nem sempre existem no horário da base) */
+  trip_id?: string;
+  route_id?: string;
 }
 
 // In-memory Server Cache with TTL
@@ -126,6 +129,8 @@ export class RealtimeEngine {
               bearing: v.bearing ? Number(v.bearing) : undefined,
               speed: v.speed ? Number(v.speed) : undefined,
               timestamp: Math.round(vTime),
+              ...(v.trip_id ? { trip_id: String(v.trip_id) } : {}),
+              ...(v.route_id ? { route_id: String(v.route_id) } : {}),
             });
           }
         }
@@ -151,6 +156,8 @@ export class RealtimeEngine {
           bearing: b.bearing,
           speed: b.speed,
           timestamp: b.timestamp,
+          ...(b.trip_id ? { trip_id: b.trip_id } : {}),
+          ...(b.route_id ? { route_id: b.route_id } : {}),
         });
       }
     }

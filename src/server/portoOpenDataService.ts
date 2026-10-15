@@ -31,6 +31,9 @@ export interface StcpLiveVehicle {
   license_plate?: string;
   destination?: string;
   operator: string;
+  /** Só na API oficial: código da viagem e da linha, como a STCP os envia no tempo real */
+  trip_id?: string;
+  route_id?: string;
 }
 
 // Memory caches
@@ -184,6 +187,8 @@ export async function getStcpLiveVehicles(): Promise<StcpLiveVehicle[]> {
       speed: p.velocidade,
       timestamp: p.epoch,
       operator: 'STCP',
+      ...(p.tripId ? { trip_id: p.tripId } : {}),
+      ...(p.routeId ? { route_id: p.routeId } : {}),
     }));
     cachedStcpVehicles = { vehicles, timestamp: now };
     lastStcpFailTime = 0;
