@@ -4,7 +4,7 @@
 // paragens unidas em linha reta, como antes.
 
 import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
-import { codificarPolilinha, cortesDoEncaixe, desenharPorPares, descodificarPolilinha, encaixeValido } from '../utils/caminho';
+import { codificarPolilinha, cortesDoEncaixe, desenharPorPares, descodificarPolilinha, encaixarNoDesenho } from '../utils/caminho';
 import type { Ponto } from '../utils/geoPercurso';
 
 interface Forma { texto: string; pontos: Ponto[] }
@@ -60,9 +60,9 @@ export interface CaminhoDaViagem {
 export function caminhoDaViagem(tripId: string, paragens: Ponto[]): CaminhoDaViagem | null {
   const achado = formaDaViagem(tripId);
   if (!achado) return null;
-  const encaixe = encaixeValido(achado.forma.pontos, paragens);
-  if (!encaixe) return null;
-  return { caminho: achado.forma.texto, cortes: cortesDoEncaixe(encaixe) };
+  const e = encaixarNoDesenho(achado.forma.pontos, paragens);
+  if (!e) return null;
+  return { caminho: e.invertido ? codificarPolilinha(e.desenho) : achado.forma.texto, cortes: cortesDoEncaixe(e.encaixe) };
 }
 
 /**
@@ -74,8 +74,8 @@ export function caminhoDoTroco(tripId: string, paragens: Ponto[]): string | unde
   if (paragens.length < 2) return undefined;
   const achado = formaDaViagem(tripId);
   if (!achado) return undefined;
-  const encaixe = encaixeValido(achado.forma.pontos, paragens);
-  if (!encaixe) return undefined;
-  const linha = desenharPorPares(paragens, achado.forma.pontos, cortesDoEncaixe(encaixe));
+  const e = encaixarNoDesenho(achado.forma.pontos, paragens);
+  if (!e) return undefined;
+  const linha = desenharPorPares(paragens, e.desenho, cortesDoEncaixe(e.encaixe));
   return linha.length >= 2 ? codificarPolilinha(linha) : undefined;
 }
