@@ -123,7 +123,7 @@ footer .idiomas{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}footer butto
 @media(max-width:520px){h1{font-size:26px}.btn.esconde{display:none}}
 `;
 
-// Temas (Escuro, Âmbar e Azul Porto) para as páginas feitas no servidor. O tema vem do localStorage (mesma chave da app) e é aplicado
+// Temas (Escuro, Âmbar e Azul) para as páginas feitas no servidor. O tema vem do localStorage (mesma chave da app) e é aplicado
 // antes de desenhar a página, para não piscar. O Claro é o de sempre e não leva nada.
 const CSS_TEMAS = `
 html[data-tema=escuro]{color-scheme:dark;background:#0F0F10}

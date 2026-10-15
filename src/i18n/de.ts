@@ -984,7 +984,6 @@ export const DE: Record<string, string> = {
   'A posição do autocarro vem do operador e pode ter alguns segundos de atraso.': 'Die Position des Busses stammt vom Betreiber und kann einige Sekunden verzögert sein.',
   'Perguntar se estou num autocarro': 'Fragen, ob ich in einem Bus bin',
   'Só com a app aberta. A comparação com os autocarros faz-se no teu telemóvel.': 'Nur bei geöffneter App. Der Vergleich mit den Bussen findet auf deinem Handy statt.',
-  'Azul Porto': 'Porto-Blau',
   'Azul e branco, à moda do Porto': 'Blau und Weiß, nach Porto-Art',
   // Fehlende Texte (Überarbeitung der englischen Fassung)
   'Liga a localização': 'Standort einschalten',

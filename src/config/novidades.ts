@@ -324,8 +324,24 @@ No Perto, os autocarros da STCP, da Carris Metropolitana e da TUB (Braga) aparec
 📍 *A bordo*: se apanhares um autocarro, a PAROU pergunta «Está a bordo do 801?». Respondes que sim e vês a rota e as próximas paragens, em direto.
 🔒 Só pergunta com a app aberta, nunca decide sozinha, e podes desligar em «A tua localização».
 
-🔵 E há um tema novo, o *Azul Porto*: claro, azul e branco. Toca na paleta, no topo.
+🔵 E há um tema novo, o *Azul*: claro, azul e branco. Toca na paleta, no topo.
 
 parou.pt`,
+  },
+  {
+    id: 'todos-autocarros',
+    data: '2026-10-15',
+    etiqueta: 'Novidade',
+    titulo: 'Todos os autocarros no mapa',
+    texto: `🚌 *Todos os autocarros no mapa*
+
+O mapa do Perto passou a mostrar todos os autocarros que estão no ecrã (STCP, Carris Metropolitana e TUB), de qualquer linha, e não só os das paragens perto de ti.
+
+🔎 *Afasta o mapa* para ver onde está cada um: ao longe aparecem pontos coloridos; ao aproximar, o número da linha e o sentido.
+🗺️ Arrasta o mapa e os autocarros acompanham.
+
+parou.pt`,
+    imagens: ['/novidades/todos-autocarros-1.jpg', '/novidades/todos-autocarros-2.jpg'],
+    comunidade: 'O mapa do Perto agora mostra todos os autocarros que estão no ecrã (STCP, Carris Metropolitana e TUB), de qualquer linha, e não só os das paragens perto de ti. Afasta o mapa para ver onde está cada um: ao longe são pontos coloridos e, de perto, aparece o número da linha.',
   },
 ];
