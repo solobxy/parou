@@ -1,13 +1,16 @@
 import type { RespostaABordo, VeiculoLeve } from '../types/aBordo';
 
-export interface Caixa { sul: number; oeste: number; norte: number; leste: number }
+import type { Caixa } from '../utils/caixaVeiculos';
 
-/** Autocarros em direto das linhas pedidas (chaves "stcp:803") e/ou dentro de uma caixa do mapa */
-export async function fetchVeiculos(o: { linhas?: string[]; caixa?: Caixa }, signal?: AbortSignal): Promise<{ veiculos: VeiculoLeve[]; agora: number }> {
+export type { Caixa };
+
+/** Autocarros em direto das linhas pedidas (chaves "stcp:803") e/ou dentro de uma caixa do mapa.
+ *  `origem` diz quem pede (o mapa ou a deteção do «A bordo»); o servidor ignora-o, serve para os testes e para perceber o tráfego. */
+export async function fetchVeiculos(o: { linhas?: string[]; caixa?: Caixa; origem?: 'mapa' | 'deteccao' }, signal?: AbortSignal): Promise<{ veiculos: VeiculoLeve[]; agora: number }> {
   const params = new URLSearchParams();
   if (o.linhas && o.linhas.length) params.set('linhas', o.linhas.slice(0, 40).join(','));
   if (o.caixa) params.set('caixa', [o.caixa.sul, o.caixa.oeste, o.caixa.norte, o.caixa.leste].map((x) => x.toFixed(5)).join(','));
-  const res = await fetch(`/api/transit/veiculos?${params.toString()}`, { cache: 'no-store', signal: signal || AbortSignal.timeout(8000) });
+  const res = await fetch(`/api/transit/veiculos?${params.toString()}`, { cache: 'no-store', signal: signal || AbortSignal.timeout(8000), ...(o.origem ? { headers: { 'X-Parou-Origem': o.origem } } : {}) });
   if (!res.ok) throw new Error(`Falha ao obter os autocarros (${res.status})`);
   const data = await res.json();
   return { veiculos: Array.isArray(data.veiculos) ? data.veiculos : [], agora: Number(data.agora) || Math.floor(Date.now() / 1000) };
