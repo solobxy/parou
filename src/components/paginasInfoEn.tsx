@@ -4,7 +4,7 @@ import { Mail, Heart, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide
 import type { PaginaInfo } from './PaginaInformativa';
 import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 
-const ATUALIZADO_EN = '11 October 2026';
+const ATUALIZADO_EN = '15 October 2026';
 
 export function SobreEn({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
   return (
@@ -72,8 +72,9 @@ export function PrivacidadeEn() {
         <p>
           <strong>Location (only if you allow it).</strong> It is used to show the stops and services near you. Your position is
           sent to our server only to work out the nearby stops and is not stored on the server. Your last position stays on your
-          phone, for up to 12 hours, so the app opens in the right place. You can withdraw permission at any time in your browser
-          or phone settings.
+          phone, for up to 12 hours, so the app opens in the right place. While location is on, the app also reads your phone’s
+          motion sensor, on the device only, to tell whether you are standing still and keep the dot from jittering on the map;
+          those readings are not stored or sent. You can withdraw permission at any time in your browser or phone settings.
         </p>
         <p>
           <strong>Favourites and preferences.</strong> They are stored on your phone. So they are not lost (some browsers delete

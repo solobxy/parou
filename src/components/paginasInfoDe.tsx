@@ -4,7 +4,7 @@ import { Mail, Heart, ShieldCheck, FileText, Phone, MessageCircle } from 'lucide
 import type { PaginaInfo } from './PaginaInformativa';
 import { CONTACTO, TELEFONE, TELEFONE_LINK, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 
-const ATUALIZADO_DE = '11. Oktober 2026';
+const ATUALIZADO_DE = '15. Oktober 2026';
 
 export function SobreDe({ onAbrir }: { onAbrir: (p: PaginaInfo) => void }) {
   return (
@@ -73,7 +73,9 @@ export function PrivacidadeDe() {
         <p>
           <strong>Standort (nur wenn du ihn erlaubst).</strong> Er dient dazu, die Haltestellen und Verbindungen in deiner Nähe anzuzeigen.
           Deine Position wird nur an unseren Server gesendet, um die nahen Haltestellen zu berechnen, und dort nicht gespeichert. Deine
-          letzte Position bleibt bis zu 12 Stunden auf deinem Telefon, damit sich die App am richtigen Ort öffnet. Du kannst die Erlaubnis
+          letzte Position bleibt bis zu 12 Stunden auf deinem Telefon, damit sich die App am richtigen Ort öffnet. Solange der Standort an
+          ist, liest die App außerdem den Bewegungssensor deines Telefons, nur auf dem Gerät, um zu erkennen, ob du stillstehst, und den
+          Punkt auf der Karte nicht zittern zu lassen; diese Werte werden weder gespeichert noch gesendet. Du kannst die Erlaubnis
           jederzeit in den Einstellungen deines Browsers oder Telefons widerrufen.
         </p>
         <p>

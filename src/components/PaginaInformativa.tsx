@@ -82,8 +82,10 @@ function Privacidade() {
         <p>
           <strong>Localização (só se a autorizares).</strong> Serve para mostrar as paragens e os transportes perto de ti. A tua
           posição é enviada ao nosso servidor apenas para calcular as paragens próximas e não fica guardada no servidor. No teu
-          telemóvel fica a última posição, até 12 horas, para a app abrir logo no sítio certo. Podes retirar a autorização a
-          qualquer momento nas definições do browser ou do telemóvel.
+          telemóvel fica a última posição, até 12 horas, para a app abrir logo no sítio certo. Com a localização ligada, a app
+          também lê o sensor de movimento do telemóvel, só no próprio aparelho, para saber se estás parado e não deixar o ponto
+          a tremer no mapa; esses valores não são guardados nem enviados. Podes retirar a autorização a qualquer momento nas
+          definições do browser ou do telemóvel.
         </p>
         <p>
           <strong>Favoritos e preferências.</strong> Ficam guardados no teu telemóvel. Para não se perderem (alguns browsers apagam
