@@ -6,6 +6,7 @@ import { planTransitRoute } from './pertoApi';
 import { viagemUnir, motivosFalhaUnir } from './unirAmp';
 import { opcoesComUnir } from './hibridasUnir';
 import { textoMetros } from '../utils/distancia';
+import { limitarComModos } from '../utils/escolhaOpcoes';
 import { t, tn, LOCALE } from '../i18n';
 import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
 
@@ -85,7 +86,8 @@ export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[]
     return true;
   });
   const melhor = unicas.find((r) => r.id !== 'a-pe');
-  return unicas.slice(0, 5).map((r) => ({
+  // Até 5 opções, com pelo menos uma de cada meio de transporte (o metro não pode ficar de fora só por haver 5 autocarros mais rápidos)
+  return limitarComModos(unicas, 5).map((r) => ({
     ...r,
     badgeLabel: r.id === 'a-pe' ? t('A pé')
       : r.id === melhor?.id ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
