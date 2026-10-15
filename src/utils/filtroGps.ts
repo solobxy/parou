@@ -50,6 +50,8 @@ export interface EstimativaGps {
   parado: boolean;
   /** instante a que a estimativa se refere (ms, relógio do GPS) */
   t: number;
+  /** segundos desde a última leitura que entrou no filtro (0 na hora da leitura): serve para avisar de "sem sinal" */
+  semLeituras: number;
 }
 
 /** Um eixo: posição e velocidade (metros, m/s) e a sua covariância. */
@@ -107,7 +109,13 @@ const norm360 = (g: number) => ((g % 360) + 360) % 360;
 
 export class FiltroGps {
   /** Afinações (a simulação em auditoria/gps-sim.mjs serve para as ajustar) */
-  ajustes = { saMin: 1.3, saMax: 6, fatorR: 1.25, minAcc: 5, nisAlfa: 0.6, nisBase: 1.2, saindoD2: 3, saindoN: 2, capR: 3000, nisTeto: 9.21, expR: 4, fimRejeitar: 3, limiarD2: 6 };
+  ajustes = {
+    saMin: 1.3, saMax: 6, fatorR: 1.25, minAcc: 5, nisAlfa: 0.6, nisBase: 1.2, saindoD2: 3, saindoN: 2, capR: 3000, nisTeto: 9.21, expR: 4, fimRejeitar: 3, limiarD2: 6,
+    // Telemóvel quieto (acelerómetro) com pouca informação do GPS (sem velocidade e precisão declarada ≥ accBaixa m: dentro de casa,
+    // rua estreita, posição "por rede"): a velocidade tirada só das posições é ruído e um salto de grupo de leituras parece uma
+    // manobra. Quem está parado não se teletransporta, por isso o filtro fica menos ágil e confia menos em cada leitura.
+    accBaixa: 12, saMaxBaixa: 1.3, fatorRBaixa: 2, saindoNBaixa: 8, surpBaixa: 12, velVeiculo: 4, cresceTotal: 32,
+  };
   private ini = false;
   private lat0 = 0;
   private lon0 = 0;
@@ -123,6 +131,16 @@ export class FiltroGps {
   private ignoradas = 0;
   private nis = 2;
   private accMedia = 15;
+  /** leituras seguidas sem velocidade do GPS utilizável */
+  private semVel = 0;
+  /** o que o acelerómetro diz do telemóvel (utils/movimentoAparelho.ts); null = não se sabe (o filtro funciona como sem sensor) */
+  aparelho: 'parado' | 'a-andar' | null = null;
+  /** últimas velocidades estimadas (m/s): se a mediana é alta vai-se de veículo e o "telemóvel quieto" não quer dizer pessoa parada */
+  private histVel: number[] = [];
+  /** o desvio das leituras ao previsto está a crescer leitura após leitura (alguém a afastar-se de verdade, não um salto): até quando fica ágil */
+  private agilAte = 0;
+  private contCresce = 0;
+  private inovAnt = 0;
   private desfases: number[] = [];
   private desfaseAtual = 0;
   private ultimaBruta: { x: number; y: number } | null = null;
@@ -140,6 +158,11 @@ export class FiltroGps {
     this.contMov = 0;
     this.surpresas = 0;
     this.ignoradas = 0;
+    this.semVel = 0;
+    this.histVel = [];
+    this.agilAte = 0;
+    this.contCresce = 0;
+    this.inovAnt = 0;
     this.nis = 2;
     this.desfases = [];
     this.ultimaBruta = null;
@@ -231,11 +254,15 @@ export class FiltroGps {
 
     // 3. Previsão e correção
     const z = this.paraMetros(l.lat, l.lon);
-    const sa = this.parado ? 0.08 : Math.min(this.ajustes.saMax, Math.max(this.ajustes.saMin, this.ajustes.saMin * Math.sqrt(Math.max(1, this.nis / this.ajustes.nisBase))));
+    const velMediana = this.histVel.length >= 3 ? [...this.histVel].sort((a, b) => a - b)[this.histVel.length >> 1] : 0;
+    const quieto = this.aparelho === 'parado' && velMediana < this.ajustes.velVeiculo && l.t >= this.agilAte;
+    const baixa = quieto && this.semVel >= 3 && this.accMedia >= this.ajustes.accBaixa;
+    const dop = accEf < 100 ? this.velocidadeDoppler(l) : null;
+    const sa = this.parado ? 0.08 : Math.min(baixa ? this.ajustes.saMaxBaixa : this.ajustes.saMax, Math.max(this.ajustes.saMin, this.ajustes.saMin * Math.sqrt(Math.max(1, this.nis / this.ajustes.nisBase))));
     this.x.prever(dtSeg, sa);
     this.y.prever(dtSeg, sa);
 
-    let R = Math.pow(Math.max(accEf, this.ajustes.minAcc) * this.ajustes.fatorR, 2);
+    let R = Math.pow(Math.max(accEf, this.ajustes.minAcc) * (baixa ? this.ajustes.fatorRBaixa : this.ajustes.fatorR), 2);
     const yx = z.x - this.x.p;
     const yy = z.y - this.y.p;
     const d2 = (yx * yx + yy * yy) / (this.x.Ppp + R);
@@ -243,19 +270,34 @@ export class FiltroGps {
 
     // 5. Leitura fora do esperado: pesa menos. Se várias seguidas se afastam do previsto sempre do mesmo modo
     //    (um desvio estável), a posição mudou mesmo (ou o filtro perdeu-se) e recomeça-se na leitura.
-    if (d2 > this.ajustes.limiarD2) {
+    const limiarD2 = this.ajustes.limiarD2;
+    // Um salto de leituras é um degrau (o desvio muda uma vez e fica); quem se afasta de verdade faz o desvio crescer a cada leitura.
+    // Soma-se o crescimento do desvio (cada passo limitado a 20 m, menos 4 m de folga): num degrau soma pouco e acaba, numa
+    // viagem acumula depressa. Passado o limite fica ágil durante 30 s (telemóvel quieto na mão dentro de um veículo sem velocidade do GPS)
+    const inovMag = Math.hypot(yx, yy);
+    this.contCresce = Math.max(0, this.contCresce + Math.min(20, inovMag - this.inovAnt) - 4);
+    this.inovAnt = inovMag;
+    if (this.contCresce >= this.ajustes.cresceTotal && inovMag > accEf) {
+      this.agilAte = l.t + 30_000;
+      this.contCresce = 0;
+      this.parado = false;
+      this.contParado = 0;
+    }
+    if (d2 > limiarD2) {
       const inov = { x: yx, y: yy };
       const igual = this.ultimaInov ? Math.hypot(inov.x - this.ultimaInov.x, inov.y - this.ultimaInov.y) <= Math.max(25, 2 * accEf) : false;
       this.surpresas = igual ? this.surpresas + 1 : 1;
       this.ultimaInov = inov;
-      if (this.surpresas >= 5) {
+      if (this.surpresas >= (quieto ? this.ajustes.surpBaixa : 5)) {
         this.reposicionar(z, accEf, this.velocidadeDoppler(l));
         this.ultimaBruta = z;
         return this.estimativa(l.t, 0);
       }
       // Em andamento, uma leitura muito fora (reflexo do sinal) quase não conta; parado conta mais, porque
       // o desvio pode ser o arranque do autocarro
-      R *= this.parado || this.surpresas >= this.ajustes.fimRejeitar ? Math.min(6, d2 / this.ajustes.limiarD2) : Math.min(this.ajustes.capR, Math.pow(d2 / this.ajustes.limiarD2, this.ajustes.expR));
+      // (Se a velocidade medida pelo GPS diz "parado" e a posição salta, o salto é reflexo do sinal: rejeita como em andamento)
+      const gpsDizParado = Boolean(dop && dop.v < 0.5);
+      R *= (this.parado || this.surpresas >= this.ajustes.fimRejeitar) && !gpsDizParado ? Math.min(6, d2 / limiarD2) : Math.min(this.ajustes.capR, Math.pow(d2 / limiarD2, this.ajustes.expR));
     } else {
       this.surpresas = 0;
       this.ultimaInov = null;
@@ -266,7 +308,7 @@ export class FiltroGps {
     this.y.corrigirPosicao(z.y, R);
 
     // 4. Velocidade medida pelo GPS
-    const dop = accEf < 100 ? this.velocidadeDoppler(l) : null;
+    this.semVel = dop ? 0 : this.semVel + 1;
     if (dop) {
       this.x.corrigirVelocidade(dop.ve, dop.R);
       this.y.corrigirVelocidade(dop.vn, dop.R);
@@ -274,6 +316,8 @@ export class FiltroGps {
 
     // 6. Parado / em movimento
     const velEst = Math.hypot(this.x.v, this.y.v);
+    this.histVel.push(velEst);
+    if (this.histVel.length > 7) this.histVel.shift();
     const candidatoParado = dop ? dop.v < 0.45 : (velEst < 0.5 && d2 < 4);
     // Sem velocidade do GPS, parado a velocidade fica a zero e não serve de pista: sai-se quando as leituras
     // se afastam do ponto parado 3 vezes seguidas
@@ -282,7 +326,7 @@ export class FiltroGps {
     this.contMov = emMovimento ? this.contMov + 1 : 0;
     if (!this.parado && this.contParado >= 3) {
       this.parado = true;
-    } else if (this.parado && this.contMov >= (dop ? 2 : this.ajustes.saindoN)) {
+    } else if (this.parado && this.contMov >= (dop ? 2 : (baixa ? this.ajustes.saindoNBaixa : this.ajustes.saindoN))) {
       this.parado = false;
       this.x.Pvv = this.y.Pvv = 4;
     }
@@ -324,7 +368,7 @@ export class FiltroGps {
       rumo = norm360(Math.atan2(this.x.v, this.y.v) / RAD);
       this.ultimoRumo = rumo;
     }
-    return { lat, lon, precisao, velocidade: this.parado ? 0 : vel, ve: this.parado ? 0 : this.x.v, vn: this.parado ? 0 : this.y.v, rumo, parado: this.parado, t: t + dt * 1000 };
+    return { lat, lon, precisao, velocidade: this.parado ? 0 : vel, ve: this.parado ? 0 : this.x.v, vn: this.parado ? 0 : this.y.v, rumo, parado: this.parado, t: t + dt * 1000, semLeituras };
   }
 
   /**

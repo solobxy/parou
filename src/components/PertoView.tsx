@@ -67,6 +67,8 @@ import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula,
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
 import { NotaLocalizacao, FolhaLocalizacao } from './PrivacidadeLocalizacao';
+import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
+import { useQualidadeGps } from '../utils/qualidadeGps';
 
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
@@ -339,7 +341,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   totalFavoritos = 0,
   onAbrirPrivacidade,
 }) => {
-  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio } = useUserLocation();
+  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio, afinarPosicao } = useUserLocation();
   // Janela "A tua localização" (o que se faz com ela e como a apagar)
   const [dialogoLocalizacao, setDialogoLocalizacao] = useState<boolean>(false);
   const botaoFavoritos = onAbrirFavoritos ? (
@@ -413,18 +415,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
   };
   const [pesquisarLocal, setPesquisarLocal] = useState<boolean>(false);
   const [pedidoLento, setPedidoLento] = useState<boolean>(false);
-  // Posição com pouca precisão (acima de 300 m) durante mais de 20 s: explica o que costuma resolver
-  const [pocaPrecisao, setPocaPrecisao] = useState<boolean>(false);
-  const [precisaoDispensada, setPrecisaoDispensada] = useState<boolean>(false);
-  const precisaoUser = userCoords && !userCoords.isManual && gpsStatus === 'active' ? userCoords.accuracy : 0;
-  useEffect(() => {
-    if (precisaoUser > 300) {
-      const id = setTimeout(() => setPocaPrecisao(true), 20000);
-      return () => clearTimeout(id);
-    }
-    // Histerese: só desaparece quando a posição melhora a sério (e volta a poder avisar se piorar outra vez)
-    if (precisaoUser === 0 || precisaoUser < 200) { setPocaPrecisao(false); if (precisaoUser !== 0) setPrecisaoDispensada(false); }
-  }, [precisaoUser > 300, precisaoUser === 0 || precisaoUser < 200]);
+  // Aviso no mapa quando a posição está pouco precisa ou sem sinal (ver utils/qualidadeGps.ts)
+  const qualidadeGps = useQualidadeGps(gpsStatus === 'active' && Boolean(userCoords) && !userCoords?.isManual);
+  const [aAfinarGps, setAAfinarGps] = useState<boolean>(false);
+  const tentarOutraVezGps = () => {
+    if (aAfinarGps) return;
+    setAAfinarGps(true);
+    afinarPosicao().catch(() => {}).finally(() => setAAfinarGps(false));
+  };
   // Coordenadas arredondadas (~100 m): evita pedir paragens a cada atualização do GPS
   const chaveCoords = userCoords ? `${userCoords.latitude.toFixed(3)},${userCoords.longitude.toFixed(3)}` : '';
   const coordsRef = useRef(userCoords);
@@ -499,6 +497,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const pintarRumoRef = useRef<((graus: number | null) => void) | null>(null);
   // Posição suave (a 60 fotogramas por segundo): círculo de precisão, rumo da viagem e se o mapa segue o ponto
   const haloRef = useRef<L.Circle | null>(null);
+  const haloForteRef = useRef<boolean>(false);
   const rumoViagemRef = useRef<number | null>(null);
   const seguirRef = useRef<boolean>(true);
   const rotaLayerRef = useRef<L.LayerGroup | null>(null);
@@ -1153,11 +1152,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (agora - ultimoHalo >= 100) {
         ultimoHalo = agora;
         if (q.precisao >= 12) {
+          // Com a posição fraca (≥ 100 m) o círculo ganha um contorno tracejado, para se ver até onde vai a dúvida
+          const fraca = q.precisao >= 100;
           if (!haloRef.current) {
-            haloRef.current = L.circle([q.lat, q.lon], { radius: q.precisao, stroke: false, fillColor: '#FF6B1A', fillOpacity: 0.13, interactive: false }).addTo(map);
+            haloRef.current = L.circle([q.lat, q.lon], { radius: q.precisao, stroke: fraca, color: '#FF6B1A', weight: 1.5, opacity: 0.55, dashArray: '5 5', fillColor: '#FF6B1A', fillOpacity: 0.13, interactive: false }).addTo(map);
+            haloForteRef.current = fraca;
           } else {
             haloRef.current.setLatLng([q.lat, q.lon]);
             haloRef.current.setRadius(q.precisao);
+            if (haloForteRef.current !== fraca && (fraca || q.precisao < 70)) {
+              haloRef.current.setStyle({ stroke: fraca });
+              haloForteRef.current = fraca;
+            }
           }
         } else if (q.precisao < 8 && haloRef.current) {
           haloRef.current.remove();
@@ -2230,24 +2236,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Lista de paragens */}
         {!emRota && (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-4 lg:px-3 lg:pt-3 space-y-2">
-          {localizacaoPronta && pocaPrecisao && !precisaoDispensada && precisaoUser > 200 && (
-            <div className="rounded-[14px] border border-[#E6E6E3] bg-[#F4F4F2] p-3.5" data-teste="aviso-precisao" role="status">
-              <p className="text-[14px] font-semibold text-[#111111] leading-snug">
-                {t('A tua posição está pouco precisa (cerca de {d}).', { d: precisaoUser >= 1000 ? `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(precisaoUser / 1000)} km` : textoMetros(Math.round(precisaoUser / 50) * 50) })}
-              </p>
-              <p className="mt-1 text-[13px] text-[#6B6B6B] leading-snug">
-                {t('Nas definições do telemóvel, liga a localização precisa para este browser. Dentro de um edifício, chegar a uma janela ou à rua ajuda.')}
-              </p>
-              <button
-                type="button"
-                onClick={() => setPrecisaoDispensada(true)}
-                data-teste="aviso-precisao-fechar"
-                className="mt-1 -mb-1 min-h-[44px] pr-2 text-[13px] font-semibold text-[#111111] underline underline-offset-2 cursor-pointer"
-              >
-                {t('Percebi')}
-              </button>
-            </div>
-          )}
           {!localizacaoPronta ? (
             <div className="space-y-2" aria-hidden="true">
               {[0, 1, 2].map((i) => (
@@ -2843,6 +2831,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
               {mapaExpandido ? <Minimize2 className="w-4 h-4 stroke-[2]" /> : <Maximize2 className="w-4 h-4 stroke-[2]" />}
             </button>
           </div>
+        )}
+
+        {/* Aviso de precisão da posição (só quando está fraca ou sem sinal) */}
+        {localizacaoPronta && !userCoords?.isManual && (
+          <AvisoPrecisaoMapa nivel={qualidadeGps.nivel} precisao={qualidadeGps.precisao} aTentar={aAfinarGps} onTentar={tentarOutraVezGps} />
         )}
 
         {/* Convite para ativar a localização (mapa desfocado por trás) */}
