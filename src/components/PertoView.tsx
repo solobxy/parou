@@ -68,7 +68,8 @@ import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
 import { NotaLocalizacao, FolhaLocalizacao } from './PrivacidadeLocalizacao';
 import { VeiculosNoMapa } from './VeiculosNoMapa';
-import { useABordo, PerguntaABordo, PainelABordo, ABordoNoMapa } from './ABordo';
+import { useABordo, PerguntaABordo, PainelABordo, ABordoNoMapa, CartaoAutocarro } from './ABordo';
+import type { VeiculoLeve } from '../types/aBordo';
 import { chaveDaPartida } from '../utils/chaveLinha';
 import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
 import { useQualidadeGps } from '../utils/qualidadeGps';
@@ -368,6 +369,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
   // «A bordo»: deteta (ou a pessoa diz) que vai num autocarro e acompanha-o. Só com GPS real (não com um local escolhido à mão)
   const aBordo = useABordo(userCoords, localizacaoPronta && !userCoords?.isManual);
+  const [busTocado, setBusTocado] = useState<{ v: VeiculoLeve; agora: number } | null>(null);
   const aBordoNoMapa = aBordo.fase === 'a-bordo' && aBordo.paragens.length > 1;
   const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
   // Painel de baixo (telemóvel) arrastável com o dedo, como nas apps de mapas: segue o dedo e,
@@ -501,6 +503,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const mapRef = useRef<L.Map | null>(null);
   // O mapa como estado: os componentes que desenham por cima (autocarros, A bordo) só arrancam quando ele existe
   const [mapaLeaflet, setMapaLeaflet] = useState<L.Map | null>(null);
+  // O cartão «Estou a bordo» fecha ao tocar no mapa (fora dos autocarros)
+  useEffect(() => {
+    if (!mapaLeaflet || !busTocado) return;
+    const fechar = () => setBusTocado(null);
+    mapaLeaflet.on('click', fechar);
+    return () => { mapaLeaflet.off('click', fechar); };
+  }, [mapaLeaflet, busTocado]);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const pintarRumoRef = useRef<((graus: number | null) => void) | null>(null);
   // Posição suave (a 60 fotogramas por segundo): círculo de precisão, rumo da viagem e se o mapa segue o ponto
@@ -2815,7 +2824,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           linhas={linhasVeiculos}
           caixa={caixaVeiculos}
           meu={aBordo.alvo?.id ?? null}
-          aoEstarABordo={(v) => { mapaLeaflet?.closePopup(); aBordo.confirmar(v, 'manual'); }}
+          aoTocar={(v, agora) => setBusTocado({ v, agora })}
         />
       )}
       <ABordoNoMapa mapa={mapaLeaflet} controlo={aBordo} />
@@ -2918,6 +2927,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* «Estás no autocarro 801?» */}
         <PerguntaABordo controlo={aBordo} />
+
+        {/* Tocaste num autocarro no mapa: «Estou a bordo» */}
+        {busTocado && aBordo.fase === 'livre' && (
+          <CartaoAutocarro
+            veiculo={busTocado.v}
+            agoraS={busTocado.agora}
+            aoConfirmar={() => { aBordo.confirmar(busTocado.v, 'manual'); setBusTocado(null); }}
+            aoFechar={() => setBusTocado(null)}
+          />
+        )}
 
         {/* Aviso de precisão da posição (só quando está fraca ou sem sinal) */}
         {localizacaoPronta && !userCoords?.isManual && (

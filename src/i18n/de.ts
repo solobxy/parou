@@ -946,8 +946,7 @@ export const DE: Record<string, string> = {
   // A bordo e autocarros em direto
   'A posição segue para o nosso servidor só para calcular o que está perto (e os autocarros da zona), e não fica guardada lá.': 'Dein Standort wird nur an unseren Server gesendet, um zu berechnen, was in der Nähe ist (und welche Busse in der Gegend fahren), und wird dort nicht gespeichert.',
   'Linha {l}': 'Linie {l}',
-  'Posição agora mesmo': 'Position gerade eben',
-  'Posição de há {s} s': 'Position von vor {s} s',
+  'há {s} s': 'vor {s} s',
   'Estou a bordo': 'Ich bin an Bord',
   'Estás num autocarro?': 'Bist du in einem Bus?',
   'Em qual destes autocarros estás?': 'In welchem dieser Busse bist du?',

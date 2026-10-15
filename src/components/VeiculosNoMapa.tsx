@@ -6,6 +6,7 @@ import { t } from '../i18n';
 
 // Autocarros em direto no mapa (STCP e Carris Metropolitana): só os das linhas pedidas, perto do que a pessoa está a ver.
 // A posição é a que o operador envia; mexe-se de 15 em 15 segundos, e o marcador desliza até lá em vez de saltar.
+// Tocar num autocarro avisa a PertoView, que mostra o cartão «Estou a bordo» (um cartão da app, não uma janela do mapa, para não ficar tapado pelos botões do mapa).
 
 const INTERVALO_MS = 15_000;
 const DURACAO_DESLIZE_MS = 1_600;
@@ -32,30 +33,6 @@ interface Entrada {
   raf: number | null;
 }
 
-function conteudoPopup(v: VeiculoLeve, agoraS: number, aoEstarABordo?: (v: VeiculoLeve) => void): HTMLElement {
-  const raiz = document.createElement('div');
-  raiz.className = 'pp-bus';
-  const titulo = document.createElement('div');
-  titulo.className = 'pp-t text-[15px] font-bold';
-  titulo.textContent = t('Linha {l}', { l: v.linha });
-  raiz.appendChild(titulo);
-  const idade = Math.max(0, Math.round(agoraS - v.t));
-  const sub = document.createElement('div');
-  sub.className = 'pp-f text-[12px]';
-  sub.textContent = idade < 5 ? t('Posição agora mesmo') : t('Posição de há {s} s', { s: idade });
-  raiz.appendChild(sub);
-  if (aoEstarABordo) {
-    const botao = document.createElement('button');
-    botao.type = 'button';
-    botao.className = 'mt-1.5 h-11 w-full px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer';
-    botao.textContent = t('Estou a bordo');
-    botao.setAttribute('data-teste', 'estou-a-bordo');
-    botao.addEventListener('click', (e) => { e.stopPropagation(); aoEstarABordo(v); });
-    raiz.appendChild(botao);
-  }
-  return raiz;
-}
-
 interface Props {
   mapa: L.Map | null;
   /** Chaves de linha ("stcp:803", "cm:4436"); vazio = não mostra nada */
@@ -64,15 +41,16 @@ interface Props {
   caixa?: Caixa;
   /** Autocarro em que a pessoa vai (fica destacado) */
   meu?: string | null;
-  aoEstarABordo?: (v: VeiculoLeve) => void;
+  /** Tocar num autocarro: devolve-o, com a hora do servidor (segundos) para saber há quanto tempo é a posição */
+  aoTocar?: (v: VeiculoLeve, agoraServidorS: number) => void;
 }
 
-export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoEstarABordo }: Props) {
+export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoTocar }: Props) {
   const entradasRef = useRef<Map<string, Entrada>>(new Map());
   const grupoRef = useRef<L.LayerGroup | null>(null);
   const agoraRef = useRef<number>(Math.floor(Date.now() / 1000));
-  const aoEstarRef = useRef(aoEstarABordo);
-  aoEstarRef.current = aoEstarABordo;
+  const aoTocarRef = useRef(aoTocar);
+  aoTocarRef.current = aoTocar;
   const meuRef = useRef<string | null>(meu ?? null);
   meuRef.current = meu ?? null;
 
@@ -143,10 +121,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, meu, aoEstarABordo }: Prop
             title: t('Linha {l}', { l: v.linha }),
           });
           const entrada: Entrada = { marker, v, chaveIcone: chave, raf: null };
-          // Margens para o mapa deslizar até a janela ficar à vista: em cima, abaixo da barra de pesquisa; à direita, longe dos botões do mapa
-          marker.bindPopup(() => conteudoPopup(entrada.v, agoraRef.current, aoEstarRef.current), {
-            closeButton: false, offset: [0, -14], autoPanPaddingTopLeft: [12, 66], autoPanPaddingBottomRight: [64, 20],
-          });
+          marker.on('click', () => aoTocarRef.current?.(entrada.v, agoraRef.current));
           marker.addTo(grupo);
           entradas.set(v.id, entrada);
         }

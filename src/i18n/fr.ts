@@ -946,8 +946,7 @@ export const FR: Record<string, string> = {
   // A bordo e autocarros em direto
   'A posição segue para o nosso servidor só para calcular o que está perto (e os autocarros da zona), e não fica guardada lá.': 'Votre position est envoyée à notre serveur uniquement pour calculer ce qui est à proximité (et les bus de la zone), et elle n’y est pas conservée.',
   'Linha {l}': 'Ligne {l}',
-  'Posição agora mesmo': 'Position à l’instant',
-  'Posição de há {s} s': 'Position d’il y a {s} s',
+  'há {s} s': 'il y a {s} s',
   'Estou a bordo': 'Je suis à bord',
   'Estás num autocarro?': 'Êtes-vous dans un bus ?',
   'Em qual destes autocarros estás?': 'Dans lequel de ces bus êtes-vous ?',

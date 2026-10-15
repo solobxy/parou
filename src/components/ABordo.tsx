@@ -295,6 +295,43 @@ export const PerguntaABordo: React.FC<{ controlo: ControloABordo }> = ({ control
   );
 };
 
+// ---------------------------------------------------------------- cartão ao tocar num autocarro ----------------------------------------------------------------
+
+/** Ao tocar num autocarro no mapa: a linha, há quanto tempo é a posição e o botão «Estou a bordo» (uma só linha, em baixo, para não tapar o autocarro nem ficar debaixo da pesquisa) */
+export const CartaoAutocarro: React.FC<{ veiculo: VeiculoLeve; agoraS: number; aoConfirmar: () => void; aoFechar: () => void }> = ({ veiculo, agoraS, aoConfirmar, aoFechar }) => {
+  const idade = Math.max(0, Math.round(agoraS - veiculo.t));
+  return (
+    <div
+      role="group"
+      aria-label={t('Linha {l}', { l: veiculo.linha })}
+      data-teste="cartao-autocarro"
+      className="absolute z-30 left-2 right-2 bottom-2 lg:left-4 lg:right-auto lg:bottom-4 lg:w-[380px] rounded-[16px] bg-[#FFFFFF] shadow-[0_8px_28px_rgba(17,17,17,0.22)] border border-[#E6E6E3] pl-3.5 pr-1.5 py-1.5 flex items-center gap-2"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-bold text-[#111111] leading-tight truncate">{t('Linha {l}', { l: veiculo.linha })}</div>
+        <div className="text-[12px] text-[#6B6B6B] leading-tight mt-0.5 tabular-nums">{idade < 5 ? t('agora') : t('há {s} s', { s: idade })}</div>
+      </div>
+      <button
+        type="button"
+        onClick={aoConfirmar}
+        data-teste="estou-a-bordo"
+        className="shrink-0 h-11 px-4 rounded-[12px] bg-[#111111] text-[#FFFFFF] text-[14px] font-bold cursor-pointer active:scale-[0.98] transition-transform"
+      >
+        {t('Estou a bordo')}
+      </button>
+      <button
+        type="button"
+        onClick={aoFechar}
+        data-teste="cartao-autocarro-fechar"
+        aria-label={t('Fechar')}
+        className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-[#6B6B6B] cursor-pointer active:bg-[#F4F4F2]"
+      >
+        <X className="w-5 h-5 stroke-[2.25]" aria-hidden="true" />
+      </button>
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------- painel ----------------------------------------------------------------
 
 function formatarMetros(m: number): string {
