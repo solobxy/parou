@@ -14,7 +14,7 @@
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
-import { indicePronto, procurar, procurarComUnir, paragensProximas, type Indice, type Jornada } from './planeadorIndice';
+import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
 
@@ -55,19 +55,35 @@ function hm(segs: number): string {
 }
 function marcas(n: number) { return Array.from({ length: n }, () => '?').join(','); }
 
-function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PARAGENS, feedsSemViagens?: Set<string>): Paragem[] {
+/**
+ * Mínimo de paragens de cada meio não rodoviário (metro, comboio, barco) que entram nas candidatas, mesmo que haja mais de `max`
+ * paragens de autocarro mais perto: numa rua do centro há dezenas de paragens de autocarro e a estação de metro, a 600 m, ficava
+ * de fora das paragens de onde se parte ou a que se chega.
+ */
+const MIN_PARAGENS_POR_MEIO = 6;
+
+function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PARAGENS, feedsSemViagens?: Set<string>, classeDoFeed?: (feed: string) => number): Paragem[] {
   const dLat = raio / 111000;
   const dLon = raio / (111000 * Math.max(0.1, Math.cos((lat * Math.PI) / 180)));
   const rows = getDatabase().prepare(`
     SELECT stop_id, feed_id, stop_name, stop_lat, stop_lon FROM stops
     WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ? AND COALESCE(location_type, 0) = 0
   `).all(lat - dLat, lat + dLat, lon - dLon, lon + dLon) as Array<{ stop_id: string; feed_id: string; stop_name: string; stop_lat: number; stop_lon: number }>;
-  return rows
+  const todas = rows
     .filter((r) => !feedsSemViagens || !feedsSemViagens.has(r.feed_id))
     .map((r) => { const d = distM(lat, lon, r.stop_lat, r.stop_lon); return { id: r.stop_id, feed: r.feed_id, nome: r.stop_name, lat: r.stop_lat, lon: r.stop_lon, dist: d, minutos: minutosAPe(d) }; })
     .filter((p) => p.dist <= raio)
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, max);
+    .sort((a, b) => a.dist - b.dist);
+  const escolhidas = todas.slice(0, max);
+  if (classeDoFeed && todas.length > max) {
+    for (const classe of new Set(todas.map((p) => classeDoFeed(p.feed)))) {
+      if (classe === MODO_RODOVIARIO) continue;
+      const falta = MIN_PARAGENS_POR_MEIO - escolhidas.filter((p) => classeDoFeed(p.feed) === classe).length;
+      if (falta <= 0) continue;
+      escolhidas.push(...todas.slice(max).filter((p) => classeDoFeed(p.feed) === classe).slice(0, falta));
+    }
+  }
+  return escolhidas;
 }
 
 /** Serviços ativos por operador num dia (cache da chamada) */
@@ -87,6 +103,11 @@ function servicosDoDia(dataStr: string, diaSemana: string) {
     return s;
   };
 }
+
+/** Meios de transporte que têm de aparecer numa lista de opções, quando servem a viagem sem chegar muito depois da melhor */
+export const MODOS_A_GARANTIR: Modo[] = ['Metro', 'Elétrico', 'Comboio', 'Barco'];
+const MAX_OPCOES = 5;
+const usaModo = (o: { legs: RouteLeg[] }, modo: Modo) => o.legs.some((l) => l.mode === 'TRANSIT' && l.transportMode === modo);
 
 function modoDaLinha(l: Linha | undefined, modoFeed: string | undefined): Modo {
   const mf = String(modoFeed || '').toLowerCase();
@@ -228,8 +249,9 @@ export async function planearViagem(
   // A UNIR não tem horários na base (vêm da AMP pelo telemóvel). A Carris Metropolitana tem: as
   // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
   const semViagens = new Set<string>(['unir']);
-  let O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
-  let D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens);
+  const classeDoFeed = (feed: string) => classeDeTransporte(null, String(feeds.get(feed)?.mode || ''));
+  let O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed);
+  let D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed);
   const porId = new Map<string, Paragem>();
   let minO = new Map(O.map((p) => [p.id, p.minutos]));
   let minD = new Map(D.map((p) => [p.id, p.minutos]));
@@ -500,8 +522,8 @@ export async function planearViagem(
   // Sem nada em transporte a menos de ~900 m a pé de cada lado: tenta com mais caminhada (até ~1,5 km),
   // como faz o Google Maps ("801 e depois 19 min a pé"). As paragens e os minutos a pé ficam à vista.
   if (!opcoes.some((o) => o.id !== 'a-pe')) {
-    const O2 = paragensPerto(oLat, oLon, RAIO_LONGE, MAX_PARAGENS, semViagens);
-    const D2 = paragensPerto(dLat, dLon, RAIO_LONGE, MAX_PARAGENS, semViagens);
+    const O2 = paragensPerto(oLat, oLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed);
+    const D2 = paragensPerto(dLat, dLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed);
     if (O2.length > O.length || D2.length > D.length) {
       O = O2; D = D2;
       registarParagens();
@@ -535,6 +557,25 @@ export async function planearViagem(
     vistas.add(o._assinatura);
     escolhidas.push(o);
     if (escolhidas.length >= 4) break;
+  }
+  // Cada meio de transporte que serve a viagem aparece pelo menos uma vez (o metro, que quase sempre pede transbordo, não pode
+  // sumir só porque um autocarro direto chega uns minutos antes), desde que não chegue muito mais tarde do que a melhor opção.
+  const garantidas = new Set<string>();
+  if (Number.isFinite(melhorChegada)) {
+    for (const modo of MODOS_A_GARANTIR) {
+      if (escolhidas.some((e) => usaModo(e, modo))) continue;
+      const extra = opcoes.find((x) => x.id !== 'a-pe' && !vistas.has(x._assinatura) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia);
+      if (!extra) continue;
+      vistas.add(extra._assinatura);
+      escolhidas.push(extra);
+      garantidas.add(extra.id);
+    }
+    // No máximo 5 (é o que a app mostra): saem as piores das que não são a única do seu meio de transporte
+    while (escolhidas.length > MAX_OPCOES) {
+      const sai = [...escolhidas].reverse().find((e) => e.id !== 'a-pe' && !garantidas.has(e.id) && !MODOS_A_GARANTIR.some((m) => usaModo(e, m) && escolhidas.filter((x) => usaModo(x, m)).length === 1));
+      if (!sai) break;
+      escolhidas.splice(escolhidas.indexOf(sai), 1);
+    }
   }
   // Mostra-se por ordem de chegada: a que chega primeiro vai à frente (a igualdade, a com menos transbordos)
   escolhidas.sort((a, b) => a._chegada - b._chegada || a.transfersCount - b.transfersCount);

@@ -20,11 +20,36 @@ export const ESPERA_SINT = 3 * 60; // otimista de propósito: serve para PROPOR 
 export const PASSO_SINT = 90;
 const FIM_SINT = 23 * 3600 + 30 * 60; // última hora a que se conta apanhar uma UNIR estimada
 
+/** Tipo de transporte de um padrão (para pesquisar só metro, só comboio…) */
+export const MODO_RODOVIARIO = 0, MODO_METRO = 1, MODO_COMBOIO = 2, MODO_BARCO = 3;
+export const BIT_METRO = 1 << MODO_METRO, BIT_COMBOIO = 1 << MODO_COMBOIO, BIT_BARCO = 1 << MODO_BARCO;
+
+/**
+ * Classe de transporte de uma linha: pelo `route_type` do GTFS (0/5/7 elétrico e funicular, 1 metro, 2 comboio, 4 barco; os tipos
+ * alargados 100–199 comboio, 400–499 e 900–999 metro/elétrico, 1000–1099 barco) e, quando o tipo é o genérico (autocarro), pelo
+ * modo que o feed declara ("Metro", "Comboio", "Barco").
+ */
+export function classeDeTransporte(routeType: number | null | undefined, modoDoFeed: string | null | undefined): number {
+  const t = routeType == null || (routeType as unknown) === '' ? NaN : Number(routeType);
+  if (t === 0 || t === 1 || t === 5 || t === 7 || (t >= 400 && t < 500) || (t >= 900 && t < 1000)) return MODO_METRO;
+  if (t === 2 || (t >= 100 && t < 200)) return MODO_COMBOIO;
+  if (t === 4 || (t >= 1000 && t < 1100)) return MODO_BARCO;
+  const mf = String(modoDoFeed || '').toLowerCase();
+  // "Autocarro / Barco" (feeds mistos) fica rodoviário: só conta quando o feed é só desse modo
+  if (/autocarro|trólecar/.test(mf)) return MODO_RODOVIARIO;
+  if (mf.includes('metro')) return MODO_METRO;
+  if (mf.includes('comboio')) return MODO_COMBOIO;
+  if (mf.includes('barco')) return MODO_BARCO;
+  return MODO_RODOVIARIO;
+}
+
 export interface Padrao {
   feed: string; // feed original (para os serviços ativos)
   feedSaida: string; // a "cmh" passa a Carris Metropolitana
   route: string;
   routeIdx: number;
+  /** MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO ou MODO_BARCO */
+  modo: number;
   stops: Int32Array;
   nT: number;
   dep: Int32Array;
@@ -172,6 +197,18 @@ async function construir(dbAny: any): Promise<Indice> {
   for (let i = 0; i < n; i++) ord[cursor[fTrip[i]]++] = i;
   await cede();
 
+  // classe de transporte de cada linha (metro, comboio, barco, rodoviário), para poder pesquisar só um tipo
+  const classeRota = new Map<string, number>();
+  try {
+    const modoFeed = new Map<string, string>();
+    for (const f of dbAny.prepare('SELECT id, mode FROM feeds').all() as any[]) modoFeed.set(String(f.id), String(f.mode || ''));
+    for (const r of dbAny.prepare('SELECT route_id, feed_id, route_type FROM routes').all() as any[]) {
+      classeRota.set(`${r.feed_id}|${r.route_id}`, classeDeTransporte(r.route_type, modoFeed.get(String(r.feed_id))));
+    }
+  } catch (e: any) {
+    console.warn('[Planeador] tipos de transporte das linhas:', e?.message || e);
+  }
+
   const routeIdxMap = new Map<string, number>();
   const grupos = new Map<string, { feed: string; route: string; stops: Int32Array; trips: number[] }>();
   for (let t = 0; t < nTrips; t++) {
@@ -231,6 +268,7 @@ async function construir(dbAny: any): Promise<Indice> {
     if (ri === undefined) { ri = routeIdxMap.size; routeIdxMap.set(`${g.feed}|${g.route}`, ri); }
     padroes.push({
       feed: g.feed, feedSaida: g.feed === 'cmh' ? 'carris_metropolitana' : g.feed, route: g.route, routeIdx: ri,
+      modo: classeRota.get(`${g.feed}|${g.route}`) ?? MODO_RODOVIARIO,
       stops: g.stops, nT, dep, arr, seq, pick,
       tripId: g.trips.map((t) => tId[t]), service: g.trips.map((t) => tSvc[t]), headsign: g.trips.map((t) => tHs[t]),
     });
@@ -258,7 +296,7 @@ async function construir(dbAny: any): Promise<Indice> {
       let ri = routeIdxMap.get(`unir|${l[0].r}`);
       if (ri === undefined) { ri = routeIdxMap.size; routeIdxMap.set(`unir|${l[0].r}`, ri); }
       padroes.push({
-        feed: 'unir', feedSaida: 'unir', route: l[0].r, routeIdx: ri,
+        feed: 'unir', feedSaida: 'unir', route: l[0].r, routeIdx: ri, modo: MODO_RODOVIARIO,
         stops: Int32Array.from(l.map((x) => x.s)), nT: 0,
         dep: new Int32Array(0), arr: new Int32Array(0), seq: new Int32Array(0), pick: new Uint8Array(0),
         tripId: [], service: [], headsign: [],
@@ -421,7 +459,8 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
     return { k, rides, destStop: destino, chegada: 0 };
   };
 
-  const correr = (banidas: Set<number>): Jornada[] => {
+  /** `modos`: máscara de tipos de transporte permitidos (0 = todos); serve para garantir uma opção de metro, comboio ou barco */
+  const correr = (banidas: Set<number>, modos = 0): Jornada[] => {
     best.fill(INF);
     for (let k = 0; k <= K; k++) { tau[k].fill(INF); kind[k].fill(0); rk[k].fill(-1); }
     let alvo = INF; // melhor hora de chegada ao destino (para podar)
@@ -442,6 +481,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
         for (let j = ix.psStart[s]; j < ix.psStart[s + 1]; j++) {
           const p = ix.psPat[j], pos = ix.psPos[j];
           if (banidas.size && banidas.has(ix.padroes[p].routeIdx)) continue;
+          if (modos && !(modos & (1 << ix.padroes[p].modo))) continue;
           if (ix.padroes[p].freq && !sint) continue;
           if (qPos[p] < 0) { tocados.push(p); qPos[p] = pos; } else if (pos < qPos[p]) qPos[p] = pos;
         }
@@ -583,6 +623,13 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
         if (lin2.length) juntar(correr(new Set([ri, lin2[0]])));
       }
     }
+  }
+  // Cada tipo de transporte que serve a viagem tem de poder aparecer. A pesquisa normal só guarda o que chega mais cedo (um transbordo
+  // tem de poupar 3 a 5 min), por isso o metro, o comboio ou o barco, que quase sempre pedem transbordo, sumiam sempre que o autocarro
+  // direto chegava um pouco antes. Pesquisa-se também só com cada um deles; a escolha final decide se vale a pena mostrar.
+  for (const modos of [BIT_METRO, BIT_COMBOIO, BIT_BARCO]) {
+    if (Date.now() > prazo) break;
+    juntar(correr(new Set(), modos));
   }
   return resultado;
 }
