@@ -442,7 +442,7 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
                         }`}
                       />
                     </span>
-                    <span className="min-w-0 flex-1 py-2.5 flex items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 py-3 min-h-11 flex items-center justify-between gap-2">
                       <span className={`block truncate text-[14px] ${eProxima ? 'font-bold text-[#111111]' : passou ? 'font-medium text-[#6B6B6B]' : 'font-medium text-[#111111]'}`}>
                         {formatTransitName(p.nome)}
                       </span>
