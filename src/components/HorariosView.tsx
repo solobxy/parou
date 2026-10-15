@@ -277,7 +277,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
 
   useEffect(() => {
     loadNearLines();
-    // Atualiza a cada 30 s para o tempo real (STCP, Carris Metropolitana) não ficar parado
+    // Atualiza a cada 30 s para o tempo real (STCP, Carris Metropolitana, TUB) não ficar parado
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') loadNearLines();
     }, 30000);

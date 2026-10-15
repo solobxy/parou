@@ -45,6 +45,11 @@ export interface RespostaABordo {
   naParagem?: boolean;
   /** Metros do autocarro à paragem seguinte (em linha reta) */
   distanciaProximaM?: number;
+  /**
+   * Hora prevista em direto (HH:MM) de cada paragem que falta, pela posição da paragem na lista (só quando o operador a envia:
+   * hoje a TUB). Muda a cada pedido; as horas de `paragens` são as do horário.
+   */
+  previstas?: Record<number, string>;
   /** Metros do autocarro ao percurso: se for grande, saiu do percurso (desvio) */
   desvioM?: number;
   semPercurso?: boolean;

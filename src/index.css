@@ -309,25 +309,32 @@ h1, h2, h3, h4 {
 .mapa-longe .parou-pg:not(.parou-pg-sel) svg,
 .mapa-medio .parou-pg-extra:not(.parou-pg-sel) svg { opacity: 0; }
 
-/* Autocarros em direto: o número da linha numa etiqueta com uma seta a apontar para onde vai.
-   As cores vêm de variáveis para os temas (Escuro, Âmbar, Azul Porto) as poderem trocar (ver temas.css). */
+/* Autocarros em direto: uma roda com o número da linha lá dentro (801, 4436, ZC…) e uma ponta a apontar para onde vai.
+   A cor diz de que operador é, para se distinguir logo: STCP azul, Carris Metropolitana amarelo, TUB vermelho.
+   (A cor nunca é a única pista: o cartão do autocarro diz o operador por extenso.)
+   As cores vêm de variáveis; o Azul Porto troca o azul da STCP por um mais fundo. Contraste do número: azul 6,7:1, amarelo 11,8:1, vermelho 5,9:1. */
 .parou-bus-icone { background: transparent; border: 0; }
-.bus-pin { --bus-fundo: #FF6B1A; --bus-texto: #111111; --bus-borda: #FFFFFF; position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
-html[data-tema="ambar"] .bus-pin { --bus-texto: #1F0F05; }
-html[data-tema="porto"] .bus-pin { --bus-fundo: #0B46B0; --bus-texto: #FFFFFF; }
+.bus-pin { --bus-fundo: #1553C9; --bus-texto: #FFFFFF; --bus-borda: #FFFFFF; position: relative; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+.bus-pin--cm { --bus-fundo: #FFC400; --bus-texto: #111111; }
+.bus-pin--tub { --bus-fundo: #C8102E; --bus-texto: #FFFFFF; }
+html[data-tema="porto"] .bus-pin--stcp { --bus-fundo: #0B46B0; }
 .bus-pin__seta { position: absolute; inset: 0; pointer-events: none; }
 .bus-pin__seta::before {
-  content: ""; position: absolute; left: 50%; top: 0; margin-left: -7px;
-  border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 10px solid var(--bus-fundo);
+  content: ""; position: absolute; left: 50%; top: 0; margin-left: -8px;
+  border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid var(--bus-fundo);
   filter: drop-shadow(0 0 1.5px var(--bus-borda)) drop-shadow(0 0 1.5px var(--bus-borda));
 }
 .bus-pin__num {
-  position: relative; min-width: 34px; height: 26px; padding: 0 6px; border-radius: 8px;
-  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
-  background: var(--bus-fundo); color: var(--bus-texto); border: 2px solid var(--bus-borda);
-  font-family: var(--font-condensed); font-weight: 700; font-size: 15px; line-height: 1; letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  position: relative; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; white-space: nowrap;
+  background: var(--bus-fundo); color: var(--bus-texto); border: 3px solid var(--bus-borda);
+  font-family: var(--font-condensed); font-weight: 700; font-size: 17px; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
+/* Números maiores cabem na roda com letra mais pequena: 801 → 15 px, 4436 → 13 px, 5 ou mais caracteres → 11 px */
+.bus-pin__num--3 { font-size: 15px; }
+.bus-pin__num--4 { font-size: 13px; }
+.bus-pin__num--5 { font-size: 11px; }
 .bus-pin--esbatido { opacity: 0.55; }
 .bus-pin--meu .bus-pin__num { box-shadow: 0 0 0 3px #111111, 0 0 0 5px #FFFFFF, 0 3px 8px rgba(0, 0, 0, 0.4); }
 html[data-tema="escuro"] .bus-pin--meu .bus-pin__num { box-shadow: 0 0 0 3px #F2F2F0, 0 0 0 5px #161618, 0 3px 8px rgba(0, 0, 0, 0.5); }

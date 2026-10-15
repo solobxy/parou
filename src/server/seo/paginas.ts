@@ -413,8 +413,8 @@ function paginaHub(): string {
   });
 }
 
-// Operadores com tempo real na PAROU (Carris Metropolitana, STCP e Metro de Lisboa); nos outros só há o horário oficial
-const COM_TEMPO_REAL = new Set(['carris-metropolitana', 'stcp', 'metro-de-lisboa']);
+// Operadores com tempo real na PAROU (Carris Metropolitana, STCP, TUB e Metro de Lisboa); nos outros só há o horário oficial
+const COM_TEMPO_REAL = new Set(['carris-metropolitana', 'stcp', 'tub-braga', 'metro-de-lisboa']);
 
 function paginaOperador(op: Operador): string {
   const plural = pluralModo(op.modo);
@@ -1199,10 +1199,10 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
     {
       p: L(`O que fazer em dia de greve ${o.de}?`, `What to do on a strike day at ${o.nome}?`, `Was tun am Streiktag bei ${o.nome}?`, `Que faire un jour de grève chez ${o.nome} ?`),
       r: L(
-        `Sai com mais tempo e confirma na PAROU o que está mesmo a circular: nos operadores com tempo real (Carris Metropolitana, STCP e Metro de Lisboa) vês os veículos que estão a andar, nos outros vês o horário oficial.${alt.length ? ` Alternativas: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Confirma se também não têm greve.` : ''}`,
-        `Leave with extra time and check on PAROU what is really running: for operators with real time (Carris Metropolitana, STCP and Metro de Lisboa) you see the vehicles that are moving, for the others you see the official timetable.${alt.length ? ` Alternatives: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Check they are not on strike too.` : ''}`,
-        `Plane mehr Zeit ein und prüfe bei PAROU, was wirklich fährt: Bei Verkehrsunternehmen mit Echtzeitdaten (Carris Metropolitana, STCP und Metro de Lisboa) siehst du die Fahrzeuge, die unterwegs sind, bei den anderen den offiziellen Fahrplan.${alt.length ? ` Alternativen: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Prüfe, ob dort nicht ebenfalls gestreikt wird.` : ''}`,
-        `Partez avec de la marge et vérifiez sur PAROU ce qui circule vraiment : chez les opérateurs avec temps réel (Carris Metropolitana, STCP et Metro de Lisboa), vous voyez les véhicules en circulation, chez les autres l'horaire officiel.${alt.length ? ` Alternatives : ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Vérifiez qu'ils ne sont pas eux aussi en grève.` : ''}`),
+        `Sai com mais tempo e confirma na PAROU o que está mesmo a circular: nos operadores com tempo real (Carris Metropolitana, STCP, TUB e Metro de Lisboa) vês os veículos que estão a andar, nos outros vês o horário oficial.${alt.length ? ` Alternativas: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Confirma se também não têm greve.` : ''}`,
+        `Leave with extra time and check on PAROU what is really running: for operators with real time (Carris Metropolitana, STCP, TUB and Metro de Lisboa) you see the vehicles that are moving, for the others you see the official timetable.${alt.length ? ` Alternatives: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Check they are not on strike too.` : ''}`,
+        `Plane mehr Zeit ein und prüfe bei PAROU, was wirklich fährt: Bei Verkehrsunternehmen mit Echtzeitdaten (Carris Metropolitana, STCP, TUB und Metro de Lisboa) siehst du die Fahrzeuge, die unterwegs sind, bei den anderen den offiziellen Fahrplan.${alt.length ? ` Alternativen: ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Prüfe, ob dort nicht ebenfalls gestreikt wird.` : ''}`,
+        `Partez avec de la marge et vérifiez sur PAROU ce qui circule vraiment : chez les opérateurs avec temps réel (Carris Metropolitana, STCP, TUB et Metro de Lisboa), vous voyez les véhicules en circulation, chez les autres l'horaire officiel.${alt.length ? ` Alternatives : ${alt.map((a) => nomeAlt(a.slug)).join(', ')}. Vérifiez qu'ils ne sont pas eux aussi en grève.` : ''}`),
     },
     {
       p: L(`Como recebo os avisos de greve ${o.de}?`, `How do I get strike alerts for ${o.nome}?`, `Wie erhalte ich Streikmeldungen für ${o.nome}?`, `Comment recevoir les alertes de grève de ${o.nome} ?`),

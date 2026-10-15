@@ -300,16 +300,18 @@ export const PerguntaABordo: React.FC<{ controlo: ControloABordo }> = ({ control
 /** Ao tocar num autocarro no mapa: a linha, há quanto tempo é a posição e o botão «Estou a bordo» (uma só linha, em baixo, para não tapar o autocarro nem ficar debaixo da pesquisa) */
 export const CartaoAutocarro: React.FC<{ veiculo: VeiculoLeve; agoraS: number; aoConfirmar: () => void; aoFechar: () => void }> = ({ veiculo, agoraS, aoConfirmar, aoFechar }) => {
   const idade = Math.max(0, Math.round(agoraS - veiculo.t));
+  // A cor da roda no mapa já diz o operador; aqui diz-se por extenso (a cor não é a única pista)
+  const operador = veiculo.op === 'cm' ? 'Carris Metropolitana' : veiculo.op === 'tub' ? 'TUB' : 'STCP';
   return (
     <div
       role="group"
-      aria-label={t('Linha {l}', { l: veiculo.linha })}
+      aria-label={`${t('Linha {l}', { l: veiculo.linha })}, ${operador}`}
       data-teste="cartao-autocarro"
       className="absolute z-30 left-2 right-2 bottom-2 lg:left-4 lg:right-auto lg:bottom-4 lg:w-[380px] rounded-[16px] bg-[#FFFFFF] shadow-[0_8px_28px_rgba(17,17,17,0.22)] border border-[#E6E6E3] pl-3.5 pr-1.5 py-1.5 flex items-center gap-2"
     >
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-bold text-[#111111] leading-tight truncate">{t('Linha {l}', { l: veiculo.linha })}</div>
-        <div className="text-[12px] text-[#6B6B6B] leading-tight mt-0.5 tabular-nums">{idade < 5 ? t('agora') : t('há {s} s', { s: idade })}</div>
+        <div className="text-[12px] text-[#6B6B6B] leading-tight mt-0.5 tabular-nums truncate">{idade < 5 ? t('agora') : t('há {s} s', { s: idade })} · {operador}</div>
       </div>
       <button
         type="button"
@@ -361,6 +363,9 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
   const destino = dados?.destino ? formatTransitName(dados.destino) : '';
   const proxima = indice >= 0 && indice < paragens.length ? paragens[indice] : null;
   const naParagem = Boolean(dados?.naParagem);
+  /** Hora prevista em direto de cada paragem que falta (só a TUB a envia; as outras ficam com o horário) */
+  const previstas = dados?.previstas;
+  const previstaProxima = indice >= 0 ? previstas?.[indice] : undefined;
   const ultima = paragens.length > 0 && indice === paragens.length - 1;
   const passadas = indice > 0 ? indice : 0;
   const seguintes = indice >= 0 ? paragens.slice(indice) : [];
@@ -430,8 +435,10 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
               {!naParagem && typeof dados?.distanciaProximaM === 'number' && (
                 <div className="font-condensada text-[22px] leading-none font-bold text-[#111111] tabular-nums">{formatarMetros(dados.distanciaProximaM)}</div>
               )}
-              {proxima.hora && (
-                <div className="text-[12.5px] text-[#6B6B6B] tabular-nums mt-1">{t('horário {h}', { h: proxima.hora })}</div>
+              {(previstaProxima || proxima.hora) && (
+                <div className="text-[12.5px] text-[#6B6B6B] tabular-nums mt-1">
+                  {previstaProxima ? t('previsto {h}', { h: previstaProxima }) : t('horário {h}', { h: proxima.hora as string })}
+                </div>
               )}
             </div>
           </div>
@@ -483,9 +490,9 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
                       <span className={`block truncate text-[14px] ${eProxima ? 'font-bold text-[#111111]' : passou ? 'font-medium text-[#6B6B6B]' : 'font-medium text-[#111111]'}`}>
                         {formatTransitName(p.nome)}
                       </span>
-                      {p.hora && (
-                        <span className={`shrink-0 font-condensada text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>{p.hora}</span>
-                      )}
+                      {(!passou && previstas?.[i]) || p.hora ? (
+                        <span className={`shrink-0 font-condensada text-[15px] font-semibold tabular-nums ${passou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>{(!passou && previstas?.[i]) || p.hora}</span>
+                      ) : null}
                     </span>
                   </button>
                 </li>

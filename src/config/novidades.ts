@@ -317,7 +317,9 @@ parou.pt`,
     titulo: 'Autocarros no mapa e «A bordo»',
     texto: `🚌 *Autocarros em direto no mapa*
 
-No Perto, os autocarros da STCP e da Carris Metropolitana aparecem a mexer-se no mapa, com o número da linha e a seta do sentido.
+No Perto, os autocarros da STCP, da Carris Metropolitana e da TUB (Braga) aparecem a mexer-se no mapa, numa roda azul com o número da linha (801, por exemplo) e a seta do sentido.
+
+🕒 *Braga em direto*: a TUB passou a enviar à PAROU a posição e as horas previstas dos autocarros. No Perto vês o atraso e a hora a que cada um chega à paragem.
 
 📍 *A bordo*: se apanhares um autocarro, a PAROU pergunta «Está a bordo do 801?». Respondes que sim e vês a rota e as próximas paragens, em direto.
 🔒 Só pergunta com a app aberta, nunca decide sozinha, e podes desligar em «A tua localização».
