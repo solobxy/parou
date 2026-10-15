@@ -42,7 +42,7 @@ let cachedMetroPortoUrl: { url: string; timestamp: number } | null = null;
 let cachedStcpVehicles: { vehicles: StcpLiveVehicle[]; timestamp: number } = { vehicles: [], timestamp: 0 };
 
 const URL_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (checked daily)
-const VEHICLES_CACHE_TTL_MS = 15 * 1000;      // 15 seconds cache for live vehicle positions
+const VEHICLES_CACHE_TTL_MS = 2 * 1000;       // 2 s: a API oficial já guarda as posições (stcpApi.ts); caches empilhadas só envelhecem a posição
 
 function parseDateFromResourceName(name: string): number {
   if (!name) return 0;

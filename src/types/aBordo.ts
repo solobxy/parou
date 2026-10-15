@@ -16,6 +16,8 @@ export interface VeiculoLeve {
   vel?: number;
   /** Segundos desde 1970 a que o operador mediu esta posição */
   t: number;
+  /** Posição que o operador mediu antes desta (para o mapa mostrar o autocarro já em movimento ao abrir) */
+  ant?: { lat: number; lon: number; t: number };
   /** Viagem do tempo real, se o operador a indica */
   viagem?: string;
 }
