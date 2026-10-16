@@ -23,3 +23,17 @@ export function normalizeDistrict(input?: string): string {
   if (!input) return 'Lisboa';
   return distritoNoTexto(input) ?? (input.trim() || 'Lisboa');
 }
+
+/** Verdade se o texto tem alguma das palavras/expressões como palavra inteira («porto» não está em «aeroporto», «braga» não está em «bragança») */
+export function temPalavra(texto: string, ...palavras: string[]): boolean {
+  const t = ` ${simples(texto).replace(/[^a-z0-9]+/g, ' ')} `;
+  return palavras.some(w => t.includes(` ${simples(w).replace(/[^a-z0-9]+/g, ' ')} `));
+}
+
+/** Distrito escrito no fim da descrição de uma ocorrência da Proteção Civil («… em Local, Concelho, Distrito. Estado: …»), ou null */
+export function distritoDaDescricaoANEPC(descricao: string): string | null {
+  const m = /^Ocorrência da Proteção Civil \(ANEPC\) em (.+?)\. Estado:/.exec(descricao || '');
+  if (!m) return null;
+  const partes = m[1].split(',');
+  return distritoNoTexto(partes[partes.length - 1]);
+}

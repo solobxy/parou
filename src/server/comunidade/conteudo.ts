@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
 import { Conta, ErroConta, darPontos } from './contas';
 import { calculateConfidence } from '../../utils/confidenceUtils';
+import { distritoDaDescricaoANEPC } from '../../utils/distritos';
 
 /** Nas listas públicas ninguém vê quem votou: mostra-se só um resumo (SHA-256) de cada identificador.
  *  A app calcula o mesmo resumo do próprio id (src/utils/resumo.ts) para saber se já votaste. */
@@ -507,7 +508,26 @@ export function criarComentario(reclamacaoId: string, texto: unknown, nomeAnonim
  * resolvidas há mais de 2 dias. Só mexe nas fontes que responderam bem nesta volta: se uma fonte
  * falhar, as suas ocorrências ficam como estão.
  */
+/** Corrige o distrito das ocorrências oficiais já guardadas (antes, «Bragança» ficava como «Braga»); o certo está na descrição. */
+export function corrigirDistritosGuardados(): number {
+  let corrigidas = 0;
+  emTransacao(() => {
+    const linhas = base().prepare("SELECT id, dados FROM ocorrencias WHERE id_externo LIKE 'anepc-%' AND autor_id IS NULL").all() as Array<{ id: string; dados: string }>;
+    for (const l of linhas) {
+      let d: any;
+      try { d = JSON.parse(l.dados); } catch { continue; }
+      const certo = distritoDaDescricaoANEPC(String(d.description || ''));
+      if (!certo || d.district === certo) continue;
+      d.district = certo;
+      base().prepare('UPDATE ocorrencias SET dados = ? WHERE id = ?').run(JSON.stringify(d), l.id);
+      corrigidas++;
+    }
+  });
+  return corrigidas;
+}
+
 export function resolverOcorrenciasPublicasAusentes(vistos: string[], fontesOk: string[]): { resolvidas: number; apagadas: number } {
+  try { corrigirDistritosGuardados(); } catch { /* a correção nunca pode travar a limpeza */ }
   const presentes = new Set(vistos.filter(Boolean));
   const fontes = new Set(fontesOk);
   let resolvidas = 0, apagadas = 0;
