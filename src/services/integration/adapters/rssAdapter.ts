@@ -125,7 +125,7 @@ export class RssFeedAdapter implements ExternalSourceAdapter<RssFeedChannel> {
     const t = text.toLowerCase();
     if (t.includes('tomar') || t.includes('santarém')) return { district: 'Santarém', concelho: 'Tomar' };
     if (t.includes('porto') || t.includes('campanhã') || t.includes('são bento')) return { district: 'Porto', concelho: 'Porto' };
-    if (t.includes('braga') || t.includes('guimarães')) return { district: 'Braga', concelho: 'Braga' };
+    if (/\bbraga\b/.test(t) || t.includes('guimarães')) return { district: 'Braga', concelho: 'Braga' };
     if (t.includes('coimbra')) return { district: 'Coimbra', concelho: 'Coimbra' };
     if (t.includes('faro') || t.includes('algarve') || t.includes('tunes')) return { district: 'Faro', concelho: 'Faro' };
     if (t.includes('setúbal') || t.includes('almada')) return { district: 'Setúbal', concelho: 'Setúbal' };

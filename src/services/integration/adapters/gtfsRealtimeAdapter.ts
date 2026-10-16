@@ -231,7 +231,7 @@ export class GtfsRealtimeAdapter implements ExternalSourceAdapter<GtfsRtFeedMess
     if (text.toLowerCase().includes('santarém')) {
       return { district: 'Santarém', concelho: 'Santarém' };
     }
-    if (text.toLowerCase().includes('braga')) {
+    if (/\bbraga\b/.test(text.toLowerCase())) {
       return { district: 'Braga', concelho: 'Braga' };
     }
     return { district: 'Lisboa', concelho: 'Lisboa' };

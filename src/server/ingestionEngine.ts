@@ -1,5 +1,6 @@
 import { Occurrence, PublicSourceConfig, IngestionSyncResult } from '../types';
 import { obterIncidentes } from './fogosEngine';
+import { distritoNoTexto, normalizeDistrict } from '../utils/distritos';
 
 export const REGISTERED_PUBLIC_SOURCES: PublicSourceConfig[] = [
   {
@@ -95,43 +96,8 @@ export function updateSourceHealth(
   }
 }
 
-// Normalize district strings into canonical Portuguese districts
-const KNOWN_DISTRICTS: Record<string, string> = {
-  lisboa: 'Lisboa',
-  porto: 'Porto',
-  setubal: 'Setúbal',
-  setúbal: 'Setúbal',
-  braga: 'Braga',
-  aveiro: 'Aveiro',
-  coimbra: 'Coimbra',
-  leiria: 'Leiria',
-  santarem: 'Santarém',
-  santarém: 'Santarém',
-  faro: 'Faro',
-  viseu: 'Viseu',
-  'viana do castelo': 'Viana do Castelo',
-  'vila real': 'Vila Real',
-  braganca: 'Bragança',
-  bragança: 'Bragança',
-  guarda: 'Guarda',
-  'castelo branco': 'Castelo Branco',
-  portalegre: 'Portalegre',
-  evora: 'Évora',
-  évora: 'Évora',
-  beja: 'Beja',
-  açores: 'Região Autónoma dos Açores',
-  acores: 'Região Autónoma dos Açores',
-  madeira: 'Região Autónoma da Madeira',
-};
-
-export function normalizeDistrict(input?: string): string {
-  if (!input) return 'Lisboa';
-  const clean = input.trim().toLowerCase();
-  for (const [key, val] of Object.entries(KNOWN_DISTRICTS)) {
-    if (clean.includes(key)) return val;
-  }
-  return input.trim() || 'Lisboa';
-}
+// O nome canónico do distrito vem de utils/distritos.ts («Bragança» não pode dar «Braga»)
+export { normalizeDistrict };
 
 // Resilient HTTP fetcher with timeout and real browser user-agent
 async function fetchWithTimeout(url: string, timeoutMs = 9000): Promise<Response> {
@@ -410,13 +376,7 @@ export async function ingestTrafficNewsRSS(): Promise<{
 
       if (!isTrafficRelevant) continue;
 
-      let district = 'Lisboa';
-      for (const [key, val] of Object.entries(KNOWN_DISTRICTS)) {
-        if (fullText.includes(key)) {
-          district = val;
-          break;
-        }
-      }
+      const district = distritoNoTexto(fullText) ?? 'Lisboa';
 
       const isAccident = fullText.includes('acidente') || fullText.includes('colisão') || fullText.includes('despiste');
       const isStrike = fullText.includes('greve');
