@@ -7,6 +7,7 @@ import { abordoLigado, definirAbordo, EVENTO_ABORDO } from '../utils/abordoPref'
 import { chaveDeLinha } from '../utils/chaveLinha';
 import { formatTransitName } from '../utils/transitFormatter';
 import { trocosDoPercurso } from '../utils/caminho';
+import { posicaoMeuAutocarro, zoomParaParagens } from '../utils/seguirMapa';
 import { fetchABordo, fetchVeiculos, SemSinalError } from '../services/veiculosApi';
 import type { ParagemABordo, RespostaABordo, VeiculoLeve } from '../types/aBordo';
 import { LineChip } from './LineChip';
@@ -520,7 +521,6 @@ export const PainelABordo: React.FC<{ controlo: ControloABordo; aoVerNoMapa: (la
 /** Desenha no mapa o percurso do autocarro em que a pessoa vai: o que falta a laranja, o que já passou esbatido, a próxima paragem em destaque */
 export function ABordoNoMapa({ mapa, controlo }: { mapa: L.Map | null; controlo: ControloABordo }) {
   const grupoRef = useRef<L.LayerGroup | null>(null);
-  const ajustadoRef = useRef<string>('');
   const { fase, paragens, dados, desenho } = controlo;
   const indice = typeof dados?.indice === 'number' ? dados.indice : -1;
 
@@ -557,17 +557,77 @@ export function ABordoNoMapa({ mapa, controlo }: { mapa: L.Map | null; controlo:
       .addTo(grupo);
     grupo.addTo(mapa);
     grupoRef.current = grupo;
-    // Enquadra o percurso uma vez (por autocarro/percurso); depois o mapa fica livre para a pessoa o mexer
-    const chave = `${controlo.alvo?.id}|${pts.length}|${pts[0].id}|${pts[pts.length - 1].id}`;
-    if (ajustadoRef.current !== chave) {
-      ajustadoRef.current = chave;
-      try {
-        mapa.fitBounds(L.latLngBounds(restante.length > 1 ? restante : todos), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 40], maxZoom: 16, animate: true });
-      } catch { /* mapa ainda sem tamanho */ }
-    }
   }, [mapa, fase, paragens, desenho, indice, controlo.alvo?.id]);
 
+  // O mapa segue o autocarro (centrado, com 2 a 3 paragens à vista). Se a pessoa mexe no mapa (arrasta, aproxima, afasta) deixa de seguir;
+  // 6 s depois de largar volta a prender, até mexer outra vez.
+  const paragensRef = useRef(paragens);
+  paragensRef.current = paragens;
+  const indiceRef = useRef(indice);
+  indiceRef.current = indice;
+  useEffect(() => {
+    if (!mapa || fase !== 'a-bordo') return;
+    const contentor = mapa.getContainer();
+    const inicio = performance.now();
+    let preso = true, tocando = false, largouEm = 0, ocupadoAte = 0, precisaZoom = true, enquadrou = false, raf = 0, anterior = 0;
+    const aoTocar = () => { tocando = true; preso = false; try { mapa.stop(); } catch { /* sem animação */ } };
+    const aoSoltar = () => { if (tocando) { tocando = false; largouEm = performance.now(); } };
+    const aoRoda = () => { preso = false; largouEm = performance.now(); };
+    contentor.addEventListener('pointerdown', aoTocar, { capture: true, passive: true });
+    contentor.addEventListener('wheel', aoRoda, { capture: true, passive: true });
+    window.addEventListener('pointerup', aoSoltar, true);
+    window.addEventListener('pointercancel', aoSoltar, true);
+    const passo = (ts: number) => {
+      raf = requestAnimationFrame(passo);
+      const agora = performance.now();
+      const dt = anterior ? Math.min(0.1, (ts - anterior) / 1000) : 0.016;
+      anterior = ts;
+      if (document.visibilityState === 'hidden') return;
+      if (!preso) {
+        if (tocando || agora - largouEm < 6000) return;
+        preso = true;
+        precisaZoom = true;
+      }
+      const p = posicaoMeuAutocarro();
+      if (!p) {
+        // Sem a posição do autocarro (ainda não chegou): ao fim de 5 s enquadra o resto do percurso, como antes
+        if (!enquadrou && agora - inicio > 5000) {
+          enquadrou = true;
+          const pts = paragensRef.current.filter((q) => Number.isFinite(q.lat) && Number.isFinite(q.lon)).slice(Math.max(0, indiceRef.current)).map((q): L.LatLngTuple => [q.lat, q.lon]);
+          if (pts.length > 1) { try { mapa.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [28, 76], paddingBottomRight: [28, 40], maxZoom: 16, animate: true }); } catch { /* mapa sem tamanho */ } }
+        }
+        return;
+      }
+      if (agora < ocupadoAte) return;
+      if (precisaZoom) {
+        precisaZoom = false;
+        const pts = paragensRef.current.filter((q) => Number.isFinite(q.lat) && Number.isFinite(q.lon));
+        const zoom = pts.length > 1 ? zoomParaParagens(pts, Math.min(Math.max(indiceRef.current, 0), pts.length - 1), mapa.getSize().x) : 16;
+        ocupadoAte = agora + 1000;
+        try { mapa.setView([p.lat, p.lon], zoom, { animate: true, duration: 0.8 }); } catch { /* mapa sem tamanho */ }
+        return;
+      }
+      // Segue em passos de 1 px ou mais, suavemente (a bola do autocarro já anda de forma contínua)
+      try {
+        const alvo = mapa.latLngToContainerPoint([p.lat, p.lon]);
+        const centro = mapa.getSize().divideBy(2);
+        const dx = alvo.x - centro.x, dy = alvo.y - centro.y;
+        if (Math.hypot(dx, dy) < 1) return;
+        const k = 1 - Math.exp(-dt / 0.18);
+        const passoPx = (d: number) => (Math.abs(d) < 1 ? 0 : Math.abs(d * k) < 1 ? Math.sign(d) : Math.round(d * k));
+        mapa.panBy([passoPx(dx), passoPx(dy)], { animate: false });
+      } catch { /* mapa a mudar de tamanho */ }
+    };
+    raf = requestAnimationFrame(passo);
+    return () => {
+      cancelAnimationFrame(raf);
+      contentor.removeEventListener('pointerdown', aoTocar, true);
+      contentor.removeEventListener('wheel', aoRoda, true);
+      window.removeEventListener('pointerup', aoSoltar, true);
+      window.removeEventListener('pointercancel', aoSoltar, true);
+    };
+  }, [mapa, fase, controlo.alvo?.id]);
+
   useEffect(() => () => { grupoRef.current?.remove(); grupoRef.current = null; }, []);
-  useEffect(() => { if (fase !== 'a-bordo') ajustadoRef.current = ''; }, [fase]);
   return null;
 }

@@ -5,6 +5,7 @@ import { caixaDoEcra, type Caixa } from '../utils/caixaVeiculos';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
 import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, distanciaM, pessoaPodeIrABordo, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
+import { guardarPosicaoMeuAutocarro } from '../utils/seguirMapa';
 import { observarPosicaoSuave, type QuadroPosicao } from '../utils/posicaoSuave';
 
 // Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB). Por defeito (`todos`) mostra TODOS os que estão no ecrã do mapa,
@@ -229,6 +230,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
         e.aSeguir = false;
       }
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return;
+      if (e.v.id === meuRef.current) guardarPosicaoMeuAutocarro(p.lat, p.lon);   // quem segue o autocarro no mapa (ABordo) lê daqui
       // Fora do ecrã não se mexe no DOM; quando voltar a estar à vista, o modelo já sabe onde ele está
       if (visivel && !visivel.contains([p.lat, p.lon])) return;
       e.marker.setLatLng([p.lat, p.lon]);
