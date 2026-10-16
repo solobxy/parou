@@ -291,6 +291,9 @@ export function importarOcorrenciasPublicas(lista: any[]): { added: number; upda
           sourceFetchedAt: Number(occ?.sourceFetchedAt) || agora,
           reportedAt: txt(occ?.reportedAt, 100) || 'agora mesmo',
           severity: GRAVIDADES.includes(occ?.severity) ? occ.severity : d.severity,
+          // O distrito e o concelho vêm da fonte oficial: corrige o que ficou guardado com um nome errado (Bragança como Braga)
+          district: txt(occ?.district, 100) || d.district,
+          concelho: txt(occ?.concelho, 100) || d.concelho,
           verificationStatus: 'Confirmado', confidenceScore: 95, confidenceLevel: 'Alta', updatedAt: agora,
         });
         base().prepare('UPDATE ocorrencias SET dados = ? WHERE id = ?').run(JSON.stringify(d), existente.id);
