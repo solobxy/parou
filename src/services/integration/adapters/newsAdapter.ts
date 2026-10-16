@@ -1,5 +1,6 @@
 import { ExternalSourceAdapter, NormalizedTransitEvent } from '../types';
 import { OccurrenceType, SeverityLevel, TransportMode } from '../../../types';
+import { temPalavra } from '../../../utils/distritos';
 
 /**
  * Estrutura representativa de um artigo ou notícia de trânsito/transportes em Portugal.
@@ -125,12 +126,12 @@ export class NewsFeedAdapter implements ExternalSourceAdapter<NewsFeedPayload> {
 
   private extractLocation(text: string): { district: string; concelho: string } {
     const t = text.toLowerCase();
-    if (t.includes('porto') || t.includes('trindade')) return { district: 'Porto', concelho: 'Porto' };
-    if (t.includes('alverca') || t.includes('vila franca de xira')) return { district: 'Lisboa', concelho: 'Vila Franca de Xira' };
-    if (/\bbraga\b/.test(t)) return { district: 'Braga', concelho: 'Braga' };
-    if (t.includes('coimbra')) return { district: 'Coimbra', concelho: 'Coimbra' };
-    if (t.includes('faro') || t.includes('algarve')) return { district: 'Faro', concelho: 'Faro' };
-    if (t.includes('setúbal')) return { district: 'Setúbal', concelho: 'Setúbal' };
+    if (temPalavra(t, 'porto', 'trindade')) return { district: 'Porto', concelho: 'Porto' };
+    if (temPalavra(t, 'alverca', 'vila franca de xira')) return { district: 'Lisboa', concelho: 'Vila Franca de Xira' };
+    if (temPalavra(t, 'braga')) return { district: 'Braga', concelho: 'Braga' };
+    if (temPalavra(t, 'coimbra')) return { district: 'Coimbra', concelho: 'Coimbra' };
+    if (temPalavra(t, 'faro', 'algarve')) return { district: 'Faro', concelho: 'Faro' };
+    if (temPalavra(t, 'setubal')) return { district: 'Setúbal', concelho: 'Setúbal' };
     return { district: 'Lisboa', concelho: 'Lisboa' };
   }
 

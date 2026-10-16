@@ -15,6 +15,7 @@ import {
   getTmlVehiclesAudited 
 } from './tmlGoHubService';
 import { getAllFeeds } from './db/gtfsDatabase';
+import { temPalavra } from '../utils/distritos';
 
 // In-memory registry of discovered operators and sources
 let DISCOVERED_OPERATORS: DiscoveredOperator[] = [];
@@ -106,7 +107,7 @@ async function discoverFromNapImt(): Promise<DiscoveredOperator[]> {
           region = 'Norte / Ave';
           authority = 'CIM do Ave';
           municipalities = ['Guimarães', 'Vila Nova de Famalicão', 'Vizela', 'Fafe'];
-        } else if (title.includes('Cávado') || title.includes('Braga') || title.includes('Barcelos')) {
+        } else if (temPalavra(title, 'Cávado', 'Braga', 'Barcelos')) {
           region = 'Norte / Cávado';
           authority = 'CIM do Cávado';
           municipalities = ['Braga', 'Barcelos', 'Esposende', 'Vila Verde'];

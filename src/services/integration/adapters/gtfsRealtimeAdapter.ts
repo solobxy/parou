@@ -1,5 +1,6 @@
 import { ExternalSourceAdapter, NormalizedTransitEvent } from '../types';
 import { OccurrenceType, SeverityLevel, TransportMode } from '../../../types';
+import { temPalavra } from '../../../utils/distritos';
 
 /**
  * Enums oficiais da especificação GTFS-Realtime (Google / MobilityData)
@@ -228,10 +229,10 @@ export class GtfsRealtimeAdapter implements ExternalSourceAdapter<GtfsRtFeedMess
     if (agencyId.includes('MP') || agencyId.includes('STCP')) {
       return { district: 'Porto', concelho: 'Porto' };
     }
-    if (text.toLowerCase().includes('santarém')) {
+    if (temPalavra(text, 'santarem')) {
       return { district: 'Santarém', concelho: 'Santarém' };
     }
-    if (/\bbraga\b/.test(text.toLowerCase())) {
+    if (temPalavra(text, 'braga')) {
       return { district: 'Braga', concelho: 'Braga' };
     }
     return { district: 'Lisboa', concelho: 'Lisboa' };
