@@ -127,7 +127,7 @@ export class NewsFeedAdapter implements ExternalSourceAdapter<NewsFeedPayload> {
     const t = text.toLowerCase();
     if (t.includes('porto') || t.includes('trindade')) return { district: 'Porto', concelho: 'Porto' };
     if (t.includes('alverca') || t.includes('vila franca de xira')) return { district: 'Lisboa', concelho: 'Vila Franca de Xira' };
-    if (t.includes('braga')) return { district: 'Braga', concelho: 'Braga' };
+    if (/\bbraga\b/.test(t)) return { district: 'Braga', concelho: 'Braga' };
     if (t.includes('coimbra')) return { district: 'Coimbra', concelho: 'Coimbra' };
     if (t.includes('faro') || t.includes('algarve')) return { district: 'Faro', concelho: 'Faro' };
     if (t.includes('setúbal')) return { district: 'Setúbal', concelho: 'Setúbal' };
