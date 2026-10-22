@@ -20,6 +20,7 @@ import { obterGreves, type GreveResumo } from '../alertasEngine';
 import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
 import { scriptVisita } from './scriptVisita';
 import { chipLegivel } from '../../utils/contraste';
+import { escolherLinhaAtual } from '../../utils/linhaAntiga';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -1860,6 +1861,11 @@ export function registarPaginasSeo(app: Express) {
     const ix = obterIndice()!;
     const op = ix.porSlugOperador.get(req.params.op);
     const l = ix.linhaPorSlug.get(`${req.params.op}/${req.params.linha}`);
+    if (op && !l) {
+      // Endereço antigo (o nome do percurso mudou com a base de horários nova): vai para a variante atual da mesma linha
+      const atual = escolherLinhaAtual(op.linhas, req.params.linha);
+      if (atual) return void res.redirect(301, `/linhas/${op.slug}/${atual}`);
+    }
     if (!op || !l) return naoEncontrado(res, op);
     const dia = DateTime.now().setZone(ZONA).toISODate();
     const chave = chaveIdioma(`l:${op.slug}/${l.slug}:${dia}`);
