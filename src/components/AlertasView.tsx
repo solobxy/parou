@@ -43,6 +43,7 @@ import { CIDADES_OPTIONS } from '../data/mockData';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { t, LOCALE, idioma } from '../i18n';
+import { FONTES_OFICIAIS, AVISO_NAO_GOVERNAMENTAL } from '../utils/fontesOficiais';
 
 // ---------------------------------------------------------------------------------
 // Tipos da resposta de /api/alertas
@@ -1036,9 +1037,19 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         )}
       </section>
 
-      <p className="text-[11px] text-[#6B6B6B] leading-relaxed pt-2">
-        {t('Fontes: IPMA e Open-Meteo (tempo), Fogos.pt com dados da ANEPC (incêndios e Proteção Civil), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU.\n        As notícias abrem no site de origem.')}
-      </p>
+      <div className="text-[11px] text-[#6B6B6B] leading-relaxed pt-2 flex flex-col gap-2">
+        <p>
+          {t('Fontes oficiais:')}{' '}
+          {FONTES_OFICIAIS.map((f, i) => (
+            <span key={f.url}>
+              {i > 0 && ' · '}
+              <a href={f.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#111111] underline">{f.nome}</a>
+            </span>
+          ))}
+        </p>
+        <p>{t('Outras fontes: Open-Meteo (tempo), operadores de transportes (perturbações), RTP, Público, Observador, Correio da Manhã, Diário de Notícias e SAPO 24 (notícias) e a comunidade PAROU. As notícias abrem no site de origem.')}</p>
+        <p className="font-semibold text-[#111111]">{t(AVISO_NAO_GOVERNAMENTAL)}</p>
+      </div>
     </div>
   );
 };
