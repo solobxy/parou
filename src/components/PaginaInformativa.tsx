@@ -202,8 +202,8 @@ function Termos() {
         <p>
           Os horários, os tempos de chegada, os alertas e as restantes informações vêm de fontes públicas e de terceiros (operadores,
           IPMA, Proteção Civil, comunicação social e comunidade) e podem ter atrasos, erros ou falhas. São indicativos: em caso de
-          dúvida confirma junto do operador. A PAROU não é um serviço oficial de nenhum operador nem da Proteção Civil — em
-          emergência liga 112.
+          dúvida confirma junto do operador. A PAROU não é uma entidade governamental nem um serviço oficial de nenhum operador,
+          da Proteção Civil ou do IPMA — em emergência liga 112.
         </p>
         <p>
           Fazemos o possível para que a informação esteja certa e atualizada, mas não garantimos que o serviço esteja sempre
