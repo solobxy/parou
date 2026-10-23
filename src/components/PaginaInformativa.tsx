@@ -3,6 +3,7 @@ import { t, idioma } from '../i18n';
 import { CONTACTO, TELEFONE, TELEFONE_LINK, ATUALIZADO, Secao, PreferenciaContagem, ApagarAqui } from './paginasInfoBase';
 import { SobreEn, PrivacidadeEn, TermosEn, ContactarEn, ApagarContaEn } from './paginasInfoEn';
 import { ArrowLeft, Mail, Heart, Database, ShieldCheck, FileText, Phone, MessageCircle, Trash2 } from 'lucide-react';
+import { todasAsAtribuicoes } from '../utils/atribuicoes';
 
 // Alemão e francês só se descarregam para quem os usa
 const PaginaDe = React.lazy(() => import('./paginasInfoDe'));
@@ -243,6 +244,9 @@ function Termos() {
           Fogos.pt e ANEPC, OpenStreetMap e os órgãos de comunicação social (as notícias abrem no site de origem). A marca e o
           design da PAROU pertencem ao projeto PAROU.PT.
         </p>
+        {todasAsAtribuicoes().map((a) => (
+          <p key={a}>{a}</p>
+        ))}
       </Secao>
       <Secao titulo="Lei aplicável">
         <p>

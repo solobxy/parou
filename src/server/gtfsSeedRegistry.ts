@@ -263,9 +263,10 @@ export const SEED_FEEDS: FeedItem[] = [
     mode: 'Autocarro / Trólecar',
     feed_type: 'gtfs',
     source_origin: 'seed',
-    url: 'https://files.mobilitydatabase.org/mdb-2992/latest.zip',
-    latest_url: 'https://files.mobilitydatabase.org/mdb-2992/latest.zip',
-    license_url: 'https://dados.gov.pt/pt/datasets/gtfs-estaticos-servicos-municipalizados-de-transportes-urbanos-de-coimbra/',
+    // Endereço oficial do GTFS estático do SMTUC (gtfs.smtuc.pt), indicado pelo SMTUC a 23/10/2026
+    url: 'https://gtfs-api.smtuc.pt/api/static/',
+    latest_url: 'https://gtfs-api.smtuc.pt/api/static/',
+    license_url: 'https://gtfs.smtuc.pt/',
     auth_type: 'none',
     status: 'A aguardar',
     lines_count: 0,
