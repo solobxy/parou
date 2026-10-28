@@ -22,6 +22,18 @@ const ZONA = 'Europe/Lisbon';
 const cache = new Map<string, { t: number; v: unknown }>();
 const emCurso = new Map<string, Promise<unknown>>();
 
+// Nenhuma fonte pode prender a resposta: se não acabar a tempo, segue com o valor de recurso.
+// (Um pedido que nunca terminava deixou /api/alertas sem responder e a página Notícias vazia.)
+function comLimite<T>(p: Promise<T>, ms: number, recurso: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const t = setTimeout(() => resolve(recurso), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      () => { clearTimeout(t); resolve(recurso); },
+    );
+  });
+}
+
 async function emCache<T>(chave: string, ttlMs: number, fn: () => Promise<T>, recurso: T): Promise<T> {
   const c = cache.get(chave);
   if (c && Date.now() - c.t < ttlMs) return c.v as T;
@@ -40,7 +52,11 @@ async function emCache<T>(chave: string, ttlMs: number, fn: () => Promise<T>, re
 function emCacheAtualizar<T>(chave: string, ttlMs: number, fn: () => Promise<T>, recurso: T, c: { t: number; v: unknown } | undefined): Promise<T> {
   const p = (async () => {
     try {
-      const v = await fn();
+      // Limite duro: um pedido pendurado nunca pode ficar em curso para sempre
+      const v = await Promise.race([
+        fn(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('sem resposta em 15 s')), 15_000)),
+      ]);
       cache.set(chave, { t: Date.now(), v });
       return v;
     } catch (err) {
@@ -672,7 +688,7 @@ export interface RespostaAlertas {
 }
 
 export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: string }): Promise<RespostaAlertas> {
-  const distritos = await obterDistritos();
+  const distritos = await comLimite(obterDistritos(), 3000, DISTRITOS_RECURSO);
   let distrito: DistritoIpma | undefined;
   const temGps = Number.isFinite(opcoes.lat) && Number.isFinite(opcoes.lon);
   if (temGps) {
@@ -688,11 +704,11 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
   const regiao = regiaoDoDistrito(distrito.nome);
 
   const [agora, dias, avisos, ocorrencias, listaNoticias] = await Promise.all([
-    tempoAgora(lat, lon).catch(() => null),
-    previsaoIpma(distrito.globalIdLocal).catch(() => []),
-    avisosIpma(distrito.area, distritos).catch(() => []),
-    ocorrenciasOficiais(regiao, distrito.nome).catch(() => []),
-    noticias(regiao, distrito.nome).catch(() => []),
+    comLimite(tempoAgora(lat, lon), 8000, null),
+    comLimite(previsaoIpma(distrito.globalIdLocal), 8000, [] as DiaPrevisao[]),
+    comLimite(avisosIpma(distrito.area, distritos), 8000, [] as AvisoMeteo[]),
+    comLimite(ocorrenciasOficiais(regiao, distrito.nome), 8000, [] as OcorrenciaOficial[]),
+    comLimite(noticias(regiao, distrito.nome), 8000, [] as Noticia[]),
   ]);
 
   // Incêndios e ocorrências da Proteção Civil (já em memória; não atrasa a resposta)
