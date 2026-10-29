@@ -138,7 +138,7 @@ function Privacidade() {
           <strong>Contagem anónima de utilizadores.</strong> Para sabermos quantas pessoas usam a PAROU (e se ela está a fazer falta),
           contamos as aberturas da app e das páginas públicas do site (por exemplo, a de uma linha ou paragem) com um número aleatório guardado num cookie (<em>parou_visita</em>, 13 meses). Assim, quem abre a
           app muitas vezes no mesmo dia, ou volta noutro dia, conta como a mesma pessoa. No servidor ficam só esse número cifrado, o
-          dia, o idioma, se abriste pela app Android, pela app instalada ou pelo site, e se chegaste pela app ou por uma página pública. Não guardamos o teu IP nem o tipo de
+          dia, o idioma, se abriste pela app Android, pela app instalada ou pelo site, e se chegaste pela app ou por uma página pública. Também contamos quantas pessoas diferentes abrem cada linha e paragem, para mostrar as mais procuradas a quem chega à app: aí fica só o dia e a linha ou paragem, nunca quem a abriu. Não guardamos o teu IP nem o tipo de
           browser, não ligamos isto à tua conta e não o partilhamos com ninguém. Só nós vemos os totais. Se preferires não ser contado,
           podes desligar aqui:
         </p>

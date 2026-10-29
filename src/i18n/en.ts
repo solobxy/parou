@@ -142,6 +142,8 @@ export const EN: Record<string, string> = {
   'local escolhido': 'chosen place',
   ' · a afinar a posição…': ' · refining position…',
 
+  'Mais procuradas': 'Most searched',
+  'Na PAROU, últimos 30 dias': 'On PAROU, last 30 days',
   'Pesquisas recentes': 'Recent searches',
   'Limpar': 'Clear',
   'Vê primeiro as linhas perto de ti': 'See the lines near you first',

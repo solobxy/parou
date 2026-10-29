@@ -17,6 +17,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { base, emTransacao } from './comunidade/baseDados';
 import { dentroDoLimite } from './limites';
+import { linhasDasCidades, cidadesValidas } from './linhasDasCidades';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const COOKIE_VISITA = 'parou_visita';
@@ -79,6 +80,16 @@ function bd(): DatabaseSync {
         local TEXT NOT NULL,
         n INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (dia, local)
+      ) WITHOUT ROWID;
+      -- Linhas e paragens mais procuradas: só o dia, o que foi aberto e quantas pessoas diferentes o abriram.
+      -- Nunca quem abriu (sem número da pessoa, IP ou conta).
+      CREATE TABLE IF NOT EXISTS procuras_dia (
+        dia TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        alvo TEXT NOT NULL,
+        nome TEXT NOT NULL DEFAULT '',
+        n INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (dia, tipo, alvo)
       ) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS resumo_dia (
         dia TEXT PRIMARY KEY,
@@ -145,10 +156,54 @@ function limparAntigos() {
     const limite = Date.now() - GUARDAR_VISITANTES_MS;
     b.prepare('DELETE FROM visitantes WHERE ultimo_instante < ?').run(limite);
     b.prepare('DELETE FROM visitas_dia WHERE dia < ?').run(diaDe(limite));
+    b.prepare('DELETE FROM procuras_dia WHERE dia < ?').run(diaDe(limite));
   } catch (err: any) {
     console.warn('[Estatísticas] Erro ao limpar:', err?.message || err);
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Linhas e paragens mais procuradas
+// ---------------------------------------------------------------------------------------------
+export type TipoProcura = 'linha' | 'paragem';
+const ALVO_VALIDO = /^[^\s<>"'`]{1,160}$/;
+// Cada pessoa conta uma vez por dia para cada linha/paragem. Fica só em memória (o par pessoa+linha nunca vai para o disco).
+let vistosDia = '';
+const vistos = new Set<string>();
+/** Conta que alguém abriu uma linha ou paragem. Devolve false se não contou (repetido no mesmo dia ou dados inválidos). */
+export function registarProcura(tipo: TipoProcura, alvo: string, nome: string, quem: string, agora = Date.now()): boolean {
+  if ((tipo !== 'linha' && tipo !== 'paragem') || !ALVO_VALIDO.test(alvo)) return false;
+  const dia = diaDe(agora);
+  if (dia !== vistosDia) { vistos.clear(); vistosDia = dia; }
+  const chave = crypto.createHash('sha256').update(`${quem}|${tipo}|${alvo}`).digest('hex').slice(0, 24);
+  if (vistos.has(chave)) return false;
+  vistos.add(chave);
+  const nomeLimpo = String(nome || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 80);
+  bd().prepare(`INSERT INTO procuras_dia (dia, tipo, alvo, nome, n) VALUES (?, ?, ?, ?, 1)
+    ON CONFLICT(dia, tipo, alvo) DO UPDATE SET n = n + 1, nome = CASE WHEN excluded.nome <> '' THEN excluded.nome ELSE nome END`).run(dia, tipo, alvo, nomeLimpo);
+  return true;
+}
+/** As mais procuradas nos últimos N dias (só as que pelo menos `minimo` pessoas abriram). */
+export function maisProcuradas(tipo: TipoProcura, opcoes: { dias?: number; minimo?: number; max?: number; agora?: number } = {}): Array<{ id: string; nome: string; pessoas: number }> {
+  const { dias = 30, minimo = 3, max = 50, agora = Date.now() } = opcoes;
+  const desde = somarDias(diaDe(agora), -(dias - 1));
+  return (bd().prepare(`SELECT alvo AS id, MAX(nome) AS nome, SUM(n) AS pessoas FROM procuras_dia
+    WHERE tipo = ? AND dia >= ? GROUP BY alvo HAVING SUM(n) >= ? ORDER BY pessoas DESC, alvo LIMIT ?`).all(tipo, desde, minimo, max) as any[])
+    .map((r) => ({ id: String(r.id), nome: String(r.nome || ''), pessoas: Number(r.pessoas) }));
+}
+let cachePopulares: { t: number; v: Array<{ id: string; nome: string; pessoas: number }> } | null = null;
+/** Para quem é novo no separador Horários: as linhas mais abertas na PAROU (das cidades da pessoa, se as escolheu). */
+export function linhasPopulares(cidades: string[], max = 8, agora = Date.now()): string[] | null {
+  if (!cachePopulares || agora - cachePopulares.t > 10 * 60_000) cachePopulares = { t: agora, v: maisProcuradas('linha', { agora, max: 200 }) };
+  let lista = cachePopulares.v.map((x) => x.id);
+  if (cidades.length) {
+    const rotas = linhasDasCidades(cidades);
+    if (!rotas) return null; // índice ainda a construir
+    lista = lista.filter((id) => rotas.has(id));
+  }
+  return lista.slice(0, max);
+}
+export function esquecerCachePopulares() { cachePopulares = null; }
 
 // ---------------------------------------------------------------------------------------------
 // Números para a administração
@@ -312,6 +367,8 @@ export function resumoEstatisticas(agora = Date.now()) {
       percentagemDoMes: pct(frequentes, p30.pessoas),
     },
     flyer: resumoDoFlyer(hoje),
+    // Pessoas diferentes que abriram cada linha/paragem (cada pessoa conta uma vez por dia)
+    maisProcuradas30Dias: { linhas: maisProcuradas('linha', { agora, minimo: 1, max: 20 }), paragens: maisProcuradas('paragem', { agora, minimo: 1, max: 20 }) },
     porOrigemUltimos30Dias: por('origem'),
     porIdiomaUltimos30Dias: por('idioma'),
     // Como chegam as pessoas novas: pela app ou por uma página pública do site (linha, paragem, greve…)
@@ -467,6 +524,41 @@ export function registarRotasEstatisticas(app: Express, opcoes: { eAdmin: (req: 
       console.warn('[Estatísticas] Erro ao registar visita:', err?.message || err);
     }
     return res.status(204).end();
+  });
+
+  // A app avisa que uma linha ou paragem foi aberta (para as "mais procuradas"). Responde sempre 204.
+  app.post('/api/estatisticas/procura', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      if (!origemPermitida(req) || lerCookie(req, COOKIE_SAIR) === '1') return res.status(204).end();
+      const ua = String(req.headers['user-agent'] || '');
+      if (!ua || ROBOS.test(ua)) return res.status(204).end();
+      const sitio = String(req.headers['sec-fetch-site'] || '');
+      if (sitio && sitio !== 'same-origin' && sitio !== 'same-site') return res.status(204).end();
+      const ip = ipDe(req);
+      if (!dentroDoLimite(`procura:${ip}`, 120, 3600_000)) return res.status(204).end();
+      const id = lerCookie(req, COOKIE_VISITA);
+      // Sem o número da visita (cookie), cada ligação conta como uma pessoa
+      const quem = id && ID_VALIDO.test(id) ? `v:${id}` : `ip:${ip}`;
+      const tipo = req.body?.t === 'paragem' ? 'paragem' : req.body?.t === 'linha' ? 'linha' : null;
+      if (tipo) registarProcura(tipo, String(req.body?.id || ''), String(req.body?.nome || ''), quem);
+    } catch (err: any) {
+      console.warn('[Estatísticas] Erro ao registar procura:', err?.message || err);
+    }
+    return res.status(204).end();
+  });
+
+  // As linhas mais procuradas na PAROU (públicas: só os números das linhas, nunca quem as abriu)
+  app.get('/api/estatisticas/populares', (req: Request, res: Response) => {
+    try {
+      const lista = linhasPopulares(cidadesValidas(req.query.cidades));
+      if (!lista) return res.json({ status: 'loading', linhas: [] });
+      res.setHeader('Cache-Control', 'public, max-age=600');
+      return res.json({ linhas: lista });
+    } catch (err: any) {
+      console.warn('[Estatísticas] Erro nas populares:', err?.message || err);
+      return res.json({ linhas: [] });
+    }
   });
 
   // Página de Privacidade: ver e mudar se esta pessoa quer ser contada

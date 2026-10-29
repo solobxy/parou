@@ -359,6 +359,22 @@ const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ 
         </Cartao>
       )}
 
+      {d.maisProcuradas30Dias && (d.maisProcuradas30Dias.linhas?.length > 0 || d.maisProcuradas30Dias.paragens?.length > 0) && (
+        <Cartao
+          titulo="Mais procuradas (30 dias)"
+          nota="Pessoas diferentes que abriram cada linha ou paragem (cada pessoa conta uma vez por dia). As linhas com pelo menos 3 pessoas aparecem a quem é novo no separador Horários."
+        >
+          {[['Linhas', d.maisProcuradas30Dias.linhas], ['Paragens', d.maisProcuradas30Dias.paragens]].map(([titulo, lista]: any) => lista?.length > 0 && (
+            <div key={titulo} className="mt-1 first:mt-0">
+              <h4 className="text-[13px] font-semibold text-[#6B6B6B] mb-2">{titulo}</h4>
+              <ul className="space-y-3 mb-3">
+                {lista.slice(0, 10).map((x: any) => <BarraH key={x.id} nome={x.nome || x.id} valor={x.pessoas} total={lista[0].pessoas} />)}
+              </ul>
+            </div>
+          ))}
+        </Cartao>
+      )}
+
       <Cartao titulo="Como abriram da última vez (30 dias)">
         {totalOrigens === 0 ? <p className="text-[14px] text-[#6B6B6B]">Ainda sem dados.</p> : (
           <ul className="space-y-3">{origens.map(([k, v]) => <BarraH key={k} nome={NOME_ORIGEM[k] || k} valor={v} total={totalOrigens} />)}</ul>

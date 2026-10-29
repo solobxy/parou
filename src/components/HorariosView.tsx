@@ -31,6 +31,7 @@ import { SeletorCidades, BotaoCidades } from './SeletorCidades';
 import { useCidades, lerCidades, listaDeCidades } from '../utils/cidades';
 import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
 import { t, tn } from '../i18n';
+import { linhasMaisProcuradas } from '../services/procuras';
 
 interface HorariosViewProps {
   filters?: FilterState;
@@ -473,6 +474,23 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   };
 
   const aPesquisar = searchQuery.trim().length > 0;
+
+  // Quem é novo (sem favoritos, sem linhas abertas, sem pesquisas): as linhas mais procuradas na PAROU
+  const eNovo = favoriteLineIds.length === 0 && tuasLinhas.length === 0 && pesquisas.length === 0 && linhasPreferidas(1).length === 0;
+  const [maisProcuradas, setMaisProcuradas] = useState<ApiLineItem[]>([]);
+  const chaveCidades = cidadesEfetivas.join(',');
+  useEffect(() => {
+    if (!eNovo) { setMaisProcuradas([]); return; }
+    let cancelado = false;
+    linhasMaisProcuradas(cidadesEfetivas)
+      .then((ids) => (ids.length ? fetchLinesByIds(ids).then((lines) => {
+        const ordem = new Map(ids.map((id, i) => [id, i]));
+        return [...lines].sort((a, b) => (ordem.get(a.id) ?? 99) - (ordem.get(b.id) ?? 99));
+      }) : []))
+      .then((lines) => { if (!cancelado) setMaisProcuradas(lines.slice(0, 6)); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [eNovo, chaveCidades]);
   const idsMostrados = new Set<string>([...(userCoords ? nearLines.map((l) => l.id) : []), ...favoriteLines.map((l) => l.id)]);
   const tuasLinhasVisiveis = tuasLinhas.filter((l) => !idsMostrados.has(l.id)).slice(0, 6);
 
@@ -539,6 +557,28 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
 
       {/* Main Content Area */}
       <div className="max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1">
+        {/* Mais procuradas na PAROU (só para quem ainda não tem as suas linhas) */}
+        {!aPesquisar && eNovo && maisProcuradas.length > 0 && (
+          <section className="space-y-2" data-teste="mais-procuradas">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-[#111111]">{t('Mais procuradas')}</h2>
+              <span className="text-xs text-[#6B6B6B]">{t('Na PAROU, últimos 30 dias')}</span>
+            </div>
+            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {maisProcuradas.map((line) => (
+                <LineCard
+                  key={line.id}
+                  line={line}
+                  onClick={() => abrirLinha(line.id)}
+                  isFavorite={favoriteLineIds.includes(line.id)}
+                  onToggleFavorite={(e, id) => { e.stopPropagation(); toggleFavoriteLine(id); }}
+                  mostrarOperador
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Pesquisas recentes (só com a pesquisa vazia) */}
         {!aPesquisar && pesquisas.length > 0 && (
           <section className="space-y-2" data-teste="pesquisas-recentes">

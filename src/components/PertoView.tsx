@@ -61,6 +61,7 @@ import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, t
 import { textoMetros, traduzirDistancia } from '../utils/distancia';
 import { opcoesComUnir } from '../services/hibridasUnir';
 import { Logo } from './Logo';
+import { registarProcura } from '../services/procuras';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
@@ -542,6 +543,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const sincronizarExtrasRef = useRef<() => void>(() => {});
   const carregarExtrasRef = useRef<() => void>(() => {});
   const abrirParagemLeveRef = useRef<(p: ParagemLeve) => void>(() => {});
+  // Paragens mais procuradas: conta a abertura (anónima) de paragens de transportes (não de sítios do mapa)
+  useEffect(() => {
+    if (selectedStop && !/^(gplace-|osm-)/.test(selectedStop.id)) registarProcura('paragem', selectedStop.id, selectedStop.name);
+  }, [selectedStop?.id]);
   const enriquecerRef = useRef(0);
   // Outras paragens no mesmo sítio da paragem aberta que veio do mapa (para trocar de poste sem voltar)
   const [grupoExtra, setGrupoExtra] = useState<NearbyStopItem[]>([]);
