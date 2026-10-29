@@ -9,6 +9,8 @@ interface Evolucao { dias: number; comparavel: boolean; atual: Janela; anterior:
 interface Retorno { amostra: number; voltaram: number; percentagem: number | null }
 
 export interface EstatisticasAdmin {
+  /** Pessoas diferentes que abriram cada linha/paragem nos últimos 30 dias */
+  maisProcuradas30Dias?: { linhas: Array<{ id: string; nome: string; pessoas: number }>; paragens: Array<{ id: string; nome: string; pessoas: number }> };
   geradoEm: string;
   ultimosMinutos30: number;
   ultimas24Horas: number;
