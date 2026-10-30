@@ -678,7 +678,8 @@ async function paginaLinha(op: Operador, l: Linha): Promise<string> {
   const modo = op.modo !== 'Autocarro' ? op.modo : modoDoTipo(l.tipo);
   const plural = pluralModo(modo);
   const nParagens = Math.max(0, ...h.sentidos.map((s) => s.paragens.length));
-  const percurso = l.nome || (h.sentidos[0] ? `${h.sentidos[0].paragens[0]?.nome} – ${h.sentidos[0].destino}` : '');
+  // Nome da linha vazio ou só com traços (ex.: "-" no Metro do Porto): o percurso vem da primeira e da última paragem
+  const percurso = (/[\p{L}\d]/u.test(l.nome || '') ? l.nome : '') || (h.sentidos[0] ? `${h.sentidos[0].paragens[0]?.nome} – ${h.sentidos[0].destino}` : '');
   const daDo = /^linha/i.test(nome) ? 'da' : 'do';
   let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
 <p class="sub">${L(
@@ -746,7 +747,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
   const nome = nomeLinha(l);
   const modo = modoDoTipo(l.tipo);
   const nParagens = Math.max(0, ...sentidos.map((s) => s.paragens.length));
-  const percurso = l.nome || (sentidos[0] && destinoReal(sentidos[0].destino) ? `${sentidos[0].paragens[0]?.nome} – ${sentidos[0].destino}` : '');
+  const percurso = (/[\p{L}\d]/u.test(l.nome || '') ? l.nome : '') || (sentidos[0] && destinoReal(sentidos[0].destino) ? `${sentidos[0].paragens[0]?.nome} – ${sentidos[0].destino}` : '');
   let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
 <p class="sub">${L(
     `${html(nome)} da ${html(op.nome)} (rede de ${modo === 'Barco' ? 'barcos' : 'autocarros'} da Área Metropolitana do Porto): percurso com as ${nParagens} paragens de cada sentido e horário de hoje.`,

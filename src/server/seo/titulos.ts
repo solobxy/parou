@@ -37,6 +37,8 @@ export function eCodigo(codigo: string): boolean {
 }
 
 function limpar(t: string): string {
+  // Sem letras nem números (ex.: "-"): não há percurso
+  if (!/[\p{L}\d]/u.test(String(t || ''))) return '';
   // Só os traços com espaços (ou travessões) separam origem e destino; "Lisboa-Rossio" fica como está
   return String(t || '').replace(/\s+/g, ' ').replace(/\s+[-–—]\s+|\s*[–—]\s*/g, ' – ').trim();
 }
