@@ -157,10 +157,16 @@ export interface PassagemCM { linha: string; destino: string; programada: number
 
 const passagens = new Map<string, { t: number; v: PassagemCM[] }>();
 export async function passagensHojeCM(stopId: string): Promise<PassagemCM[]> {
+  return (await passagensHojeCMComEstado(stopId)).v;
+}
+
+/** Como passagensHojeCM, mas diz se a API respondeu (ok=false: sem resposta e sem cópia recente — não é "sem partidas") */
+export async function passagensHojeCMComEstado(stopId: string): Promise<{ v: PassagemCM[]; ok: boolean }> {
   const c = passagens.get(stopId);
-  if (c && Date.now() - c.t < 60_000) return c.v;
+  if (c && Date.now() - c.t < 60_000) return { v: c.v, ok: true };
   try {
-    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 3500);
+    // 2,5 s no máximo: a página da paragem (e o Google) não ficam à espera de uma API lenta
+    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 2500);
     const v: PassagemCM[] = (Array.isArray(j) ? j : []).map((a: any) => ({
       linha: String(a.line_id || ''),
       destino: String(a.headsign || ''),
@@ -169,8 +175,10 @@ export async function passagensHojeCM(stopId: string): Promise<PassagemCM[]> {
     })).filter((x: PassagemCM) => x.linha);
     passagens.set(stopId, { t: Date.now(), v });
     if (passagens.size > 2000) passagens.delete(passagens.keys().next().value as string);
-    return v;
+    return { v, ok: true };
   } catch {
-    return c?.v || [];
+    // Uma cópia com menos de 10 min ainda serve (as horas passadas são filtradas por quem a usa)
+    if (c && Date.now() - c.t < 10 * 60_000) return { v: c.v, ok: true };
+    return { v: [], ok: false };
   }
 }

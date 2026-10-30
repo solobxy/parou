@@ -11,7 +11,7 @@ import { DateTime } from 'luxon';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { obterIndice, paragensPerto, modoDoTipo, NOME_REGIAO, type Linha, type GrupoParagem, type Operador } from './indice';
 import { horarioDaLinha, linhasDaParagem, NOME_TIPO_DIA, proximoDia, type HorarioLinha, type TipoDia } from './horarios';
-import { linhasCM, paragensCM, padraoCM, partidasPadrao, passagensHojeCM } from './carrisMetropolitana';
+import { linhasCM, paragensCM, padraoCM, partidasPadrao, passagensHojeCMComEstado } from './carrisMetropolitana';
 import { getDatabase } from '../db/gtfsDatabase';
 import { html, hora, cortar, slug, nomeBonito } from './texto';
 import { LinesEngine } from '../linesEngine';
@@ -711,7 +711,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
 interface LinhaParagem { linha: Linha; destinos: string[]; primeira: number | null; ultima: number | null }
 interface Proxima { linha?: Linha; codigo: string; destino: string; hora: string; minutos: number; tempoReal: boolean }
 
-async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; proximas: Proxima[]; concelho: string }> {
+async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; proximas: Proxima[]; concelho: string; semResposta?: boolean }> {
   const ix = obterIndice()!;
   const agoraSecs = (() => { const n = DateTime.now().setZone(ZONA); return n.hour * 3600 + n.minute * 60 + n.second; })();
   if (g.feedId === CM) {
@@ -720,7 +720,9 @@ async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; 
     const codLinhas = new Set<string>();
     let concelho = '';
     for (const id of ids) { const p = info.get(id); p?.linhas.forEach((x) => codLinhas.add(x)); if (!concelho && p?.concelho) concelho = p.concelho; }
-    const pass = (await Promise.all(ids.map((id) => passagensHojeCM(id)))).flat();
+    const estados = await Promise.all(ids.map((id) => passagensHojeCMComEstado(id)));
+    const pass = estados.flatMap((e) => e.v);
+    const semResposta = estados.length > 0 && estados.every((e) => !e.ok);
     const porLinha = new Map<string, { destinos: Map<string, number>; horas: number[] }>();
     for (const x of pass) {
       codLinhas.add(x.linha);
@@ -743,7 +745,7 @@ async function dadosParagem(g: GrupoParagem): Promise<{ linhas: LinhaParagem[]; 
       .sort((a, b) => a.t - b.t)
       .slice(0, 10)
       .map(({ x, t }) => ({ linha: ix.linhaPorRoute.get(`cm:${x.linha}`), codigo: x.linha, destino: nomeBonito(x.destino), hora: hora(t), minutos: Math.max(0, Math.round((t - agoraSecs) / 60)), tempoReal: x.prevista != null }));
-    return { linhas, proximas, concelho };
+    return { linhas, proximas, concelho, semResposta };
   }
   if (g.feedId === UNIR) {
     const db = getDatabase();
@@ -816,6 +818,12 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
       `Calculated at ${agora.toFormat('HH:mm')} from the official timetable${algumTempoReal ? " and the operator's real-time data" : ''}. To follow it minute by minute, open the <a href="/">PAROU app</a>.`,
       `Berechnet um ${agora.toFormat('HH:mm')} Uhr aus dem offiziellen Fahrplan${algumTempoReal ? ' und den Echtzeitdaten des Verkehrsunternehmens' : ''}. Um es minutengenau zu verfolgen, öffne die <a href="/">PAROU-App</a>.`,
       `Calculé à ${agora.toFormat('HH:mm')} d'après l'horaire officiel${algumTempoReal ? ' et le temps réel de l\'opérateur' : ''}. Pour suivre en temps réel à la minute, ouvrez l'<a href="/">application PAROU</a>.`)}</p>`;
+  } else if (dados.semResposta) {
+    corpo += `<p class="nota">${L(
+      `A ${html(op.nome)} não respondeu a tempo com as próximas partidas (às ${agora.toFormat('HH:mm')}). Toca em «Ver em tempo real» para as veres ao minuto.`,
+      `${html(op.nome)} did not answer in time with the next departures (at ${agora.toFormat('HH:mm')}). Tap “See in real time” to follow them minute by minute.`,
+      `${html(op.nome)} hat die nächsten Abfahrten nicht rechtzeitig geliefert (um ${agora.toFormat('HH:mm')} Uhr). Tippe auf „In Echtzeit ansehen“, um sie minutengenau zu sehen.`,
+      `${html(op.nome)} n'a pas répondu à temps avec les prochains départs (à ${agora.toFormat('HH:mm')}). Touchez « Voir en temps réel » pour les suivre à la minute.`)}</p>`;
   } else {
     corpo += `<p class="nota">${L(
       `Sem partidas previstas nas próximas horas (às ${agora.toFormat('HH:mm')}). Vê abaixo a primeira partida de cada linha.`,
@@ -1893,7 +1901,8 @@ export function registarPaginasSeo(app: Express) {
     if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 60);
     try {
       const v = await paginaParagem(op, g);
-      cache.set(chave, { t: Date.now(), ttl: 60_000, v });
+      // Sem resposta do operador: guarda pouco tempo, para a próxima visita já trazer as partidas
+      cache.set(chave, { t: Date.now(), ttl: v.includes('não respondeu a tempo') || v.includes('did not answer in time') ? 10_000 : 60_000, v });
       enviar(res, v, 60);
     } catch (err: any) {
       console.warn('[SEO] Paragem falhou:', err?.message || err);
