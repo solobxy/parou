@@ -50,6 +50,36 @@ if (typeof document !== 'undefined') {
   );
 }
 
+// Tradutores automáticos (ex.: Chrome a traduzir a página) e algumas extensões mexem no DOM por fora do React;
+// o React depois falha com "insertBefore/removeChild: not a child of this node" e o ecrã fica em erro.
+// Se o nó já não está onde o React espera, ignora em vez de rebentar (correção conhecida do React, issue #11538).
+if (typeof Node === 'function' && Node.prototype) {
+  const removerOriginal = Node.prototype.removeChild;
+  Node.prototype.removeChild = function <T extends Node>(this: Node, filho: T): T {
+    if (filho.parentNode !== this) return filho;
+    return removerOriginal.call(this, filho) as T;
+  };
+  const inserirOriginal = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function <T extends Node>(this: Node, novo: T, referencia: Node | null): T {
+    if (referencia && referencia.parentNode !== this) return novo;
+    return inserirOriginal.call(this, novo, referencia) as T;
+  };
+}
+
+// Depois de uma versão nova, um separador aberto antes pode pedir um pedaço da app que já não existe
+// ("Failed to fetch dynamically imported module"). Recarrega uma vez para ir buscar a versão nova.
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (e) => {
+    try {
+      const ultima = Number(sessionStorage.getItem('parou_recarregou_pedaco') || 0);
+      if (Date.now() - ultima < 60_000) return; // nunca em ciclo
+      sessionStorage.setItem('parou_recarregou_pedaco', String(Date.now()));
+    } catch { return; }
+    e.preventDefault();
+    window.location.reload();
+  });
+}
+
 apanharErrosGlobais();
 createRoot(document.getElementById('root')!).render(
   <ProtecaoErros>
