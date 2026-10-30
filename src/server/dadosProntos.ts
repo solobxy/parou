@@ -3,6 +3,7 @@ import path from 'path';
 import zlib from 'zlib';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
+import { execFile } from 'child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { DateTime } from 'luxon';
 import { DB_FILE, getAppState, setAppState, reloadDatabaseConnection, getDatabase } from './db/gtfsDatabase';
@@ -140,6 +141,19 @@ function baseValida(ficheiro: string): boolean {
   }
 }
 
+// A verificação completa lê o ficheiro todo (~700 MB): corre noutro processo para o servidor continuar a responder
+function baseValidaNoutroProcesso(ficheiro: string): Promise<boolean> {
+  const codigo = `const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1],{readOnly:true});`
+    + `const c=db.prepare('PRAGMA quick_check').get();const n=db.prepare('SELECT COUNT(*) AS n FROM stops').get();`
+    + `process.stdout.write(c&&c.quick_check==='ok'&&Number(n&&n.n||0)>1000?'ok':'falhou')`;
+  return new Promise((resolve) => {
+    execFile(process.execPath, ['-e', codigo, ficheiro], { timeout: 10 * 60_000, maxBuffer: 1 << 16 }, (err, stdout) => {
+      if (err) { console.warn('[Dados] Verificação noutro processo falhou; a verificar aqui:', err.message); return resolve(baseValida(ficheiro)); }
+      resolve(String(stdout).trim() === 'ok');
+    });
+  });
+}
+
 export async function atualizarDados(): Promise<void> {
   if (emCurso) return;
   emCurso = true;
@@ -162,7 +176,7 @@ export async function atualizarDados(): Promise<void> {
 
     const atual = getAppState<string>('dataset_built_at');
     const builtAt = manifest?.built_at || atual;
-    if (atual && atual === manifest.built_at && (basePronta || baseValida(DB_FILE))) {
+    if (atual && atual === manifest.built_at && (basePronta || baseUtilizavel(DB_FILE))) {
       basePronta = true;
       versaoBaseAtiva = builtAt || versaoBaseAtiva;
       estado = { ...estado, ...totais, dataset_built_at: builtAt, isLoading: false, message: 'Todos os operadores carregados', updatedAt: new Date().toISOString() };
@@ -180,7 +194,7 @@ export async function atualizarDados(): Promise<void> {
     if (!resBase.ok || !resBase.body) throw new Error(`gtfs.db.gz devolveu HTTP ${resBase.status}`);
     await pipeline(Readable.fromWeb(resBase.body as any), zlib.createGunzip(), fs.createWriteStream(FICHEIRO_NOVO));
 
-    if (!baseValida(FICHEIRO_NOVO)) throw new Error('a base descarregada não passou a verificação');
+    if (!(await baseValidaNoutroProcesso(FICHEIRO_NOVO))) throw new Error('a base descarregada não passou a verificação');
 
     // Troca atómica: gtfs.db.new substitui gtfs.db, garantindo no máximo 2 ficheiros em disco durante o processo
     fs.renameSync(FICHEIRO_NOVO, DB_FILE);
@@ -201,7 +215,7 @@ export async function atualizarDados(): Promise<void> {
     console.warn('[Dados prontos] Não foi possível atualizar:', err?.message || err);
     try { if (fs.existsSync(FICHEIRO_NOVO)) fs.unlinkSync(FICHEIRO_NOVO); } catch {}
     try { if (fs.existsSync(`${DB_FILE}.bak`)) fs.unlinkSync(`${DB_FILE}.bak`); } catch {}
-    const temBase = basePronta || baseValida(DB_FILE);
+    const temBase = basePronta || baseUtilizavel(DB_FILE);
     if (temBase) {
       basePronta = true;
     }
@@ -212,9 +226,27 @@ export async function atualizarDados(): Promise<void> {
   }
 }
 
+// Verificação leve (sem PRAGMA quick_check, que lê os ~700 MB e bloqueia o servidor durante segundos):
+// serve para, no arranque, responder logo com a base que já está no disco em vez de "a atualizar os horários".
+function baseUtilizavel(ficheiro: string): boolean {
+  let db: DatabaseSync | null = null;
+  try {
+    if (!fs.existsSync(ficheiro) || fs.statSync(ficheiro).size < 10_000_000) return false;
+    db = new DatabaseSync(ficheiro, { readOnly: true });
+    const paragens = db.prepare('SELECT COUNT(*) AS n FROM stops').get() as any;
+    return Number(paragens?.n || 0) > 1000;
+  } catch {
+    return false;
+  } finally {
+    try { db?.close(); } catch {}
+  }
+}
+
 export function iniciarDadosProntos(): void {
   if (iniciado || process.env.IS_WORKER === 'true') return;
   iniciado = true;
+  // A base do disco já serve: as páginas e a app respondem logo; a verificação de versão nova vem a seguir
+  if (baseUtilizavel(DB_FILE)) basePronta = true;
   setTimeout(() => { void atualizarDados(); }, 1000);
   setInterval(() => { void atualizarDados(); }, INTERVALO_MS);
 }

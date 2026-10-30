@@ -3,6 +3,9 @@ import fs from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { FeedItem, FetchLogItem, FeedStatus } from '../../types/coverage';
 import { SEED_FEEDS } from '../gtfsSeedRegistry';
+import { vigiarConsultasLentas } from './consultasLentas';
+
+vigiarConsultasLentas();
 
 // Cleanup old project data/ db files if they exist
 try {

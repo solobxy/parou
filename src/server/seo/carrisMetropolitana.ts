@@ -29,6 +29,8 @@ let linhas: { t: number; v: Map<string, LinhaCM> } | null = null;
 let paragens: { t: number; v: Map<string, ParagemCM> } | null = null;
 let aCarregarLinhas: Promise<void> | null = null;
 let aCarregarParagens: Promise<void> | null = null;
+// Falhou sem nada em memória: não volta a pedir (nem faz esperar as páginas) antes desta hora
+let paragensSoDepois = 0;
 
 export async function linhasCM(): Promise<Map<string, LinhaCM>> {
   if (linhas && Date.now() - linhas.t < 12 * 3600_000) return linhas.v;
@@ -55,6 +57,7 @@ export async function linhasCM(): Promise<Map<string, LinhaCM>> {
 
 export async function paragensCM(): Promise<Map<string, ParagemCM>> {
   if (paragens && Date.now() - paragens.t < 12 * 3600_000) return paragens.v;
+  if (!paragens && Date.now() < paragensSoDepois) return new Map();
   if (!aCarregarParagens) {
     aCarregarParagens = (async () => {
       try {
@@ -67,6 +70,7 @@ export async function paragensCM(): Promise<Map<string, ParagemCM>> {
       } catch (err: any) {
         console.warn('[SEO CM] Paragens:', err?.message || err);
         if (paragens) paragens.t = Date.now() - 11 * 3600_000;
+        else paragensSoDepois = Date.now() + 2 * 60_000;
       } finally {
         aCarregarParagens = null;
       }

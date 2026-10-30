@@ -1591,6 +1591,9 @@ export class LinesEngine {
 
       const rawStopId = stopId.includes(':') ? stopId.split(':')[1] : stopId;
 
+      // A paragem e as suas filhas vão numa só lista (IN). Com "stop_id = ? OR stop_id IN (...)" o SQLite 3.51
+      // (o do servidor) percorria o índice de todas as paragens: ~200 ms por consulta em vez de ~1 ms, e as páginas
+      // das paragens demoravam segundos e bloqueavam o servidor quando o Google as visitava.
       // 4. Viagens de madrugada do dia de serviço anterior (> 24:00:00)
       const yesterdayLateQuery = db.prepare(`
         SELECT st.departure_secs - 86400 as departure_secs, t.trip_id, t.trip_headsign, t.service_id,
@@ -1603,7 +1606,7 @@ export class LinesEngine {
         JOIN feeds f ON r.feed_id = f.id
         WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
           AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
-          AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
+          AND st.stop_id IN (SELECT ? UNION SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station IN (?, ?))
           AND st.departure_secs BETWEEN ? AND ?
           AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
@@ -1639,7 +1642,7 @@ export class LinesEngine {
         JOIN feeds f ON r.feed_id = f.id
         WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
           AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
-          AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
+          AND st.stop_id IN (SELECT ? UNION SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station IN (?, ?))
           AND st.departure_secs BETWEEN ? AND ?
           AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
           AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
@@ -1662,7 +1665,7 @@ export class LinesEngine {
           JOIN feeds f ON r.feed_id = f.id
           WHERE f.status NOT IN ('IMPORTING', 'DOWNLOADING', 'importing', 'downloading', 'parsing')
             AND NOT (f.last_ok IS NULL AND (f.lines_count IS NULL OR f.lines_count = 0) AND (f.trips_count IS NULL OR f.trips_count = 0) AND f.status IN ('ERROR', 'UNAVAILABLE', 'NEEDS_KEY', 'NEEDS_AUTH', 'falhou'))
-            AND (st.stop_id = ? OR st.stop_id IN (SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station = ? OR s2.parent_station = ?))
+            AND st.stop_id IN (SELECT ? UNION SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station IN (?, ?))
             AND st.departure_secs BETWEEN 0 AND ${JANELA_DIA_SERVICO_SECS}
             AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
             AND (t.trip_headsign IS NULL OR t.trip_headsign != ?)
