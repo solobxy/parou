@@ -21,6 +21,9 @@ import { obterIncidentes, type IncidenteProtecaoCivil } from '../fogosEngine';
 import { scriptVisita } from './scriptVisita';
 import { chipLegivel } from '../../utils/contraste';
 import { escolherLinhaAtual } from '../../utils/linhaAntiga';
+import { tituloLinha, descricaoLinha, type DadosTituloLinha } from './titulos';
+import { maisProcuradas } from '../estatisticas';
+import { distanciaMetros } from './indice';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -417,19 +420,88 @@ function paginaHub(): string {
 // Operadores com tempo real na PAROU (Carris Metropolitana, STCP, TUB e Metro de Lisboa); nos outros só há o horário oficial
 const COM_TEMPO_REAL = new Set(['carris-metropolitana', 'stcp', 'tub-braga', 'metro-de-lisboa']);
 
+// Linhas principais de um operador: primeiro as mais abertas na PAROU (pelo menos 3 pessoas), depois as que
+// têm mais viagens no horário (as mais frequentes são, quase sempre, as mais usadas). Uma consulta por versão da base.
+let viagensPorLinhaCache: { versao: string; m: Map<string, number> } | null = null;
+function viagensPorLinha(): Map<string, number> {
+  const v = String(getVersaoBaseAtiva() || '');
+  if (viagensPorLinhaCache && viagensPorLinhaCache.versao === v) return viagensPorLinhaCache.m;
+  const m = new Map<string, number>();
+  try {
+    for (const r of getDatabase().prepare('SELECT route_id, COUNT(*) AS n FROM trips GROUP BY route_id').all() as Array<{ route_id: string; n: number }>) {
+      const id = String(r.route_id).replace(/^cmh:/, 'cm:');
+      m.set(id, (m.get(id) || 0) + Number(r.n));
+    }
+  } catch { /* sem base: fica vazio */ }
+  viagensPorLinhaCache = { versao: v, m };
+  return m;
+}
+function linhasPrincipais(op: Operador, max = 12): Linha[] {
+  let procuradas: string[] = [];
+  try { procuradas = maisProcuradas('linha', { minimo: 3, max: 300 }).map((x) => x.id); } catch { /* sem estatísticas */ }
+  const ordemProcura = new Map(procuradas.map((id, i) => [id, i]));
+  const viagens = viagensPorLinha();
+  return op.linhas.slice().sort((a, b) =>
+    (ordemProcura.get(a.routeId) ?? 1e6) - (ordemProcura.get(b.routeId) ?? 1e6)
+    || (viagens.get(b.routeId) || 0) - (viagens.get(a.routeId) || 0)
+    || a.codigo.localeCompare(b.codigo, 'pt', { numeric: true }),
+  ).filter((l, i, arr) => arr.findIndex((x) => x.codigo === l.codigo) === i) // uma variante por linha (ex.: CP)
+    .slice(0, max);
+}
+/** Cidades (com página própria) onde o operador tem paragens */
+const cidadesPorOperador = new Map<string, { ix: unknown; c: Array<(typeof CIDADES)[number]> }>();
+function cidadesDoOperador(op: Operador): Array<(typeof CIDADES)[number]> {
+  const ix = obterIndice();
+  const c = cidadesPorOperador.get(op.slug);
+  if (c && c.ix === ix) return c.c;
+  const lista = CIDADES.filter((cid) => op.paragens.some((p) => Math.abs(p.lat - cid.lat) < 0.1 && Math.abs(p.lon - cid.lon) < 0.12 && distanciaMetros(p, cid) <= cid.raioKm * 1000));
+  cidadesPorOperador.set(op.slug, { ix, c: lista });
+  return lista;
+}
+/** "do Metro de Lisboa" -> "o Metro de Lisboa" */
+function comArtigo(de: string): string {
+  return de.replace(/^(do|da|dos|das) /i, (m) => ({ 'do ': 'o ', 'da ': 'a ', 'dos ': 'os ', 'das ': 'as ' } as Record<string, string>)[m.toLowerCase()] || m);
+}
+/** Perguntas que as pessoas fazem no Google sobre um operador, com respostas tiradas dos dados (só em português) */
+function perguntasOperador(op: Operador, tr: boolean, cidades: Array<(typeof CIDADES)[number]>): Array<{ q: string; r: string; rHtml: string }> {
+  if (lang() !== 'pt') return [];
+  const greve = OPERADORES_GREVE.find((g) => g.slug === op.slug);
+  const de = greve ? greve.de : `de ${op.nome}`;
+  const o = greve ? comArtigo(greve.de) : op.nome;
+  const O = o.charAt(0).toUpperCase() + o.slice(1);
+  const palavra = (MODO_PLURAL[op.modo] || 'transportes').replace(/s$/, '');
+  const lista: Array<{ q: string; r: string; rHtml: string }> = [];
+  lista.push(tr
+    ? { q: `Como ver os horários ${de} em tempo real?`, r: `Na PAROU vês, em cada paragem, quando passa o próximo ${palavra} ${de}, com o tempo real publicado pelo operador e o horário oficial quando não há tempo real. É grátis e não precisas de conta.`, rHtml: `Na <a href="/">PAROU</a> vês, em cada paragem, quando passa o próximo ${html(palavra)} ${html(de)}, com o tempo real publicado pelo operador e o horário oficial quando não há tempo real. É grátis e não precisas de conta.` }
+    : { q: `${O} tem tempo real?`, r: `${O} não publica a posição dos veículos em tempo real. A PAROU mostra a hora do horário oficial em cada paragem e diz sempre que é horário previsto.`, rHtml: `${html(O)} não publica a posição dos veículos em tempo real. A <a href="/">PAROU</a> mostra a hora do horário oficial em cada paragem e diz sempre que é horário previsto.` });
+  const ondeTxt = cidades.length ? `, em ${juntarComE(cidades.slice(0, 6).map((c) => c.nome))}${cidades.length > 6 ? ' e noutras localidades' : ''}` : '';
+  const ondeHtml = cidades.length ? `, em ${juntarComE(cidades.slice(0, 6).map((c) => `<a href="/cidade/${c.slug}">${html(c.nome)}</a>`))}${cidades.length > 6 ? ' e noutras localidades' : ''}` : '';
+  lista.push({ q: `Quantas linhas e paragens tem ${o}?`, r: `Na PAROU estão ${op.linhas.length} linhas e ${op.paragens.length} paragens${ondeTxt}, com o horário de dias úteis, sábados e domingos.`, rHtml: `Na PAROU estão ${op.linhas.length} linhas e ${op.paragens.length} paragens${ondeHtml}, com o horário de dias úteis, sábados e domingos.` });
+  if (greve) lista.push({ q: `Há greve ${de} hoje?`, r: `As greves anunciadas ${de}, com datas, serviços mínimos e alternativas, estão em parou.pt/greves/${greve.slug}, atualizada ao longo do dia.`, rHtml: `As greves anunciadas ${html(de)}, com datas, serviços mínimos e alternativas, estão em <a href="/greves/${greve.slug}">greves ${html(de)}</a>, atualizada ao longo do dia.` });
+  lista.push({ q: `De onde vêm os horários ${de}?`, r: `Dos horários oficiais publicados pelo operador em dados abertos (GTFS), atualizados todos os dias (última atualização a ${dataBase()}). Em feriados, greves ou obras podem mudar.`, rHtml: `Dos horários oficiais publicados pelo operador em dados abertos (GTFS), atualizados todos os dias (última atualização a ${html(dataBase())}). Em feriados, greves ou obras podem mudar.` });
+  return lista;
+}
+
 function paginaOperador(op: Operador): string {
   const plural = pluralModo(op.modo);
   const tr = COM_TEMPO_REAL.has(op.slug);
-  const corpo = `<h1>${L(`Horários ${html(op.nome)}: linhas e paragens`, `${html(op.nome)} timetables: lines and stops`, `Fahrpläne ${html(op.nome)}: Linien und Haltestellen`, `Horaires ${html(op.nome)} : lignes et arrêts`)}</h1>
+  const principais = linhasPrincipais(op);
+  const cidades = cidadesDoOperador(op);
+  const perguntas = perguntasOperador(op, tr, cidades);
+  const corpo = `<h1>${L(`Horários ${html(op.nome)}${tr ? ' e tempo real' : ''}: linhas e paragens`, `${html(op.nome)} timetables: lines and stops`, `Fahrpläne ${html(op.nome)}: Linien und Haltestellen`, `Horaires ${html(op.nome)} : lignes et arrêts`)}</h1>
 <p class="sub">${L(
     `${html(op.nome)} tem ${nLinhas(op.linhas.length)} e ${num(op.paragens.length)} paragens na PAROU. Escolhe uma linha para ver o horário de dias úteis, sábados e domingos e todas as paragens do percurso${tr ? ' — ou abre a app para ver os próximos ' + plural + ' em tempo real' : ''}.`,
     `${html(op.nome)} has ${nLinhas(op.linhas.length)} and ${num(op.paragens.length)} stops on PAROU. Pick a line to see the weekday, Saturday and Sunday timetable and every stop on the route${tr ? ' — or open the app to see the next ' + plural + ' in real time' : ''}.`,
     `${html(op.nome)} hat ${nLinhas(op.linhas.length)} und ${num(op.paragens.length)} Haltestellen bei PAROU. Wähle eine Linie, um den Fahrplan für Werktage, Samstage und Sonntage sowie alle Haltestellen der Strecke zu sehen${tr ? ' — oder öffne die App, um die nächsten ' + plural + ' in Echtzeit zu sehen' : ''}.`,
     `${html(op.nome)} compte ${nLinhas(op.linhas.length)} et ${num(op.paragens.length)} arrêts sur PAROU. Choisissez une ligne pour voir l'horaire des jours ouvrables, des samedis et des dimanches et tous les arrêts du trajet${tr ? ' — ou ouvrez l\'application pour voir les prochains ' + plural + ' en temps réel' : ''}.`)}</p>
 <p><a class="btn laranja" href="/">${L(`Ver ${plural} perto de mim`, `See ${plural} near me`, `${plural} in meiner Nähe anzeigen`, `Voir les ${plural} près de moi`)}</a> <a class="btn claro" href="/paragens/${op.slug}">${L('Todas as paragens', 'All stops', 'Alle Haltestellen', 'Tous les arrêts')}</a></p>
-<h2>${L(`Linhas ${html(op.nome)}`, `${html(op.nome)} lines`, `Linien ${html(op.nome)}`, `Lignes ${html(op.nome)}`)}</h2>
+${principais.length >= 4 && op.linhas.length > 8 ? `<h2>${L(`Linhas ${html(op.nome)} mais usadas`, `Most used ${html(op.nome)} lines`, `Meistgenutzte Linien ${html(op.nome)}`, `Lignes ${html(op.nome)} les plus utilisées`)}</h2>
+<ul class="lista">${principais.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>` : ''}
+<h2>${L(`Todas as linhas ${html(op.nome)}`, `All ${html(op.nome)} lines`, `Alle Linien ${html(op.nome)}`, `Toutes les lignes ${html(op.nome)}`)}</h2>
 <ul class="lista">${op.linhas.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>
-<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`, `Offizielle Fahrpläne von ${html(op.nome)}. Stand: ${html(dataBase())}.`, `Horaires officiels publiés par ${html(op.nome)}. Mis à jour le ${html(dataBase())}.`)}${op.slug === 'stcp' ? ` ${L('Tempo real: dados abertos da STCP (licença CC BY 4.0).', 'Real time: STCP open data (CC BY 4.0 licence).', 'Echtzeit: offene Daten der STCP (Lizenz CC BY 4.0).', 'Temps réel : données ouvertes de la STCP (licence CC BY 4.0).')}` : ''}</p>`;
+<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`, `Offizielle Fahrpläne von ${html(op.nome)}. Stand: ${html(dataBase())}.`, `Horaires officiels publiés par ${html(op.nome)}. Mis à jour le ${html(dataBase())}.`)}${op.slug === 'stcp' ? ` ${L('Tempo real: dados abertos da STCP (licença CC BY 4.0).', 'Real time: STCP open data (CC BY 4.0 licence).', 'Echtzeit: offene Daten der STCP (Lizenz CC BY 4.0).', 'Temps réel : données ouvertes de la STCP (licence CC BY 4.0).')}` : ''}</p>`
+    + (perguntas.length ? `<h2>Perguntas frequentes</h2>${perguntas.map((x) => `<details><summary>${html(x.q)}</summary><div class="dentro"><p>${x.rHtml}</p></div></details>`).join('')}` : '')
+    + (cidades.length ? `<h2>${L(`${html(op.nome)} por cidade`, `${html(op.nome)} by city`, `${html(op.nome)} nach Stadt`, `${html(op.nome)} par ville`)}</h2><ul class="lista">${cidades.map((c) => `<li><a href="/cidade/${c.slug}"><span class="t">${L(`Transportes em ${html(c.nome)}`, `Public transport in ${html(c.nome)}`, `Öffentlicher Verkehr in ${html(c.nome)}`, `Transports à ${html(c.nome)}`)}</span></a></li>`).join('')}</ul>` : '');
   return pagina({
     titulo: L(`Horários ${op.nome}${tr ? ' e tempo real' : ''}: linhas e paragens | PAROU`, `${op.nome} timetables${tr ? ' and real time' : ''}: lines and stops | PAROU`, `Fahrpläne ${op.nome}${tr ? ' und Echtzeit' : ''}: Linien und Haltestellen | PAROU`, `Horaires ${op.nome}${tr ? ' et temps réel' : ''} : lignes et arrêts | PAROU`),
     descricao: L(
@@ -440,7 +512,10 @@ function paginaOperador(op: Operador): string {
     caminho: `/linhas/${op.slug}`,
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Linhas', 'Lines', 'Linien', 'Lignes'), url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }],
-    jsonld: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: L(`Linhas ${op.nome}`, `${op.nome} lines`, `Linien ${op.nome}`, `Lignes ${op.nome}`), numberOfItems: op.linhas.length, itemListElement: op.linhas.slice(0, 200).map((l, i) => ({ '@type': 'ListItem', position: i + 1, name: `${nomeLinha(l)} ${l.nome}`.trim(), url: `${SITE}/linhas/${op.slug}/${l.slug}` })) }],
+    jsonld: [
+      { '@context': 'https://schema.org', '@type': 'ItemList', name: L(`Linhas ${op.nome}`, `${op.nome} lines`, `Linien ${op.nome}`, `Lignes ${op.nome}`), numberOfItems: op.linhas.length, itemListElement: op.linhas.slice(0, 200).map((l, i) => ({ '@type': 'ListItem', position: i + 1, name: `${nomeLinha(l)} ${l.nome}`.trim(), url: `${SITE}/linhas/${op.slug}/${l.slug}` })) },
+      ...(perguntas.length ? [{ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: perguntas.map((x) => ({ '@type': 'Question', name: x.q, acceptedAnswer: { '@type': 'Answer', text: x.r } })) }] : []),
+    ],
   });
 }
 
@@ -646,10 +721,16 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
     `Offizielle Fahrpläne von ${html(op.nome)} (Stand: ${html(dataBase())}). An Feiertagen, bei Streiks oder Bauarbeiten können sie sich ändern: Für die nächsten ${plural} in Echtzeit nutze die <a href="/">PAROU-App</a>.`,
     `Horaires officiels publiés par ${html(op.nome)} (mis à jour le ${html(dataBase())}). Ils peuvent changer les jours fériés, en cas de grève ou de travaux : pour les prochains ${plural} en temps réel, utilisez l'<a href="/">application PAROU</a>.`)}</p>`;
   const tituloBase = `${nome} ${op.nome}`;
+  const s0 = h.sentidos[0];
+  const partidasDe = (tipo: TipoDia) => s0?.horarios.find((x) => x.tipo === tipo)?.partidas || [];
+  const dadosTitulo: DadosTituloLinha = {
+    codigo: l.codigo, percurso, operador: op.nome, modo, nParagens, tempoReal: COM_TEMPO_REAL.has(op.slug),
+    uteis: partidasDe('uteis'), sabado: partidasDe('sabado'), domingo: partidasDe('domingo'),
+  };
   return pagina({
-    titulo: cortar(L(`${tituloBase}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${tituloBase} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
+    titulo: lang() === 'pt' ? tituloLinha(dadosTitulo) : cortar(L(`${tituloBase}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${tituloBase} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
     descricao: L(
-      `Horário ${daDo} ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: primeira e última partida, horários de dias úteis, sábados e domingos e as ${nParagens} paragens. Tempo real na PAROU.`,
+      descricaoLinha(dadosTitulo),
       `Timetable for ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: first and last departure, weekday, Saturday and Sunday timetables and all ${nParagens} stops. Real time on PAROU.`,
       `Fahrplan ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: erste und letzte Abfahrt, Fahrpläne für Werktage, Samstage und Sonntage und alle ${nParagens} Haltestellen. Echtzeit bei PAROU.`,
       `Horaire ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''} : premier et dernier départ, horaires des jours ouvrables, samedis et dimanches et les ${nParagens} arrêts. Temps réel sur PAROU.`),
@@ -694,10 +775,11 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
     `Route and stops published by AMP – Área Metropolitana do Porto (updated ${html(dataBase())}). Timetables can change on holidays, strikes or roadworks; check the <a href="/">PAROU app</a> or UNIR.`,
     `Strecke und Haltestellen von der AMP – Área Metropolitana do Porto veröffentlicht (Stand: ${html(dataBase())}). Fahrpläne können sich an Feiertagen, bei Streiks oder Bauarbeiten ändern; prüfe die <a href="/">PAROU-App</a> oder UNIR.`,
     `Trajet et arrêts publiés par l'AMP – Área Metropolitana do Porto (mis à jour le ${html(dataBase())}). Les horaires peuvent changer les jours fériés, en cas de grève ou de travaux ; vérifiez dans l'<a href="/">application PAROU</a> ou auprès d'UNIR.`)}</p>`;
+  const dadosTitulo: DadosTituloLinha = { codigo: l.codigo, percurso, operador: op.nome, modo, nParagens, tempoReal: false };
   return pagina({
-    titulo: cortar(L(`${nome} ${op.nome}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
+    titulo: lang() === 'pt' ? tituloLinha(dadosTitulo) : cortar(L(`${nome} ${op.nome}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
     descricao: L(
-      `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: as ${nParagens} paragens do percurso em cada sentido e o horário de hoje. Partidas ao minuto na PAROU.`,
+      `${descricaoLinha(dadosTitulo).replace(/\.$/, '')} e horário de hoje.`,
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: all ${nParagens} stops on the route in each direction and today's timetable. Departures minute by minute on PAROU.`,
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: alle ${nParagens} Haltestellen der Strecke in jeder Richtung und der Fahrplan von heute. Abfahrten minutengenau bei PAROU.`,
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''} : les ${nParagens} arrêts du trajet dans chaque sens et l'horaire du jour. Départs à la minute près sur PAROU.`),
