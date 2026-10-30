@@ -10,7 +10,7 @@ import { CIDADES } from '../../data/cidades';
 import { DateTime } from 'luxon';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { obterIndice, paragensPerto, modoDoTipo, NOME_REGIAO, type Linha, type GrupoParagem, type Operador } from './indice';
-import { horarioDaLinha, linhasDaParagem, NOME_TIPO_DIA, proximoDia, type HorarioLinha, type TipoDia } from './horarios';
+import { horarioDaLinha, linhasDaParagem, NOME_TIPO_DIA, partidasNoDia, proximoDia, type HorarioLinha, type TipoDia } from './horarios';
 import { linhasCM, paragensCM, padraoCM, partidasPadrao, passagensHojeCMComEstado } from './carrisMetropolitana';
 import { getDatabase } from '../db/gtfsDatabase';
 import { html, hora, cortar, slug, nomeBonito } from './texto';
@@ -643,20 +643,30 @@ async function horarioLinhaCM(l: Linha): Promise<HorarioLinha> {
   const pads = (await Promise.all((info?.padroes || []).slice(0, 4).map((id) => padraoCM(id)))).filter(Boolean) as any[];
   pads.sort((a, b) => a.direcao - b.direcao || b.paragens.length - a.paragens.length);
   const nomes = nomesParagens(Array.from(new Set(pads.flatMap((p) => p.paragens.map((x: any) => `cm:${x.stopId}`)))));
+  // Horário do GTFS da Carris Metropolitana (feed "cmh": linha "cmh:<id>", paragens "cmh:<id>"), na 1.ª paragem do padrão
+  const doHorario = (p: any, dia: DateTime): number[] => {
+    const s0 = p.paragens[0]?.stopId;
+    if (!s0) return [];
+    try { return partidasNoDia(`cmh:${idLinha}`, 'cmh', p.direcao, `cmh:${s0}`, dia); } catch { return []; }
+  };
   for (const p of pads) {
     sentidos.push({
       direcao: p.direcao,
       destino: nomeBonito(p.destino),
       paragens: p.paragens.map((x: any) => ({ stopId: `cm:${x.stopId}`, nome: nomeBonito(nomes.get(`cm:${x.stopId}`) || x.stopId), minutos: x.minutos })),
       horarios: (['uteis', 'sabado', 'domingo'] as TipoDia[]).map((tipo) => {
-        const r = partidasPadrao(p, proximoDia(tipo, hoje));
-        return { tipo, data: r.data, partidas: r.partidas };
+        const dia = proximoDia(tipo, hoje);
+        const r = partidasPadrao(p, dia);
+        if (r.partidas.length) return { tipo, data: r.data, partidas: r.partidas };
+        // A API nem sempre tem a versão em vigor (ex.: 4562 só tinha agosto e 2027): usa o horário do GTFS
+        return { tipo, data: dia.toISODate() || '', partidas: doHorario(p, dia) };
       }),
     });
   }
   let resumo: HorarioLinha['hoje'] = { primeira: null, ultima: null, total: 0, intervaloPonta: null };
   if (pads[0]) {
-    const lista = pads[0].dias.get(hoje.toFormat('yyyyMMdd')) || [];
+    const daApi = pads[0].dias.get(hoje.toFormat('yyyyMMdd')) || [];
+    const lista = daApi.length ? daApi : doHorario(pads[0], hoje.startOf('day'));
     if (lista.length) {
       const ponta = lista.filter((x: number) => x >= 7 * 3600 && x < 10 * 3600);
       let intervalo: number | null = null;

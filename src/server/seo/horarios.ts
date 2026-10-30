@@ -39,7 +39,7 @@ export interface HorarioLinha {
   hoje: { primeira: number | null; ultima: number | null; total: number; intervaloPonta: number | null };
 }
 
-function partidasNoDia(routeId: string, feedId: string, direcao: number, stopId: string, dia: DateTime): number[] {
+export function partidasNoDia(routeId: string, feedId: string, direcao: number, stopId: string, dia: DateTime): number[] {
   const db = getDatabase();
   const linhas = db.prepare(`
     SELECT st.departure_secs AS s, t.service_id AS sv
