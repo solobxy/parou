@@ -165,8 +165,9 @@ export async function passagensHojeCMComEstado(stopId: string): Promise<{ v: Pas
   const c = passagens.get(stopId);
   if (c && Date.now() - c.t < 60_000) return { v: c.v, ok: true };
   try {
-    // 2,5 s no máximo: a página da paragem (e o Google) não ficam à espera de uma API lenta
-    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 2500);
+    // 3,5 s no máximo: a API às vezes leva 1 a 3 s na primeira consulta de uma paragem (medido a 30/10/2026);
+    // com 2,5 s falhava em demasiadas paragens
+    const j = await buscar(`${API}/arrivals/by_stop/${encodeURIComponent(stopId)}`, 3500);
     const v: PassagemCM[] = (Array.isArray(j) ? j : []).map((a: any) => ({
       linha: String(a.line_id || ''),
       destino: String(a.headsign || ''),
