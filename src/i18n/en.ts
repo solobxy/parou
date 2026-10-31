@@ -48,6 +48,7 @@ export const EN: Record<string, string> = {
   'Horários por operador': 'Timetables by operator',
   'Horários:': 'Timetables:',
   'Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap': 'Free and non-profit · Data from operators, IPMA, Fogos.pt/ANEPC · Maps © OpenStreetMap',
+  'Feito por dinissousa': 'Made by dinissousa',
 
   // Perto
   'Transportes perto': 'Nearby transport',

@@ -1306,6 +1306,8 @@ export default function App() {
         </div>
         <div className="max-w-[1600px] mx-auto mt-3 text-center sm:text-left text-[11px] text-[#6B6B6B]">
           {t('Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap')}
+          {' · '}
+          <a href="https://dinissousa.pt" target="_blank" rel="noopener" className="hover:text-[#111111] transition-colors">{t('Feito por dinissousa')}</a>
         </div>
       </footer>
 

@@ -48,6 +48,7 @@ export const DE: Record<string, string> = {
   'Horários por operador': 'Fahrpläne nach Betreiber',
   'Horários:': 'Fahrpläne:',
   'Gratuita e sem fins lucrativos · Dados dos operadores, IPMA, Fogos.pt/ANEPC · Mapas © OpenStreetMap': 'Kostenlos und gemeinnützig · Daten der Betreiber, IPMA, Fogos.pt/ANEPC · Karten © OpenStreetMap',
+  'Feito por dinissousa': 'Erstellt von dinissousa',
 
   // In der Nähe
   'Transportes perto': 'Verkehrsmittel in der Nähe',
