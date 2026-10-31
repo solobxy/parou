@@ -6,7 +6,7 @@ export interface Meta { titulo: string; descricao: string; canonico: string; ind
 const DESCRICAO_INICIO = 'Vê o que passa perto de ti em tempo real: autocarros da Carris Metropolitana, Carris e STCP, metro, comboios da CP e barcos. Horários dos principais operadores, greves e alertas. Grátis e sem anúncios.';
 
 export const ROTAS: Record<string, Meta> = {
-  '/': { titulo: 'PAROU — Autocarros, metro e comboios perto de ti em tempo real', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
+  '/': { titulo: 'PAROU — app de autocarros, metro e comboios em tempo real', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
   '/perto': { titulo: 'Transportes perto de mim em tempo real | PAROU', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
   '/transportes': { titulo: 'Horários de autocarros, metro e comboios em Portugal | PAROU', descricao: 'Pesquisa qualquer linha de autocarro, metro, comboio ou barco em Portugal e vê os próximos horários e o tempo real: Carris Metropolitana, Carris, Metro, CP, STCP e mais.', canonico: '/transportes', indexar: true },
   '/horarios': { titulo: 'Horários de autocarros, metro e comboios em Portugal | PAROU', descricao: 'Pesquisa qualquer linha de autocarro, metro, comboio ou barco em Portugal e vê os próximos horários e o tempo real.', canonico: '/transportes', indexar: true },
