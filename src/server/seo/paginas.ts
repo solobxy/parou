@@ -267,6 +267,7 @@ ${verifG ? `<meta name="google-site-verification" content="${html(verifG)}">` : 
 <link rel="preload" as="font" type="font/woff" href="/fontes/barlow-400.woff" crossorigin><link rel="preload" as="font" type="font/woff" href="/fontes/barlow-700.woff" crossorigin><link rel="preload" as="font" type="font/woff" href="/fontes/barlowcondensed-700.woff" crossorigin>
 <style>${FONTES_CSS}${CSS}${CSS_TEMAS}</style>
 ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(/</g, '\\u003c')}</script>`).join('\n')}
+<script defer src="/_e.js" data-site="parou"></script>
 </head><body>
 <header class="topo"><div class="topo-in"><a class="marca" href="/" aria-label="${L('PAROU — início', 'PAROU — home', 'PAROU — Startseite', 'PAROU — accueil')}">${LOGO_SVG}PAROU</a>
 <div style="display:flex;gap:8px"><a class="btn claro esconde" href="/linhas">${L('Linhas', 'Lines', 'Linien', 'Lignes')}</a><a class="btn" href="/">${L('Abrir a app', 'Open the app', 'App öffnen', 'Ouvrir l\'application')}</a></div></div></header>

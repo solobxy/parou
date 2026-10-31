@@ -1663,6 +1663,14 @@ function startScheduledPolling() {
   }, 5 * 60 * 1000);
 }
 
+// Estatísticas próprias: no servidor real o Caddy responde a /_e.js e /_e antes de chegar aqui.
+// Fora dele (testes, desenvolvimento) o script fica vazio e os envios são ignorados, sem erros na consola.
+app.get('/_e.js', (_req: Request, res: Response) => {
+  res.type('application/javascript').setHeader('Cache-Control', 'no-store');
+  res.send('/* estatísticas: só no servidor real */');
+});
+app.post('/_e', (_req: Request, res: Response) => { res.status(204).end(); });
+
 // ==========================================
 // SEO TECHNICAL ENDPOINTS: robots.txt & sitemap.xml
 // ==========================================
