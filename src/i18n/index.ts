@@ -10,12 +10,39 @@ const CHAVE = 'parou_idioma';
 
 export const eIdioma = (v: unknown): v is Idioma => v === 'pt' || v === 'en' || v === 'de' || v === 'fr';
 
+// Robôs que correm JavaScript (o Google, o Bing…): ficam no português, que é a versão principal da página
+const ROBO = /bot|crawl|spider|slurp|google|bing|duckduck|baidu|yandex|lighthouse|headless/i;
+
+/**
+ * Idioma do telemóvel/computador, para quem abre a PAROU pela primeira vez. Percorre as línguas preferidas da pessoa
+ * pela ordem dela (quem tem espanhol e depois português fica em português). Sem nenhuma das quatro, o inglês serve
+ * mais gente do que o português (antes toda a gente via a app em português: 4 em cada 10 visitas vêm de aparelhos
+ * noutra língua e saíam mais depressa).
+ */
+export function idiomaDoAparelho(linguas: readonly string[], agente = ''): Idioma {
+  if (ROBO.test(agente)) return 'pt';
+  const lista = linguas.map((l) => String(l || '').toLowerCase().trim()).filter(Boolean);
+  for (const l of lista) {
+    const base = l.split(/[-_]/)[0];
+    if (eIdioma(base)) return base;
+  }
+  return lista.length ? 'en' : 'pt';
+}
+
 function lerIdioma(): Idioma {
   try {
     const url = new URLSearchParams(window.location.search).get('lang');
     if (eIdioma(url)) { localStorage.setItem(CHAVE, url); return url; }
     const guardado = localStorage.getItem(CHAVE);
     if (eIdioma(guardado)) return guardado;
+    // Páginas do servidor noutra língua (/en/…, /de/…, /fr/…) guardam a escolha num cookie
+    // (o "pt" do cookie não conta: a app escrevia-o sozinha a toda a gente)
+    const cookie = /(?:^|;\s*)parou_idioma=(en|de|fr)(?:;|$)/.exec(document.cookie || '')?.[1];
+    if (eIdioma(cookie)) return cookie;
+    // Quem já usava a PAROU (sempre em português) continua igual até escolher outra língua
+    if (localStorage.getItem('parou_bemvindo')) return 'pt';
+    const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+    return idiomaDoAparelho(nav?.languages?.length ? nav.languages : [nav?.language || ''], nav?.userAgent || '');
   } catch {}
   return 'pt';
 }

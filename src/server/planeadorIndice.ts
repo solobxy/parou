@@ -12,6 +12,9 @@ import { getDatabase } from './db/gtfsDatabase';
 
 const MARGEM = 120; // segundos entre sair de uma viagem e entrar noutra
 const RAIO_VIZ = 300; // metros a pé entre paragens num transbordo
+// Nas estações (metro, comboio, barco) as paragens ficam mais longe umas das outras: Entre Campos (metro) e Entrecampos (CP) estão a
+// mais de 400 m, e com 300 m o planeador apanhava um autocarro de 2 minutos para fazer esse caminho. Até 500 m quando uma delas é estação.
+const RAIO_VIZ_ESTACAO = 500;
 const M_POR_MIN = 75;
 const DESVIO_RUAS = 1.3;
 const INF = 0x3fffffff;
@@ -84,6 +87,8 @@ export interface Indice {
   viz: Map<number, { ids: Int32Array; min: Uint8Array }>;
   vizS: Map<number, { ids: Int32Array; min: Uint8Array }>;
   nRotas: number;
+  /** 1 = a paragem tem pelo menos uma linha de metro, comboio ou barco */
+  estacao: Uint8Array;
 }
 
 export interface Corrida { pat: number; t: number; b: number; a: number }
@@ -323,7 +328,11 @@ async function construir(dbAny: any): Promise<Indice> {
   const grelha = new Map<number, number[]>();
   const grelhaS = new Map<number, number[]>();
   const temReal = new Uint8Array(nStops);
-  for (const p of padroes) if (!p.freq) for (let j = 0; j < p.stops.length; j++) temReal[p.stops[j]] = 1;
+  const estacao = new Uint8Array(nStops);
+  for (const p of padroes) {
+    if (!p.freq) for (let j = 0; j < p.stops.length; j++) temReal[p.stops[j]] = 1;
+    if (p.modo !== MODO_RODOVIARIO) for (let j = 0; j < p.stops.length; j++) estacao[p.stops[j]] = 1;
+  }
   for (let s = 0; s < nStops; s++) {
     if (psStart[s + 1] === psStart[s] || !Number.isFinite(lat[s]) || !Number.isFinite(lon[s])) continue;
     const k = chaveCelula(celulaY(lat[s]), celulaX(lon[s]));
@@ -334,7 +343,7 @@ async function construir(dbAny: any): Promise<Indice> {
     if (l) l.push(s); else grelha.set(k, [s]);
   }
 
-  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, grelhaS, viz: new Map(), vizS: new Map(), nRotas: routeIdxMap.size };
+  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, grelhaS, viz: new Map(), vizS: new Map(), nRotas: routeIdxMap.size, estacao };
 }
 
 function vizinhos(ix: Indice, s: number, sint = false): { ids: Int32Array; min: Uint8Array } {
@@ -345,11 +354,13 @@ function vizinhos(ix: Indice, s: number, sint = false): { ids: Int32Array; min: 
   const ids: number[] = [], mins: number[] = [];
   if (Number.isFinite(ix.lat[s]) && Number.isFinite(ix.lon[s])) {
     const cy = celulaY(ix.lat[s]), cx = celulaX(ix.lon[s]);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    // Células de ~330 m: duas para cada lado chegam aos 500 m das estações
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
       for (const o of grade.get(chaveCelula(cy + dy, cx + dx)) || []) {
         if (o === s) continue;
         const m = distM(ix.lat[s], ix.lon[s], ix.lat[o], ix.lon[o]);
-        if (m <= RAIO_VIZ) { ids.push(o); mins.push(Math.min(255, minAPe(m))); }
+        const raio = ix.estacao && (ix.estacao[s] || ix.estacao[o]) ? RAIO_VIZ_ESTACAO : RAIO_VIZ;
+        if (m <= raio) { ids.push(o); mins.push(Math.min(255, minAPe(m))); }
       }
     }
   }

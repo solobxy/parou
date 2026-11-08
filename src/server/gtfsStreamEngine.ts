@@ -989,36 +989,44 @@ export async function parseGtfsDataset(config: GtfsSourceConfig, zipPath: string
 // -------------------------------------------------------------
 // CARRIS METROPOLITANA API INGESTION (v2 Official APIs)
 // -------------------------------------------------------------
+// A rede (linhas e paragens, ~10 MB de JSON) quase não muda: pede-se de 30 em 30 min. Os veículos e os alertas, a cada sincronização.
+// Antes pedia-se tudo a cada minuto: eram dezenas de MB lidos por hora e picos de memória que, juntos, deitavam a app abaixo.
+const CM_REDE_VALIDADE_MS = 30 * 60_000;
+let cmRedeEm = 0;
 export async function syncCarrisMetropolitanaApi(): Promise<void> {
   try {
     const startTime = Date.now();
-    console.log('[GTFS Engine] A sincronizar Carris Metropolitana através de API v2 oficial...');
+    const pedirRede = !CM_STORE.stops.size || !CM_STORE.routes.size || Date.now() - cmRedeEm > CM_REDE_VALIDADE_MS;
+    console.log(`[GTFS Engine] A sincronizar Carris Metropolitana através de API v2 oficial${pedirRede ? ' (com a rede)' : ''}...`);
+    const H = { headers: { 'User-Agent': 'PAROU-PT/2.0' }, signal: AbortSignal.timeout(20_000) };
 
-    // Fetch lines, stops, vehicles, alerts in parallel
+    // Veículos e alertas sempre; linhas e paragens só quando é preciso
     const [linesRes, stopsRes, vehiclesRes, alertsRes] = await Promise.all([
-      fetch('https://api.carrismetropolitana.pt/v2/lines', { headers: { 'User-Agent': 'PAROU-PT/2.0' } }),
-      fetch('https://api.carrismetropolitana.pt/v2/stops', { headers: { 'User-Agent': 'PAROU-PT/2.0' } }),
-      fetch('https://api.carrismetropolitana.pt/v2/vehicles', { headers: { 'User-Agent': 'PAROU-PT/2.0' } }),
-      fetch('https://api.carrismetropolitana.pt/v2/alerts', { headers: { 'User-Agent': 'PAROU-PT/2.0' } }),
+      pedirRede ? fetch('https://api.carrismetropolitana.pt/v2/lines', H) : Promise.resolve(null),
+      pedirRede ? fetch('https://api.carrismetropolitana.pt/v2/stops', H) : Promise.resolve(null),
+      fetch('https://api.carrismetropolitana.pt/v2/vehicles', H),
+      fetch('https://api.carrismetropolitana.pt/v2/alerts', H),
     ]);
 
-    if (!linesRes.ok || !stopsRes.ok) {
-      throw new Error(`Erro na API Carris Metropolitana: lines HTTP ${linesRes.status}, stops HTTP ${stopsRes.status}`);
+    if (pedirRede && (!linesRes?.ok || !stopsRes?.ok)) {
+      throw new Error(`Erro na API Carris Metropolitana: lines HTTP ${linesRes?.status}, stops HTTP ${stopsRes?.status}`);
     }
 
     const [linesData, stopsData, vehiclesData, alertsData] = await Promise.all([
-      linesRes.json() as Promise<any[]>,
-      stopsRes.json() as Promise<any[]>,
+      linesRes ? linesRes.json() as Promise<any[]> : Promise.resolve(null),
+      stopsRes ? stopsRes.json() as Promise<any[]> : Promise.resolve(null),
       vehiclesRes.ok ? vehiclesRes.json() as Promise<any[]> : Promise.resolve([]),
       alertsRes.ok ? alertsRes.json() as Promise<any[]> : Promise.resolve([]),
     ]);
 
-    CM_STORE.routes.clear();
-    CM_STORE.stops.clear();
-    CM_STORE.route_stops.clear();
     CM_STORE.live_vehicles.clear();
     CM_STORE.live_alerts = [];
     CM_STORE.discard_reasons = [];
+
+    if (pedirRede && Array.isArray(stopsData) && Array.isArray(linesData)) {
+    CM_STORE.routes.clear();
+    CM_STORE.stops.clear();
+    CM_STORE.route_stops.clear();
 
     // 1. Process Stops & Line Mappings
     if (Array.isArray(stopsData)) {
@@ -1070,6 +1078,8 @@ export async function syncCarrisMetropolitanaApi(): Promise<void> {
       }
     }
     CM_STORE.imported_lines = CM_STORE.routes.size;
+    cmRedeEm = Date.now();
+    }
 
     // 3. Process Live Realtime Vehicles
     CM_STORE.received_vehicles = Array.isArray(vehiclesData) ? vehiclesData.length : 0;

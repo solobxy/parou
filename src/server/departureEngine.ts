@@ -14,6 +14,7 @@ import { StopsEngine, UnifiedStop } from './stopsEngine';
 import { RealtimeEngine, LiveDeparture } from './realtimeEngine';
 import { getUnirStopDepartures } from './unirQiHorasService';
 import { getFeedTimezone } from './dadosProntos';
+import { podarMapa } from './cacheLimitada';
 
 /**
  * Na paragem aberta queremos ver TODAS as linhas que lá passam: a primeira partida de cada linha
@@ -545,6 +546,7 @@ export class DepartureEngine {
         data: result,
         expiresAt: Date.now() + 30000,
       });
+      podarMapa(nextDeparturesCache, 3000);
     }
 
     return result;

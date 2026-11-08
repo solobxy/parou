@@ -1,5 +1,6 @@
 import { getDatabase, upsertFeed, updateFeedProgress, commitWorkerDatabase, getFeedActualStopsCount } from './db/gtfsDatabase';
 import { FeedItem } from '../types/coverage';
+import { podarMapa } from './cacheLimitada';
 
 /**
  * PAROU.PT - UNIR (Área Metropolitana do Porto) Integration
@@ -257,6 +258,7 @@ export async function getUnirStopDepartures(stopCode: string): Promise<any[]> {
 
       if (!res.ok) {
         departuresCache.set(cacheKey, { timestamp: now, data: cached ? cached.data : [] });
+        podarMapa(departuresCache, 2000);
         return cached ? cached.data : [];
       }
 
@@ -269,6 +271,7 @@ export async function getUnirStopDepartures(stopCode: string): Promise<any[]> {
         }
       } catch {
         departuresCache.set(cacheKey, { timestamp: now, data: [] });
+        podarMapa(departuresCache, 2000);
         return [];
       }
 
@@ -309,10 +312,13 @@ export async function getUnirStopDepartures(stopCode: string): Promise<any[]> {
         .sort((a: any, b: any) => a.countdown_minutes - b.countdown_minutes);
 
       departuresCache.set(cacheKey, { timestamp: now, data: results });
+
+      podarMapa(departuresCache, 2000);
       return results;
     } catch {
       // Graceful error/timeout: cache previous data or empty array for 20s to avoid hammering
       departuresCache.set(cacheKey, { timestamp: now - (DEPARTURES_CACHE_TTL_MS - ERROR_CACHE_TTL_MS), data: cached ? cached.data : [] });
+      podarMapa(departuresCache, 2000);
       return cached ? cached.data : [];
     } finally {
       releaseQueueSlot();

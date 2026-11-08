@@ -3,6 +3,7 @@ import { getStcpLiveVehicles } from './portoOpenDataService';
 import { DateTime } from 'luxon';
 import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
 import { RealtimeEngine } from './realtimeEngine';
+import { podarMapa } from './cacheLimitada';
 
 // Um dia de serviço GTFS vai até ~30h (viagens depois da meia-noite contam no dia anterior)
 const JANELA_DIA_SERVICO_SECS = 30 * 3600;
@@ -1749,6 +1750,7 @@ export class LinesEngine {
       data: finalResult as any,
       expiresAt: Date.now() + 30000,
     });
+    podarMapa(stopDeparturesCache, 2000);
 
     return finalResult;
   }

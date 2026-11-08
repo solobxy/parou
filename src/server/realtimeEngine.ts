@@ -5,6 +5,7 @@ import { chegadasStcpOficial } from './stcpApi';
 import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
 import { estimativaTub, posicoesTub, viagensTub } from './tubTempoReal';
 import { anotarAnteriores } from './historicoPosicoes';
+import { podarMapa } from './cacheLimitada';
 
 registerCacheClearCallback(() => RealtimeEngine.clearCaches());
 
@@ -242,16 +243,19 @@ export class RealtimeEngine {
       if (!res.ok) {
         const fallback = cached?.data || [];
         arrivalsCache.set(stopId, { data: fallback, timestamp: now });
+        podarMapa(arrivalsCache, 3000);
         return fallback;
       }
 
       const data = (await res.json()) as any[];
       const arrivalsList = Array.isArray(data) ? data : [];
       arrivalsCache.set(stopId, { data: arrivalsList, timestamp: now });
+      podarMapa(arrivalsCache, 3000);
       return arrivalsList;
     } catch {
       const fallback = cached?.data || [];
       arrivalsCache.set(stopId, { data: fallback, timestamp: now });
+      podarMapa(arrivalsCache, 3000);
       return fallback;
     }
   }
@@ -449,6 +453,7 @@ export class RealtimeEngine {
             com_gps: c.comGps,
           }));
           stcpArrivalsCache.set(code, { data, timestamp: Date.now() });
+          podarMapa(stcpArrivalsCache, 2000);
           return data;
         }
         const res = await fetch(`https://stcp.pt/api/stops/${encodeURIComponent(code)}/realtime`, {
@@ -457,15 +462,18 @@ export class RealtimeEngine {
         });
         if (!res.ok) {
           stcpArrivalsCache.set(code, { data: [], timestamp: Date.now() });
+          podarMapa(stcpArrivalsCache, 2000);
           return [];
         }
         const json: any = await res.json();
         const data = json?.data_source === 'realtime' && Array.isArray(json?.arrivals) ? json.arrivals : [];
         stcpArrivalsCache.set(code, { data, timestamp: Date.now() });
+        podarMapa(stcpArrivalsCache, 2000);
         return data;
       } catch {
         const fallback = cached?.data || [];
         stcpArrivalsCache.set(code, { data: fallback, timestamp: Date.now() });
+        podarMapa(stcpArrivalsCache, 2000);
         return fallback;
       } finally {
         stcpPedidosEmCurso.delete(code);

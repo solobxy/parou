@@ -24,6 +24,7 @@ import { escolherLinhaAtual } from '../../utils/linhaAntiga';
 import { tituloLinha, descricaoLinha, type DadosTituloLinha } from './titulos';
 import { maisProcuradas } from '../estatisticas';
 import { distanciaMetros } from './indice';
+import { CacheLimitada } from '../cacheLimitada';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -370,15 +371,15 @@ function dataBase(): string {
 // ------------------------------------------------------------------------------------
 // Cache das páginas (uma entrada por idioma)
 // ------------------------------------------------------------------------------------
-const cache = new Map<string, { t: number; ttl: number; v: string }>();
+// Limite de 64 MB (em UTF-8, fora da memória do JavaScript): chega para as páginas mais visitadas e não deixa a cache crescer sem fim
+const cache = new CacheLimitada(64 * 1024 * 1024, 4000);
 const chaveIdioma = (k: string): string => (lang() === 'pt' ? k : `${lang()}:${k}`);
 function emCache(chave: string, ttlMs: number, fazer: () => string): string {
   const k = chaveIdioma(chave);
   const c = cache.get(k);
-  if (c && Date.now() - c.t < c.ttl) return c.v;
+  if (c !== undefined) return c;
   const v = fazer();
-  cache.set(k, { t: Date.now(), ttl: ttlMs, v });
-  if (cache.size > 3000) cache.delete(cache.keys().next().value as string);
+  cache.set(k, v, ttlMs);
   return v;
 }
 
@@ -1825,7 +1826,7 @@ export function todosOsEnderecos(): string[] {
 // ------------------------------------------------------------------------------------
 // Rotas
 // ------------------------------------------------------------------------------------
-function enviar(res: Response, corpo: string, maxAge: number) {
+function enviar(res: Response, corpo: string | Buffer, maxAge: number) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
   res.setHeader('Vary', 'Cookie');
@@ -1972,10 +1973,10 @@ export function registarPaginasSeo(app: Express) {
     if (!op || !l) return naoEncontrado(res, op);
     const dia = DateTime.now().setZone(ZONA).toISODate();
     const chave = chaveIdioma(`l:${op.slug}/${l.slug}:${dia}`);
-    const c = cache.get(chave);
-    if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 600);
+    const c = cache.getBuffer(chave);
+    if (c) return enviar(res, c, 600);
     paginaLinha(op, l)
-      .then((v) => { cache.set(chave, { t: Date.now(), ttl: 20 * 60_000, v }); enviar(res, v, 600); })
+      .then((v) => { cache.set(chave, v, 20 * 60_000); enviar(res, v, 600); })
       .catch((err) => { console.warn('[SEO] Linha falhou:', err?.message || err); res.status(500).send('Erro'); });
   });
 
@@ -1992,12 +1993,12 @@ export function registarPaginasSeo(app: Express) {
     const g = ix.paragemPorSlug.get(`${req.params.op}/${req.params.paragem}`);
     if (!op || !g) return naoEncontrado(res, op);
     const chave = chaveIdioma(`p:${op.slug}/${g.slug}`);
-    const c = cache.get(chave);
-    if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 60);
+    const c = cache.getBuffer(chave);
+    if (c) return enviar(res, c, 60);
     try {
       const v = await paginaParagem(op, g);
       // Sem resposta do operador: guarda pouco tempo, para a próxima visita já trazer as partidas
-      cache.set(chave, { t: Date.now(), ttl: v.includes('não respondeu a tempo') || v.includes('did not answer in time') ? 10_000 : 60_000, v });
+      cache.set(chave, v, v.includes('não respondeu a tempo') || v.includes('did not answer in time') ? 10_000 : 60_000);
       enviar(res, v, 60);
     } catch (err: any) {
       console.warn('[SEO] Paragem falhou:', err?.message || err);
@@ -2007,12 +2008,12 @@ export function registarPaginasSeo(app: Express) {
 
   app.get('/greves', comIdioma, async (_req, res) => {
     const chaveG = chaveIdioma('greves');
-    const c = cache.get(chaveG);
-    if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 300);
+    const c = cache.getBuffer(chaveG);
+    if (c) return enviar(res, c, 300);
     try {
       const v = await paginaGreves();
       const completo = (await grevesPartilhadas()).completo;
-      cache.set(chaveG, { t: Date.now(), ttl: completo ? 5 * 60_000 : 30_000, v });
+      cache.set(chaveG, v, completo ? 5 * 60_000 : 30_000);
       enviar(res, v, completo ? 300 : 30);
     } catch (err: any) {
       console.warn('[SEO] Greves falhou:', err?.message || err);
@@ -2038,12 +2039,12 @@ export function registarPaginasSeo(app: Express) {
       }));
     }
     const chaveG = chaveIdioma(`greves:${o.slug}`);
-    const c = cache.get(chaveG);
-    if (c && Date.now() - c.t < c.ttl) return enviar(res, c.v, 300);
+    const c = cache.getBuffer(chaveG);
+    if (c) return enviar(res, c, 300);
     try {
       const v = await paginaGrevesOperador(o);
       const completo = (await grevesPartilhadas()).completo;
-      cache.set(chaveG, { t: Date.now(), ttl: completo ? 5 * 60_000 : 30_000, v });
+      cache.set(chaveG, v, completo ? 5 * 60_000 : 30_000);
       enviar(res, v, completo ? 300 : 30);
     } catch (err: any) {
       console.warn('[SEO] Greves por operador falhou:', err?.message || err);
