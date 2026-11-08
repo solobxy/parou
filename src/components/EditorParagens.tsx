@@ -3,9 +3,10 @@
 // "+ Adicionar paragem" junta mais uma (até 5). "Ver rotas" devolve a lista pela ordem que ficou.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GripVertical, MapPin, Plus, RefreshCw, X } from 'lucide-react';
+import { GripVertical, Plus, RefreshCw, X } from 'lucide-react';
 import { t } from '../i18n';
 import { searchDestinations } from '../services/pertoApi';
+import { ConteudoSugestao } from './SugestaoDestino';
 import { MAX_DESTINOS, novoUid, type Ponto } from '../services/rotaVarios';
 import { useVoltarFecha } from '../utils/janelas';
 import type { DestinationSuggestion } from '../types/perto';
@@ -377,11 +378,7 @@ export const EditorParagens: React.FC<Props> = ({ origemNome, origem, linhas: in
                         onClick={() => linhaAtiva && escolher(linhaAtiva.chave, sug)}
                         className="w-full text-left px-3 py-2.5 hover:bg-[#F4F4F2] active:bg-[#F4F4F2] flex items-center gap-2.5 cursor-pointer min-h-[48px]"
                       >
-                        <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
-                        <span className="min-w-0">
-                          <span className="block text-[14px] font-semibold text-[#111111] truncate">{sug.title}</span>
-                          {sug.subtitle && <span className="block text-[12px] text-[#6B6B6B] truncate">{sug.subtitle}</span>}
-                        </span>
+                        <ConteudoSugestao s={sug} grande />
                       </button>
                     </li>
                   ))}

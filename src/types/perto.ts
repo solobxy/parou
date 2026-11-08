@@ -175,6 +175,10 @@ export interface DestinationSuggestion {
   type: 'STATION' | 'STOP' | 'PLACE' | 'CITY';
   transportMode?: TransportMode;
   distanceFromUserMeters?: number;
+  /** Tipo de local (centro_comercial, hospital, estacao, paragem, morada…): a app mostra o nome traduzido e um ícone */
+  category?: string;
+  /** Onde fica (localidade e concelho) ou, nas paragens, os operadores */
+  place?: string;
 }
 
 /**

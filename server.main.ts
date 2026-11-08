@@ -1556,12 +1556,19 @@ app.get('/api/transit/stops-cell', async (req: Request, res: Response) => {
 });
 
 app.get('/api/transit/destinations', async (req: Request, res: Response) => {
+  // Uma pesquisa a cada letra escrita: 150 por minuto chegam a uma pessoa
+  if (!dentroDoLimite(`destinos:${ipDe(req)}`, 150, 60_000)) {
+    res.setHeader('Retry-After', '20');
+    return res.status(429).json({ error: 'Demasiadas pesquisas. Tenta daqui a pouco.', suggestions: [] });
+  }
   try {
-    const q = String(req.query.q || '');
+    const q = String(req.query.q || '').slice(0, 100);
     const lat = req.query.lat ? Number(req.query.lat) : undefined;
     const lon = req.query.lon ? Number(req.query.lon) : undefined;
 
-    const suggestions = await searchDestinationSuggestions(q, lat, lon);
+    const suggestions = await searchDestinationSuggestions(q, Number.isFinite(lat) ? lat : undefined, Number.isFinite(lon) ? lon : undefined);
+    // A mesma pesquisa no mesmo sítio (posição arredondada a ~100 m) repete-se muito ao apagar e reescrever
+    res.setHeader('Cache-Control', 'private, max-age=300');
     return res.json({ suggestions, total: suggestions.length });
   } catch (err: any) {
     console.error('[Destinations API] Erro:', err);

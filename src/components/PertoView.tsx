@@ -54,6 +54,7 @@ import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { InputPesquisa } from './InputPesquisa';
+import { ConteudoSugestao } from './SugestaoDestino';
 import { OpcaoRota } from './OpcaoRota';
 import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
 import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
@@ -748,6 +749,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   }, [initialDestination]);
 
   // Destination Search
+  // A posição entra por referência: antes cada atualização do GPS (de segundo a segundo) recomeçava a pesquisa e deitava
+  // fora a resposta que vinha a caminho, por isso as sugestões demoravam muito a aparecer ou nem apareciam.
+  const coordsPesquisaRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  coordsPesquisaRef.current = userCoords ? { latitude: userCoords.latitude, longitude: userCoords.longitude } : null;
   useEffect(() => {
     if (!destinationQuery.trim() || destinationQuery.length < 2) {
       setSuggestions([]);
@@ -760,19 +765,20 @@ export const PertoView: React.FC<PertoViewProps> = ({
     }
     tituloEscolhidoRef.current = '';
 
-    // Só conta a resposta da última pesquisa (as antigas podem chegar depois e baralhar a lista)
-    let atual = true;
+    // Só conta a resposta da última pesquisa (as antigas são canceladas e não baralham a lista)
+    const controlo = new AbortController();
     const timer = setTimeout(async () => {
-      // Só se envia a localização quando a pessoa a tem (ou a escolheu): com ela, as paragens vêm por ordem de distância;
-      // sem ela, vêm as que melhor correspondem ao que escreveu (e não as "mais perto de Lisboa", que ninguém pediu)
+      // Só se envia a localização quando a pessoa a tem (ou a escolheu): com ela, os locais vêm por ordem de distância;
+      // sem ela, vêm os que melhor correspondem ao que escreveu (e não os "mais perto de Lisboa", que ninguém pediu)
       try {
-        const results = await searchDestinations(destinationQuery, userCoords?.latitude, userCoords?.longitude);
-        if (atual) setSuggestions(results);
+        const c = coordsPesquisaRef.current;
+        const results = await searchDestinations(destinationQuery, c?.latitude, c?.longitude, controlo.signal);
+        if (!controlo.signal.aborted) setSuggestions(results);
       } catch {}
-    }, 60);
+    }, 120);
 
-    return () => { atual = false; clearTimeout(timer); };
-  }, [destinationQuery, userCoords]);
+    return () => { controlo.abort(); clearTimeout(timer); };
+  }, [destinationQuery]);
 
   const calculateRoutesToDestination = async (destLat: number, destLon: number, destName = 'Destino') => {
     const lat = userCoords?.latitude ?? 38.7253;
@@ -1898,11 +1904,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           onClick={() => handleSelectDestination(sug)}
           className="w-full text-left px-3 py-2.5 hover:bg-[#F4F4F2] active:bg-[#F4F4F2] transition-colors flex items-center gap-2.5 cursor-pointer min-h-[44px]"
         >
-          <MapPin className="w-4 h-4 text-[#6B6B6B] shrink-0 stroke-[2]" />
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold text-[#111111] truncate">{sug.title}</div>
-            {sug.subtitle && <div className="text-[11px] text-[#6B6B6B] truncate">{sug.subtitle}</div>}
-          </div>
+          <ConteudoSugestao s={sug} />
         </button>
       ))}
     </div>

@@ -17,8 +17,9 @@ import {
   DestinationSuggestion 
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
-import { getDatabase } from './db/gtfsDatabase';
-import { procurarParagens } from './pesquisaParagens';
+import { getDatabase, getAllFeeds } from './db/gtfsDatabase';
+import { procurarParagens, normalizarParaPesquisa } from './pesquisaParagens';
+import { procurarLocais, palavrasDaPesquisa, correspondencia, pontuar } from './pesquisaLocais';
 
 // ========================================================
 // 1. NEARBY TRANSIT DATA (ALL REAL GTFS STOPS & LIVE VEHICLES)
@@ -241,43 +242,146 @@ export async function searchDestinationSuggestions(
     }
   }
 
-  // Moradas, ruas e locais (OpenStreetMap, via Photon) em paralelo com as paragens da base
-  const pedidoMoradas = procurarMoradas(query, userLat, userLon);
+  return sugestoesLocais(query, userLat, userLon);
+}
 
-  // Paragens de todos os operadores: sem diferença entre maiúsculas e acentos, e por ordem de distância a quem pesquisa
-  // (sem localização, pela correspondência com o que foi escrito). Vêm bastantes porque o mesmo nome repete-se por sentido.
-  const comLocal = Number.isFinite(userLat) && Number.isFinite(userLon);
-  const dbStops = procurarParagens(query, userLat, userLon, 400);
-  const results: DestinationSuggestion[] = dbStops.map((s) => ({
-    id: `stop-${s.stop_id}`,
-    title: s.stop_name,
-    subtitle: `${s.location_type === 1 ? 'Estação' : 'Paragem'} · ${String(s.feed_id).replace(/_/g, ' ').toUpperCase()}`,
-    latitude: s.stop_lat,
-    longitude: s.stop_lon,
-    type: s.location_type === 1 ? 'STATION' : 'PLACE',
-    distanceFromUserMeters: comLocal ? s.distancia : undefined,
-  }));
+/** Nome de cada tipo de local (a app traduz pelo código; este texto é para as versões antigas da app) */
+export const NOME_CATEGORIA: Record<string, string> = {
+  aeroporto: 'Aeroporto', centro_comercial: 'Centro comercial', grande_armazem: 'Grande armazém', supermercado: 'Supermercado',
+  hospital: 'Hospital', clinica: 'Clínica', centro_saude: 'Centro de saúde', universidade: 'Universidade', faculdade: 'Faculdade',
+  escola: 'Escola', estadio: 'Estádio', pavilhao: 'Pavilhão', parque: 'Parque', jardim: 'Jardim', parque_aquatico: 'Parque aquático',
+  marina: 'Marina', golfe: 'Golfe', reserva: 'Reserva natural', praia: 'Praia', pico: 'Pico', cabo: 'Cabo', zoo: 'Jardim zoológico',
+  parque_tematico: 'Parque temático', aquario: 'Aquário', museu: 'Museu', cultura: 'Cultura', atracao: 'Atração', miradouro: 'Miradouro',
+  hotel: 'Hotel', alojamento: 'Alojamento', campismo: 'Parque de campismo', castelo: 'Castelo', palacio: 'Palácio', monumento: 'Monumento',
+  teatro: 'Teatro', cinema: 'Cinema', biblioteca: 'Biblioteca', mercado: 'Mercado', camara: 'Câmara municipal', tribunal: 'Tribunal',
+  policia: 'Polícia', bombeiros: 'Bombeiros', correios: 'Correios', terminal_autocarros: 'Terminal de autocarros',
+  terminal_fluvial: 'Terminal fluvial', embaixada: 'Embaixada', servico_publico: 'Serviço público', igreja: 'Igreja',
+  cidade: 'Cidade', vila: 'Vila', aldeia: 'Aldeia', bairro: 'Bairro', localidade: 'Localidade', ilha: 'Ilha', praca: 'Praça', rua: 'Rua',
+  loja: 'Loja', estacao: 'Estação', paragem: 'Paragem', morada: 'Morada',
+};
+const LOCALIDADE = new Set(['cidade', 'vila', 'aldeia', 'bairro', 'localidade', 'ilha']);
 
-  // A mesma paragem aparece várias vezes (um poste por sentido): fica só a mais perto
-  const nomesVistos = new Set<string>();
-  const unicas = results.filter((r) => {
-    const k = `${r.title.toLowerCase()}|${r.subtitle}`;
-    if (nomesVistos.has(k)) return false;
-    nomesVistos.add(k);
-    return true;
-  });
-  results.length = 0;
-  results.push(...unicas);
+/** Importância de uma paragem na pesquisa: estações de metro, comboio e barco valem mais do que uma paragem de autocarro */
+function importanciaParagem(classe: string, estacao: boolean): number {
+  if (classe === 'metro' || classe === 'comboio') return estacao ? 0.62 : 0.58;
+  if (classe === 'barco') return 0.52;
+  return estacao ? 0.3 : 0.14;
+}
+function classeDoFeed(modo: string): string {
+  const m = String(modo || '').toLowerCase();
+  if (/autocarro|trólecar/.test(m)) return 'autocarro';
+  if (m.includes('metro')) return 'metro';
+  if (m.includes('comboio')) return 'comboio';
+  if (m.includes('barco')) return 'barco';
+  return 'autocarro';
+}
+let feedsCache: { t: number; m: Map<string, { nome: string; classe: string }> } | null = null;
+function feedsDaPesquisa() {
+  if (feedsCache && Date.now() - feedsCache.t < 10 * 60_000) return feedsCache.m;
+  const m = new Map<string, { nome: string; classe: string }>();
+  try {
+    for (const f of getAllFeeds() as any[]) m.set(String(f.id), { nome: String(f.operator_name || f.id), classe: classeDoFeed(f.mode) });
+  } catch { /* base a carregar */ }
+  if (m.size) feedsCache = { t: Date.now(), m };
+  return m;
+}
+const nomeOperadorCurto = (nome: string) => nome.replace(/\s*\(.*?\)\s*/g, ' ').replace(/^Comboios de Portugal$/i, 'CP').trim();
 
-  const moradas = await pedidoMoradas;
-  if (!moradas.length) return results.slice(0, 10);
-  // Se a pesquisa tem cara de morada (número, "rua", "av."…), as moradas vêm primeiro; senão alternam
-  const pareceMorada = /\d|\b(rua|r\.|av\.?|avenida|praceta|pra[cç]a|largo|travessa|tv\.?|estrada|alameda|beco|calçada|cal[cç]\.|urbaniza[cç][aã]o|bairro|lugar)\b/i.test(query);
-  const paragens = results.slice(0, pareceMorada ? 4 : 6);
-  const misturado: DestinationSuggestion[] = pareceMorada
-    ? [...moradas.slice(0, 6), ...paragens]
-    : [...moradas.slice(0, 3), ...paragens, ...moradas.slice(3, 5)];
-  return misturado.slice(0, 10);
+/**
+ * Sugestões de destino: locais (centros comerciais, hospitais, praias, ruas…), estações e paragens, pela mesma pontuação
+ * (texto + importância + distância). Moradas com número de porta e pesquisas sem resultados bons vão também ao Photon
+ * (OpenStreetMap), com pouco tempo de espera.
+ */
+export async function sugestoesLocais(query: string, userLat?: number, userLon?: number, max = 8): Promise<DestinationSuggestion[]> {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  const comLocal = Number.isFinite(userLat) && Number.isFinite(userLon) && !(userLat === 0 && userLon === 0);
+  const qNorm = normalizarParaPesquisa(q);
+  const palavras = palavrasDaPesquisa(q);
+  const pareceMorada = /\d/.test(q) || /\b(rua|r\.|av\.?|avenida|praceta|pra[cç]a|largo|travessa|tv\.?|estrada|alameda|beco|cal[cç]ada|urbaniza[cç][aã]o)\b/i.test(q);
+  const comNumero = /\b\d{1,4}[a-z]?\b/i.test(q) && pareceMorada;
+
+  type Cand = DestinationSuggestion & { _pontos: number; _texto: number; _norm: string };
+  const cands: Cand[] = [];
+
+  // 1. Locais do OpenStreetMap (na base)
+  for (const l of procurarLocais(q, userLat, userLon, 14)) {
+    const nomeCat = NOME_CATEGORIA[l.cat] || '';
+    cands.push({
+      id: `local-${l.id}`,
+      title: l.nome,
+      subtitle: [nomeCat, l.sitio].filter(Boolean).join(' · ') || 'Portugal',
+      latitude: l.lat, longitude: l.lon,
+      type: LOCALIDADE.has(l.cat) ? 'CITY' : 'PLACE',
+      category: l.cat, place: l.sitio || undefined,
+      distanceFromUserMeters: l.distancia !== undefined ? Math.round(l.distancia) : undefined,
+      _pontos: l.pontos, _texto: l.texto, _norm: normalizarParaPesquisa(l.nome),
+    });
+  }
+
+  // 2. Estações e paragens: o mesmo nome a poucos metros (um poste por sentido, vários operadores) fica uma só
+  const feeds = feedsDaPesquisa();
+  const grupos: Array<{ c: Cand; lat: number; lon: number; ops: string[]; classe: string }> = [];
+  for (const s of procurarParagens(q, userLat, userLon, 400)) {
+    const norm = normalizarParaPesquisa(s.stop_name);
+    const f = feeds.get(String(s.feed_id));
+    const classe = f?.classe || 'autocarro';
+    const estacao = s.location_type === 1;
+    let texto = correspondencia(qNorm, palavras, norm);
+    if (texto <= 0) texto = 0.4;
+    const imp = importanciaParagem(classe, estacao);
+    const pontos = pontuar(texto, imp, s.distancia);
+    const op = nomeOperadorCurto(f?.nome || String(s.feed_id).replace(/_/g, ' ').toUpperCase());
+    const g = grupos.find((x) => x.c._norm === norm && Math.abs(x.lat - s.stop_lat) < 0.004 && Math.abs(x.lon - s.stop_lon) < 0.005);
+    if (g) {
+      if (!g.ops.includes(op)) g.ops.push(op);
+      if (pontos > g.c._pontos) { g.c._pontos = pontos; g.classe = classe; }
+      continue;
+    }
+    if (grupos.length >= 120) continue;
+    const ferroviaria = classe === 'metro' || classe === 'comboio' || classe === 'barco';
+    grupos.push({
+      lat: s.stop_lat, lon: s.stop_lon, ops: [op], classe,
+      c: {
+        id: `stop-${s.stop_id}`,
+        title: s.stop_name,
+        subtitle: '',
+        latitude: s.stop_lat, longitude: s.stop_lon,
+        type: estacao || ferroviaria ? 'STATION' : 'PLACE',
+        category: estacao || ferroviaria ? 'estacao' : 'paragem',
+        distanceFromUserMeters: comLocal && s.distancia !== undefined ? Math.round(s.distancia) : undefined,
+        _pontos: pontos, _texto: texto, _norm: norm,
+      },
+    });
+  }
+  for (const g of grupos) {
+    g.c.place = g.ops.slice(0, 3).join(' · ');
+    g.c.subtitle = `${NOME_CATEGORIA[g.c.category as string]} · ${g.c.place}`;
+    cands.push(g.c);
+  }
+
+  // 3. Moradas (Photon): números de porta, ou quando o resto não encontrou nada parecido com o que se escreveu
+  const bons = cands.filter((c) => c._texto >= 0.68).length;
+  if (comNumero || bons < 3) {
+    const moradas = await procurarMoradas(q, userLat, userLon, comNumero ? 2500 : 1500);
+    for (const m of moradas) {
+      const norm = normalizarParaPesquisa(m.title);
+      let texto = correspondencia(qNorm, palavras, norm);
+      if (texto <= 0) texto = comNumero ? 0.7 : 0.35; // o Photon encontra variações que a comparação simples não apanha
+      const imp = comNumero && /\d/.test(m.title) ? 0.55 : 0.12;
+      cands.push({ ...m, category: 'morada', place: m.subtitle, _texto: texto, _norm: norm, _pontos: pontuar(texto, imp, m.distanceFromUserMeters) });
+    }
+  }
+
+  // 4. Ordem final, sem repetir o mesmo sítio (o mesmo nome a menos de ~400 m)
+  cands.sort((a, b) => b._pontos - a._pontos);
+  const finais: Cand[] = [];
+  for (const c of cands) {
+    if (finais.some((f) => f._norm === c._norm && Math.abs(f.latitude - c.latitude) < 0.004 && Math.abs(f.longitude - c.longitude) < 0.005)) continue;
+    finais.push(c);
+    if (finais.length >= max) break;
+  }
+  return finais.map(({ _pontos, _texto, _norm, ...resto }) => resto);
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +389,7 @@ export async function searchDestinationSuggestions(
 // Portugal, perto de quem pesquisa primeiro, com cache de 30 min e limite de tempo de 4 s.
 // ---------------------------------------------------------------------------
 const cacheMoradas = new Map<string, { quando: number; dados: DestinationSuggestion[] }>();
-async function procurarMoradas(query: string, userLat?: number, userLon?: number): Promise<DestinationSuggestion[]> {
+async function procurarMoradas(query: string, userLat?: number, userLon?: number, limiteMs = 4000): Promise<DestinationSuggestion[]> {
   const q = query.trim().replace(/\s+/g, ' ');
   if (q.length < 3) return [];
   const zona = userLat && userLon ? `${userLat.toFixed(1)},${userLon.toFixed(1)}` : '';
@@ -299,7 +403,7 @@ async function procurarMoradas(query: string, userLat?: number, userLon?: number
     params.set('bbox', '-31.6,32.3,-6.1,42.2');
     const res = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, {
       headers: { 'User-Agent': 'PAROU.PT/1.0 (https://parou.pt)', Accept: 'application/json' },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(limiteMs),
     });
     if (!res.ok) return [];
     const json: any = await res.json();

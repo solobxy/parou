@@ -73,17 +73,19 @@ export async function fetchNearbyTransit(
 export async function searchDestinations(
   query: string,
   userLat?: number,
-  userLon?: number
+  userLon?: number,
+  signal?: AbortSignal,
 ): Promise<DestinationSuggestion[]> {
   if (!query || query.trim().length < 2) return [];
 
   const params = new URLSearchParams({ q: query.trim() });
   if (userLat !== undefined && userLon !== undefined) {
-    params.set('lat', userLat.toString());
-    params.set('lon', userLon.toString());
+    params.set('lat', userLat.toFixed(3));
+    params.set('lon', userLon.toFixed(3));
   }
 
-  const res = await fetch(`/api/transit/destinations?${params.toString()}`);
+  // Posição arredondada (~100 m): a mesma pesquisa no mesmo sítio pode vir da cache do browser
+  const res = await fetch(`/api/transit/destinations?${params.toString()}`, { signal: signal || AbortSignal.timeout(8000) });
   if (!res.ok) {
     throw new Error(`Falha ao pesquisar destinos (${res.status})`);
   }
