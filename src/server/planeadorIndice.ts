@@ -264,33 +264,57 @@ async function construir(dbAny: any): Promise<Indice> {
     // viagens por hora de partida na primeira paragem
     const primeira = (t: number) => fDep[ord[off[t]]];
     g.trips.sort((x, y) => primeira(x) - primeira(y));
-    const nT = g.trips.length;
-    const dep = new Int32Array(nT * nS), arr = new Int32Array(nT * nS), seq = new Int32Array(nT * nS), pick = new Uint8Array(nT * nS);
-    for (let k = 0; k < nT; k++) {
-      const ini = off[g.trips[k]];
+    // Horas de cada viagem (as paragens sem hora herdam a anterior; os inícios sem hora, a primeira conhecida)
+    const horas = g.trips.map((t) => {
+      const ini = off[t];
+      const d0 = new Int32Array(nS), a0 = new Int32Array(nS), s0 = new Int32Array(nS), p0 = new Uint8Array(nS);
       let ultimo = -1;
       for (let j = 0; j < nS; j++) {
         const f = ord[ini + j];
-        const o = k * nS + j;
         let d = fDep[f], a = fArr[f];
         let pk = fPick[f];
         if (d < 0) { d = ultimo; a = ultimo; pk = 1; }
         if (d >= 0) ultimo = d;
-        dep[o] = d; arr[o] = a < 0 ? d : a; seq[o] = fSeq[f]; pick[o] = pk;
+        d0[j] = d; a0[j] = a < 0 ? d : a; s0[j] = fSeq[f]; p0[j] = pk;
       }
-      // inícios sem hora: usa a primeira hora conhecida
       let j = 0;
-      while (j < nS && dep[k * nS + j] < 0) j++;
-      if (j > 0 && j < nS) for (let x = 0; x < j; x++) { dep[k * nS + x] = dep[k * nS + j]; arr[k * nS + x] = dep[k * nS + j]; pick[k * nS + x] = 1; }
+      while (j < nS && d0[j] < 0) j++;
+      if (j > 0 && j < nS) for (let x = 0; x < j; x++) { d0[x] = d0[j]; a0[x] = d0[j]; p0[x] = 1; }
+      return { d0, a0, s0, p0 };
+    });
+    // O motor (RAPTOR) só funciona se nenhuma viagem ultrapassar a anterior no mesmo padrão: procura a viagem por pesquisa
+    // binária na hora de cada paragem. Viagens que ultrapassam (percursos expresso, horários de ponta mais rápidos) vão para
+    // um padrão à parte. Sem isto o motor apanhava autocarros que já tinham passado (Baixa → Colombo: 731, 726 e 767 com
+    // horas a andar para trás, marcado «Mais rápido»).
+    const subgrupos: number[][] = [];
+    for (let k = 0; k < g.trips.length; k++) {
+      const h = horas[k];
+      let destino: number[] | undefined;
+      for (const sg of subgrupos) {
+        const u = horas[sg[sg.length - 1]];
+        let ok = true;
+        for (let j = 0; j < nS; j++) if (h.d0[j] < u.d0[j] || h.a0[j] < u.a0[j]) { ok = false; break; }
+        if (ok) { destino = sg; break; }
+      }
+      if (destino) destino.push(k); else subgrupos.push([k]);
     }
     let ri = routeIdxMap.get(`${g.feed}|${g.route}`);
     if (ri === undefined) { ri = routeIdxMap.size; routeIdxMap.set(`${g.feed}|${g.route}`, ri); }
-    padroes.push({
-      feed: g.feed, feedSaida: g.feed === 'cmh' ? 'carris_metropolitana' : g.feed, route: g.route, routeIdx: ri,
-      modo: classeRota.get(`${g.feed}|${g.route}`) ?? MODO_RODOVIARIO,
-      stops: g.stops, nT, dep, arr, seq, pick,
-      tripId: g.trips.map((t) => tId[t]), service: g.trips.map((t) => tSvc[t]), headsign: g.trips.map((t) => tHs[t]),
-    });
+    for (const sg of subgrupos) {
+      const nT = sg.length;
+      const dep = new Int32Array(nT * nS), arr = new Int32Array(nT * nS), seq = new Int32Array(nT * nS), pick = new Uint8Array(nT * nS);
+      sg.forEach((k, i) => {
+        const h = horas[k];
+        dep.set(h.d0, i * nS); arr.set(h.a0, i * nS); seq.set(h.s0, i * nS); pick.set(h.p0, i * nS);
+      });
+      const trips = sg.map((k) => g.trips[k]);
+      padroes.push({
+        feed: g.feed, feedSaida: g.feed === 'cmh' ? 'carris_metropolitana' : g.feed, route: g.route, routeIdx: ri,
+        modo: classeRota.get(`${g.feed}|${g.route}`) ?? MODO_RODOVIARIO,
+        stops: g.stops, nT, dep, arr, seq, pick,
+        tripId: trips.map((t) => tId[t]), service: trips.map((t) => tSvc[t]), headsign: trips.map((t) => tHs[t]),
+      });
+    }
     if ((padroes.length & 255) === 0) await cede();
   }
   grupos.clear();
@@ -460,6 +484,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
     for (let i = lo; i < pd.nT; i++) {
       const d = pd.dep[i * nS + pos];
       if (d > limiteSaida) return -1;
+      if (d < min) continue; // nunca uma viagem que já partiu
       if (m[i] && !pd.pick[i * nS + pos]) return i;
     }
     return -1;
@@ -716,6 +741,7 @@ export function procurarComUnir(ix: Indice, pedido: Omit<PedidoPesquisa, 'sint' 
     for (let i = lo; i < pd.nT; i++) {
       const d = pd.dep[i * nS + pos];
       if (d > limiteSaida) return -1;
+      if (d < min) continue; // nunca uma viagem que já partiu
       if (m[i] && !pd.pick[i * nS + pos]) return i;
     }
     return -1;

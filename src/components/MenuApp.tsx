@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Database, Menu, MessageSquare, Radio, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronRight, Database, Menu, MessageSquare, Radio, X } from 'lucide-react';
 import { IDIOMAS, idioma, mudarIdioma, t } from '../i18n';
 import { EVENTO_TEMA, TEMAS, TemaId, mudarTema, temaAtual } from '../utils/tema';
 import { Bandeira } from './Bandeira';
@@ -63,7 +64,8 @@ export const MenuApp: React.FC<Props> = ({ onAbrir, onAbrirFontes }) => {
       >
         <Menu className="w-5 h-5 stroke-[2]" aria-hidden="true" />
       </button>
-      {aberto && (
+      {/* Fora do topo (portal): o topo cria o seu próprio empilhamento e a barra de baixo ficava por cima da folha */}
+      {aberto && createPortal(
         <div className="fixed inset-0 z-[60]" data-teste="menu-app">
           <button type="button" tabIndex={-1} aria-hidden="true" className="absolute inset-0 bg-black/30 lg:bg-transparent cursor-default" onClick={() => fechar()} />
           <div
@@ -101,8 +103,7 @@ export const MenuApp: React.FC<Props> = ({ onAbrir, onAbrirFontes }) => {
                       data-teste={`idioma-${l}`}
                     >
                       <Bandeira idioma={l} className="w-[26px] h-[18px] shrink-0" />
-                      <span className="min-w-0 flex-1 truncate text-[14.5px] font-bold text-[#111111]">{NOME_IDIOMA[l]}</span>
-                      {ativo && <Check className="w-4 h-4 shrink-0 stroke-[3] text-[#111111]" aria-hidden="true" />}
+                      <span className={`min-w-0 flex-1 truncate text-[14.5px] text-[#111111] ${ativo ? 'font-bold' : 'font-semibold'}`}>{NOME_IDIOMA[l]}</span>
                     </button>
                   );
                 })}
@@ -170,7 +171,8 @@ export const MenuApp: React.FC<Props> = ({ onAbrir, onAbrirFontes }) => {
               <a href="/privacidade" className="min-h-[40px] inline-flex items-center font-semibold text-[#111111] underline-offset-4 hover:underline">{t('Privacidade')}</a>
             </p>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
