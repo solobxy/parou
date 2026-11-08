@@ -128,6 +128,20 @@ export function indicePronto(): Indice | null {
 
 const tick = () => new Promise<void>((r) => setImmediate(r));
 
+/**
+ * Logo a seguir a um arranque (versão ou dados novos) o índice demora ~16 s a ficar pronto; sem ele o planeador usa o motor
+ * SQL, mais lento e com piores percursos (Parque Nascente → Parque Maia: sem o metro F + C). Espera-se um pouco por ele.
+ */
+export async function esperarIndice(maxMs = 20_000): Promise<Indice | null> {
+  const fim = Date.now() + maxMs;
+  let ix = indicePronto();
+  while (!ix && aConstruir && Date.now() < fim) {
+    await new Promise((r) => setTimeout(r, 250));
+    ix = indicePronto();
+  }
+  return ix;
+}
+
 async function construir(dbAny: any): Promise<Indice> {
   const t0 = Date.now();
   estadoIndice = 'a construir…';

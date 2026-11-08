@@ -16,7 +16,7 @@ import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase
 import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
-import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
+import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
 
@@ -262,6 +262,8 @@ export async function planearViagem(
   oLat: number, oLon: number, dLat: number, dLon: number, destNome: string, agora: Date = new Date(),
   extras: { ponte?: boolean; /** 0, 1 ou 2: profundidade de uma viagem que continua depois de uma linha da UNIR (modo geral) */ nivel?: number } = {},
 ): Promise<RespostaPlano> {
+  // Acabado de arrancar: espera pelo motor em memória em vez de responder com o SQL (pior e mais lento)
+  if (!indicePronto()) await esperarIndice();
   const db = getDatabase();
   const feeds = new Map(getAllFeeds().map((f: any) => [f.id, f]));
   const nomeOperador = (feed: string) => String(feeds.get(feed)?.operator_name || feed.toUpperCase());
@@ -271,7 +273,7 @@ export async function planearViagem(
   const epocaMeiaNoite = Math.floor(meiaNoite.toSeconds());
   const distTotal = distM(oLat, oLon, dLat, dLon);
 
-  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string; _saida?: number }> = [];
+  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string; _saida?: number; /** sai mais tarde do que a melhor (para quem a perde) */ _seguinte?: boolean }> = [];
 
   // ------------------------------------------------------------------ a pé
   if (distTotal <= 1600) {
@@ -448,7 +450,9 @@ export async function planearViagem(
           // O mesmo para o metro, o comboio e o barco: o percurso só de metro que o motor acha pode ser "11 min a pé até ao
           // Bolhão e o metro A", quando o D, à porta, leva ao mesmo A com um transbordo (São Bento → Matosinhos Sul)
           for (const [bit, classe] of [[BIT_METRO, MODO_METRO], [BIT_COMBOIO, MODO_COMBOIO], [BIT_BARCO, MODO_BARCO]] as const) {
-            const doModo = jornadas.filter((j) => j.rides.some((r) => ix.padroes[r.pat].modo === classe));
+            // de preferência a só desse meio (a que mistura autocarro pode andar pouco e a só de metro muito)
+            const soDoModo = jornadas.filter((j) => j.rides.every((r) => ix.padroes[r.pat].modo === classe));
+            const doModo = soDoModo.length ? soDoModo : jornadas.filter((j) => j.rides.some((r) => ix.padroes[r.pat].modo === classe));
             if (!doModo.length) continue;
             const pn = pernasDeJornada(ix, doModo.reduce((a, b) => (b.chegada < a.chegada ? b : a)));
             const aPeO = minO.get(pn[0].de) || 0, aPeD = aPeNoFim(pn[pn.length - 1].para).min;
@@ -457,6 +461,17 @@ export async function planearViagem(
             const DP = aPeD >= 7 ? D.filter((p) => p.minutos <= Math.max(3, aPeD - 4)) : D;
             const o2 = OP.length ? origensDe(OP) : origens, d2 = DP.length ? destinosDe(DP) : destinos;
             if ((OP.length && OP !== O) || (DP.length && DP !== D)) juntarJornadas(pedir(o2, d2, 600, bit), dia);
+          }
+          // A seguir: sair de casa depois da melhor (para quem a perde). O motor só dá, para cada número de transbordos, a que
+          // chega primeiro; sem isto um terço das viagens ficava com uma só opção. A escolha final só as usa quando há poucas.
+          if (melhor) {
+            const pn = pernasDeJornada(ix, melhor);
+            const base2 = pn[0].parte - (minO.get(pn[0].de) || 1) * 60 + 180; // 3 min depois
+            const o3: Array<{ stop: number; t: number }> = [];
+            for (const p of O) { const i = ix.stopIdx.get(p.id); if (i !== undefined) o3.push({ stop: i, t: base2 + custoAPe(p.minutos) }); }
+            const antes = opcoes.length;
+            if (o3.length) juntarJornadas(pedir(o3, destinos, 500), dia);
+            for (let i = antes; i < opcoes.length; i++) opcoes[i]._seguinte = true;
           }
         }
         feito = true;
@@ -653,6 +668,7 @@ export async function planearViagem(
   // O mesmo transbordo apanhado de um autocarro ou do metro são opções diferentes
   const chave = (o: typeof opcoes[0]) => (autocarrosDe(o) ? o._assinatura : `${o._assinatura}|sem-autocarro`);
   for (const o of opcoes) {
+    if (o._seguinte) continue; // as que saem mais tarde só entram no fim, se houver poucas
     if (vistas.has(chave(o))) continue;
     if (o.id !== 'a-pe' && Number.isFinite(melhorChegada) && o._chegada - melhorChegada > tolerancia) continue;
     // Transbordos que não ganham nada à melhor direta não interessam
@@ -695,6 +711,25 @@ export async function planearViagem(
       escolhidas.push(extra);
       garantidas.add(extra.id);
     }
+    // Poucas opções (uma ou duas): junta as que saem mais tarde, para quem perde a primeira
+    const emTr = () => escolhidas.filter((e) => e.id !== 'a-pe').length;
+    if (emTr() && emTr() < 3) {
+      const ids = new Set(escolhidas.map((e) => e.id));
+      const seguintes = opcoes
+        .filter((x) => x._seguinte && !ids.has(x.id) && x._chegada - melhorChegada <= tolerancia
+          && !escolhidas.some((e) => e._assinatura === x._assinatura && e._chegada === x._chegada))
+        .sort(ordemDasOpcoes);
+      const ja = new Set<string>();
+      for (const x of seguintes) {
+        if (emTr() >= 3) break;
+        const k = `${x._assinatura}@${x._saida}`;
+        if (ja.has(k)) continue;
+        // uma que sai à mesma hora ou depois e é melhor em tudo já lá está
+        if (escolhidas.some((e) => e._seguinte && domina(e, x) && (e._saida ?? 0) >= (x._saida ?? 0))) continue;
+        ja.add(k);
+        escolhidas.push(x);
+      }
+    }
     // No máximo 5 (é o que a app mostra): saem as piores das que não são a única do seu meio de transporte
     while (escolhidas.length > MAX_OPCOES) {
       const sai = [...escolhidas].reverse().find((e) => e.id !== 'a-pe' && !garantidas.has(e.id) && !MODOS_A_GARANTIR.some((m) => usaModo(e, m) && escolhidas.filter((x) => usaModo(x, m)).length === 1));
@@ -727,7 +762,7 @@ export async function planearViagem(
 
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
   const maisRapida = maisRapidaDe(escolhidas);
-  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, ...resto }) => {
+  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, _seguinte, ...resto }) => {
     // Só aparecem quando a viagem sai ou chega noutro dia (0 = hoje): "Sair amanhã às 07:10"
     const o: typeof resto = { ...resto };
     if (o.id !== 'a-pe') {

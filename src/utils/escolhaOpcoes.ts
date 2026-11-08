@@ -21,13 +21,13 @@ type ParaCusto = Pick<TransitRouteOption, 'id' | 'legs' | 'totalDurationMinutes'
 
 /**
  * "Minutos sentidos" de uma opção, para pôr a melhor em primeiro: o tempo até chegar mais o esforço. Cada minuto a pé conta
- * mais meio, cada transbordo 5 min e cada autocarro 2 min. Ir a pé conta só o tempo.
+ * a dobrar (como nos planeadores habituais), cada transbordo 5 min e cada autocarro 2 min. Ir a pé conta só o tempo.
  * Ex.: Parque Nascente → Parque Maia, "metro F + C, 6 min a pé" (61 min) vem antes de "autocarro + comboio + autocarro,
  * 21 min a pé" (55 min). Um autocarro direto 8 min mais rápido continua à frente de um metro com transbordo.
  */
 export function custoDaOpcao(o: ParaCusto): number {
   if (o.id === 'a-pe') return o.totalDurationMinutes;
-  return o.totalDurationMinutes + 0.5 * o.walkingMinutes + 5 * o.transfersCount + 2 * autocarrosDe(o);
+  return o.totalDurationMinutes + o.walkingMinutes + 5 * o.transfersCount + 2 * autocarrosDe(o);
 }
 
 /** Ordem da lista: a melhor primeiro; com o mesmo custo, a que chega antes, depois menos transbordos e menos a pé */
