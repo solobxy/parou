@@ -101,7 +101,7 @@ export const FeaturedOccurrence: React.FC<FeaturedOccurrenceProps> = ({
       <div className="flex items-center gap-1.5 text-xs text-[#6B6B6B] pt-1 border-t border-[#E6E6E3]">
         <MapPin className="w-3.5 h-3.5 text-[#111111] stroke-[2] shrink-0" />
         <span className="truncate">
-          {t(current.district)}{current.concelho ? ` · ${t(current.concelho)}` : ''}
+          {t(current.district)}{current.concelho && current.concelho !== current.district ? ` · ${t(current.concelho)}` : ''}
         </span>
       </div>
     </div>

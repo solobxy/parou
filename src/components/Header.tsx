@@ -445,7 +445,7 @@ export const Header: React.FC<HeaderProps> = ({
           {activeTab === 'mapa' && (
             <button
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-              className="lg:hidden p-2 max-[359px]:p-1.5 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] max-[359px]:min-w-[36px] flex items-center justify-center transition-colors cursor-pointer"
+              className="lg:hidden w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center transition-colors cursor-pointer"
               aria-label={t('Abrir pesquisa')}
             >
               <Search className="w-5 h-5 stroke-[2]" />
