@@ -5,7 +5,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { todosOsEnderecos, PAGINAS_APP, ENDERECOS_GREVES } from './paginas';
+import { todosOsEnderecos, enderecosNasLinguas, PAGINAS_APP, ENDERECOS_GREVES } from './paginas';
 import { obterIndice } from './indice';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
@@ -23,10 +23,11 @@ function chave(): string {
   return k;
 }
 
-function lerEstado(): { tudo?: number; principais?: number } {
+type Estado = { tudo?: number; principais?: number; linguas?: number };
+function lerEstado(): Estado {
   try { return JSON.parse(fs.readFileSync(FICH_ESTADO, 'utf8')); } catch { return {}; }
 }
-function gravarEstado(e: { tudo?: number; principais?: number }) {
+function gravarEstado(e: Estado) {
   try { fs.writeFileSync(FICH_ESTADO, JSON.stringify(e)); } catch {}
 }
 
@@ -62,6 +63,9 @@ async function talvezEnviar(k: string) {
   try {
     if (!e.tudo) {
       if (await enviar(k, todosOsEnderecos())) { e.tudo = agora; e.principais = agora; gravarEstado(e); }
+    } else if (!e.linguas) {
+      // Páginas novas em inglês, alemão e francês: avisar uma vez
+      if (await enviar(k, enderecosNasLinguas())) { e.linguas = agora; gravarEstado(e); }
     } else if (!e.principais || agora - e.principais > 7 * 24 * 3600_000) {
       const ix = obterIndice();
       const principais = [...PAGINAS_APP.map((p) => p.loc), ...ENDERECOS_GREVES, ...(ix?.operadores || []).map((o) => `/linhas/${o.slug}`)];

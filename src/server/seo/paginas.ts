@@ -1964,6 +1964,24 @@ export function todosOsEnderecos(): string[] {
   return out;
 }
 
+/** Endereços que existem em inglês, alemão e francês (/en, /de, /fr), para avisar os motores de pesquisa */
+export function enderecosNasLinguas(): string[] {
+  const ix = obterIndice();
+  const base = [
+    ...PAGINAS_APP.map((p) => p.loc).filter((loc) => loc === '/' || ROTA_SEO.test(loc)),
+    ...OPERADORES_GREVE.map((o) => `/greves/${o.slug}`),
+    ...DISTRITOS.map((d) => `/incendios/${d.slug}`),
+    ...CIDADES.map((c) => `/cidade/${c.slug}`),
+  ];
+  if (ix) for (const o of ix.operadores) {
+    base.push(`/linhas/${o.slug}`);
+    for (const l of o.linhas) base.push(`/linhas/${o.slug}/${l.slug}`);
+  }
+  const out: string[] = [];
+  for (const l of LINGUAS_PREFIXO) for (const loc of base) out.push(urlNoIdioma(loc, l));
+  return out;
+}
+
 // ------------------------------------------------------------------------------------
 // Rotas
 // ------------------------------------------------------------------------------------
