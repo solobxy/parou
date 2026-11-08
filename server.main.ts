@@ -30,7 +30,7 @@ import { registarCspScripts } from './src/server/cspScripts';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
-import { registarPaginasSeo } from './src/server/seo/paginas';
+import { registarPaginasSeo, registarPrefixosIdioma } from './src/server/seo/paginas';
 import { paginaDaApp } from './src/server/seo/spa';
 import { registarIndexNow } from './src/server/seo/indexnow';
 import { iniciarFogos, obterIncidentes } from './src/server/fogosEngine';
@@ -115,6 +115,8 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   }
   next();
 });
+// Versões noutras línguas das páginas públicas: /en/…, /de/…, /fr/… (ver src/server/seo/paginas.ts)
+registarPrefixosIdioma(app);
 app.use(express.json({ limit: '2mb' }));
 
 // Proteção contra abusos (robôs a pedir sem parar ou uma app com um erro em ciclo): limite
@@ -1689,7 +1691,7 @@ app.get('/robots.txt', (req: Request, res: Response) => {
   if (host && !/(^|\.)parou\.pt(:\d+)?$/.test(host) && !host.startsWith('localhost')) {
     return res.send('User-agent: *\nDisallow: /\n');
   }
-  res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /debug/\nDisallow: /pesquisa\nDisallow: /_estado\nDisallow: /*?reportId=\n\nSitemap: https://parou.pt/sitemap.xml\n`);
+  res.send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /debug/\nDisallow: /pesquisa\nDisallow: /en/pesquisa\nDisallow: /de/pesquisa\nDisallow: /fr/pesquisa\nDisallow: /_estado\nDisallow: /*?reportId=\n\nSitemap: https://parou.pt/sitemap.xml\n`);
 });
 
 // Relatórios automáticos do planeador quando uma ligação UNIR falha (só linhas e códigos de paragens, sem dados pessoais).

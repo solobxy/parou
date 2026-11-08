@@ -30,13 +30,43 @@ const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
 
 // ------------------------------------------------------------------------------------
-// Idioma. As páginas são escritas em português. Quem tem a app em inglês (cookie parou_idioma=en, posto pela app
-// ao arrancar) vê a versão inglesa, que não é indexada: o Google continua a ver o português. O idioma do pedido
-// segue o código através de um AsyncLocalStorage (várias páginas são montadas em funções assíncronas).
+// Idioma. As páginas são escritas em português e têm versões em inglês, alemão e francês com endereço próprio
+// (/en/…, /de/…, /fr/…), para o Google as mostrar a quem pesquisa nessas línguas (ligadas entre si por hreflang).
+// Sem prefixo é sempre o português; quem escolheu outra língua (cookie parou_idioma) é levado à versão dela.
+// O idioma do pedido segue o código através de um AsyncLocalStorage (várias páginas são montadas em funções assíncronas).
 // ------------------------------------------------------------------------------------
 type Lang = 'pt' | 'en' | 'de' | 'fr';
+export const LINGUAS_PREFIXO = ['en', 'de', 'fr'] as const;
 const idiomaPedido = new AsyncLocalStorage<Lang>();
 const lang = (): Lang => idiomaPedido.getStore() || 'pt';
+const PREFIXO: Record<Lang, string> = { pt: '', en: '/en', de: '/de', fr: '/fr' };
+/** Endereço de uma página do servidor numa língua ("/" em inglês é "/en") */
+export function urlNoIdioma(caminho: string, l: Lang): string {
+  if (l === 'pt') return caminho;
+  return caminho === '/' ? PREFIXO[l] : `${PREFIXO[l]}${caminho}`;
+}
+/** Caminhos das páginas feitas aqui (têm versão em cada língua) */
+const ROTA_SEO = /^\/(linhas|linha|paragens|paragem|cidades|cidade|greves|incendios|pesquisa)(?=[/?#]|$)/;
+/** Páginas da app (React): noutra língua abrem a app nessa língua (?lang=) */
+const ROTA_APP = /^\/(mapa|alertas|sobre|privacidade|termos|apagar-conta|contactar|comunidade|transportes|ocorrencias|favoritos|reclamacoes|cobertura|catalogo)(?=[?#]|$)/;
+/**
+ * Numa página noutra língua, as ligações para outras páginas do servidor ficam na mesma língua (/en/linhas/…) e as da app
+ * abrem a app nessa língua. Os ficheiros (/fontes, /_e.js, imagens) não mudam.
+ */
+function localizarLigacoes(doc: string, l: Lang): string {
+  if (l === 'pt') return doc;
+  const pre = PREFIXO[l];
+  const comLang = (url: string) => `${url}${url.includes('?') ? '&' : '?'}lang=${l}`;
+  return doc
+    .replace(/(href|action)="(\/[^"]*)"/g, (m, attr: string, url: string) => {
+      if (url.startsWith('//')) return m;
+      if (ROTA_SEO.test(url)) return `${attr}="${pre}${url}"`;
+      if (url === '/' || url.startsWith('/?') || url.startsWith('/#')) return `${attr}="${comLang(url)}"`;
+      if (ROTA_APP.test(url)) return `${attr}="${comLang(url)}"`;
+      return m;
+    })
+    .replace(/(["'])https:\/\/parou\.pt(\/(?:linhas|paragens|cidades?|greves|incendios|pesquisa)(?=[/?#"']|$)[^"']*)\1/g, (_m, q: string, resto: string) => `${q}https://parou.pt${pre}${resto}${q}`);
+}
 /** "Não é português": a base das outras versões é o inglês; o alemão e o francês traduzem por cima, e onde faltar fica o inglês */
 const emIngles = (): boolean => lang() !== 'pt';
 /** Texto no idioma do pedido: L('português', 'english', 'deutsch', 'français'). Sem alemão/francês, aparece o inglês. */
@@ -52,14 +82,48 @@ const OG_LOCALES: Record<Lang, string> = { pt: 'pt_PT', en: 'en_GB', de: 'de_DE'
 const LANG_HTML: Record<Lang, string> = { pt: 'pt-PT', en: 'en', de: 'de', fr: 'fr' };
 const LOCALE = (): string => LOCALES[lang()];
 const num = (n: number): string => n.toLocaleString(LOCALE());
-function idiomaDoPedido(req: Request): Lang {
-  const q = String(req.query.lang || '');
-  if (q === 'en' || q === 'pt' || q === 'de' || q === 'fr') return q;
-  const c = /(?:^|;\s*)parou_idioma=(en|de|fr)(?:;|$)/.exec(req.headers.cookie || '');
-  return c ? (c[1] as Lang) : 'pt';
-}
+/** Língua pedida no endereço (/en/…): posta pelo primeiro passo do servidor (ver registarPrefixosIdioma) */
+const idiomaDoEndereco = (req: Request): Lang | undefined => (req as any).parouIdiomaUrl as Lang | undefined;
+const eLang = (v: unknown): v is Lang => v === 'pt' || v === 'en' || v === 'de' || v === 'fr';
 /** Primeiro passo de cada rota: fixa o idioma do pedido para tudo o que vem a seguir */
-const comIdioma = (req: Request, _res: Response, next: NextFunction) => idiomaPedido.run(idiomaDoPedido(req), () => next());
+const comIdioma = (req: Request, res: Response, next: NextFunction) => {
+  const doEndereco = idiomaDoEndereco(req);
+  if (doEndereco) return idiomaPedido.run(doEndereco, () => next());
+  // Sem prefixo: ?lang=en leva à versão inglesa; quem escolheu outra língua (cookie) também lá vai parar
+  const q = String(req.query.lang || '');
+  const c = /(?:^|;\s*)parou_idioma=(en|de|fr)(?:;|$)/.exec(req.headers.cookie || '')?.[1];
+  const quer: Lang | undefined = eLang(q) ? q : (c as Lang | undefined);
+  if (req.method === 'GET' && quer && quer !== 'pt') {
+    const url = new URL(req.originalUrl, SITE);
+    url.searchParams.delete('lang');
+    res.setHeader('Vary', 'Cookie');
+    return void res.redirect(eLang(q) ? 301 : 302, `${PREFIXO[quer]}${url.pathname}${url.search}`);
+  }
+  idiomaPedido.run('pt', () => next());
+};
+
+/**
+ * Primeiro passo do servidor (antes de todas as rotas): /en/…, /de/… e /fr/… passam a ser o mesmo pedido sem o prefixo,
+ * com a língua guardada no pedido. Páginas da app (/en/mapa) abrem a app nessa língua.
+ */
+export function registarPrefixosIdioma(app: Express) {
+  app.use((req, res, next) => {
+    const m = /^\/(en|de|fr)(\/.*)?$/.exec(req.path);
+    if (!m) return next();
+    const l = m[1] as Lang;
+    const resto = m[2] || '/';
+    if (resto !== '/' && resto.endsWith('/')) return void res.redirect(301, `/${l}${resto.replace(/\/+$/, '')}${req.url.slice(req.path.length)}`);
+    if (resto !== '/' && !ROTA_SEO.test(resto)) {
+      // Não é uma página do servidor: abre a app nessa língua
+      const url = new URL(req.originalUrl.slice(l.length + 1) || '/', SITE);
+      url.searchParams.set('lang', l);
+      return void res.redirect(302, `${url.pathname}${url.search}`);
+    }
+    (req as any).parouIdiomaUrl = l;
+    req.url = `${resto}${req.url.slice(req.path.length)}`;
+    next();
+  });
+}
 
 // ------------------------------------------------------------------------------------
 // Moldura comum
@@ -68,7 +132,9 @@ interface Migalha { nome: string; url: string }
 interface OpcoesPagina {
   titulo: string;
   descricao: string;
-  caminho: string; // canónico, ex.: /linhas/stcp
+  caminho: string; // canónico, ex.: /linhas/stcp (em português; nas outras línguas leva o prefixo)
+  /** false = esta página só existe em português para os motores de pesquisa (as versões noutras línguas não são indexadas) */
+  outrasLinguas?: boolean;
   corpo: string;
   migalhas?: Migalha[];
   jsonld?: object[];
@@ -214,7 +280,7 @@ const BANDEIRA_SVG: Record<Lang, string> = {
 };
 
 // Troca de idioma nas páginas do servidor: guarda a escolha (cookie para o servidor, localStorage para a app) e recarrega
-const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}location.reload()}document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('[data-idioma]');if(b)parouIdioma(b.getAttribute('data-idioma'))});`;
+const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}}document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('[data-idioma]');if(b){parouIdioma(b.getAttribute('data-idioma'));if(!b.getAttribute('href'))location.reload()}});`;
 
 function migalhasHtml(m: Migalha[]): string {
   if (!m.length) return '';
@@ -232,13 +298,30 @@ function rodape(): string {
 <nav aria-label="${L('Operadores', 'Operators', 'Verkehrsunternehmen', 'Opérateurs')}">${principais}</nav>
 <p class="nota">${L('Gratuita e sem fins lucrativos. Horários oficiais publicados pelos operadores (GTFS) e pelo IMT; podem mudar sem aviso — em caso de dúvida confirma junto do operador.', 'Free and non-profit. Official timetables published by the operators (GTFS) and by IMT; they can change without notice — if in doubt, check with the operator.', 'Kostenlos und gemeinnützig. Offizielle Fahrpläne der Verkehrsunternehmen (GTFS) und des IMT; sie können sich ohne Vorankündigung ändern — im Zweifel frag beim Verkehrsunternehmen nach.', 'Gratuite et à but non lucratif. Horaires officiels publiés par les opérateurs (GTFS) et par l\'IMT ; ils peuvent changer sans préavis — en cas de doute, vérifiez auprès de l\'opérateur.')}</p>
 <p class="nota">${L('Feito por', 'Made by', 'Erstellt von', 'Réalisé par')} <a href="https://dinissousa.pt" rel="noopener">dinissousa</a></p>
-<p class="idiomas" role="group" aria-label="${L('Idioma', 'Language', 'Sprache', 'Langue')}">${(['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<button type="button" class="idioma${l === lang() ? ' ativo' : ''}" lang="${LANG_HTML[l]}"${l === lang() ? ' aria-current="true"' : ` data-idioma="${l}"`}>${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</button>`).join('')}</p>
+<!--PAROU_IDIOMAS-->
 </div></footer>`;
 }
 
+/** Botões das línguas: ligações para a mesma página noutra língua (o Google também as segue) */
+function seletorIdiomas(caminho: string): string {
+  return `<p class="idiomas" role="group" aria-label="${L('Idioma', 'Language', 'Sprache', 'Langue')}">${(['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => l === lang()
+    ? `<span class="idioma ativo" lang="${LANG_HTML[l]}" aria-current="true">${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</span>`
+    : `<a class="idioma" lang="${LANG_HTML[l]}" hreflang="${LANG_HTML[l]}" href="${html(urlNoIdioma(caminho, l))}" data-idioma="${l}">${BANDEIRA_SVG[l]}${NOME_IDIOMA[l]}</a>`).join('')}</p>`;
+}
+
+/** As versões da mesma página em cada língua (hreflang), para o Google mostrar a certa a cada pessoa */
+function alternativas(caminho: string): string {
+  const linhas = (['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<link rel="alternate" hreflang="${LANG_HTML[l]}" href="${html(SITE + urlNoIdioma(caminho, l))}">`);
+  linhas.push(`<link rel="alternate" hreflang="x-default" href="${html(SITE + caminho)}">`);
+  return linhas.join('');
+}
+
 function pagina(o: OpcoesPagina): string {
-  const ingles = emIngles();
-  const canonico = `${SITE}${o.caminho}`;
+  // Noutras línguas indexa-se, salvo se a página só serve em português aos motores de pesquisa (as paragens: são dezenas de milhares)
+  const ingles = emIngles() && o.outrasLinguas === false;
+  const indexavel = o.indexar !== false && !ingles;
+  // O canónico é o da própria língua (/en/linhas/…); as páginas que só se indexam em português apontam para a portuguesa
+  const canonico = `${SITE}${ingles ? o.caminho : urlNoIdioma(o.caminho, lang())}`;
   const titulo = o.titulo;
   const desc = cortar(o.descricao, 158);
   const migalhas = o.migalhas || [];
@@ -247,20 +330,20 @@ function pagina(o: OpcoesPagina): string {
     ld.push({
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
-      itemListElement: migalhas.map((m, i) => ({ '@type': 'ListItem', position: i + 1, name: m.nome, item: `${SITE}${m.url}` })),
+      itemListElement: migalhas.map((m, i) => ({ '@type': 'ListItem', position: i + 1, name: m.nome, item: `${SITE}${m.url === '/' ? urlNoIdioma('/', lang()) : m.url}` })),
     });
   }
   const verifG = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
   const verifB = (process.env.BING_SITE_VERIFICATION || '').trim();
-  return `<!doctype html>
+  const doc = `<!doctype html>
 <html lang="${LANG_HTML[lang()]}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${html(titulo)}</title>
 <meta name="description" content="${html(desc)}">
-<meta name="robots" content="${o.indexar === false || ingles ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1'}">
-<link rel="canonical" href="${html(canonico)}">
-<meta property="og:type" content="website"><meta property="og:site_name" content="PAROU"><meta property="og:locale" content="${OG_LOCALES[lang()]}">
-<meta property="og:url" content="${html(canonico)}"><meta property="og:title" content="${html(titulo)}"><meta property="og:description" content="${html(desc)}">
+<meta name="robots" content="${indexavel ? 'index, follow, max-image-preview:large, max-snippet:-1' : 'noindex, follow'}">
+<link rel="canonical" href="__PAROU_CANONICO__"><!--PAROU_ALTERNATIVAS-->
+<meta property="og:type" content="website"><meta property="og:site_name" content="PAROU"><meta property="og:locale" content="${OG_LOCALES[lang()]}">${(['pt', 'en', 'de', 'fr'] as Lang[]).filter((l) => l !== lang()).map((l) => `<meta property="og:locale:alternate" content="${OG_LOCALES[l]}">`).join('')}
+<meta property="og:url" content="__PAROU_CANONICO__"><meta property="og:title" content="${html(titulo)}"><meta property="og:description" content="${html(desc)}">
 <meta property="og:image" content="${SITE}${o.imagem || '/og-image.png'}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${html(titulo)}"><meta name="twitter:description" content="${html(desc)}"><meta name="twitter:image" content="${SITE}${o.imagem || '/og-image.png'}">
 ${verifG ? `<meta name="google-site-verification" content="${html(verifG)}">` : ''}${verifB ? `<meta name="msvalidate.01" content="${html(verifB)}">` : ''}
@@ -277,6 +360,12 @@ ${rodape()}
 ${o.script ? `<script>${o.script}</script>` : ''}
 <script>${scriptVisita(lang())}</script>
 </body></html>`;
+  // Nas outras línguas, as ligações (e o canónico) ficam nessa língua; depois entram os botões das línguas e o hreflang,
+  // que já levam os endereços certos de cada língua
+  return localizarLigacoes(doc, lang())
+    .split('__PAROU_CANONICO__').join(html(canonico))
+    .replace('<!--PAROU_IDIOMAS-->', () => seletorIdiomas(o.caminho))
+    .replace('<!--PAROU_ALTERNATIVAS-->', () => (o.indexar !== false && o.outrasLinguas !== false ? alternativas(o.caminho) : ''));
 }
 
 function chip(l: Linha): string {
@@ -386,6 +475,47 @@ function emCache(chave: string, ttlMs: number, fazer: () => string): string {
 // ------------------------------------------------------------------------------------
 // Páginas
 // ------------------------------------------------------------------------------------
+/**
+ * Página inicial em inglês, alemão e francês (/en, /de, /fr). A de português é a própria app (/); estas apresentam a PAROU
+ * a quem pesquisa noutra língua (turistas, estrangeiros a viver em Portugal) e levam à app já nessa língua.
+ */
+function paginaInicioIdioma(): string {
+  const ix = obterIndice();
+  const ops = (ix?.operadores || []).slice(0, 12);
+  const perguntas: Array<[string, string]> = [
+    [L('', 'Is PAROU free?', 'Ist PAROU kostenlos?', 'PAROU est-elle gratuite ?'),
+      L('', 'Yes. PAROU is free, has no ads and is non-profit. You can use it in the browser or install it on your phone.', 'Ja. PAROU ist kostenlos, werbefrei und gemeinnützig. Du kannst sie im Browser nutzen oder auf dem Handy installieren.', 'Oui. PAROU est gratuite, sans publicité et à but non lucratif. Vous pouvez l\'utiliser dans le navigateur ou l\'installer sur votre téléphone.')],
+    [L('', 'Which cities and operators does it cover?', 'Welche Städte und Verkehrsunternehmen sind dabei?', 'Quelles villes et quels opérateurs ?'),
+      L('', `Lisbon, Porto, Braga, Coimbra, the Algarve, Madeira and more: ${ix ? num(ix.operadores.length) : 'dozens of'} operators, including Carris, Carris Metropolitana, Metro de Lisboa, Metro do Porto, STCP and CP trains.`, `Lissabon, Porto, Braga, Coimbra, die Algarve, Madeira und mehr: ${ix ? num(ix.operadores.length) : 'Dutzende'} Verkehrsunternehmen, darunter Carris, Carris Metropolitana, Metro de Lisboa, Metro do Porto, STCP und die Züge der CP.`, `Lisbonne, Porto, Braga, Coimbra, l'Algarve, Madère et plus : ${ix ? num(ix.operadores.length) : 'des dizaines d\''} opérateurs, dont Carris, Carris Metropolitana, Metro de Lisboa, Metro do Porto, STCP et les trains CP.`)],
+    [L('', 'Does it show real-time arrivals?', 'Zeigt sie Ankünfte in Echtzeit?', 'Affiche-t-elle les passages en temps réel ?'),
+      L('', 'Yes, wherever the operator publishes it (for example Carris Metropolitana, STCP, Metro do Porto and TUB). Elsewhere it shows the official timetable.', 'Ja, überall dort, wo das Verkehrsunternehmen sie veröffentlicht (zum Beispiel Carris Metropolitana, STCP, Metro do Porto und TUB). Sonst zeigt sie den offiziellen Fahrplan.', 'Oui, partout où l\'opérateur la publie (par exemple Carris Metropolitana, STCP, Metro do Porto et TUB). Ailleurs, elle affiche l\'horaire officiel.')],
+    [L('', 'Can it plan a trip from A to B?', 'Kann sie eine Route von A nach B planen?', 'Peut-elle calculer un trajet de A à B ?'),
+      L('', 'Yes. Type where you want to go (a street, a shopping centre, a monument) and PAROU shows the best bus, metro, train and ferry connections with today\'s timetables, including the walking parts.', 'Ja. Gib ein, wohin du willst (eine Straße, ein Einkaufszentrum, ein Denkmal), und PAROU zeigt die besten Verbindungen mit Bus, U-Bahn, Zug und Fähre nach den heutigen Fahrplänen, mit den Fußwegen.', 'Oui. Indiquez où vous allez (une rue, un centre commercial, un monument) et PAROU affiche les meilleures correspondances en bus, métro, train et bateau avec les horaires du jour, trajets à pied compris.')],
+    [L('', 'Does it warn about strikes?', 'Warnt sie vor Streiks?', 'Prévient-elle des grèves ?'),
+      L('', 'Yes. Transport strikes, weather warnings and wildfires near you are shown in the app, and you can get notifications on your phone.', 'Ja. Streiks im Nahverkehr, Wetterwarnungen und Waldbrände in deiner Nähe erscheinen in der App, und du kannst Benachrichtigungen aufs Handy bekommen.', 'Oui. Les grèves dans les transports, les alertes météo et les incendies près de vous apparaissent dans l\'application, et vous pouvez recevoir des notifications.')],
+  ];
+  const corpo = `<h1>${L('', 'PAROU — buses, metro and trains in Portugal, in real time', 'PAROU — Busse, U-Bahn und Züge in Portugal, in Echtzeit', 'PAROU — bus, métro et trains au Portugal, en temps réel')}</h1>
+<p class="sub">${L('', 'See what is coming near you right now, plan your trip and check the timetables of buses, metro, trains and ferries all over Portugal. Free, no ads, no sign-up.', 'Sieh, was gerade in deiner Nähe fährt, plane deine Fahrt und finde die Fahrpläne von Bussen, U-Bahn, Zügen und Fähren in ganz Portugal. Kostenlos, ohne Werbung, ohne Anmeldung.', 'Voyez ce qui passe près de vous en ce moment, préparez votre trajet et consultez les horaires des bus, métros, trains et bateaux dans tout le Portugal. Gratuit, sans publicité, sans inscription.')}</p>
+<p><a class="btn laranja" href="/">${L('', 'Open PAROU', 'PAROU öffnen', 'Ouvrir PAROU')}</a> <a class="btn claro" href="/linhas">${L('', 'Lines and timetables', 'Linien und Fahrpläne', 'Lignes et horaires')}</a></p>
+<h2>${L('', 'Timetables by operator', 'Fahrpläne nach Verkehrsunternehmen', 'Horaires par opérateur')}</h2>
+<div class="grelha ops">${ops.map((o) => `<a href="/linhas/${o.slug}"><b>${html(o.nome)}</b><small>${html(nomeModo(o.modo))} · ${nLinhas(o.linhas.length)}</small></a>`).join('')}</div>
+<h2>${L('', 'By city', 'Nach Stadt', 'Par ville')}</h2><p>${CIDADES.slice(0, 18).map((c) => `<a href="/cidade/${c.slug}">${html(c.nome)}</a>`).join(' · ')} · <a href="/cidades">${L('', 'all cities', 'alle Städte', 'toutes les villes')}</a></p>
+<h2>${L('', 'Strikes and wildfires', 'Streiks und Waldbrände', 'Grèves et incendies')}</h2>
+<p><a href="/greves">${L('', 'Public transport strikes in Portugal', 'Streiks im öffentlichen Verkehr in Portugal', 'Grèves dans les transports au Portugal')}</a> · <a href="/incendios">${L('', 'Active wildfires today', 'Aktive Waldbrände heute', 'Incendies actifs aujourd\'hui')}</a></p>
+<h2>${L('', 'Questions', 'Fragen', 'Questions')}</h2>
+${perguntas.map(([q, r]) => `<details><summary>${html(q)}</summary><div class="dentro"><p>${html(r)}</p></div></details>`).join('')}`;
+  return pagina({
+    titulo: L('', 'PAROU — real-time buses, metro and trains in Portugal (Lisbon, Porto…)', 'PAROU — Busse, U-Bahn und Züge in Portugal in Echtzeit (Lissabon, Porto…)', 'PAROU — bus, métro et trains en temps réel au Portugal (Lisbonne, Porto…)'),
+    descricao: L('', 'Free public transport app for Portugal: real-time buses, metro, trains and ferries in Lisbon, Porto and beyond, trip planner, timetables, strikes and alerts. No ads.', 'Kostenlose Nahverkehrs-App für Portugal: Busse, U-Bahn, Züge und Fähren in Echtzeit in Lissabon, Porto und mehr, Routenplaner, Fahrpläne, Streiks und Warnungen. Ohne Werbung.', 'Application gratuite de transports au Portugal : bus, métro, trains et bateaux en temps réel à Lisbonne, Porto et ailleurs, calcul d\'itinéraire, horaires, grèves et alertes. Sans publicité.'),
+    caminho: '/',
+    corpo,
+    jsonld: [
+      { '@context': 'https://schema.org', '@type': 'WebApplication', name: 'PAROU', url: `${SITE}${urlNoIdioma('/', lang())}`, applicationCategory: 'TravelApplication', operatingSystem: 'Web, Android, iOS', inLanguage: LANG_HTML[lang()], isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' } },
+      { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: perguntas.map(([q, r]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: r } })) },
+    ],
+  });
+}
+
 function paginaHub(): string {
   const ix = obterIndice()!;
   const porRegiao = new Map<string, Operador[]>();
@@ -957,6 +1087,7 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
       `Nächste Abfahrten – ${tp.palavra} ${g.nome}${local} (${op.nome})${codigos.length ? `: Linien ${codigos.join(', ')}` : ''}${destinos.length ? ` nach ${destinos.join(', ')}` : ''}. Erste und letzte Abfahrt von heute und Echtzeit bei PAROU.`,
       `Prochains départs – ${tp.palavra.toLowerCase()} ${g.nome}${local} (${op.nome})${codigos.length ? ` : lignes ${codigos.join(', ')}` : ''}${destinos.length ? ` vers ${destinos.join(', ')}` : ''}. Premier et dernier départ d'aujourd'hui et temps réel sur PAROU.`),
     caminho: `/paragens/${op.slug}/${g.slug}`,
+    outrasLinguas: false, // dezenas de milhares de paragens: noutras línguas existem para quem lá chega, mas não se indexam
     corpo,
     script: g.feedId === UNIR ? scriptUnir(Object.fromEntries(linhas.map((x) => [x.linha.codigo, `/linhas/${op.slug}/${x.linha.slug}`]))) : undefined,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Linhas', 'Lines', 'Linien', 'Lignes'), url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }, { nome: g.nome, url: `/paragens/${op.slug}/${g.slug}` }],
@@ -994,6 +1125,7 @@ ${nav}<ul class="lista">${fatia.map((g) => `<li><a href="/paragens/${op.slug}/${
       `Liste aller Haltestellen von ${op.nome}${p > 1 ? `, Seite ${p}` : ''}: nächste Abfahrten, Linien und Fahrpläne jeder Haltestelle bei PAROU.`,
       `Liste de tous les arrêts ${op.nome}${p > 1 ? `, page ${p}` : ''} : prochains départs, lignes et horaires de chaque arrêt sur PAROU.`),
     caminho: `/paragens/${op.slug}${p > 1 ? `?p=${p}` : ''}`,
+    outrasLinguas: false,
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Linhas', 'Lines', 'Linien', 'Lignes'), url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }, { nome: L('Paragens', 'Stops', 'Haltestellen', 'Arrêts'), url: `/paragens/${op.slug}` }],
   });
@@ -1650,8 +1782,17 @@ function paginaPesquisa(q: string): string {
 // Sitemaps
 // ------------------------------------------------------------------------------------
 const POR_SITEMAP = 40000;
-function xml(urls: Array<{ loc: string; lastmod?: string; freq?: string; pri?: string }>): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${html(SITE + u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}${u.freq ? `<changefreq>${u.freq}</changefreq>` : ''}${u.pri ? `<priority>${u.pri}</priority>` : ''}</url>`).join('\n')}\n</urlset>\n`;
+/**
+ * Sitemap. Com `linguas`, cada endereço leva as versões nas quatro línguas (hreflang) e sai na língua pedida
+ * (`l`): /en/linhas/… para o sitemap inglês. Sem `linguas` (as paragens), sai só o endereço em português.
+ */
+interface UrlSitemap { loc: string; lastmod?: string; freq?: string; pri?: string; /** só existe em português para os motores de pesquisa */ soPt?: boolean }
+function xml(urls: UrlSitemap[], opcoes: { l?: Lang; linguas?: boolean } = {}): string {
+  const l = opcoes.l || 'pt';
+  const alt = (u: UrlSitemap) => opcoes.linguas && !u.soPt
+    ? [...(['pt', 'en', 'de', 'fr'] as Lang[]).map((x) => `<xhtml:link rel="alternate" hreflang="${LANG_HTML[x]}" href="${html(SITE + urlNoIdioma(u.loc, x))}"/>`), `<xhtml:link rel="alternate" hreflang="x-default" href="${html(SITE + u.loc)}"/>`].join('')
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${opcoes.linguas ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' : ''}>\n${urls.map((u) => `<url><loc>${html(SITE + urlNoIdioma(u.loc, u.soPt ? 'pt' : l))}</loc>${alt(u)}${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}${u.freq ? `<changefreq>${u.freq}</changefreq>` : ''}${u.pri ? `<priority>${u.pri}</priority>` : ''}</url>`).join('\n')}\n</urlset>\n`;
 }
 
 function dataDados(): string {
@@ -1830,8 +1971,8 @@ function enviar(res: Response, corpo: string | Buffer, maxAge: number) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
   res.setHeader('Vary', 'Cookie');
-  // A versão inglesa é para quem já usa a app em inglês; o Google indexa a portuguesa
-  res.setHeader('X-Robots-Tag', emIngles() ? 'noindex, follow' : 'index, follow');
+  // Cada língua tem o seu endereço; o que não se indexa diz-se na própria página (meta robots)
+  res.setHeader('X-Robots-Tag', 'index, follow');
   res.send(corpo);
 }
 
@@ -1930,6 +2071,12 @@ export function registarPaginasSeo(app: Express) {
     if (!isDadosProntosPronto() || !obterIndice()) return aCarregar(res);
     next();
   };
+
+  // Página inicial noutra língua (/en, /de, /fr); em português, "/" é a app
+  app.get('/', (req, res, next) => {
+    if (!idiomaDoEndereco(req)) return next();
+    comIdioma(req, res, () => enviar(res, emCache('inicio', 30 * 60_000, paginaInicioIdioma), 900));
+  });
 
   // Atalhos a partir da app: /linha/<route_id> e /paragem/<stop_id> levam à página pública certa
   app.get('/linha/:id', comIdioma, pronto, (req, res) => {
@@ -2087,8 +2234,10 @@ export function registarPaginasSeo(app: Express) {
     const hoje = DateTime.now().toISODate();
     const dd = dataDados();
     const mapas = [`<sitemap><loc>${SITE}/sitemap-paginas.xml</loc><lastmod>${hoje}</lastmod></sitemap>`];
+    for (const l of LINGUAS_PREFIXO) mapas.push(`<sitemap><loc>${SITE}/sitemap-paginas-${l}.xml</loc><lastmod>${hoje}</lastmod></sitemap>`);
     if (ix) {
       mapas.push(`<sitemap><loc>${SITE}/sitemap-linhas.xml</loc><lastmod>${dd}</lastmod></sitemap>`);
+      for (const l of LINGUAS_PREFIXO) mapas.push(`<sitemap><loc>${SITE}/sitemap-linhas-${l}.xml</loc><lastmod>${dd}</lastmod></sitemap>`);
       for (let i = 1; i <= n; i++) mapas.push(`<sitemap><loc>${SITE}/sitemap-paragens-${i}.xml</loc><lastmod>${dd}</lastmod></sitemap>`);
     }
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
@@ -2096,32 +2245,47 @@ export function registarPaginasSeo(app: Express) {
     res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${mapas.join('\n')}\n</sitemapindex>\n`);
   });
 
-  app.get('/sitemap-paginas.xml', (_req, res) => {
-    const hoje = DateTime.now().toISODate() || '';
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.send(xml([
-      ...PAGINAS_APP.map((p) => ({ loc: p.loc, lastmod: ['/greves', '/incendios', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri })),
-      ...OPERADORES_GREVE.map((o) => ({ loc: `/greves/${o.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.8' })),
-      ...DISTRITOS.map((d) => ({ loc: `/incendios/${d.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.6' })),
-      ...CIDADES.map((c) => ({ loc: `/cidade/${c.slug}`, freq: 'weekly', pri: '0.8' })),
-    ]));
-  });
-
-  app.get('/sitemap-linhas.xml', pronto, (_req, res) => {
+  // Páginas com versão em cada língua (as da app, em português, ficam só no sitemap português)
+  // As páginas da app (React) só têm a versão portuguesa; "/" tem as páginas iniciais /en, /de, /fr
+  const paginasDoSitemap = (hoje: string, todas: boolean): UrlSitemap[] => [
+    ...PAGINAS_APP
+      .map((p) => ({ loc: p.loc, lastmod: ['/greves', '/incendios', '/alertas', '/mapa', '/ocorrencias'].includes(p.loc) ? hoje : undefined, freq: p.freq, pri: p.pri, soPt: !(p.loc === '/' || ROTA_SEO.test(p.loc)) }))
+      .filter((u) => todas || !u.soPt),
+    ...OPERADORES_GREVE.map((o) => ({ loc: `/greves/${o.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.8' })),
+    ...DISTRITOS.map((d) => ({ loc: `/incendios/${d.slug}`, lastmod: hoje, freq: 'hourly', pri: '0.6' })),
+    ...CIDADES.map((c) => ({ loc: `/cidade/${c.slug}`, freq: 'weekly', pri: '0.8' })),
+  ];
+  const linhasDoSitemap = () => {
     const ix = obterIndice()!;
     const dd = dataDados();
-    const urls: Array<{ loc: string; lastmod?: string; freq?: string; pri?: string }> = [];
+    const urls: UrlSitemap[] = [];
     for (const o of ix.operadores) {
       urls.push({ loc: `/linhas/${o.slug}`, lastmod: dd, freq: 'weekly', pri: '0.8' });
-      urls.push({ loc: `/paragens/${o.slug}`, lastmod: dd, freq: 'weekly', pri: '0.5' });
+      urls.push({ loc: `/paragens/${o.slug}`, lastmod: dd, freq: 'weekly', pri: '0.5', soPt: true });
       const pags = Math.ceil(o.paragens.length / POR_PAGINA);
-      for (let i = 2; i <= pags; i++) urls.push({ loc: `/paragens/${o.slug}?p=${i}`, lastmod: dd, freq: 'weekly', pri: '0.3' });
+      for (let i = 2; i <= pags; i++) urls.push({ loc: `/paragens/${o.slug}?p=${i}`, lastmod: dd, freq: 'weekly', pri: '0.3', soPt: true });
       for (const l of o.linhas) urls.push({ loc: `/linhas/${o.slug}/${l.slug}`, lastmod: dd, freq: 'weekly', pri: '0.7' });
     }
+    return urls;
+  };
+  const enviarXml = (res: Response, corpo: string) => {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.send(xml(urls));
+    res.send(corpo);
+  };
+
+  app.get('/sitemap-paginas.xml', (_req, res) => enviarXml(res, xml(paginasDoSitemap(DateTime.now().toISODate() || '', true), { linguas: true })));
+  app.get('/sitemap-paginas-:l.xml', (req, res) => {
+    const l = req.params.l as Lang;
+    if (!(LINGUAS_PREFIXO as readonly string[]).includes(l)) return void res.status(404).send('');
+    enviarXml(res, xml(paginasDoSitemap(DateTime.now().toISODate() || '', false), { l, linguas: true }));
+  });
+
+  app.get('/sitemap-linhas.xml', pronto, (_req, res) => enviarXml(res, xml(linhasDoSitemap(), { linguas: true })));
+  app.get('/sitemap-linhas-:l.xml', pronto, (req, res) => {
+    const l = req.params.l as Lang;
+    if (!(LINGUAS_PREFIXO as readonly string[]).includes(l)) return void res.status(404).send('');
+    enviarXml(res, xml(linhasDoSitemap().filter((u) => !u.soPt), { l, linguas: true }));
   });
 
   app.get('/sitemap-paragens-:n.xml', pronto, (req, res) => {

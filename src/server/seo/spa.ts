@@ -44,6 +44,12 @@ export function paginaDaApp(distPath: string, caminho: string): { status: number
   const verifB = (process.env.BING_SITE_VERIFICATION || '').trim();
   if (verifG) doc = trocarMeta(doc, 'name', 'google-site-verification', verifG);
   if (verifB) doc = trocarMeta(doc, 'name', 'msvalidate.01', verifB);
+  // A página inicial tem versões noutras línguas (/en, /de, /fr, feitas pelo servidor): o Google mostra a de cada língua
+  if (existe && m.canonico === '/' && !/hreflang=/i.test(doc)) {
+    const alt = [['pt-PT', '/'], ['en', '/en'], ['de', '/de'], ['fr', '/fr'], ['x-default', '/']]
+      .map(([h, u]) => `<link rel="alternate" hreflang="${h}" href="${SITE}${u}" />`).join('\n');
+    doc = doc.replace('</head>', `${alt}\n</head>`);
+  }
   doc = doc.replace('<!--PAROU_SEO-->', () => conteudoDaRota(caminho, m, existe));
   return { status: existe ? 200 : 404, html: doc };
 }

@@ -34,6 +34,7 @@ ${p('Vê as <a href="/greves" style="color:#111">greves nos transportes</a>, os 
 ${p(`${CIDADES_DESTAQUE.map(([s, n]) => `<a href="/cidade/${s}" style="color:#111">${html(n)}</a>`).join(' · ')} · <a href="/cidades" style="color:#111">todas as cidades</a>`)}
 <h2 style="font-size:20px;margin:28px 0 0">Quem faz a PAROU</h2>
 ${p('A PAROU é um projeto feito por uma pessoa, o Dinis Sousa, para toda a gente. Lê mais <a href="/sobre" style="color:#111">sobre a PAROU</a> ou <a href="/contactar" style="color:#111">fala comigo</a>.')}
+${p('<a href="/en" hreflang="en" lang="en" style="color:#111">English</a> · <a href="/de" hreflang="de" lang="de" style="color:#111">Deutsch</a> · <a href="/fr" hreflang="fr" lang="fr" style="color:#111">Français</a>')}
 </section>`;
 }
 
