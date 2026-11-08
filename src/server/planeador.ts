@@ -15,7 +15,7 @@ import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
-import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, type Indice, type Jornada } from './planeadorIndice';
+import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
 
@@ -426,8 +426,8 @@ export async function planearViagem(
           };
           const origens = origensDe(O);
           if (!origens.length || !destinos.size) continue;
-          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number) =>
-            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs });
+          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number) =>
+            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos });
           const jornadas = pedir(origens, destinos, janela > 3 * 3600 ? 2000 : 2500);
           juntarJornadas(jornadas, dia);
           // Menos a pé: o motor só guarda o que chega mais cedo, por isso, se o melhor percurso obriga a andar muito até à
@@ -443,6 +443,19 @@ export async function planearViagem(
               const o2 = OP.length ? origensDe(OP) : origens, d2 = DP.length ? destinosDe(DP) : destinos;
               if (o2.length && d2.size) juntarJornadas(pedir(o2, d2, 1200), dia);
             }
+          }
+          // O mesmo para o metro, o comboio e o barco: o percurso só de metro que o motor acha pode ser "11 min a pé até ao
+          // Bolhão e o metro A", quando o D, à porta, leva ao mesmo A com um transbordo (São Bento → Matosinhos Sul)
+          for (const [bit, classe] of [[BIT_METRO, MODO_METRO], [BIT_COMBOIO, MODO_COMBOIO], [BIT_BARCO, MODO_BARCO]] as const) {
+            const doModo = jornadas.filter((j) => j.rides.some((r) => ix.padroes[r.pat].modo === classe));
+            if (!doModo.length) continue;
+            const pn = pernasDeJornada(ix, doModo.reduce((a, b) => (b.chegada < a.chegada ? b : a)));
+            const aPeO = minO.get(pn[0].de) || 0, aPeD = aPeNoFim(pn[pn.length - 1].para).min;
+            if (aPeO < 7 && aPeD < 7) continue;
+            const OP = aPeO >= 7 ? O.filter((p) => p.minutos <= Math.max(3, aPeO - 4)) : O;
+            const DP = aPeD >= 7 ? D.filter((p) => p.minutos <= Math.max(3, aPeD - 4)) : D;
+            const o2 = OP.length ? origensDe(OP) : origens, d2 = DP.length ? destinosDe(DP) : destinos;
+            if ((OP.length && OP !== O) || (DP.length && DP !== D)) juntarJornadas(pedir(o2, d2, 600, bit), dia);
           }
         }
         feito = true;
@@ -658,10 +671,16 @@ export async function planearViagem(
   if (Number.isFinite(melhorChegada)) {
     for (const modo of MODOS_A_GARANTIR) {
       if (escolhidas.some((e) => usaModo(e, modo))) continue;
-      // …mas não à custa de muito mais trabalho ("metro e 20 min a pé", "3 transbordos" ao lado de um direto)
-      const menorEsforco = Math.min(...escolhidas.filter((e) => e.id !== 'a-pe').map(esforco));
-      const extra = opcoes.find((x) => x.id !== 'a-pe' && !vistas.has(x._assinatura) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
-        && (!Number.isFinite(menorEsforco) || esforco(x) <= menorEsforco + 10));
+      // …mas não à custa de muito mais trabalho (mais 12 min a pé do que a que anda menos, ou dois transbordos a mais)
+      const emTransito = escolhidas.filter((e) => e.id !== 'a-pe');
+      const menosAPe = emTransito.length ? Math.min(...emTransito.map((e) => e.walkingMinutes)) : Infinity;
+      const menosTrocas = emTransito.length ? Math.min(...emTransito.map((e) => e.transfersCount)) : Infinity;
+      const candidatas = opcoes
+        .filter((x) => x.id !== 'a-pe' && !vistas.has(x._assinatura) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
+          && x.walkingMinutes <= menosAPe + 11 && x.transfersCount <= menosTrocas + 1)
+        // a melhor do meio de transporte: chega cedo e dá pouco trabalho
+        .sort((a, b) => (a._chegada + esforco(a) * 60) - (b._chegada + esforco(b) * 60));
+      const extra = candidatas[0];
       if (!extra) continue;
       vistas.add(extra._assinatura);
       escolhidas.push(extra);

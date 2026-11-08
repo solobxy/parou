@@ -23,11 +23,16 @@ interface ReportsViewProps {
   onResetFilters?: () => void;
   transitCount?: number;
   onViewTransit?: () => void;
+  /** Sem ocorrências: levar a pessoa ao que provavelmente procurava (alertas oficiais, transportes perto) */
+  onViewAlerts?: () => void;
+  onViewNearby?: () => void;
 }
 
 type SortOption = 'recentes' | 'gravidade';
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
+  onViewAlerts,
+  onViewNearby,
   occurrences,
   onSelectOccurrence,
   onOpenReportModal,
@@ -254,6 +259,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <>
                 <p className="font-semibold text-[#111111]">{t('Sem ocorrências nas últimas 24 horas.')}</p>
                 <p>{t('Viste um acidente, um atraso ou uma avaria? Reporta para avisar quem vai a caminho.')}</p>
+                {/* Quem chega aqui (muitas vezes pelo Google) e não vê nada saía logo: mostra-se o que mais se procura */}
+                <div className="pt-3 flex flex-wrap justify-center gap-2" data-teste="ocorrencias-vazio">
+                  <button type="button" onClick={onOpenReportModal} className="h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer">
+                    {t('Reportar ocorrência')}
+                  </button>
+                  {onViewAlerts && (
+                    <button type="button" onClick={onViewAlerts} className="h-10 px-4 rounded-[10px] bg-[#F4F4F2] text-[#111111] text-[13.5px] font-semibold cursor-pointer">
+                      {t('Greves e alertas oficiais')}
+                    </button>
+                  )}
+                  {onViewNearby && (
+                    <button type="button" onClick={onViewNearby} className="h-10 px-4 rounded-[10px] bg-[#F4F4F2] text-[#111111] text-[13.5px] font-semibold cursor-pointer">
+                      {t('Transportes perto de mim')}
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>

@@ -1267,4 +1267,9 @@ export const FR: Record<string, string> = {
   'Rua': 'Rue',
   'Estação': 'Gare',
   'Morada': 'Adresse',
+  'Greves e alertas oficiais': 'Grèves et alertes officielles',
+  'Transportes perto de mim': 'Transports près de moi',
+  'Saltar': 'Passer',
+  'Diz para onde vais': 'Dites où vous allez',
+  'Escreve um sítio (uma rua, um centro comercial, um hospital) e a PAROU mostra o melhor caminho, a pé incluído.': 'Saisissez un lieu (une rue, un centre commercial, un hôpital) et PAROU vous montre le meilleur chemin, trajets à pied compris.',
 };

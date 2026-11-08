@@ -390,6 +390,8 @@ export interface PedidoPesquisa {
    * paragem. Serve para descobrir combinações; as horas reais vêm depois da AMP (pelo telemóvel).
    */
   sint?: boolean;
+  /** Só a pesquisa com estes meios de transporte (máscara BIT_METRO | BIT_COMBOIO | BIT_BARCO), sem a normal nem as alternativas */
+  soModos?: number;
 }
 
 /** Paragens com serviço (de feeds com horários) a menos de `raio` metros (máx. ~330 m com esta grelha) */
@@ -615,6 +617,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
   };
 
   if (pedido.todosAlvos) { correr(new Set()); return []; }
+  if (pedido.soModos) { juntar(correr(new Set(), pedido.soModos)); return resultado; }
   const primeiras = correr(new Set());
   juntar(primeiras);
   // Alternativas: volta a pesquisar sem cada uma das linhas do melhor percurso

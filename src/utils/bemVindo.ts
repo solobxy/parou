@@ -59,7 +59,7 @@ function calcular(): EstadoBemVindo {
 
   if (!eInicio()) return NAO;
   const retoma = /^curso:(\d{1,2})$/.exec(guardado);
-  if (retoma) return { mostrar: true, passo: Math.max(1, Number(retoma[1])) };
+  if (retoma) return { mostrar: true, passo: Math.max(0, Number(retoma[1])) };
   return guardado === 'novo' ? { mostrar: true, passo: 0 } : NAO;
 }
 
@@ -86,7 +86,7 @@ function lerDemo(): number | null {
     if (v === null) return null;
     sessionStorage.removeItem(CHAVE_DEMO);
     const n = Number(v);
-    return Number.isInteger(n) && n >= 1 && n < 20 ? n : null;
+    return Number.isInteger(n) && n >= 0 && n < 20 ? n : null;
   } catch { return null; }
 }
 

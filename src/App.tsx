@@ -892,6 +892,8 @@ export default function App() {
                 onResetFilters={handleResetFilters}
                 transitCount={matchingTransitCount}
                 onViewTransit={() => handleTabSelect('horarios')}
+                onViewAlerts={() => handleTabSelect('alertas')}
+                onViewNearby={() => handleTabSelect('perto')}
               />
             </div>
           ) : activeNavTab === 'perto' ? (
@@ -1106,6 +1108,8 @@ export default function App() {
                 onResetFilters={handleResetFilters}
                 transitCount={matchingTransitCount}
                 onViewTransit={() => setActiveMobileView('horarios')}
+                onViewAlerts={() => handleTabSelect('alertas')}
+                onViewNearby={() => handleTabSelect('perto')}
               />
             </div>
           )}

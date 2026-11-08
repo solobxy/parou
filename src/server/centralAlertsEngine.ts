@@ -292,7 +292,8 @@ async function ingestCarrisMetropolitanaAlerts(): Promise<number> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch('https://api.carrismetropolitana.pt/alerts', {
+    // (o endereço antigo /alerts só redireciona para /v2/alerts; o TML GO Hub, que também dava estes alertas, deixou de existir)
+    const res = await fetch('https://api.carrismetropolitana.pt/v2/alerts', {
       headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0' },
       signal: controller.signal,
     });

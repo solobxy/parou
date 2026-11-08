@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, CloudRain, Flame, MapPin, Pencil, Search, Star, ThumbsUp, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, CloudRain, Flame, MapPin, Pencil, Star, TriangleAlert } from 'lucide-react';
 import { idioma, mudarIdioma, t, type Idioma } from '../i18n';
 import { Folha } from './Folha';
 import { Bandeira } from './Bandeira';
-import { Logo } from './Logo';
 import { LineChip } from './LineChip';
 import { Avatar } from './Avatar';
 import { guardarBemVindoEmCurso, guardarDemoEmCurso, marcarBemVindoVisto } from '../utils/bemVindo';
@@ -30,29 +29,23 @@ const OPCOES_IDIOMA: { id: Idioma; nome: string; convite: string; lang: string }
   { id: 'de', nome: 'Deutsch', convite: 'Hier klicken für Deutsch', lang: 'de' },
 ];
 
-const PASSOS = ['idioma', 'perto', 'destinos', 'horarios', 'alertas', 'comunidade', 'conta'] as const;
+// Quatro passos (eram sete, com a escolha do idioma à parte, e quase metade de quem os via carregava em «Seguinte» à pressa
+// para chegar à app). O idioma já vem do telemóvel; quem quiser outro muda-o nas bandeiras do primeiro passo.
+const PASSOS = ['perto', 'destinos', 'alertas', 'conta'] as const;
 type Passo = (typeof PASSOS)[number];
 
-const TEXTOS: Record<Exclude<Passo, 'idioma'>, { titulo: string; texto: string }> = {
+const TEXTOS: Record<Passo, { titulo: string; texto: string }> = {
   perto: {
     titulo: 'Vê o que passa perto de ti',
     texto: 'Autocarros, metro, comboios e barcos, com as próximas partidas em tempo real.',
   },
   destinos: {
-    titulo: 'Vários destinos numa só viagem',
-    texto: 'Junta paragens à rota e vê a que horas sais e chegas a cada uma.',
-  },
-  horarios: {
-    titulo: 'Todas as linhas e horários',
-    texto: 'Procura por linha, paragem ou operador e vê os horários de hoje.',
+    titulo: 'Diz para onde vais',
+    texto: 'Escreve um sítio (uma rua, um centro comercial, um hospital) e a PAROU mostra o melhor caminho, a pé incluído.',
   },
   alertas: {
     titulo: 'Alertas e notícias',
     texto: 'Greves, atrasos, tempo, feriados e incêndios, tudo num só sítio.',
-  },
-  comunidade: {
-    titulo: 'Fala com quem viaja contigo',
-    texto: 'Pergunta, avisa e responde na Comunidade. Quem ajuda ganha pontos.',
   },
   conta: {
     titulo: 'Cria a tua conta, é grátis',
@@ -141,37 +134,6 @@ const IlustDestinos: React.FC = () => (
   </Palco>
 );
 
-const IlustHorarios: React.FC = () => (
-  <Palco>
-    <div className="w-full max-w-[290px] space-y-2">
-      <div className={`${CARTAO} h-9 px-2.5 flex items-center gap-2`}>
-        <Search className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
-        <span className="text-[12.5px] text-[#6B6B6B] truncate">{t('Pesquisar número de linha ou destino...')}</span>
-      </div>
-      <div className="flex gap-1.5 overflow-hidden">
-        {['Todos', 'Metro', 'Comboio', 'Autocarro'].map((m, i) => (
-          <span key={m} className={`px-2.5 h-7 rounded-[8px] text-[11.5px] font-semibold whitespace-nowrap flex items-center ${i === 0 ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border border-[#E6E6E3] text-[#6B6B6B]'}`}>{t(m)}</span>
-        ))}
-      </div>
-      <div className={`${CARTAO} overflow-hidden`}>
-        {[
-          { n: '500', cor: '#E2001A', nome: 'Hospital S. João', op: 'STCP' },
-          { n: 'D', cor: '#FFD200', texto: '#111111', nome: 'Estádio do Dragão', op: 'Metro do Porto' },
-        ].map((l, i) => (
-          <div key={l.n} className={`flex items-center gap-2.5 px-3 h-[44px] ${i > 0 ? 'border-t border-[#E6E6E3]' : ''}`}>
-            <LineChip number={l.n} color={l.cor} textColor={l.texto} />
-            <span className="flex-1 min-w-0">
-              <span className="block text-[13px] font-semibold text-[#111111] truncate leading-tight">{l.nome}</span>
-              <span className="block text-[11px] text-[#6B6B6B] truncate leading-tight">{l.op}</span>
-            </span>
-            <Star className="w-4 h-4 text-[#6B6B6B] stroke-[2] shrink-0" />
-          </div>
-        ))}
-      </div>
-    </div>
-  </Palco>
-);
-
 const IlustAlertas: React.FC = () => (
   <Palco>
     <div className={`${CARTAO} w-full max-w-[290px] overflow-hidden`}>
@@ -188,27 +150,6 @@ const IlustAlertas: React.FC = () => (
           </span>
         </div>
       ))}
-    </div>
-  </Palco>
-);
-
-const IlustComunidade: React.FC = () => (
-  <Palco>
-    <div className="w-full max-w-[290px] space-y-2">
-      <div className={`${CARTAO} p-3`}>
-        <div className="flex items-start gap-2.5">
-          <Avatar config={{ personagem: 'paro', cor: 'laranja', chapeu: 'boné' }} tamanho={32} />
-          <p className="flex-1 min-w-0 text-[13.5px] font-semibold text-[#111111] leading-snug">{t('A linha 500 não passou esta manhã')}</p>
-        </div>
-        <div className="mt-2 flex items-center gap-3 text-[12px] text-[#6B6B6B] font-semibold">
-          <span className="inline-flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5 stroke-[2]" />8</span>
-          <span>{t('{n} respostas', { n: 2 })}</span>
-        </div>
-      </div>
-      <div className="flex items-end gap-2 pl-5">
-        <Avatar config={{ personagem: 'gato', cor: 'grafite', chapeu: 'gorro' }} tamanho={26} />
-        <p className="rounded-[12px] rounded-bl-[4px] bg-[#FFFFFF] border border-[#E6E6E3] px-3 py-1.5 text-[12.5px] text-[#111111] leading-snug">{t('Também não passou aqui.')}</p>
-      </div>
     </div>
   </Palco>
 );
@@ -243,12 +184,10 @@ const IlustConta: React.FC = () => (
   </Palco>
 );
 
-const ILUSTRACAO: Record<Exclude<Passo, 'idioma'>, React.FC> = {
+const ILUSTRACAO: Record<Passo, React.FC> = {
   perto: IlustPerto,
   destinos: IlustDestinos,
-  horarios: IlustHorarios,
   alertas: IlustAlertas,
-  comunidade: IlustComunidade,
   conta: IlustConta,
 };
 
@@ -270,11 +209,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
     const caixa = raiz.current?.closest<HTMLElement>('[role="dialog"]');
     let teclado = false;
     try { teclado = !!document.activeElement?.matches(':focus-visible'); } catch {}
-    const alvo = !teclado
-      ? caixa
-      : passo === 0
-        ? caixa?.querySelector<HTMLElement>('[data-primeiro-idioma]')
-        : caixa?.querySelector<HTMLElement>('footer [data-avancar]');
+    const alvo = !teclado ? caixa : caixa?.querySelector<HTMLElement>('footer [data-avancar]');
     (alvo || caixa)?.focus({ preventScroll: true });
   }, [passo]);
 
@@ -284,9 +219,9 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
     onFechar();
   };
   const escolherIdioma = (l: Idioma) => {
-    if (l === idioma) { ir(1); return; }
-    // Muda o idioma e a página recarrega: ao voltar, retoma no passo seguinte
-    if (demo) guardarDemoEmCurso(1); else guardarBemVindoEmCurso(1);
+    if (l === idioma) return;
+    // Muda o idioma e a página recarrega: ao voltar, retoma neste mesmo passo, já na língua escolhida
+    if (demo) guardarDemoEmCurso(passo); else guardarBemVindoEmCurso(passo);
     mudarIdioma(l);
   };
 
@@ -318,12 +253,19 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
           <span key={p} className={`h-2 rounded-full transition-all duration-300 ${i === passo ? 'w-6 bg-[#111111]' : 'w-2 bg-[#D9D9D6]'}`} />
         ))}
       </div>
-      {passo === 0 ? (
-        <p className="min-h-[48px] flex items-center justify-center text-center text-[13px] text-[#6B6B6B]">
-          Toca num idioma · Tap a language
-        </p>
-      ) : (
+      {(
         <div className="flex items-center gap-2">
+          {passo === 0 ? (
+            // Quem já sabe o que quer vai direto para a app
+            <button
+              type="button"
+              onClick={fechar}
+              data-teste="bv-saltar"
+              className="min-h-[48px] px-4 shrink-0 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] hover:bg-[#F4F4F2] text-[#111111] text-[15px] font-semibold cursor-pointer"
+            >
+              {t('Saltar')}
+            </button>
+          ) : (
           <button
             type="button"
             onClick={() => ir(passo - 1)}
@@ -332,6 +274,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
           >
             <ChevronLeft className="w-5 h-5 stroke-[2.2]" />
           </button>
+          )}
           {ultimo && !temConta && onCriarConta && (
             <button
               type="button"
@@ -357,7 +300,7 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
   return (
     <Folha
       aberta
-      titulo={passo === 0 ? 'Bem-vindo · Welcome' : t('Bem-vindo à PAROU')}
+      titulo={t('Bem-vindo à PAROU')}
       onFechar={fechar}
       rodape={rodape}
     >
@@ -367,17 +310,14 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
           <div className="flex transition-transform duration-300 ease-out" style={{ transform: `translateX(-${passo * 100}%)` }}>
             {PASSOS.map((id, i) => {
               const ativo = i === passo;
-              if (id === 'idioma') {
-                return (
-                  <section key={id} className="w-full shrink-0" aria-hidden={!ativo} aria-label="Idioma · Language" data-passo={id}>
-                    <div className="flex flex-col items-center text-center pt-1">
-                      <Logo size={32} className="text-[#111111] [@media(max-height:640px)]:hidden" />
-                      <p className="mt-3 [@media(max-height:640px)]:mt-0 font-condensada text-[24px] leading-[1.1] font-bold text-[#111111]">
-                        Bem-vindo · Welcome<br />Bienvenue · Willkommen
-                      </p>
-                    </div>
-                    <div role="group" aria-label="Idioma · Language" className="mt-4 grid gap-2">
-                      {OPCOES_IDIOMA.map((l, k) => {
+              const Ilustracao = ILUSTRACAO[id];
+              const txt = TEXTOS[id];
+              return (
+                <section key={id} className="w-full shrink-0 flex flex-col" aria-hidden={!ativo} aria-label={t(txt.titulo)} data-passo={id}>
+                  {i === 0 && (
+                    // Idioma: vem do telemóvel; aqui muda-se com um toque (os nomes nunca se traduzem: cada pessoa reconhece o seu)
+                    <div role="group" aria-label="Idioma · Language" className="flex items-center justify-center gap-1.5 mb-3 flex-wrap">
+                      {OPCOES_IDIOMA.map((l) => {
                         const atual = l.id === idioma;
                         return (
                           <button
@@ -385,28 +325,19 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
                             type="button"
                             lang={l.lang}
                             tabIndex={ativo ? 0 : -1}
-                            data-primeiro-idioma={k === 0 ? true : undefined}
+                            aria-pressed={atual}
+                            title={l.convite}
                             data-teste={`bv-idioma-${l.id}`}
                             onClick={() => escolherIdioma(l.id)}
-                            className={`w-full min-h-[60px] [@media(max-height:640px)]:min-h-[52px] flex items-center gap-3.5 px-3.5 rounded-[14px] border-2 bg-[#FFFFFF] hover:bg-[#F4F4F2] text-left cursor-pointer ${atual ? 'border-[#111111]' : 'border-[#E6E6E3]'}`}
+                            className={`h-9 pl-2 pr-2.5 rounded-full border-2 bg-[#FFFFFF] hover:bg-[#F4F4F2] flex items-center gap-1.5 text-[12.5px] font-bold text-[#111111] cursor-pointer ${atual ? 'border-[#111111]' : 'border-[#E6E6E3]'}`}
                           >
-                            <Bandeira idioma={l.id} className="w-[36px] h-[24px]" />
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-[16px] font-bold text-[#111111] leading-tight">{l.nome}</span>
-                              <span className="block text-[13px] text-[#6B6B6B] leading-tight mt-0.5">{l.convite}</span>
-                            </span>
-                            {atual && <Check className="w-5 h-5 shrink-0 stroke-[3] text-[#111111]" aria-hidden="true" />}
+                            <Bandeira idioma={l.id} className="w-[20px] h-[14px]" />
+                            {l.nome}
                           </button>
                         );
                       })}
                     </div>
-                  </section>
-                );
-              }
-              const Ilustracao = ILUSTRACAO[id];
-              const txt = TEXTOS[id];
-              return (
-                <section key={id} className="w-full shrink-0 flex flex-col" aria-hidden={!ativo} aria-label={t(txt.titulo)} data-passo={id}>
+                  )}
                   <Ilustracao />
                   <h3 className="mt-4 font-condensada text-[27px] leading-[1.05] font-bold tracking-tight text-[#111111] text-balance">{t(txt.titulo)}</h3>
                   <p className="mt-1.5 text-[15px] leading-snug text-[#6B6B6B]">{t(txt.texto)}</p>
