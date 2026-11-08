@@ -851,8 +851,9 @@ export default function App() {
         {!isNotFound && !paginaInfo && !selectedOccurrence && (activeNavTab === 'perto' || activeNavTab === 'horarios' || activeNavTab === 'mapa') && <h1 className="sr-only">
           PAROU · {t(activeNavTab === 'perto' ? 'Perto' : activeNavTab === 'horarios' ? 'Horários' : 'Alertas')}
         </h1>}
-        {/* Separador Alertas: convite para seguir o canal de WhatsApp (no lugar das antigas caixas "Tempo real" e filtros) */}
-        {activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
+        {/* Separador Alertas (computador): convite para seguir o canal de WhatsApp. No telemóvel fica no fim da página:
+            ali o espaço do topo é do mapa e dos avisos (o convite tinha ~9 toques por mês) */}
+        {ecraGrande && activeNavTab === 'mapa' && activeMobileView === 'mapa' && !selectedOccurrence && !isNotFound && (
           <BotaoWhatsApp variante="cartao" className="mb-3 sm:mb-4" />
         )}
 
@@ -1092,6 +1093,7 @@ export default function App() {
                   />
                 </>
               )}
+              {!selectedOccurrence && <BotaoWhatsApp variante="cartao" />}
             </div>
           )}
 

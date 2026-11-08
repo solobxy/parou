@@ -1147,6 +1147,8 @@ export const FR: Record<string, string> = {
   '{n} metros': '{n} mètres',
   'Ver ocorrências': 'Voir les incidents',
   'Idioma': 'Langue',
+  'Menu': 'Menu',
+  'Abrir o menu': 'Ouvrir le menu',
   'Mudar de idioma': 'Changer de langue',
   'Página inicial': 'Page d’accueil',
   'Açores': 'Açores',

@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
-import { BotaoInstalar } from './InstalarApp';
-import { SeletorTema } from './SeletorTema';
-import { SeletorIdioma } from './SeletorIdioma';
+import { MenuApp } from './MenuApp';
 import { Avatar } from './Avatar';
 import { usePontoDiario } from '../hooks/usePontoDiario';
 import { 
@@ -454,20 +452,11 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Idioma: bandeira do idioma em uso; abre a lista (Português, English, Deutsch, Français) */}
-          <SeletorIdioma />
-
-          {/* Tema: Claro, Escuro, Âmbar ou Azul */}
-          <SeletorTema />
-
-          {/* Instalar a app (só aparece quando o browser permite e ainda não está instalada) */}
-          <BotaoInstalar />
-
           {/* Notification Button */}
           {onOpenNotificationModal && (
             <button
               onClick={onOpenNotificationModal}
-              className="relative p-2 rounded-[8px] text-[#6B6B6B] hover:text-[#111111] min-h-[40px] min-w-[40px] max-[359px]:min-w-[36px] max-[359px]:p-1.5 min-[420px]:min-h-[44px] min-[420px]:min-w-[44px] flex items-center justify-center transition-colors cursor-pointer"
+              className="relative w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 rounded-[10px] text-[#111111] hover:bg-[#F4F4F2] flex items-center justify-center transition-colors cursor-pointer"
               title={t('Notificações')}
               aria-label={t('Notificações')}
             >
@@ -478,18 +467,21 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* Idioma, tema, instalar a app e o que não cabe na barra de baixo: tudo num só menu */}
+          <MenuApp onAbrir={(s) => onTabChange(s)} onAbrirFontes={onOpenPublicSourcesModal} />
+
           {/* Conta: só o símbolo (sem texto) para o topo não ficar cheio; com sessão iniciada mostra
               a foto ou as iniciais, para se perceber logo que já entraste */}
           {currentUser ? (
             <button
               onClick={onOpenUserProfileModal}
-              className="relative w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] transition-colors cursor-pointer"
+              className="relative w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center hover:bg-[#F4F4F2] rounded-[10px] transition-colors cursor-pointer"
               title={`${t('A tua conta')} (${currentUser.displayName})`}
               aria-label={`${t('A tua conta: {nome}', { nome: currentUser.displayName })}${pontoPorResgatar ? `. ${t('Tens 1 ponto por resgatar.')}` : ''}`}
               data-teste="botao-conta"
             >
               {currentUser.avatar ? (
-                <Avatar config={currentUser.avatar} tamanho={38} />
+                <Avatar config={currentUser.avatar} tamanho={34} />
               ) : currentUser.photoURL ? (
                 <img src={currentUser.photoURL} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />
               ) : (
@@ -504,7 +496,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={onOpenLoginModal}
-              className="w-11 max-[359px]:w-10 h-11 flex items-center justify-center bg-[#F4F4F2] hover:bg-[#E6E6E3] border border-[#E6E6E3] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
+              className="w-10 max-[359px]:w-9 h-10 min-[420px]:w-11 min-[420px]:h-11 flex items-center justify-center hover:bg-[#F4F4F2] rounded-[10px] text-[#111111] transition-colors cursor-pointer"
               title={t('Entrar ou criar conta')}
               aria-label={t('Entrar ou criar conta')}
               data-teste="botao-entrar"

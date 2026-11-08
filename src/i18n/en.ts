@@ -1147,6 +1147,8 @@ export const EN: Record<string, string> = {
   '{n} metro': '{n} meter',
   '{n} metros': '{n} meters',
   'Idioma': 'Language',
+  'Menu': 'Menu',
+  'Abrir o menu': 'Open the menu',
   'Mudar de idioma': 'Change language',
   'Página inicial': 'Home page',
   'Açores': 'Azores',

@@ -20,6 +20,7 @@ import { CentralAlert } from '../types/alerts';
 import { getDatabase, getAllFeeds } from './db/gtfsDatabase';
 import { procurarParagens, normalizarParaPesquisa } from './pesquisaParagens';
 import { procurarLocais, palavrasDaPesquisa, correspondencia, pontuar } from './pesquisaLocais';
+import { formatTransitName } from '../utils/transitFormatter';
 
 // ========================================================
 // 1. NEARBY TRANSIT DATA (ALL REAL GTFS STOPS & LIVE VEHICLES)
@@ -316,6 +317,12 @@ function entradaDoAeroporto(chave: string, lat: number, lon: number): { lat: num
   return res;
 }
 
+/** Duas ou mais palavras, 12+ letras, todas maiúsculas (siglas curtas como IKEA ou CUF ficam como estão) */
+const tudoMaiusculas = (nome: string): boolean => {
+  const letras = nome.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  return letras.length >= 12 && /\s/.test(nome.trim()) && letras === letras.toUpperCase();
+};
+
 const nomeOperadorCurto = (nome: string) => nome.replace(/\s*\(.*?\)\s*/g, ' ').replace(/^Comboios de Portugal$/i, 'CP').trim();
 
 /**
@@ -338,6 +345,8 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
   // 1. Locais do OpenStreetMap (na base)
   for (const l of procurarLocais(q, userLat, userLon, 14)) {
     const nomeCat = NOME_CATEGORIA[l.cat] || '';
+    // Nomes escritos TODOS EM MAIÚSCULAS no mapa ("PLACA COMEMORATIVA DO DESEMBARQUE…") mostram-se em minúsculas
+    if (tudoMaiusculas(l.nome)) l.nome = formatTransitName(l.nome);
     const entrada = l.cat === 'aeroporto' ? entradaDoAeroporto(`${l.nome}|${l.lat}|${l.lon}`, l.lat, l.lon) : null;
     cands.push({
       id: `local-${l.id}`,

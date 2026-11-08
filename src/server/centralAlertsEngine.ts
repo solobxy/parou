@@ -555,7 +555,7 @@ async function ingestIpmaAlerts(): Promise<number> {
       const extId = `ipma-${w.idAreaAviso}-${w.startTime || ''}`;
       const key = `${sourceName}:${extId}`;
 
-      const title = `[Aviso IPMA] Risco Meteorológico Severo no Distrito de ${distName}`;
+      const title = `Aviso do IPMA: risco meteorológico severo no distrito de ${distName}`;
       const desc = `${w.text || 'Condições meteorológicas extremas com forte impacto na circulação e transportes públicos.'} Nível de aviso: ${w.awarenessLevelID?.toUpperCase()}.`;
 
       const start = w.startTime ? new Date(w.startTime).toISOString() : new Date().toISOString();

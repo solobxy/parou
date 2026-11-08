@@ -43,18 +43,18 @@ export const MobileNav: React.FC<MobileNavProps> = ({
             <button
               key={tab.id}
               onClick={() => onMobileViewChange(tab.id)}
-              className={`min-h-[48px] min-w-0 flex flex-col items-center justify-center transition-colors relative cursor-pointer ${
-                isActive
-                  ? 'bg-[#FF6B1A] text-[#111111] font-bold rounded-[8px] brand-chamfer py-1'
-                  : 'text-[#6B6B6B] hover:text-[#111111] py-1'
+              className={`min-h-[56px] min-w-0 flex flex-col items-center justify-center transition-colors relative cursor-pointer py-1 ${
+                isActive ? 'text-[#111111]' : 'text-[#6B6B6B] hover:text-[#111111]'
               }`}
               aria-label={t(tab.label)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <div className="relative flex items-center justify-center">
-                <Icon className="w-5 h-5 stroke-[2]" />
+              {/* Separador ativo: só a marca laranja atrás do ícone (antes era um bloco laranja inteiro, que competia
+                  com os botões laranja do ecrã) */}
+              <div className={`relative flex items-center justify-center w-12 h-7 rounded-[8px] transition-colors ${isActive ? 'bg-[#FF6B1A] brand-chamfer' : ''}`}>
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.25]' : 'stroke-[2]'}`} />
               </div>
-              <span className={`text-[10px] min-[360px]:text-[10.5px] mt-0.5 tracking-tight max-w-full ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
+              <span className={`text-[10.5px] min-[360px]:text-[11px] mt-1 leading-none tracking-tight max-w-full truncate ${isActive ? 'font-bold text-[#111111]' : 'font-medium text-[#6B6B6B]'}`}>
                 {t(tab.label)}
               </span>
             </button>

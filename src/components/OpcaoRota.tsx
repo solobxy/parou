@@ -25,6 +25,13 @@ interface Props {
   onSelecionar: () => void;
 }
 
+/** Cor da barra de uma linha na linha do tempo: a cor oficial, ou preto quando a linha não tem cor (ou é branca) */
+function corDaLinha(cor?: string): string {
+  if (!cor) return '#111111';
+  const c = cor.startsWith('#') ? cor : `#${cor}`;
+  return /^#f{3}(f{3})?$/i.test(c) ? '#111111' : c;
+}
+
 /** Duração em duas partes, como no Google Maps: "1 h" grande e "5 min" por baixo; "27" grande e "min" por baixo */
 function partesDuracao(minutos: number): { grande: string; pequena: string } {
   const m = Math.max(0, Math.round(minutos));
@@ -129,25 +136,61 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
             {`${route.departureDayOffset ? t('Sair amanhã às {h}', { h: route.departureTime }) : t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
           </p>
           {avisar && <AvisoPartida route={route} />}
-          <ol className="mt-2.5 pt-2.5 border-t border-[#E6E6E3] space-y-1.5">
+          {/* Linha do tempo (como no Google Maps e no Citymapper): horas à esquerda, a cor da linha ao meio, as paragens à
+              direita; os troços a pé a tracejado. O que importa (onde entrar, onde sair, a que horas) lê-se de relance. */}
+          <ol className="mt-3 pt-3 border-t border-[#E6E6E3]" data-teste="passo-a-passo">
             {route.legs.map((leg, i) => {
               if (leg.mode === 'WALK' && leg.durationMinutes <= 0) return null;
               const seguinte = route.legs.slice(i + 1).find((l) => l.mode === 'TRANSIT');
               const paraOnde = seguinte ? formatTransitName(seguinte.fromStopName || '') : destinoNome;
+              if (leg.mode === 'WALK') {
+                return (
+                  <li key={i} className="grid grid-cols-[44px_20px_1fr] gap-x-2">
+                    <span />
+                    <span className="flex justify-center" aria-hidden="true"><span className="w-0 border-l-[3px] border-dotted border-[#B5B5B0] h-full min-h-[34px]" /></span>
+                    <span className="py-2 flex items-center gap-1.5 text-[13px] text-[#6B6B6B] leading-snug">
+                      <Footprints className="w-4 h-4 shrink-0 stroke-[2]" aria-hidden="true" />
+                      <span>{`${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min${(leg.distanceMeters ?? 0) >= 50 ? ` (${textoDistancia(leg.distanceMeters as number)})` : ''}`}</span>
+                    </span>
+                  </li>
+                );
+              }
+              const cor = corDaLinha(leg.lineColor);
               return (
-                <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-[#111111]">
-                  {leg.mode === 'WALK'
-                    ? <Footprints className="w-3.5 h-3.5 mt-0.5 stroke-[2] text-[#6B6B6B] shrink-0" />
-                    : <span className="shrink-0 mt-px"><LineChip number={leg.lineCode || '—'} color={leg.lineColor} /></span>}
-                  <span className={leg.mode === 'WALK' ? 'text-[#6B6B6B]' : ''}>
-                    {leg.mode === 'WALK'
-                      ? `${t('A pé até {p}', { p: paraOnde })} · ${leg.durationMinutes} min${(leg.distanceMeters ?? 0) >= 50 ? ` (${textoDistancia(leg.distanceMeters as number)})` : ''}`
-                      : `${leg.departureTime} ${formatTransitName(leg.fromStopName || '')} → ${leg.arrivalTime} ${formatTransitName(leg.toStopName || '')} · ${leg.stopsCount ?? ''} ${leg.stopsCount === 1 ? t('paragem') : t('paragens')}${leg.operatorName ? ` · ${leg.operatorName}` : ''}`}
-                  </span>
-                </li>
+                <React.Fragment key={i}>
+                  <li className="grid grid-cols-[44px_20px_1fr] gap-x-2 items-center">
+                    <span className="font-condensada text-[16px] font-bold text-[#111111] tabular-nums text-right">{leg.departureTime}</span>
+                    <span className="flex justify-center" aria-hidden="true"><span className="w-3.5 h-3.5 rounded-full border-[3px] bg-[#FFFFFF]" style={{ borderColor: cor }} /></span>
+                    <span className="text-[15px] font-semibold text-[#111111] leading-tight">{formatTransitName(leg.fromStopName || '')}</span>
+                  </li>
+                  <li className="grid grid-cols-[44px_20px_1fr] gap-x-2">
+                    <span />
+                    <span className="flex justify-center" aria-hidden="true"><span className="w-[5px] rounded-full h-full min-h-[44px]" style={{ background: cor }} /></span>
+                    <span className="py-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[#6B6B6B] leading-snug">
+                      <LineChip number={leg.lineCode || '—'} color={leg.lineColor} />
+                      <span>
+                        {[
+                          leg.stopsCount ? tn(leg.stopsCount, '{n} paragem', '{n} paragens') : '',
+                          leg.durationMinutes ? `${leg.durationMinutes} min` : '',
+                          leg.operatorName || '',
+                        ].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                  </li>
+                  <li className="grid grid-cols-[44px_20px_1fr] gap-x-2 items-center">
+                    <span className="font-condensada text-[16px] font-bold text-[#111111] tabular-nums text-right">{leg.arrivalTime}</span>
+                    <span className="flex justify-center" aria-hidden="true"><span className="w-3.5 h-3.5 rounded-full border-[3px] bg-[#FFFFFF]" style={{ borderColor: cor }} /></span>
+                    <span className="text-[15px] font-semibold text-[#111111] leading-tight">{formatTransitName(leg.toStopName || '')}</span>
+                  </li>
+                </React.Fragment>
               );
             })}
-            <li className="text-[11px] text-[#6B6B6B]">{route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
+            <li className="grid grid-cols-[44px_20px_1fr] gap-x-2 items-center">
+              <span className="font-condensada text-[16px] font-bold text-[#111111] tabular-nums text-right">{route.arrivalTime}</span>
+              <span className="flex justify-center" aria-hidden="true"><span className="w-3.5 h-3.5 rounded-[3px] bg-[#111111]" /></span>
+              <span className="text-[15px] font-bold text-[#111111] leading-tight">{destinoNome}</span>
+            </li>
+            <li className="mt-3 text-[12px] text-[#6B6B6B]">{route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
           </ol>
         </div>
       )}

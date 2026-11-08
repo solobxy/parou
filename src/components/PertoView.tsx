@@ -61,7 +61,6 @@ import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
 import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, type DestinoViagem, type LongeDeParagens } from '../services/rotaVarios';
 import { textoMetros, traduzirDistancia } from '../utils/distancia';
 import { opcoesComUnir } from '../services/hibridasUnir';
-import { Logo } from './Logo';
 import { registarProcura } from '../services/procuras';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
@@ -2142,11 +2141,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   <LocateFixed className="w-3.5 h-3.5 stroke-[2.25]" /> {t('Usar GPS')}
                 </button>
               ) : (
-                <span className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#F4F4F2] text-[11px] font-bold uppercase tracking-wide text-[#111111]">
-                  <span className="relative flex w-2 h-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-60 animate-ping" />
-                    <span className="relative inline-flex w-2 h-2 rounded-full bg-[#16A34A]" />
-                  </span>
+                // Indicador, não botão: sem pílula nem ponto a pulsar (46 toques em vão num mês quando parecia um botão)
+                <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#6B6B6B]">
+                  <span className="w-2 h-2 rounded-full bg-[#16A34A]" aria-hidden="true" />
                   {t('Ao vivo')}
                 </span>
               ))}
@@ -2157,7 +2154,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Desktop Header: Brand / Search / Radar Context */}
         <div className="hidden lg:flex flex-col p-4 border-b border-[#E6E6E3] bg-[#FFFFFF] gap-3">
           <div className="flex items-center justify-between">
-            <Logo />
+            {/* O logótipo já está no topo: aqui o título do painel, como no telemóvel */}
+            <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">{t('Transportes perto')}</h2>
             <div className="flex items-center gap-3">
               {botaoFavoritos}
               <div className="flex items-center gap-1.5">

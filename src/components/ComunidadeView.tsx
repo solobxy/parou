@@ -6,7 +6,6 @@ import { Avatar } from './Avatar';
 import { AvatarEditor } from './AvatarEditor';
 import { exclusivasDe, temTudoAberto } from '../utils/avatarCatalogo';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
-import { BotaoInstalarPagina } from './InstalarApp';
 import { Compositor } from './comunidade/Compositor';
 import { MinhasOcorrencias } from './comunidade/MinhasOcorrencias';
 import { Discussao } from './comunidade/Discussao';
@@ -256,8 +255,6 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
             <p className="text-[14.5px] text-[#4A4A4A] mt-0.5">{t('Perguntas, queixas e elogios sobre os transportes. Sem anúncios.')}</p>
           </header>
 
-          <BotaoInstalarPagina />
-
           {/* Escrever */}
           <div className="rounded-[16px] bg-[#FFFFFF] border border-[#E6E6E3] p-2.5 flex items-center gap-2.5">
             <button
@@ -302,14 +299,15 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('Tipo de publicação')}>
+            {/* No telemóvel numa linha só, a deslizar (antes ocupavam três linhas antes de se ver qualquer publicação) */}
+            <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible" role="group" aria-label={t('Tipo de publicação')}>
               {(['', ...TIPOS_CONVERSA] as Array<TipoConversa | ''>).map((x) => (
                 <button
                   key={x || 'todas'}
                   type="button"
                   aria-pressed={tipo === x}
                   onClick={() => setTipo(x)}
-                  className={`h-11 sm:h-10 px-3.5 rounded-full text-[13.5px] font-semibold border cursor-pointer ${tipo === x ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#D5D5D0] text-[#2B2B2B] hover:border-[#111111]'}`}
+                  className={`shrink-0 h-11 sm:h-10 px-3.5 rounded-full text-[13.5px] font-semibold border cursor-pointer ${tipo === x ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#D5D5D0] text-[#2B2B2B] hover:border-[#111111]'}`}
                 >
                   {x ? t(PLURAL_TIPO[x]) : t('Todas')}
                 </button>
@@ -319,7 +317,7 @@ export const ComunidadeView: React.FC<ComunidadeViewProps> = ({ currentUser, onO
                 id="filtro-operador"
                 value={operador}
                 onChange={(e) => setOperador(e.target.value)}
-                className="h-11 sm:h-10 px-3 rounded-full text-[13.5px] font-semibold border border-[#D5D5D0] bg-[#FFFFFF] text-[#2B2B2B] max-w-full cursor-pointer"
+                className="shrink-0 h-11 sm:h-10 px-3 rounded-full text-[13.5px] font-semibold border border-[#D5D5D0] bg-[#FFFFFF] text-[#2B2B2B] max-w-[220px] sm:max-w-full cursor-pointer"
               >
                 <option value="">{t('Todos os operadores')}</option>
                 {OPERADORES_COMUNIDADE.map((o) => <option key={o} value={o}>{t(o)}</option>)}

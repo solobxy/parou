@@ -289,7 +289,7 @@ export async function ingestIPMA(): Promise<{
 
       occurrences.push({
         id: alertId,
-        title: `[IPMA] Aviso ${level === 'red' ? 'Vermelho' : level === 'orange' ? 'Laranja' : 'Amarelo'}: ${typeName} em ${areaLabel}`,
+        title: `Aviso ${level === 'red' ? 'vermelho' : level === 'orange' ? 'laranja' : 'amarelo'}: ${typeName} em ${areaLabel}`, // a fonte (IPMA) vai em companyOrService
         description: `${w.text || `Aviso meteorológico oficial emitido pelo IPMA para ${areaLabel} devido a ${typeName.toLowerCase()}.`} Período: ${startDateStr} até ${endDateStr}. Pode condicionar circulação rodoviária, pontes e travessias marítimas.`,
         type: 'AVARIA',
         severity: severityLabel,
