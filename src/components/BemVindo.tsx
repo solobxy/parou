@@ -58,9 +58,10 @@ const TEXTOS: Record<Passo, { titulo: string; texto: string }> = {
 
 const CARTAO = 'bg-[#FFFFFF] border border-[#E6E6E3] rounded-[12px] shadow-[0_2px_10px_rgba(17,17,17,0.06)]';
 
+// Em ecrãs baixos (iPhone SE de 1.ª geração, telemóvel deitado) a ilustração sai: o texto e os botões cabem sem deslizar
 const Palco: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div
-    className="relative flex-1 min-h-[208px] max-h-[280px] rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
+    className="relative flex-1 min-h-[208px] max-h-[280px] [@media(max-height:640px)]:hidden rounded-[16px] bg-[#F4F4F2] border border-[#E6E6E3] overflow-hidden flex items-center justify-center px-3"
     aria-hidden="true"
   >
     {children}
