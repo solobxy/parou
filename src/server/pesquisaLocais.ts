@@ -36,6 +36,9 @@ export const CATEGORIA_DA_PALAVRA: Record<string, string> = {
 };
 const SO_TIPO = new Set(['shopping', 'shoping', 'mall', 'beach', 'museum', 'airport', 'castle']);
 
+/** Tipos de local com muitas lojas do mesmo nome (supermercados, farmácias…): conta a distância, não o nome exato */
+const CADEIAS = new Set(['supermercado', 'loja', 'farmacia', 'restaurante', 'cafe', 'banco', 'combustivel', 'hotel', 'fast_food']);
+
 const PALAVRAS_VAZIAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'em', 'na', 'no', 'nas', 'nos', 'the', 'of']);
 
 /** Palavra da zona (~10 km) de um ponto: a mesma conta que o parou-dados faz ao guardar (celula_locais) */
@@ -126,7 +129,10 @@ export function procurarLocais(consulta: string, lat?: number, lon?: number, max
 
   const sql = 'SELECT id, nome, cat, sitio, lat, lon, imp, alt FROM locais WHERE id IN (SELECT rowid FROM locais_fts WHERE locais_fts MATCH ? LIMIT ?)';
   const vistos = new Map<number, LocalEncontrado>();
+  // "mar shopping", "norte shopping", "gaia shopping": no mapa é uma palavra só (MarShopping, NorteShopping)
+  const junto = qNorm.includes(' ') ? qNorm.replace(/[^a-z0-9]/g, '') : '';
   try {
+    if (junto.length >= 6) for (const r of db.prepare(sql).all(`"${junto}"*`, 60) as LocalEncontrado[]) vistos.set(r.id, r);
     // Os mais conhecidos de todo o país (o índice devolve-os pela ordem de importância)…
     for (const r of db.prepare(sql).all(fts, 300) as LocalEncontrado[]) vistos.set(r.id, r);
     // …e os que ficam perto de quem procura (zona de ~10 km e as oito à volta)
@@ -143,15 +149,20 @@ export function procurarLocais(consulta: string, lat?: number, lon?: number, max
   const saida: LocalPontuado[] = [];
   for (const r of vistos.values()) {
     const qTexto = palavras.join(' ');
-    let texto = correspondencia(qTexto, palavras, normalizarParaPesquisa(r.nome));
+    const nomeN = normalizarParaPesquisa(r.nome);
+    let texto = correspondencia(qTexto, palavras, nomeN);
     if (r.alt) for (const a of String(r.alt).split('|')) texto = Math.max(texto, 0.85 * correspondencia(qTexto, palavras, normalizarParaPesquisa(a)));
+    if (junto) texto = Math.max(texto, correspondencia(junto, [junto], nomeN.replace(/ /g, '')));
     if (texto <= 0) continue;
+    // O nome é exatamente o que se escreveu: à frente dos que só o contêm ("Avenida da Liberdade" antes dos hotéis da avenida)
+    // (menos nas cadeias: "continente" quer o Continente mais perto, chame-se "Continente" ou "Continente Bom Dia")
+    const exato = !CADEIAS.has(r.cat) && (nomeN === qNorm || (junto && nomeN.replace(/ /g, '') === junto)) ? 0.25 : 0;
     const distancia = comLocal ? distM(lat as number, lon as number, r.lat, r.lon) : undefined;
     // O tipo pedido sobe; se só se escreveu o tipo ("praia", "hospital"), os outros locais descem
     const doTipo = categorias.has(r.cat) ? 0.3 : soTipo ? -0.4 : 0;
     // Longe (mais de 100 km) de quem procura, um local que não é muito conhecido desce: há quase sempre um igual mais perto
     const longe = distancia !== undefined && distancia > 100_000 && (Number(r.imp) || 0) < 0.9 ? -0.25 : 0;
-    saida.push({ ...r, texto, distancia, pontos: pontuar(texto, Number(r.imp) || 0, distancia) + doTipo + longe });
+    saida.push({ ...r, texto, distancia, pontos: pontuar(texto, Number(r.imp) || 0, distancia) + doTipo + longe + exato });
   }
   // "aeroporto ponta delgada", "continente maia", "hospital viseu": as últimas (ou primeiras) palavras dizem onde. Se o nome
   // inteiro não deu quase nada, procura-se o resto no nome e essas palavras no sítio (localidade, concelho) de cada local.

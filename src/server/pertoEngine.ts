@@ -362,7 +362,7 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
     let texto = correspondencia(qNorm, palavras, norm);
     if (texto <= 0) texto = 0.4;
     const imp = importanciaParagem(classe, estacao);
-    const pontos = pontuar(texto, imp, s.distancia);
+    const pontos = pontuar(texto, imp, s.distancia) + (norm === qNorm ? 0.25 : 0); // o nome é exatamente o que se escreveu
     const op = nomeOperadorCurto(f?.nome || String(s.feed_id).replace(/_/g, ' ').toUpperCase());
     const g = grupos.find((x) => x.c._norm === norm && Math.abs(x.lat - s.stop_lat) < 0.004 && Math.abs(x.lon - s.stop_lon) < 0.005);
     if (g) {
@@ -387,6 +387,8 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
     });
   }
   for (const g of grupos) {
+    // Estação servida por vários operadores (metro, comboio, autocarros): é um nó de transportes, das mais procuradas
+    if (g.ops.length >= 2 && (g.classe === 'metro' || g.classe === 'comboio' || g.classe === 'barco')) g.c._pontos += 0.12;
     g.c.place = g.ops.slice(0, 3).join(' · ');
     g.c.subtitle = `${NOME_CATEGORIA[g.c.category as string]} · ${g.c.place}`;
     cands.push(g.c);
