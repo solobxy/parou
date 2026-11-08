@@ -487,8 +487,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteOption | null>(null);
   // Opção de viagem aberta (passo a passo e avisos): nenhuma até a pessoa tocar numa
   const [rotaAbertaId, setRotaAbertaId] = useState<string | null>(null);
-  const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
-  const [rotasCalculadas, setRotasCalculadas] = useState<boolean>(false);
+  // Um só estado para o pedido de percursos: antes eram dois interruptores e uma falha de rede acabava como «Sem ligações
+  // encontradas» (a dizer que não há transportes, quando o que falhou foi o pedido)
+  const [estadoRotas, setEstadoRotas] = useState<'parado' | 'a-calcular' | 'pronto' | 'erro'>('parado');
+  const isCalculatingRoutes = estadoRotas === 'a-calcular';
+  const rotasCalculadas = estadoRotas === 'pronto' || estadoRotas === 'erro';
   const [longeRota, setLongeRota] = useState<LongeDeParagens | undefined>(undefined);
   const pedidoRotasRef = useRef(0);
   const partidaRotasRef = useRef(Date.now());
@@ -782,11 +785,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const calculateRoutesToDestination = async (destLat: number, destLon: number, destName = 'Destino') => {
     const lat = userCoords?.latitude ?? 38.7253;
     const lon = userCoords?.longitude ?? -9.1500;
-    setIsCalculatingRoutes(true);
+    setEstadoRotas('a-calcular');
     setCalculatedRoutes([]);
     setSelectedRoute(null);
     setRotaAbertaId(null);
-    setRotasCalculadas(false);
     setLongeRota(undefined);
     setDestinosViagem([]);
     setMapaViagem(null);
@@ -794,6 +796,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const pedido = ++pedidoRotasRef.current;
 
     const ordenar = ordenarOpcoes;
+    // Só é erro se não chegou nenhuma opção: uma falha depois de as mostrar (ex.: na UNIR) não as esconde
+    let comOpcoes = false;
+    let falhou = false;
 
     try {
       const res = await planTransitRoute(lat, lon, destLat, destLon, destName, undefined, { nivel: 0 });
@@ -801,6 +806,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       let routes = ordenar(res.routes || []);
       setLongeRota(res.longe);
       setCalculatedRoutes(routes);
+      comOpcoes = routes.length > 0;
       if (routes.length > 0) setSelectedRoute(routes[0]);
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
       const candidatos = (res.unir || []).slice(0, 4);
@@ -822,6 +828,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           routes = ordenar([...routes, ...extra]);
           setCalculatedRoutes(routes);
           setSelectedRoute(routes[0]);
+          comOpcoes = true;
         }
         const motivos = motivosFalhaUnir();
         if (!extra.length && motivos.length) {
@@ -836,11 +843,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
       }
     } catch (err) {
       console.warn('[PertoView] Erro ao calcular rotas:', err);
+      falhou = !comOpcoes;
     } finally {
-      if (pedido === pedidoRotasRef.current) {
-        setIsCalculatingRoutes(false);
-        setRotasCalculadas(true);
-      }
+      if (pedido === pedidoRotasRef.current) setEstadoRotas(falhou ? 'erro' : 'pronto');
     }
   };
 
@@ -912,11 +917,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
     }
     pedidoRotasRef.current++;
     tituloEscolhidoRef.current = '';
-    setIsCalculatingRoutes(false);
+    setEstadoRotas('parado');
     setCalculatedRoutes([]);
     setSelectedRoute(null);
     setRotaAbertaId(null);
-    setRotasCalculadas(false);
     setSelectedDestination(lista[0].dest);
     setDestinationQuery('');
     setDestinosViagem(lista.map((l) => ({ uid: l.uid, dest: l.dest as DestinationSuggestion, permanencia: l.permanencia })));
@@ -934,8 +938,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setCalculatedRoutes([]);
     setSelectedRoute(null);
     setRotaAbertaId(null);
-    setIsCalculatingRoutes(false);
-    setRotasCalculadas(false);
+    setEstadoRotas('parado');
   };
 
   // Paragem aberta: pede ao servidor a próxima partida de CADA linha (a lista "perto" só traz 5
@@ -2245,6 +2248,19 @@ export const PertoView: React.FC<PertoViewProps> = ({
               <div className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-center gap-3 text-[14px] text-[#6B6B6B]">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2] shrink-0" />
                 <span>{t('A calcular percursos com os horários de hoje…')}</span>
+              </div>
+            ) : estadoRotas === 'erro' ? (
+              <div className="rounded-[14px] bg-[#F4F4F2] p-4" data-teste="rotas-erro" role="alert">
+                <p className="text-[14px] font-semibold text-[#111111]">{t('Não foi possível calcular este percurso.')}</p>
+                <p className="text-[13px] text-[#6B6B6B] mt-1 leading-snug">{t('Verifica a ligação e tenta outra vez.')}</p>
+                <button
+                  type="button"
+                  onClick={() => calculateRoutesToDestination(selectedDestination.latitude, selectedDestination.longitude, selectedDestination.title)}
+                  className="mt-3 h-10 px-4 rounded-[10px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold cursor-pointer"
+                  data-teste="rotas-tentar"
+                >
+                  {t('Tentar outra vez')}
+                </button>
               </div>
             ) : (
               <div className="rounded-[14px] bg-[#F4F4F2] p-4">
