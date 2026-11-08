@@ -542,6 +542,9 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
             if (t < 0 || min <= pd.dep[t * nS + pos]) {
               const t2 = acharViagem(p, pos, min);
               if (t2 >= 0 && (t < 0 || t2 < t)) { t = t2; emb = pos; }
+              // A mesma viagem apanhada numa paragem mais à frente, mais perto de casa: entra-se nesta (menos a pé, chega igual).
+              // Ex.: Parque Nascente → metro F: 5 min a pé até à Levada em vez de 11 até ao Rio Tinto, para o mesmo metro.
+              else if (k === 1 && t2 === t && prev < anterior[pd.stops[emb]]) emb = pos;
             }
           }
         }
@@ -790,6 +793,7 @@ export function procurarComUnir(ix: Indice, pedido: Omit<PedidoPesquisa, 'sint' 
             if (t < 0 || min <= pd.dep[t * nS + pos]) {
               const t2 = acharViagem(p, pos, min);
               if (t2 >= 0 && (t < 0 || t2 < t)) { t = t2; emb = pos; }
+              else if (k === 1 && t2 === t && prev < anterior[pd.stops[emb] + off]) emb = pos; // a mesma viagem, mais perto de casa
             }
           }
         }

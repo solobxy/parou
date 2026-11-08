@@ -108,6 +108,8 @@ export interface TransitRouteOption {
   type: 'fastest' | 'fewest_transfers' | 'least_walking';
   title: string;
   badgeLabel: string;
+  /** Etiqueta do cartão: 'melhor' = a que se recomenda (tempo e esforço), 'mais_rapido' = a que chega primeiro */
+  highlight?: 'melhor' | 'mais_rapido';
   totalDurationMinutes: number;
   departureTime: string;
   arrivalTime: string;

@@ -63,7 +63,8 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
       : '';
 
   const salto = (route.arrivalDayOffset || 0) - (route.departureDayOffset || 0);
-  const maisRapida = /^Mais rápido/.test(route.badgeLabel || '');
+  // A que chega primeiro e a que se recomenda (tempo e esforço); "Mais rápido" vinha só pelo texto, que muda com a língua
+  const destaque = route.highlight || (/^Mais rápido/.test(route.badgeLabel || '') ? 'mais_rapido' : undefined);
 
   return (
     <div
@@ -90,8 +91,10 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
               {route.departureDayOffset ? `${t('amanhã')} ` : ''}{route.departureTime} – {route.arrivalTime}{salto > 0 ? ` +${salto}` : ''}
             </span>
             <span className="shrink-0 flex items-center gap-1.5 h-[22px]">
-              {maisRapida && (
-                <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide">{t('Mais rápido')}</span>
+              {destaque && (
+                <span className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-wide" data-teste="destaque-rota">
+                  {destaque === 'melhor' ? t('Melhor opção') : t('Mais rápido')}
+                </span>
               )}
               {podeAbrir && (
                 <ChevronDown className={`w-4 h-4 text-[#6B6B6B] stroke-[2.25] transition-transform ${mostrarDetalhes ? 'rotate-180' : ''}`} aria-hidden="true" />

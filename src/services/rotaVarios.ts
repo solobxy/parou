@@ -6,7 +6,7 @@ import { planTransitRoute } from './pertoApi';
 import { viagemUnir, motivosFalhaUnir } from './unirAmp';
 import { opcoesComUnir } from './hibridasUnir';
 import { textoMetros } from '../utils/distancia';
-import { limitarComModos } from '../utils/escolhaOpcoes';
+import { limitarComModos, maisRapidaDe, ordemDasOpcoes } from '../utils/escolhaOpcoes';
 import { t, tn, LOCALE } from '../i18n';
 import type { DestinationSuggestion, TransitRouteOption } from '../types/perto';
 
@@ -66,13 +66,11 @@ export function novoUid(): string { contador += 1; return `d${Date.now().toStrin
 export function pontoDoDestino(d: DestinoViagem): Ponto { return { lat: d.dest.latitude, lon: d.dest.longitude }; }
 
 /**
- * Ordena as opções de um troço da mais rápida para a mais lenta (hora de chegada); em caso de
- * empate ganha a que tem menos transbordos e, depois, menos a pé. Marca a mais rápida.
+ * Ordena as opções de um troço da melhor para a pior: tempo até chegar mais o esforço (a pé, transbordos, autocarros; ver
+ * custoDaOpcao). Marca a melhor ("Melhor opção") e a que chega primeiro ("Mais rápido"); se forem a mesma, fica "Mais rápido".
  */
 export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[] {
-  const ordem = (a: TransitRouteOption, b: TransitRouteOption) => a.totalDurationMinutes - b.totalDurationMinutes
-    || a.transfersCount - b.transfersCount
-    || a.walkingMinutes - b.walkingMinutes;
+  const ordem = ordemDasOpcoes;
   // A mesma viagem pode chegar por caminhos diferentes (ligação direta, combinação…): fica a mais rápida
   const assinatura = (r: TransitRouteOption) => {
     const t = r.legs.filter((l) => l.mode === 'TRANSIT').map((l) => `${l.lineCode}|${l.fromStopName}|${l.departureTime}`).join('>');
@@ -85,14 +83,22 @@ export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[]
     vistas.add(r.id); vistas.add(sig);
     return true;
   });
-  const melhor = unicas.find((r) => r.id !== 'a-pe');
   // Até 5 opções, com pelo menos uma de cada meio de transporte (o metro não pode ficar de fora só por haver 5 autocarros mais rápidos)
-  return limitarComModos(unicas, 5).map((r) => ({
-    ...r,
-    badgeLabel: r.id === 'a-pe' ? t('A pé')
-      : r.id === melhor?.id ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
-      : r.transfersCount ? tn(r.transfersCount, '{n} transbordo', '{n} transbordos') : t('Direto'),
-  }));
+  const escolhidas = limitarComModos(unicas, 5);
+  const melhor = escolhidas.find((r) => r.id !== 'a-pe');
+  const rapida = maisRapidaDe(escolhidas);
+  return escolhidas.map((r) => {
+    const highlight: TransitRouteOption['highlight'] = r.id === 'a-pe' ? undefined
+      : r.id === rapida?.id ? 'mais_rapido' : r.id === melhor?.id ? 'melhor' : undefined;
+    return {
+      ...r,
+      highlight,
+      badgeLabel: r.id === 'a-pe' ? t('A pé')
+        : highlight === 'mais_rapido' ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
+        : highlight === 'melhor' ? t('Melhor opção')
+        : r.transfersCount ? tn(r.transfersCount, '{n} transbordo', '{n} transbordos') : t('Direto'),
+    };
+  });
 }
 
 /** Instante (ms) em que se chega ao fim da opção, partindo no instante `partida` (ms) */

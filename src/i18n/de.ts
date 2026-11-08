@@ -118,6 +118,7 @@ export const DE: Record<string, string> = {
   'A pé': 'Zu Fuß',
   'Direto': 'Direkt',
   'Mais rápido': 'Am schnellsten',
+  'Melhor opção': 'Beste Option',
   'Menos a pé': 'Weniger Fußweg',
   'Sem transbordos': 'Ohne Umstieg',
   'Sentido {d}': 'Richtung {d}',

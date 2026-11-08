@@ -15,6 +15,7 @@ import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
+import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
@@ -641,10 +642,18 @@ export async function planearViagem(
   // nem claramente mais esforço (minutos a pé + 7 por transbordo). Ex.: "3 autocarros, 44 min" ao lado de "metro + barco, 25 min";
   // "22 min a pé até ao barco" ao lado de "metro + barco" que chega antes.
   const esforco = (x: { walkingMinutes: number; transfersCount: number }) => x.walkingMinutes + 7 * x.transfersCount;
+  // Sem autocarros (só metro, comboio, barco) é outra viagem: não apanha trânsito e é a que quem conhece a zona escolhe. Não é
+  // "pior em tudo" do que uma com autocarro que chega antes, se não andar muito mais nem tiver mais transbordos. Ex.: Parque
+  // Nascente → Parque Maia ao domingo, "metro F + C" desaparecia por "autocarro 205 + metro C" chegar 16 min antes.
+  const poupaAutocarro = (o: typeof opcoes[0], e: typeof opcoes[0]) => autocarrosDe(o) < autocarrosDe(e)
+    && o.walkingMinutes <= e.walkingMinutes + 6 && o.transfersCount <= e.transfersCount + 1;
   const domina = (e: typeof opcoes[0], o: typeof opcoes[0]) => e.id !== 'a-pe' && e !== o && e._chegada <= o._chegada && (
-    (e.transfersCount <= o.transfersCount && e.walkingMinutes <= o.walkingMinutes + 2) || esforco(e) <= esforco(o) - 3);
+    (e.transfersCount <= o.transfersCount && e.walkingMinutes <= o.walkingMinutes + 2) || esforco(e) <= esforco(o) - 3)
+    && !poupaAutocarro(o, e);
+  // O mesmo transbordo apanhado de um autocarro ou do metro são opções diferentes
+  const chave = (o: typeof opcoes[0]) => (autocarrosDe(o) ? o._assinatura : `${o._assinatura}|sem-autocarro`);
   for (const o of opcoes) {
-    if (vistas.has(o._assinatura)) continue;
+    if (vistas.has(chave(o))) continue;
     if (o.id !== 'a-pe' && Number.isFinite(melhorChegada) && o._chegada - melhorChegada > tolerancia) continue;
     // Transbordos que não ganham nada à melhor direta não interessam
     const melhorDireta = escolhidas.find((e) => e.transfersCount === 0 && e.id !== 'a-pe');
@@ -653,7 +662,7 @@ export async function planearViagem(
     // Pior em tudo do que uma já escolhida (chega mais tarde, com mais ou os mesmos transbordos e sem andar menos): não acrescenta nada.
     // Ex.: Almada → Cais do Sodré, "3 autocarros, 44 min" ao lado de "metro + barco, 25 min".
     if (o.id !== 'a-pe' && escolhidas.some((e) => domina(e, o))) continue;
-    vistas.add(o._assinatura);
+    vistas.add(chave(o));
     escolhidas.push(o);
     if (escolhidas.length >= 4) break;
   }
@@ -676,13 +685,13 @@ export async function planearViagem(
       const menosAPe = emTransito.length ? Math.min(...emTransito.map((e) => e.walkingMinutes)) : Infinity;
       const menosTrocas = emTransito.length ? Math.min(...emTransito.map((e) => e.transfersCount)) : Infinity;
       const candidatas = opcoes
-        .filter((x) => x.id !== 'a-pe' && !vistas.has(x._assinatura) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
+        .filter((x) => x.id !== 'a-pe' && !vistas.has(chave(x)) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
           && x.walkingMinutes <= menosAPe + 11 && x.transfersCount <= menosTrocas + 1)
         // a melhor do meio de transporte: chega cedo e dá pouco trabalho
         .sort((a, b) => (a._chegada + esforco(a) * 60) - (b._chegada + esforco(b) * 60));
       const extra = candidatas[0];
       if (!extra) continue;
-      vistas.add(extra._assinatura);
+      vistas.add(chave(extra));
       escolhidas.push(extra);
       garantidas.add(extra.id);
     }
@@ -693,8 +702,9 @@ export async function planearViagem(
       escolhidas.splice(escolhidas.indexOf(sai), 1);
     }
   }
-  // Mostra-se por ordem de chegada: a que chega primeiro vai à frente (a igualdade, a com menos transbordos)
-  escolhidas.sort((a, b) => a._chegada - b._chegada || a.transfersCount - b.transfersCount);
+  // Mostra-se pela melhor opção (tempo até chegar mais o esforço: a pé, transbordos, autocarros; ver custoDaOpcao), não só pela
+  // hora de chegada: "metro F + C, 6 min a pé" à frente de "autocarro + comboio + autocarro, 21 min a pé" que chega 6 min antes
+  escolhidas.sort(ordemDasOpcoes);
   // Percursos para desenhar no mapa (só das opções escolhidas): as paragens de cada viagem e os troços a pé
   const qPontos = db.prepare(
     `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
@@ -716,6 +726,7 @@ export async function planearViagem(
   }
 
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
+  const maisRapida = maisRapidaDe(escolhidas);
   const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, ...resto }) => {
     // Só aparecem quando a viagem sai ou chega noutro dia (0 = hoje): "Sair amanhã às 07:10"
     const o: typeof resto = { ...resto };
@@ -724,7 +735,8 @@ export async function planearViagem(
       if (dc > 0) o.arrivalDayOffset = dc;
       if (ds > 0) o.departureDayOffset = ds;
     }
-    if (melhor && o.id === melhor.id) return { ...o, badgeLabel: o.transfersCount ? `Mais rápido · ${o.transfersCount} ${o.transfersCount === 1 ? 'transbordo' : 'transbordos'}` : 'Mais rápido' };
+    if (maisRapida && o.id === maisRapida.id) return { ...o, highlight: 'mais_rapido' as const, badgeLabel: o.transfersCount ? `Mais rápido · ${o.transfersCount} ${o.transfersCount === 1 ? 'transbordo' : 'transbordos'}` : 'Mais rápido' };
+    if (melhor && o.id === melhor.id) return { ...o, highlight: 'melhor' as const, badgeLabel: 'Melhor opção' };
     return o;
   });
 
