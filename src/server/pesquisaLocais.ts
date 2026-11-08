@@ -153,6 +153,38 @@ export function procurarLocais(consulta: string, lat?: number, lon?: number, max
     const longe = distancia !== undefined && distancia > 100_000 && (Number(r.imp) || 0) < 0.9 ? -0.25 : 0;
     saida.push({ ...r, texto, distancia, pontos: pontuar(texto, Number(r.imp) || 0, distancia) + doTipo + longe });
   }
+  // "aeroporto ponta delgada", "continente maia", "hospital viseu": as últimas (ou primeiras) palavras dizem onde. Se o nome
+  // inteiro não deu quase nada, procura-se o resto no nome e essas palavras no sítio (localidade, concelho) de cada local.
+  if (palavras.length >= 2 && saida.filter((x) => x.texto >= 0.68).length < 3) {
+    const ja = new Set(saida.map((x) => x.id));
+    const cortes: Array<[string[], string[]]> = [];
+    for (let k = Math.min(3, palavras.length - 1); k >= 1; k--) {
+      cortes.push([palavras.slice(0, palavras.length - k), palavras.slice(palavras.length - k)]);
+      cortes.push([palavras.slice(k), palavras.slice(0, k)]);
+    }
+    for (const [nomeP, lugarP] of cortes) {
+      const noIx = nomeP.filter((p) => p.length >= 2);
+      if (!noIx.length || lugarP.join('').length < 3) continue;
+      let rows: LocalEncontrado[] = [];
+      try { rows = db.prepare(sql).all(noIx.map((p) => `"${p.replace(/"/g, '')}"*`).join(' '), 4000) as LocalEncontrado[]; } catch { continue; }
+      const qNome = nomeP.join(' ');
+      for (const r of rows) {
+        if (ja.has(r.id)) continue;
+        const sitio = ` ${normalizarParaPesquisa(String(r.sitio || ''))} `;
+        if (!lugarP.every((p) => sitio.includes(` ${p}`))) continue;
+        let texto = correspondencia(qNome, nomeP, normalizarParaPesquisa(r.nome));
+        if (r.alt) for (const a of String(r.alt).split('|')) texto = Math.max(texto, 0.85 * correspondencia(qNome, nomeP, normalizarParaPesquisa(a)));
+        if (texto <= 0) continue;
+        texto *= 0.95; // o sítio não faz parte do nome
+        const distancia = comLocal ? distM(lat as number, lon as number, r.lat, r.lon) : undefined;
+        const doTipo = categorias.has(r.cat) ? 0.3 : 0;
+        ja.add(r.id);
+        // Sem a distância a contar: quem escreve a terra quer lá, mesmo longe
+        saida.push({ ...r, texto, distancia, pontos: pontuar(texto, Number(r.imp) || 0, undefined) + doTipo + 0.15 });
+      }
+      if (saida.filter((x) => x.texto >= 0.6).length >= 3) break;
+    }
+  }
   saida.sort((a, b) => b.pontos - a.pontos || a.nome.length - b.nome.length);
   return saida.slice(0, max);
 }

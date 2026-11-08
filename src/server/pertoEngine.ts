@@ -285,6 +285,37 @@ function feedsDaPesquisa() {
   if (m.size) feedsCache = { t: Date.now(), m };
   return m;
 }
+/**
+ * Aeroportos: no mapa (OpenStreetMap) o ponto do aeroporto fica no meio das pistas, a 1–3 km da aerogare (Lisboa, Porto).
+ * Para ir lá de transportes interessa a entrada: usa-se a paragem com "Aeroporto" no nome mais perto, a estação de metro ou
+ * comboio primeiro (Lisboa e Porto: metro Aeroporto, à porta do terminal), senão a paragem de autocarro.
+ */
+const pontoDoAeroporto = new Map<string, { lat: number; lon: number } | null>();
+function entradaDoAeroporto(chave: string, lat: number, lon: number): { lat: number; lon: number } | null {
+  if (pontoDoAeroporto.has(chave)) return pontoDoAeroporto.get(chave)!;
+  let melhor: { lat: number; lon: number; ordem: number } | null = null;
+  try {
+    const dLat = 0.036, dLon = 0.036 / Math.cos((lat * Math.PI) / 180);
+    const rows = getDatabase().prepare(
+      `SELECT stop_lat AS lat, stop_lon AS lon, stop_name AS nome, feed_id AS feed FROM stops
+       WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?`,
+    ).all(lat - dLat, lat + dLat, lon - dLon, lon + dLon) as Array<{ lat: number; lon: number; nome: string; feed: string }>;
+    const feeds = feedsDaPesquisa();
+    for (const r of rows) {
+      if (!/aeroporto|airport|aerogare/i.test(String(r.nome || ''))) continue;
+      const d = Math.hypot((r.lat - lat) * 111_000, (r.lon - lon) * 111_000 * Math.cos((lat * Math.PI) / 180));
+      if (d > 4000) continue;
+      const classe = feeds.get(String(r.feed))?.classe || 'autocarro';
+      // metro e comboio à frente (+10 km), depois o mais perto do ponto do aeroporto
+      const ordem = d + (classe === 'metro' || classe === 'comboio' ? 0 : 10_000);
+      if (!melhor || ordem < melhor.ordem) melhor = { lat: r.lat, lon: r.lon, ordem };
+    }
+  } catch { /* base a carregar: fica o ponto do mapa */ }
+  const res = melhor ? { lat: melhor.lat, lon: melhor.lon } : null;
+  if (melhor || pontoDoAeroporto.size < 200) pontoDoAeroporto.set(chave, res);
+  return res;
+}
+
 const nomeOperadorCurto = (nome: string) => nome.replace(/\s*\(.*?\)\s*/g, ' ').replace(/^Comboios de Portugal$/i, 'CP').trim();
 
 /**
@@ -307,11 +338,12 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
   // 1. Locais do OpenStreetMap (na base)
   for (const l of procurarLocais(q, userLat, userLon, 14)) {
     const nomeCat = NOME_CATEGORIA[l.cat] || '';
+    const entrada = l.cat === 'aeroporto' ? entradaDoAeroporto(`${l.nome}|${l.lat}|${l.lon}`, l.lat, l.lon) : null;
     cands.push({
       id: `local-${l.id}`,
       title: l.nome,
       subtitle: [nomeCat, l.sitio].filter(Boolean).join(' · ') || 'Portugal',
-      latitude: l.lat, longitude: l.lon,
+      latitude: entrada?.lat ?? l.lat, longitude: entrada?.lon ?? l.lon,
       type: LOCALIDADE.has(l.cat) ? 'CITY' : 'PLACE',
       category: l.cat, place: l.sitio || undefined,
       distanceFromUserMeters: l.distancia !== undefined ? Math.round(l.distancia) : undefined,
