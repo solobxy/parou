@@ -11,7 +11,10 @@
         window.__parouInstalar = e;
         window.dispatchEvent(new CustomEvent('parou_pode_instalar'));
       });
-      window.addEventListener('appinstalled', function () { window.__parouInstalar = null; });
+      window.addEventListener('appinstalled', function () {
+        window.__parouInstalar = null;
+        try { if (typeof window.estat === 'function') window.estat('instalar', 'instalada'); else { window.estat = window.estat || {}; (window.estat.q = window.estat.q || []).push(['instalar', 'instalada']); } } catch (e) {}
+      });
     </script>
     <title>PAROU — app de autocarros, metro e comboios em tempo real</title>
     <meta name="description" content="Próximos autocarros, metro, comboios e barcos perto de ti, horários dos principais operadores, greves, avisos de tempo e incêndios em Portugal. Gratuita e sem fins lucrativos." />

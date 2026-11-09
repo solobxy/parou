@@ -63,6 +63,7 @@ import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, t
 import { textoMetros, traduzirDistancia } from '../utils/distancia';
 import { opcoesComUnir } from '../services/hibridasUnir';
 import { registarProcura } from '../services/procuras';
+import { momentoDeValor } from '../services/momentoDeValor';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
@@ -484,6 +485,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
   const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean } | null>(null);
+  // Ver as partidas de uma paragem é um momento de valor (o convite para instalar pode aparecer a seguir)
+  const paragemComPartidas = partidasExtra && !partidasExtra.aCarregar && partidasExtra.deps.length > 0 ? partidasExtra.id : null;
+  useEffect(() => { if (paragemComPartidas) momentoDeValor('paragem'); }, [paragemComPartidas]);
   const [favoriteStopIds, setFavoriteStopIds] = useState<Set<string>>(new Set());
   // UNIR: horário do dia pedido à AMP pelo telemóvel (por paragem da lista)
   const [unirPorParagem, setUnirPorParagem] = useState<Record<string, { t: number; ok: boolean; aCarregar: boolean; passagens: PassagemUnir[] }>>({});
@@ -499,6 +503,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [selectedRoute, setSelectedRoute] = useState<TransitRouteOption | null>(null);
   // Opção de viagem aberta (passo a passo e avisos): nenhuma até a pessoa tocar numa
   const [rotaAbertaId, setRotaAbertaId] = useState<string | null>(null);
+  // Abrir uma opção de viagem é um momento de valor (o convite para instalar pode aparecer a seguir)
+  useEffect(() => { if (rotaAbertaId) momentoDeValor('rota'); }, [rotaAbertaId]);
   // Um só estado para o pedido de percursos: antes eram dois interruptores e uma falha de rede acabava como «Sem ligações
   // encontradas» (a dizer que não há transportes, quando o que falhou foi o pedido)
   const [estadoRotas, setEstadoRotas] = useState<'parado' | 'a-calcular' | 'pronto' | 'erro'>('parado');

@@ -18,6 +18,7 @@ import { LineChip } from './LineChip';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 import { registarProcura } from '../services/procuras';
+import { momentoDeValor } from '../services/momentoDeValor';
 
 interface LineDetailModalProps {
   lineId: string;
@@ -71,7 +72,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
 
   // Linhas mais procuradas: conta a abertura (anónima) quando a linha carregou
   useEffect(() => {
-    if (line && line.id === lineId) registarProcura('linha', lineId, [line.code, line.name].filter(Boolean).join(' '));
+    if (line && line.id === lineId) { registarProcura('linha', lineId, [line.code, line.name].filter(Boolean).join(' ')); momentoDeValor('linha'); }
   }, [line, lineId]);
 
   useEffect(() => {

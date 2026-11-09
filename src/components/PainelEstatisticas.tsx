@@ -326,6 +326,15 @@ const Numeros: React.FC<{ d: EstatisticasAdmin; aoVerContas: () => void }> = ({ 
           <Valor rotulo="Voltam no dia seguinte" valor={f.noDiaSeguinte.percentagem == null ? '—' : `${f.noDiaSeguinte.percentagem}%`} sub={amostraTexto(f.noDiaSeguinte)} />
           <Valor rotulo="Voltam na 1.ª semana" valor={f.naPrimeiraSemana.percentagem == null ? '—' : `${f.naPrimeiraSemana.percentagem}%`} sub={amostraTexto(f.naPrimeiraSemana)} />
           <Valor rotulo="Usaram em 3+ dias (30 dias)" valor={num(f.pessoasQueUsaramEm3OuMaisDiasNosUltimos30)} sub={f.percentagemDoMes == null ? undefined : `${f.percentagemDoMes}% das pessoas do mês`} />
+          {f.naPrimeiraSemanaComAppInstalada && (
+            <Valor rotulo="1.ª semana, com a app instalada" valor={f.naPrimeiraSemanaComAppInstalada.percentagem == null ? '—' : `${f.naPrimeiraSemanaComAppInstalada.percentagem}%`} sub={amostraTexto(f.naPrimeiraSemanaComAppInstalada)} />
+          )}
+          {f.naPrimeiraSemanaSoSite && (
+            <Valor rotulo="1.ª semana, só pelo site" valor={f.naPrimeiraSemanaSoSite.percentagem == null ? '—' : `${f.naPrimeiraSemanaSoSite.percentagem}%`} sub={amostraTexto(f.naPrimeiraSemanaSoSite)} />
+          )}
+          {d.instalacoes && (
+            <Valor rotulo="Abriram a app instalada (7 dias)" valor={num(d.instalacoes.ultimos7Dias)} sub={`${num(d.instalacoes.ultimos30Dias)} em 30 dias${d.instalacoes.percentagemDasNovas30Dias == null ? '' : ` · ${d.instalacoes.percentagemDasNovas30Dias}% das novas`}`} />
+          )}
         </div>
       </Cartao>
 

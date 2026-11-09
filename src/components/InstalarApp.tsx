@@ -58,7 +58,7 @@ function eSamsung(): boolean {
 }
 
 /** Abre esta mesma página no Chrome (a app instalada pelo Chrome vem assinada pela Google e não leva aviso do Play Protect). */
-function enderecoChrome(): string {
+export function enderecoChrome(): string {
   try {
     const { host, pathname, search, protocol } = window.location;
     const completo = encodeURIComponent(`${protocol}//${host}${pathname}${search}`);
@@ -66,7 +66,7 @@ function enderecoChrome(): string {
   } catch { return 'https://parou.pt/'; }
 }
 
-function eIphone(): boolean {
+export function eIphone(): boolean {
   const ua = navigator.userAgent || '';
   return /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
 }

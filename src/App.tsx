@@ -18,6 +18,7 @@ import { Header } from './components/Header';
 import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { AvisoSemRede } from './components/AvisoSemRede';
+import { ConviteInstalar } from './components/ConviteInstalar';
 import { PontoDiario } from './components/PontoDiario';
 import { aplicarMetaRota } from './seo/rotasApp';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
@@ -815,6 +816,7 @@ export default function App() {
       {/* Top Background Loading Banner */}
       <TopLoadingBanner />
       <AvisoSemRede />
+      <ConviteInstalar />
 
       {/* Top Bar Navigation (includes mobile-accessible Reclamações e Favoritos) */}
       <Header

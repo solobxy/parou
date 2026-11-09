@@ -28,9 +28,13 @@ export interface EstatisticasAdmin {
   fidelidade: {
     noDiaSeguinte: Retorno;
     naPrimeiraSemana: Retorno;
+    /** (servidores antigos não mandam) */
+    naPrimeiraSemanaComAppInstalada?: Retorno;
+    naPrimeiraSemanaSoSite?: Retorno;
     pessoasQueUsaramEm3OuMaisDiasNosUltimos30: number;
     percentagemDoMes: number | null;
   };
+  instalacoes?: { ultimos7Dias: number; ultimos30Dias: number; percentagemDasNovas30Dias: number | null };
   flyer: { hoje: number; ultimos7Dias: number; ultimos30Dias: number; total: number; porLocal: Record<string, number> };
   comoChegamUltimos30Dias: { novasPelaApp: number; novasPorPaginasPublicas: number; pessoasQueUsaramPaginasPublicas: number };
   integridade: {

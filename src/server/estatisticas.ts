@@ -6,7 +6,8 @@
 //  - Assim, abrir e fechar a app 50 vezes no mesmo dia conta como UMA pessoa nesse dia, e quem volta
 //    noutro dia é reconhecido como a mesma pessoa (não como uma pessoa nova).
 //  - Não se guarda IP, nem tipo de browser, nem nome, nem email, nem posição. Só: o dia, o número cifrado,
-//    se abriu pela app Android / app instalada / site, e o idioma, e se chegou pela app ou por uma página pública.
+//    se abriu pela app Android / app instalada / site (e o 1.º dia em que abriu a app instalada), e o idioma, e se chegou
+//    pela app ou por uma página pública.
 //  - Não se liga à conta de ninguém e não há terceiros (nada de Google Analytics).
 //  - Quem não quiser ser contado desliga na página de Privacidade (cookie parou_sem_contagem).
 //
@@ -102,6 +103,13 @@ function bd(): DatabaseSync {
     // Antes só se contava a app, por isso quem chegava pelo Google a uma página pública não aparecia.
     if (!colunasDe(b, 'visitantes').has('primeira_entrada')) b.exec("ALTER TABLE visitantes ADD COLUMN primeira_entrada TEXT NOT NULL DEFAULT 'app'");
     if (!colunasDe(b, 'visitas_dia').has('entrada')) b.exec("ALTER TABLE visitas_dia ADD COLUMN entrada TEXT NOT NULL DEFAULT 'app'");
+    // Primeiro dia em que a pessoa abriu a app instalada (ecrã principal ou app Android). Fica para sempre: a "origem"
+    // muda a cada visita (quem instalou e volta a abrir o site no browser deixava de contar como "instalada").
+    if (!colunasDe(b, 'visitantes').has('instalou')) {
+      b.exec('ALTER TABLE visitantes ADD COLUMN instalou TEXT');
+      // de antes não se sabe o dia: fica o da última visita, que foi já com a app instalada
+      b.exec("UPDATE visitantes SET instalou = date(ultimo_instante / 1000, 'unixepoch') WHERE instalou IS NULL AND origem IN ('instalada', 'android')");
+    }
     pronto = true;
   }
   return b;
@@ -132,12 +140,13 @@ export function registarVisita(idBruto: string, origem: string, idioma: string, 
   emTransacao(() => {
     const existente = b.prepare('SELECT 1 AS x FROM visitantes WHERE id = ?').get(id);
     const novo = !existente;
+    const instalada = origem === 'instalada' || origem === 'android' ? dia : null;
     if (novo) {
-      b.prepare('INSERT INTO visitantes (id, primeiro_dia, ultimo_instante, origem, idioma, primeira_entrada) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(id, dia, agora, origem, idioma, entrada);
+      b.prepare('INSERT INTO visitantes (id, primeiro_dia, ultimo_instante, origem, idioma, primeira_entrada, instalou) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, dia, agora, origem, idioma, entrada, instalada);
     } else {
-      // O "último instante" nunca recua (pedidos que chegam fora de ordem)
-      b.prepare('UPDATE visitantes SET ultimo_instante = MAX(ultimo_instante, ?), origem = ?, idioma = ? WHERE id = ?').run(agora, origem, idioma, id);
+      // O "último instante" nunca recua (pedidos que chegam fora de ordem); o dia em que instalou fica o primeiro
+      b.prepare('UPDATE visitantes SET ultimo_instante = MAX(ultimo_instante, ?), origem = ?, idioma = ?, instalou = COALESCE(instalou, ?) WHERE id = ?').run(agora, origem, idioma, instalada, id);
     }
     const r = b.prepare('INSERT OR IGNORE INTO visitas_dia (dia, visitante, aberturas, entrada) VALUES (?, ?, 1, ?)').run(dia, id, entrada);
     const primeiraDoDia = Number(r.changes) > 0;
@@ -320,14 +329,14 @@ export function resumoEstatisticas(agora = Date.now()) {
   // Quem volta: só entram pessoas com tempo suficiente para voltar (senão quem chegou ontem puxava a percentagem para baixo).
   //  - no dia seguinte: 1.ª visita há 2 a 31 dias; voltou exatamente no dia a seguir
   //  - na primeira semana: 1.ª visita há 8 a 37 dias; voltou em algum dos 7 dias a seguir
-  const retorno = (idadeMinima: number, idadeMaxima: number, diasParaVoltar: number) => {
+  const retorno = (idadeMinima: number, idadeMaxima: number, diasParaVoltar: number, filtro = '') => {
     const r = um(`
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN EXISTS (
                SELECT 1 FROM visitas_dia d
                WHERE d.visitante = v.id AND d.dia > v.primeiro_dia AND d.dia <= date(v.primeiro_dia, '+' || ? || ' day')
              ) THEN 1 ELSE 0 END), 0) AS voltaram
-      FROM visitantes v WHERE v.primeiro_dia BETWEEN ? AND ?`,
+      FROM visitantes v WHERE v.primeiro_dia BETWEEN ? AND ? ${filtro}`,
       diasParaVoltar, somarDias(hoje, -idadeMaxima), somarDias(hoje, -idadeMinima));
     const amostra = Number(r.total);
     const voltaram = Number(r.voltaram);
@@ -363,8 +372,18 @@ export function resumoEstatisticas(agora = Date.now()) {
     fidelidade: {
       noDiaSeguinte: retorno(2, 31, 1),
       naPrimeiraSemana: retorno(8, 37, 7),
+      // Quem já abriu a app instalada (alguma vez) e quem só usou o site. Quem instala já estava mais interessado:
+      // a diferença mostra o valor de instalar, mas não o prova sozinha.
+      naPrimeiraSemanaComAppInstalada: retorno(8, 37, 7, 'AND v.instalou IS NOT NULL'),
+      naPrimeiraSemanaSoSite: retorno(8, 37, 7, 'AND v.instalou IS NULL'),
       pessoasQueUsaramEm3OuMaisDiasNosUltimos30: frequentes,
       percentagemDoMes: pct(frequentes, p30.pessoas),
+    },
+    // Pessoas que abriram a app instalada pela primeira vez (instalaram, ou abriram pela 1.ª vez a que já tinham)
+    instalacoes: {
+      ultimos7Dias: Number(um('SELECT COUNT(*) AS c FROM visitantes WHERE instalou >= ?', somarDias(hoje, -6)).c),
+      ultimos30Dias: Number(um('SELECT COUNT(*) AS c FROM visitantes WHERE instalou >= ?', desde30).c),
+      percentagemDasNovas30Dias: pct(Number(um('SELECT COUNT(*) AS c FROM visitantes WHERE primeiro_dia >= ? AND instalou IS NOT NULL', desde30).c), p30.novas),
     },
     flyer: resumoDoFlyer(hoje),
     // Pessoas diferentes que abriram cada linha/paragem (cada pessoa conta uma vez por dia)
