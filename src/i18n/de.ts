@@ -195,6 +195,8 @@ export const DE: Record<string, string> = {
   'Agora não': 'Jetzt nicht',
   'Estás dentro de outra app: abre primeiro esta página no Safari (no menu, «Abrir no Safari»).': 'Du bist in einer anderen App: Öffne diese Seite zuerst in Safari (im Menü „In Safari öffnen“).',
   'Estás dentro de outra app: abre primeiro esta página no Chrome.': 'Du bist in einer anderen App: Öffne diese Seite zuerst in Chrome.',
+  'Se não aparecer «Adicionar ao ecrã principal», abre primeiro a página no Safari.': 'Wenn „Zum Home-Bildschirm“ nicht erscheint, öffne die Seite zuerst in Safari.',
+  'Se o menu não tiver «Instalar app», abre primeiro a página no Chrome.': 'Wenn das Menü kein „App installieren“ hat, öffne die Seite zuerst in Chrome.',
   'Como instalar': 'So installierst du die App',
   'Instalar': 'Installieren',
   'Instalar a PAROU': 'PAROU installieren',

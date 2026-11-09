@@ -169,6 +169,19 @@ export const ConviteInstalar: React.FC = () => {
               </div>
             )}
             {iphone ? <PassosIphone /> : <PassosAndroid onAqui={() => void instalarAqui()} />}
+            {!outraApp && (
+              // Quem vem de um link dentro de outra app (ChatGPT, por exemplo) pode estar num browser "emprestado" sem esta opção
+              <p className="mt-2 text-[12px] text-[#6B6B6B] leading-snug">
+                {iphone
+                  ? t('Se não aparecer «Adicionar ao ecrã principal», abre primeiro a página no Safari.')
+                  : t('Se o menu não tiver «Instalar app», abre primeiro a página no Chrome.')}
+              </p>
+            )}
+            {!outraApp && !iphone && (
+              <a href={enderecoChrome()} className="mt-2 h-10 px-3.5 rounded-[10px] bg-[#F4F4F2] border border-[#E6E6E3] text-[#111111] text-[13px] font-semibold inline-flex items-center" data-teste="convite-abrir-chrome">
+                {t('Abrir no Chrome')}
+              </a>
+            )}
           </div>
         )}
       </div>
