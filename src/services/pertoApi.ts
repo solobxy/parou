@@ -105,7 +105,9 @@ export function caminhoAPe(deLat: number, deLon: number, paraLat: number, paraLo
   const ja = caminhosAPe.get(k);
   if (ja) return ja;
   const [de, para] = k.split('|');
-  const pedido = fetch(`/api/transit/caminho-a-pe?de=${de}&para=${para}`, { signal: AbortSignal.timeout(8000) })
+  // (dentro do then: num browser sem AbortSignal.timeout o erro fica na promessa e não estraga o desenho do percurso)
+  const pedido = Promise.resolve()
+    .then(() => fetch(`/api/transit/caminho-a-pe?de=${de}&para=${para}`, { signal: AbortSignal.timeout(8000) }))
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => (d && typeof d.caminho === 'string' ? d.caminho : null))
     .catch(() => { caminhosAPe.delete(k); return null; });
