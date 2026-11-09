@@ -127,7 +127,8 @@ export const ConviteInstalar: React.FC = () => {
       data-teste="convite-instalar"
       className={`lg:hidden fixed left-3 right-3 z-[45] bottom-[calc(76px+env(safe-area-inset-bottom))] mx-auto max-w-[440px] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${entrou ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
     >
-      <div className="rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] shadow-lg p-3">
+      {/* tema-menu: no tema Âmbar fica em vidro desfocado como as janelas (sem ele o cartão ficava translúcido e via-se a lista por trás) */}
+      <div className="tema-menu rounded-[14px] border border-[#E6E6E3] bg-[#FFFFFF] shadow-lg p-3">
         <div className="flex items-start gap-3">
           <img src="/icon-192.png" alt="" width={40} height={40} className="w-10 h-10 rounded-[10px] shrink-0" />
           <div className="min-w-0 flex-1">
