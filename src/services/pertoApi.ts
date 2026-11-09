@@ -93,6 +93,27 @@ export async function searchDestinations(
   return data.suggestions || [];
 }
 
+/** Caminhos a pé já pedidos nesta visita (o mesmo troço desenha-se muitas vezes ao mudar de opção) */
+const caminhosAPe = new Map<string, Promise<string | null>>();
+
+/**
+ * Caminho a pé pelas ruas entre dois pontos (polilinha codificada), para desenhar no mapa em vez da linha reta.
+ * null quando o servidor não tem a rede da zona: fica a linha reta.
+ */
+export function caminhoAPe(deLat: number, deLon: number, paraLat: number, paraLon: number): Promise<string | null> {
+  const k = `${deLat.toFixed(5)},${deLon.toFixed(5)}|${paraLat.toFixed(5)},${paraLon.toFixed(5)}`;
+  const ja = caminhosAPe.get(k);
+  if (ja) return ja;
+  const [de, para] = k.split('|');
+  const pedido = fetch(`/api/transit/caminho-a-pe?de=${de}&para=${para}`, { signal: AbortSignal.timeout(8000) })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => (d && typeof d.caminho === 'string' ? d.caminho : null))
+    .catch(() => { caminhosAPe.delete(k); return null; });
+  caminhosAPe.set(k, pedido);
+  if (caminhosAPe.size > 300) caminhosAPe.delete(caminhosAPe.keys().next().value as string);
+  return pedido;
+}
+
 export async function planTransitRoute(
   originLat: number,
   originLon: number,

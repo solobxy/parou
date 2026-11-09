@@ -37,6 +37,7 @@ import {
   fetchNearbyTransit, 
   searchDestinations, 
   planTransitRoute,
+  caminhoAPe,
   getFavoriteStopIds,
   toggleFavoriteStopId,
   getFavoriteLineIds,
@@ -242,8 +243,17 @@ function desenharPercurso(grupo: L.LayerGroup, legs: TransitRouteOption['legs'],
     linha.forEach((p) => limites.push(p));
 
     if (leg.mode === 'WALK') {
-      L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
-      L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
+      const fundo = L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
+      const pontos = L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
+      // Primeiro a linha reta; quando chega o caminho pelas ruas (passeios, escadas, praças), passa a segui-lo
+      const a = pts[0], b = pts[pts.length - 1];
+      void caminhoAPe(a.lat, a.lon, b.lat, b.lon).then((codificado) => {
+        if (!codificado || !grupo.hasLayer(pontos)) return; // a opção mudou entretanto
+        const ruas = descodificarPolilinha(codificado).filter((p) => isValidCoordinate(p.lat, p.lon)).map((p) => [p.lat, p.lon] as L.LatLngTuple);
+        if (ruas.length < 2) return;
+        fundo.setLatLngs(ruas);
+        pontos.setLatLngs(ruas);
+      });
       return;
     }
 

@@ -24,6 +24,7 @@ import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite, ipDe } from './src/server/limites';
+import { caminhoAPe } from './src/server/caminhoAPe';
 import { memoComJuncao } from './src/server/memoJuncao';
 import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
 import { registarCspScripts } from './src/server/cspScripts';
@@ -1575,6 +1576,28 @@ app.get('/api/transit/destinations', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Destinations API] Erro:', err);
     return res.status(500).json({ error: 'Erro ao pesquisar destinos.', details: err.message });
+  }
+});
+
+// Caminho a pé pelas ruas entre dois pontos (para desenhar no mapa os troços a pé de uma viagem, em vez da linha reta)
+app.get('/api/transit/caminho-a-pe', (req: Request, res: Response) => {
+  if (!dentroDoLimite(`ape:${ipDe(req)}`, 120, 60_000)) {
+    res.setHeader('Retry-After', '20');
+    return res.status(429).json({ error: 'Demasiados pedidos.', caminho: null });
+  }
+  const [aLat, aLon] = String(req.query.de || '').split(',').slice(0, 2).map(Number);
+  const [bLat, bLon] = String(req.query.para || '').split(',').slice(0, 2).map(Number);
+  if (![aLat, aLon, bLat, bLon].every(Number.isFinite) || Math.abs(aLat) > 90 || Math.abs(bLat) > 90) {
+    return res.status(400).json({ error: 'Coordenadas inválidas.', caminho: null });
+  }
+  try {
+    const r = caminhoAPe(aLat, aLon, bLat, bLon);
+    // As ruas mudam pouco: o mesmo pedido (a app arredonda as posições a ~1 m) serve um dia inteiro
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.json(r ? { caminho: r.caminho, metros: r.metros } : { caminho: null });
+  } catch (err) {
+    console.error('[Caminho a pé] Erro:', err);
+    return res.json({ caminho: null });
   }
 });
 
