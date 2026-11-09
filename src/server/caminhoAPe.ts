@@ -12,6 +12,9 @@ const LON0 = -32;
 const LARGURA = 4000;
 const MAX_METROS = 3000;   // troços a pé maiores não se calculam (o planeador não os dá)
 const ENCAIXE_M = 250;     // a que distância de uma via pode estar o ponto de partida ou de chegada
+const ENCAIXE_FOLGA_M = 40; // encaixes possíveis: até 40 m mais longe do que o segmento mais perto
+const MAX_ENCAIXES = 12;
+const CUSTO_ENCAIXE = 1.3; // cada metro fora da rede conta como 1,3 m
 const MAX_MOSAICOS = 400;  // mosaicos já lidos em memória (cada um tem uns kB)
 
 type Peca = Int32Array; // [lat, lon, lat, lon, …] em micrograus
@@ -168,59 +171,80 @@ export function caminhoAPe(aLat: number, aLon: number, bLat: number, bLon: numbe
   }
   if (segmentos.length === 0) return null;
 
-  // Encaixar A e B no segmento de via mais perto (o ponto do segmento mais perto, não só o nó)
-  const encaixe = (la: number, lo: number) => {
-    let melhor: { s: [number, number]; t: number; d: number } | null = null;
-    for (const s of segmentos) {
+  // Encaixar A e B na rede: não só no segmento mais perto (pode ser um pedaço solto, como a plataforma de uma paragem
+  // ou um corredor de parque de estacionamento sem ligação), mas em todos os segmentos até 40 m mais longe do que esse.
+  // Cada encaixe custa a distância até à via (×1,3, para preferir chegar à rede logo ali) e o A* escolhe o melhor.
+  const candidatos = (la: number, lo: number) => {
+    const ds = new Float64Array(segmentos.length);
+    const ts = new Float64Array(segmentos.length);
+    let dmin = Infinity;
+    for (let k = 0; k < segmentos.length; k++) {
+      const s = segmentos[k];
       const ax = (lon[s[0]] - lo) * mLon, ay = (lat[s[0]] - la) * mLat;
       const bx = (lon[s[1]] - lo) * mLon, by = (lat[s[1]] - la) * mLat;
       const dx = bx - ax, dy = by - ay;
       const l2 = dx * dx + dy * dy;
       const t = l2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
-      const d = Math.hypot(ax + t * dx, ay + t * dy);
-      if (!melhor || d < melhor.d) melhor = { s, t, d };
+      ds[k] = Math.hypot(ax + t * dx, ay + t * dy);
+      ts[k] = t;
+      if (ds[k] < dmin) dmin = ds[k];
     }
-    if (!melhor || melhor.d > ENCAIXE_M) return null;
-    const [u, v] = melhor.s;
-    const pla = lat[u] + (lat[v] - lat[u]) * melhor.t, plo = lon[u] + (lon[v] - lon[u]) * melhor.t;
+    if (dmin > ENCAIXE_M) return [];
+    const ate = Math.min(ENCAIXE_M, dmin + ENCAIXE_FOLGA_M);
+    const perto: number[] = [];
+    for (let k = 0; k < segmentos.length; k++) if (ds[k] <= ate) perto.push(k);
+    perto.sort((x, y) => ds[x] - ds[y]);
+    return perto.slice(0, MAX_ENCAIXES).map((k) => ({ k, t: ts[k], d: ds[k] }));
+  };
+  const virtual = (c: { k: number; t: number }) => {
+    const [u, v] = segmentos[c.k];
     const i = lat.length;
-    lat.push(pla); lon.push(plo); viz.push([u, v]);
-    viz[u].push(i); viz[v].push(i);
+    lat.push(lat[u] + (lat[v] - lat[u]) * c.t); lon.push(lon[u] + (lon[v] - lon[u]) * c.t);
+    viz.push([u, v]); viz[u].push(i); viz[v].push(i);
     return i;
   };
-  const ia = encaixe(aLat, aLon);
-  const ib = encaixe(bLat, bLon);
-  if (ia === null || ib === null) return null;
+  const ca = candidatos(aLat, aLon), cb = candidatos(bLat, bLon);
+  if (!ca.length || !cb.length) return null;
+  const va = ca.map(virtual), vb = cb.map(virtual);
+  // A e B no mesmo segmento: ligação direta (sem ir à ponta do segmento e voltar)
+  ca.forEach((x, i) => cb.forEach((y, j) => { if (x.k === y.k) { viz[va[i]].push(vb[j]); viz[vb[j]].push(va[i]); } }));
+  // Nó final (o próprio B): chega-se lá a partir de cada encaixe de B, pelo custo do encaixe
+  const fim = lat.length;
+  lat.push(bLat); lon.push(bLon); viz.push([]);
+  const custoFim = new Map<number, number>();
+  vb.forEach((i, j) => { viz[i].push(fim); custoFim.set(i, cb[j].d * CUSTO_ENCAIXE); });
 
-  // A* (distância a direito até ao destino como estimativa)
+  // A* (distância a direito até B como estimativa: nunca maior do que o custo real)
   const n = lat.length;
   const g = new Float64Array(n).fill(Infinity);
   const veio = new Int32Array(n).fill(-1);
   const fechado = new Uint8Array(n);
   const fila = new Fila();
-  g[ia] = 0;
-  fila.por(ia, dist(lat[ia], lon[ia], lat[ib], lon[ib]));
+  va.forEach((i, j) => {
+    const c0 = ca[j].d * CUSTO_ENCAIXE;
+    if (c0 < g[i]) { g[i] = c0; fila.por(i, c0 + dist(lat[i], lon[i], bLat, bLon)); }
+  });
   const limite = reta * 3 + 800; // mais do que isto é uma volta que ninguém faz: fica a linha reta
   while (fila.tamanho) {
     const u = fila.tirar();
     if (fechado[u]) continue;
-    if (u === ib) break;
+    if (u === fim) break;
     fechado[u] = 1;
     if (g[u] > limite) break;
     for (const v of viz[u]) {
       if (fechado[v]) continue;
-      const ng = g[u] + dist(lat[u], lon[u], lat[v], lon[v]);
+      const ng = g[u] + (v === fim ? (custoFim.get(u) as number) : dist(lat[u], lon[u], lat[v], lon[v]));
       if (ng < g[v]) {
         g[v] = ng;
         veio[v] = u;
-        fila.por(v, ng + dist(lat[v], lon[v], lat[ib], lon[ib]));
+        fila.por(v, ng + dist(lat[v], lon[v], bLat, bLon));
       }
     }
   }
-  if (!Number.isFinite(g[ib]) || g[ib] > limite) return null;
+  if (!Number.isFinite(g[fim]) || g[fim] > limite) return null;
 
   const caminho: Array<{ lat: number; lon: number }> = [];
-  for (let v = ib; v !== -1; v = veio[v]) caminho.push({ lat: lat[v], lon: lon[v] });
+  for (let v = veio[fim]; v !== -1; v = veio[v]) caminho.push({ lat: lat[v], lon: lon[v] });
   caminho.reverse();
   const pontos = [{ lat: aLat, lon: aLon }, ...caminho, { lat: bLat, lon: bLon }]
     // pontos repetidos ou a menos de 1 m do anterior não acrescentam nada
