@@ -114,7 +114,10 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   // A carregar desde o início (quando ainda não há linhas guardadas), para não piscar "Sem linhas…" antes do primeiro pedido
-  const [isAllLinesLoading, setIsAllLinesLoading] = useState<boolean>(!cacheServe);
+  // Um só estado para a lista de todas as linhas: antes era só «a carregar sim/não» e uma falha de rede acabava em
+  // «Ainda não temos linhas de …» (ou na lista da pesquisa anterior), como se não houvesse linhas
+  const [estadoTodas, setEstadoTodas] = useState<'a-carregar' | 'pronto' | 'erro'>(cacheServe ? 'pronto' : 'a-carregar');
+  const isAllLinesLoading = estadoTodas === 'a-carregar';
 
   // DB Loading status ("A carregar horários… 12/29")
   const [isDbLoading, setIsDbLoading] = useState<boolean>(false);
@@ -293,7 +296,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
     abortarTodasRef.current = ctrl;
     const limite = setTimeout(() => ctrl.abort(), 15000);
     const cidadesPedidas = cidadesRef.current;
-    setIsAllLinesLoading(true);
+    setEstadoTodas('a-carregar');
+    let falhou = false;
     try {
       const res = await searchAllLines(q, mode, page, ctrl.signal, cidadesPedidas);
       if (meu !== pedidoTodasRef.current) return;
@@ -314,9 +318,10 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         }
       }
     } catch {
+      falhou = true;
     } finally {
       clearTimeout(limite);
-      if (meu === pedidoTodasRef.current) setIsAllLinesLoading(false);
+      if (meu === pedidoTodasRef.current) setEstadoTodas(falhou ? 'erro' : 'pronto');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cidadesChave]);
@@ -812,6 +817,19 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
             <div className="p-8 text-center text-xs text-[#6B6B6B] flex items-center justify-center gap-2 border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF]">
               <RefreshCw className="w-5 h-5 animate-spin text-[#111111]" />
               <span>{dbLoadingMessage || 'A carregar horários…'}</span>
+            </div>
+          ) : estadoTodas === 'erro' ? (
+            <div className="p-6 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]" data-teste="linhas-erro" role="alert">
+              <p className="font-semibold text-[#111111]">{t('Não foi possível carregar as linhas.')}</p>
+              <p className="mt-1 text-[13px]">{t('Verifica a ligação e tenta outra vez.')}</p>
+              <button
+                type="button"
+                onClick={() => loadAllLines(searchQuery, selectedMode, currentPage)}
+                data-teste="linhas-tentar"
+                className="mt-3 mx-auto flex items-center justify-center min-h-[44px] px-4 rounded-[10px] bg-[#111111] text-[13.5px] font-semibold text-[#FFFFFF] cursor-pointer"
+              >
+                {t('Tentar outra vez')}
+              </button>
             </div>
           ) : allLines.length === 0 ? (
             <div className="p-8 text-center text-sm text-[#6B6B6B] border border-[#E6E6E3] rounded-[8px]" data-teste="sem-linhas">

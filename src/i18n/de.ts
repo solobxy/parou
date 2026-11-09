@@ -881,6 +881,7 @@ export const DE: Record<string, string> = {
   'Segue a PAROU no WhatsApp': 'Folge PAROU auf WhatsApp',
   'Avisos, greves e novidades no telemóvel. Ninguém vê o teu número.': 'Hinweise, Streiks und Neuigkeiten auf dem Handy. Niemand sieht deine Nummer.',
   'Segue no WhatsApp': 'Auf WhatsApp folgen',
+  'Não foi possível carregar as linhas.': 'Die Linien konnten nicht geladen werden.',
   'Não foi possível carregar a lista. Tenta outra vez.': 'Die Liste konnte nicht geladen werden. Versuche es erneut.',
   'Não foi possível desbloquear agora. Tenta outra vez.': 'Die Blockierung konnte gerade nicht aufgehoben werden. Versuche es erneut.',
   'Utilizadores bloqueados': 'Blockierte Nutzer',

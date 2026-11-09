@@ -882,6 +882,7 @@ export const EN: Record<string, string> = {
   'Segue a PAROU no WhatsApp': 'Follow PAROU on WhatsApp',
   'Avisos, greves e novidades no telemóvel. Ninguém vê o teu número.': 'Alerts, strikes and news on your phone. Nobody sees your number.',
   'Segue no WhatsApp': 'Follow on WhatsApp',
+  'Não foi possível carregar as linhas.': 'Could not load the lines.',
   'Não foi possível carregar a lista. Tenta outra vez.': 'Could not load the list. Try again.',
   'Não foi possível desbloquear agora. Tenta outra vez.': 'Could not unblock right now. Try again.',
   'Utilizadores bloqueados': 'Blocked users',
