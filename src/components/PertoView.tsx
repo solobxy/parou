@@ -245,7 +245,9 @@ function desenharPercurso(grupo: L.LayerGroup, legs: TransitRouteOption['legs'],
     if (leg.mode === 'WALK') {
       const fundo = L.polyline(linha, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(grupo);
       const pontos = L.polyline(linha, { color: '#111111', weight: 4, opacity: 0.85, dashArray: '1 9', lineCap: 'round', interactive: false }).addTo(grupo);
-      // Primeiro a linha reta; quando chega o caminho pelas ruas (passeios, escadas, praças), passa a segui-lo
+      // O servidor já manda o caminho pelas ruas (passeios, escadas, praças) nos pontos do troço; só um troço com 2 pontos
+      // (resposta antiga, ou sem rede na zona) é que se pede à parte, e quando chega passa a segui-lo
+      if (pts.length > 2) return;
       const a = pts[0], b = pts[pts.length - 1];
       void caminhoAPe(a.lat, a.lon, b.lat, b.lon).then((codificado) => {
         if (!codificado || !grupo.hasLayer(pontos)) return; // a opção mudou entretanto

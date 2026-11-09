@@ -14,6 +14,8 @@
 import { DateTime } from 'luxon';
 import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase';
 import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
+import { caminhoAPe, distanciasAPe, type CaminhoAPe } from './caminhoAPe';
+import { podarMapa } from './cacheLimitada';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
@@ -95,6 +97,44 @@ function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PAR
   return escolhidas;
 }
 
+/** Metros pelas ruas já calculados a partir de um ponto (a mesma origem pede-se várias vezes: hora seguinte, outros destinos) */
+const redeDoPonto = new Map<string, { quando: number; metros: Map<string, number | null> }>();
+const REDE_VALIDADE_MS = 30 * 60_000;
+
+/**
+ * Metros e minutos a pé até às paragens contados pelas ruas (rede do OpenStreetMap), em vez da linha reta × 1,3: a paragem
+ * do outro lado da linha do comboio, de um rio ou de uma autoestrada deixa de parecer "a 2 min". `dist` fica como distância
+ * equivalente em linha reta (metros pelas ruas ÷ 1,3), para o resto do planeador continuar a fazer as mesmas contas.
+ * Sem rede na zona, ou paragem longe das vias, fica a estimativa de antes.
+ */
+function paragensPelaRede(lat: number, lon: number, lista: Paragem[]): Paragem[] {
+  const alvos = lista.filter((p) => p.dist >= 40 && p.dist <= 1300);
+  if (!alvos.length) return lista;
+  const chave = `${lat.toFixed(5)},${lon.toFixed(5)}`;
+  let memo = redeDoPonto.get(chave);
+  if (!memo || Date.now() - memo.quando > REDE_VALIDADE_MS) {
+    memo = { quando: Date.now(), metros: new Map() };
+    redeDoPonto.set(chave, memo);
+    podarMapa(redeDoPonto, 500);
+  }
+  const faltam = alvos.filter((p) => !memo!.metros.has(p.id));
+  if (faltam.length) {
+    let r: Array<number | null>;
+    try { r = distanciasAPe(lat, lon, faltam); } catch { r = faltam.map(() => null); }
+    faltam.forEach((p, i) => memo!.metros.set(p.id, r[i]));
+  }
+  const novas = new Map<Paragem, Paragem>();
+  for (const p of alvos) {
+    const m = memo.metros.get(p.id);
+    if (m === null || m === undefined) continue;
+    // volta enorme (outro lado de um rio, de uma via rápida): fica, mas com o custo de uma volta grande
+    const real = Number.isFinite(m) ? m : p.dist * 3 + 800;
+    const dist = real / DESVIO_RUAS;
+    novas.set(p, { ...p, dist, minutos: minutosAPe(dist) });
+  }
+  return lista.map((p) => novas.get(p) || p).sort((a, b) => a.dist - b.dist);
+}
+
 /** Serviços ativos por operador num dia (cache da chamada) */
 /** Viagens da Carris Metropolitana do feed "cmh": passam a usar as paragens e o operador da API */
 function normalizarCmh(r: { de: string; para: string; feed: string }) {
@@ -146,17 +186,95 @@ function pernasDeJornada(ix: Indice, j: Jornada): Perna[] {
 
 /** Os troços a pé ligam o ponto de partida/chegada às paragens de embarque e desembarque */
 export function ligarTrocosAPe(legs: RouteLeg[], origem: { lat: number; lon: number }, destino: { lat: number; lon: number }): void {
-  let atual: { lat: number; lon: number } = origem;
+  // Só se liga o que se sabe: um transporte sem pontos deixa sem desenho os troços a pé à volta dele (antes o troço a pé
+  // ia buscar a paragem de um transporte mais à frente e riscava uma linha reta por cima de tudo, saltando o autocarro)
+  let atual: { lat: number; lon: number } | null = origem;
   legs.forEach((l, i) => {
     if (l.mode === 'TRANSIT') {
       const ps = l.pontos;
-      if (ps && ps.length) atual = ps[ps.length - 1];
+      atual = ps && ps.length ? ps[ps.length - 1] : null;
       return;
     }
-    const prox = legs.slice(i + 1).find((x) => x.mode === 'TRANSIT' && x.pontos && x.pontos.length);
-    const fim = prox ? prox.pontos![0] : destino;
+    const prox = legs.slice(i + 1).find((x) => x.mode === 'TRANSIT');
+    const fim = prox ? (prox.pontos && prox.pontos.length ? prox.pontos[0] : null) : destino;
+    if (!atual || !fim) { delete l.pontos; return; }
     l.pontos = [{ lat: atual.lat, lon: atual.lon }, { lat: fim.lat, lon: fim.lon }];
   });
+}
+
+const minutosDoDia = (hhmm?: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+type OpcaoInterna = TransitRouteOption & { _chegada: number; _saida?: number };
+
+/**
+ * Troços a pé pelas ruas (rede do OpenStreetMap): o desenho segue as ruas, passeios e escadas, e os metros e minutos passam a
+ * ser os do caminho a sério, em vez da linha reta × 1,3. O primeiro troço muda a hora de sair, o último a de chegar; um
+ * transbordo que já não cabe entre os dois transportes, ou uma saída que já passou, tira a opção (se houver outras).
+ * Sem rede na zona (ou sem caminho razoável) o troço fica como estava.
+ */
+export function trocosPelasRuas<T extends OpcaoInterna>(opcoes: T[], agoraSegs: number): T[] {
+  const memo = new Map<string, CaminhoAPe | null>();
+  const ruas = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+    const k = `${a.lat.toFixed(5)},${a.lon.toFixed(5)}|${b.lat.toFixed(5)},${b.lon.toFixed(5)}`;
+    if (!memo.has(k)) {
+      let c: CaminhoAPe | null = null;
+      try { c = caminhoAPe(a.lat, a.lon, b.lat, b.lon); } catch { c = null; }
+      memo.set(k, c);
+    }
+    return memo.get(k) || null;
+  };
+  const impossiveis = new Set<T>();
+  for (const o of opcoes) {
+    const legs = o.legs;
+    legs.forEach((l, i) => {
+      if (l.mode !== 'WALK' || !l.pontos || l.pontos.length !== 2) return;
+      const c = ruas(l.pontos[0], l.pontos[1]);
+      if (!c) return;
+      l.pontos = c.pontos.map((p) => ({ lat: Math.round(p.lat * 1e6) / 1e6, lon: Math.round(p.lon * 1e6) / 1e6 }));
+      const min = Math.max(1, Math.round(c.metros / M_POR_MIN));
+      const delta = min - (l.durationMinutes || 0);
+      l.distanceMeters = c.metros;
+      l.durationMinutes = min;
+      if (!delta) return;
+      const antes = legs.slice(0, i).some((x) => x.mode === 'TRANSIT');
+      const depois = legs.slice(i + 1).some((x) => x.mode === 'TRANSIT');
+      if (!antes && !depois) {
+        // só a pé
+        o._chegada = agoraSegs + min * 60;
+        o.totalDurationMinutes = min;
+        o.arrivalTime = hm(o._chegada);
+      } else if (!antes) {
+        // primeiro troço: sai-se mais cedo (ou mais tarde)
+        if (o._saida !== undefined) {
+          o._saida -= delta * 60;
+          o.departureTime = hm(o._saida);
+          if (o._saida < agoraSegs - 60) impossiveis.add(o);
+        } else {
+          const s = minutosDoDia(o.departureTime);
+          if (s !== null) o.departureTime = hm((s - delta) * 60);
+        }
+      } else if (!depois) {
+        // último troço: chega-se mais tarde (ou mais cedo)
+        o._chegada += delta * 60;
+        o.arrivalTime = hm(o._chegada);
+        o.totalDurationMinutes += delta;
+      } else if (delta > 0) {
+        // transbordo: tem de caber entre o desembarque e o embarque seguinte
+        const ant = legs.slice(0, i).reverse().find((x) => x.mode === 'TRANSIT');
+        const prox = legs.slice(i + 1).find((x) => x.mode === 'TRANSIT');
+        const a = minutosDoDia(ant?.arrivalTime), b = minutosDoDia(prox?.departureTime);
+        if (a !== null && b !== null && ((b - a + 1440) % 1440) < min) impossiveis.add(o);
+      }
+    });
+    const aPe = legs.filter((l) => l.mode === 'WALK');
+    o.walkingMinutes = aPe.reduce((t, l) => t + (l.durationMinutes || 0), 0);
+    o.walkingDistanceMeters = aPe.reduce((t, l) => t + (l.distanceMeters || 0), 0);
+  }
+  const possiveis = opcoes.filter((o) => !impossiveis.has(o));
+  return possiveis.some((o) => o.id !== 'a-pe') ? possiveis : opcoes;
 }
 
 /** Junta ao troço de transporte o desenho da estrada (ou do carril) entre o embarque e o desembarque, se a viagem o tem */
@@ -292,8 +410,8 @@ export async function planearViagem(
   // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
   const semViagens = new Set<string>(['unir']);
   const classeDoFeed = (feed: string) => classeDeTransporte(null, String(feeds.get(feed)?.mode || ''));
-  let O = paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed);
-  let D = paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed);
+  let O = paragensPelaRede(oLat, oLon, paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed));
+  let D = paragensPelaRede(dLat, dLon, paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed));
   const porId = new Map<string, Paragem>();
   let minO = new Map(O.map((p) => [p.id, p.minutos]));
   let minD = new Map(D.map((p) => [p.id, p.minutos]));
@@ -627,8 +745,8 @@ export async function planearViagem(
   // Sem nada em transporte a menos de ~900 m a pé de cada lado: tenta com mais caminhada (até ~1,5 km),
   // como faz o Google Maps ("801 e depois 19 min a pé"). As paragens e os minutos a pé ficam à vista.
   if (!opcoes.some((o) => o.id !== 'a-pe')) {
-    const O2 = paragensPerto(oLat, oLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed);
-    const D2 = paragensPerto(dLat, dLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed);
+    const O2 = paragensPelaRede(oLat, oLon, paragensPerto(oLat, oLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed));
+    const D2 = paragensPelaRede(dLat, dLon, paragensPerto(dLat, dLon, RAIO_LONGE, MAX_PARAGENS, semViagens, classeDoFeed));
     if (O2.length > O.length || D2.length > D.length) {
       O = O2; D = D2;
       registarParagens();
@@ -745,20 +863,42 @@ export async function planearViagem(
     `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
      WHERE st.trip_id = ? AND st.stop_sequence BETWEEN ? AND ? ORDER BY st.stop_sequence`,
   );
+  // As viagens da Carris Metropolitana (feed "cmh") têm as paragens como "cmh:<id>" nos horários e "cm:<id>" na tabela das
+  // paragens: o JOIN não as acha e o troço ficava sem pontos (e o troço a pé seguinte saía do sítio errado)
+  const qParagensDaViagem = db.prepare('SELECT stop_id FROM stop_times WHERE trip_id = ? AND stop_sequence BETWEEN ? AND ? ORDER BY stop_sequence');
+  const qParagem = db.prepare('SELECT stop_lat AS lat, stop_lon AS lon, stop_name AS nome FROM stops WHERE stop_id = ?');
+  const idDaParagem = (id: string) => (id.startsWith('cmh:') ? `cm:${id.slice(4)}` : id);
+  const paragem = (id: string) => qParagem.get(idDaParagem(id)) as { lat: number; lon: number; nome: string } | undefined;
   for (const o of escolhidas) {
     for (const l of o.legs as any[]) {
       const p: Perna | undefined = l._perna;
       delete l._perna;
-      if (l.mode === 'TRANSIT' && p?.sa != null && p?.sb != null) {
+      if (l.mode === 'TRANSIT' && p) {
         try {
-          l.pontos = (qPontos.all(p.trip, p.sa, p.sb) as Array<{ lat: number; lon: number; nome: string }>)
-            .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+          if (p.sa != null && p.sb != null) {
+            l.pontos = (qPontos.all(p.trip, p.sa, p.sb) as Array<{ lat: number; lon: number; nome: string }>)
+              .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+            if (l.pontos.length < 2) {
+              l.pontos = (qParagensDaViagem.all(p.trip, p.sa, p.sb) as Array<{ stop_id: string }>)
+                .map((r) => paragem(r.stop_id))
+                .filter((x): x is { lat: number; lon: number; nome: string } => !!x && Number.isFinite(x.lat) && Number.isFinite(x.lon));
+            }
+          }
+          // sem a sequência da viagem: pelo menos onde se entra e onde se sai
+          if (!l.pontos || l.pontos.length < 2) {
+            const a = paragem(p.de), b = paragem(p.para);
+            if (a && b && Number.isFinite(a.lat) && Number.isFinite(b.lat)) l.pontos = [a, b];
+          }
         } catch { /* sem desenho, o resto funciona */ }
         juntarCaminho(l, p.trip);
       }
     }
     ligarTrocosAPe(o.legs, { lat: oLat, lon: oLon }, { lat: dLat, lon: dLon });
   }
+  // Troços a pé pelas ruas: desenho, metros e minutos do caminho a sério (e fora as opções que deixam de dar)
+  const pelasRuas = trocosPelasRuas(escolhidas, agoraSegs);
+  if (pelasRuas.length !== escolhidas.length) escolhidas.splice(0, escolhidas.length, ...pelasRuas);
+  escolhidas.sort(ordemDasOpcoes);
 
   const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
   const maisRapida = maisRapidaDe(escolhidas);
