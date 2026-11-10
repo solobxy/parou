@@ -1,4 +1,4 @@
-import { getDatabase, getAllFeeds, getFeedCalendarBounds } from './db/gtfsDatabase';
+import { getDatabase, getAllFeeds, getFeedCalendarBounds, registerCacheClearCallback } from './db/gtfsDatabase';
 import { getStcpLiveVehicles } from './portoOpenDataService';
 import { DateTime } from 'luxon';
 import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
@@ -19,6 +19,21 @@ const stopDeparturesCache = new Map<string, CacheEntry<any>>();
 export function clearLinesEngineCache(): void {
   nearLinesCache.clear();
   stopDeparturesCache.clear();
+}
+// Base nova: as respostas guardadas vêm da base antiga
+registerCacheClearCallback(clearLinesEngineCache);
+
+// Uma entrada por zona de ~100 m pedida, com a resposta inteira (dezenas de KB). Sem limite, cada pessoa que andava pela
+// cidade deixava dezenas de zonas guardadas para sempre: ~1 GB por dia, até a app ficar sem memória (5 quebras em 8 dias,
+// de 2 a 8/11/2026). Só serve 30 s, por isso 300 zonas chegam de sobra.
+const MAX_ZONAS_PERTO = 300;
+/** Raio pedido em /api/lines?near=…&r=…: sem máximo, r=1000000 fazia percorrer o país inteiro num só pedido */
+export function raioLinhasPerto(r: unknown): number {
+  const n = Number(r);
+  return Number.isFinite(n) ? Math.min(2000, Math.max(100, Math.round(n))) : 500;
+}
+export function tamanhoCacheLinhasPerto(): number {
+  return nearLinesCache.size;
 }
 
 export const VALID_DAY_COLUMNS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
@@ -506,7 +521,8 @@ export class LinesEngine {
    * - sorted by distance to that line's nearest stop
    * - next 2 departures per direction at nearest stop with state and "daqui a X min"
    */
-  static async getLinesNear(userLat: number, userLon: number, requestedRadius = 500): Promise<LineSummary[]> {
+  static async getLinesNear(userLat: number, userLon: number, raioPedido: unknown = 500): Promise<LineSummary[]> {
+    const requestedRadius = raioLinhasPerto(raioPedido);
     // Cache de 30 segundos: chave arredondada a cerca de 100 m (0.001 grau)
     const latRounded = Math.round(userLat * 1000) / 1000;
     const lonRounded = Math.round(userLon * 1000) / 1000;
@@ -515,6 +531,7 @@ export class LinesEngine {
     if (cached && cached.expiresAt > Date.now()) {
       return cached.data;
     }
+    if (cached) nearLinesCache.delete(cacheKey);
 
     const db = getDatabase();
     const feedsAviso = getFeedsAvisoHorario(db);
@@ -1103,6 +1120,7 @@ export class LinesEngine {
       data: lineSummaries,
       expiresAt: Date.now() + 30000,
     });
+    podarMapa(nearLinesCache, MAX_ZONAS_PERTO);
 
     return lineSummaries;
   }

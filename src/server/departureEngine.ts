@@ -8,7 +8,8 @@ import {
   RawDepartureRow,
   getAllFeeds,
   getDatabase,
-  getFeedCalendarBounds
+  getFeedCalendarBounds,
+  registerCacheClearCallback
 } from './db/gtfsDatabase';
 import { StopsEngine, UnifiedStop } from './stopsEngine';
 import { RealtimeEngine, LiveDeparture } from './realtimeEngine';
@@ -152,6 +153,8 @@ const nextDeparturesCache = new Map<string, NextDeparturesCacheEntry>();
 export function clearNextDeparturesCache(): void {
   nextDeparturesCache.clear();
 }
+// Base nova: as partidas guardadas vêm da base antiga
+registerCacheClearCallback(clearNextDeparturesCache);
 
 export class DepartureEngine {
   /**
