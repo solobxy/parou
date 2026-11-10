@@ -483,17 +483,22 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   // Quem é novo (sem favoritos, sem linhas abertas, sem pesquisas): as linhas mais procuradas na PAROU
   const eNovo = favoriteLineIds.length === 0 && tuasLinhas.length === 0 && pesquisas.length === 0 && linhasPreferidas(1).length === 0;
   const [maisProcuradas, setMaisProcuradas] = useState<ApiLineItem[]>([]);
+  // Enquanto chegam, o lugar fica reservado (6 linhas-esqueleto): sem isto a secção aparecia por cima de tudo depois de
+  // carregar e empurrava a página ~480 px para baixo (CLS 0,264 no separador Horários, medido a 10/11/2026).
+  const [maisProcuradasPronto, setMaisProcuradasPronto] = useState(false);
   const chaveCidades = cidadesEfetivas.join(',');
   useEffect(() => {
-    if (!eNovo) { setMaisProcuradas([]); return; }
+    if (!eNovo) { setMaisProcuradas([]); setMaisProcuradasPronto(true); return; }
     let cancelado = false;
+    setMaisProcuradasPronto(false);
     linhasMaisProcuradas(cidadesEfetivas)
       .then((ids) => (ids.length ? fetchLinesByIds(ids).then((lines) => {
         const ordem = new Map(ids.map((id, i) => [id, i]));
         return [...lines].sort((a, b) => (ordem.get(a.id) ?? 99) - (ordem.get(b.id) ?? 99));
       }) : []))
       .then((lines) => { if (!cancelado) setMaisProcuradas(lines.slice(0, 6)); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setMaisProcuradasPronto(true); });
     return () => { cancelado = true; };
   }, [eNovo, chaveCidades]);
   const idsMostrados = new Set<string>([...(userCoords ? nearLines.map((l) => l.id) : []), ...favoriteLines.map((l) => l.id)]);
@@ -563,7 +568,18 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       {/* Main Content Area */}
       <div className="max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1">
         {/* Mais procuradas na PAROU (só para quem ainda não tem as suas linhas) */}
-        {!aPesquisar && eNovo && maisProcuradas.length > 0 && (
+        {!aPesquisar && eNovo && !maisProcuradasPronto && (
+          <section className="space-y-2" data-teste="mais-procuradas-a-carregar" aria-hidden="true">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-[#111111]">{t('Mais procuradas')}</h2>
+              <span className="text-xs text-[#6B6B6B]">{t('Na PAROU, últimos 30 dias')}</span>
+            </div>
+            <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
+              {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-[73px] parou-esqueleto rounded-none" />)}
+            </div>
+          </section>
+        )}
+        {!aPesquisar && eNovo && maisProcuradasPronto && maisProcuradas.length > 0 && (
           <section className="space-y-2" data-teste="mais-procuradas">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">{t('Mais procuradas')}</h2>
