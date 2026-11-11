@@ -615,13 +615,28 @@ function perguntasOperador(op: Operador, tr: boolean, cidades: Array<(typeof CID
   return lista;
 }
 
+/** Nomes dos operadores como os turistas e quem vem viver para cá os pesquisam («lisbon metro», «porto metro»;
+ * sugestões do Google em Portugal, 11/11/2026). Só nos títulos das páginas noutras línguas. */
+const NOME_OPERADOR_LINGUA: Record<string, { en: string; de: string; fr: string }> = {
+  'metro-de-lisboa': { en: 'Lisbon Metro', de: 'Metro Lissabon', fr: 'Métro de Lisbonne' },
+  'metro-do-porto': { en: 'Porto Metro', de: 'Metro Porto', fr: 'Métro de Porto' },
+  carris: { en: 'Carris (Lisbon buses and trams)', de: 'Carris (Busse und Straßenbahnen Lissabon)', fr: 'Carris (bus et trams de Lisbonne)' },
+  stcp: { en: 'STCP (Porto buses)', de: 'STCP (Busse Porto)', fr: 'STCP (bus de Porto)' },
+  cp: { en: 'CP trains in Portugal', de: 'CP Züge in Portugal', fr: 'Trains CP au Portugal' },
+  fertagus: { en: 'Fertagus trains (Lisbon–Setúbal)', de: 'Fertagus Züge (Lissabon–Setúbal)', fr: 'Trains Fertagus (Lisbonne–Setúbal)' },
+  'transtejo-soflusa': { en: 'Lisbon ferries (Transtejo Soflusa)', de: 'Fähren Lissabon (Transtejo Soflusa)', fr: 'Ferries de Lisbonne (Transtejo Soflusa)' },
+  'metro-sul-do-tejo': { en: 'Metro Sul do Tejo (Almada light rail)', de: 'Metro Sul do Tejo (Stadtbahn Almada)', fr: 'Metro Sul do Tejo (tram d’Almada)' },
+};
+
 function paginaOperador(op: Operador): string {
+  // Nome como se pesquisa noutras línguas («Lisbon Metro», «Porto Metro»): no título e no h1 das páginas em inglês, alemão e francês
+  const nomeLingua = { en: NOME_OPERADOR_LINGUA[op.slug]?.en || op.nome, de: NOME_OPERADOR_LINGUA[op.slug]?.de || op.nome, fr: NOME_OPERADOR_LINGUA[op.slug]?.fr || op.nome };
   const plural = pluralModo(op.modo);
   const tr = COM_TEMPO_REAL.has(op.slug);
   const principais = linhasPrincipais(op);
   const cidades = cidadesDoOperador(op);
   const perguntas = perguntasOperador(op, tr, cidades);
-  const corpo = `<h1>${L(`Horários ${html(op.nome)}${tr ? ' e tempo real' : ''}: linhas e paragens`, `${html(op.nome)} timetables: lines and stops`, `Fahrpläne ${html(op.nome)}: Linien und Haltestellen`, `Horaires ${html(op.nome)} : lignes et arrêts`)}</h1>
+  const corpo = `<h1>${L(`Horários ${html(op.nome)}${tr ? ' e tempo real' : ''}: linhas e paragens`, `${html(nomeLingua.en)} timetables: lines and stops`, `Fahrpläne ${html(nomeLingua.de)}: Linien und Haltestellen`, `Horaires ${html(nomeLingua.fr)} : lignes et arrêts`)}</h1>
 <p class="sub">${L(
     `${html(op.nome)} tem ${nLinhas(op.linhas.length)} e ${num(op.paragens.length)} paragens na PAROU. Escolhe uma linha para ver o horário de dias úteis, sábados e domingos e todas as paragens do percurso${tr ? ' — ou abre a app para ver os próximos ' + plural + ' em tempo real' : ''}.`,
     `${html(op.nome)} has ${nLinhas(op.linhas.length)} and ${num(op.paragens.length)} stops on PAROU. Pick a line to see the weekday, Saturday and Sunday timetable and every stop on the route${tr ? ' — or open the app to see the next ' + plural + ' in real time' : ''}.`,
@@ -636,7 +651,7 @@ ${principais.length >= 4 && op.linhas.length > 8 ? `<h2>${L(`Linhas ${html(op.no
     + (perguntas.length ? `<h2>Perguntas frequentes</h2>${perguntas.map((x) => `<details><summary>${html(x.q)}</summary><div class="dentro"><p>${x.rHtml}</p></div></details>`).join('')}` : '')
     + (cidades.length ? `<h2>${L(`${html(op.nome)} por cidade`, `${html(op.nome)} by city`, `${html(op.nome)} nach Stadt`, `${html(op.nome)} par ville`)}</h2><ul class="lista">${cidades.map((c) => `<li><a href="/cidade/${c.slug}"><span class="t">${L(`Transportes em ${html(c.nome)}`, `Public transport in ${html(c.nome)}`, `Öffentlicher Verkehr in ${html(c.nome)}`, `Transports à ${html(c.nome)}`)}</span></a></li>`).join('')}</ul>` : '');
   return pagina({
-    titulo: L(`Horários ${op.nome}${tr ? ' e tempo real' : ''}: linhas e paragens | PAROU`, `${op.nome} timetables${tr ? ' and real time' : ''}: lines and stops | PAROU`, `Fahrpläne ${op.nome}${tr ? ' und Echtzeit' : ''}: Linien und Haltestellen | PAROU`, `Horaires ${op.nome}${tr ? ' et temps réel' : ''} : lignes et arrêts | PAROU`),
+    titulo: L(`Horários ${op.nome}${tr ? ' e tempo real' : ''}: linhas e paragens | PAROU`, `${nomeLingua.en} timetables${tr ? ' and real time' : ''}: lines and stops | PAROU`, `Fahrpläne ${nomeLingua.de}${tr ? ' und Echtzeit' : ''}: Linien und Haltestellen | PAROU`, `Horaires ${nomeLingua.fr}${tr ? ' et temps réel' : ''} : lignes et arrêts | PAROU`),
     descricao: L(
       `Horários das ${op.linhas.length} linhas ${op.nome} (${op.modo.toLowerCase()}): partidas de dias úteis, sábados e domingos, percurso e paragens${tr ? `, com os próximos ${plural} em tempo real` : ' e próximas partidas em cada paragem'}.`,
       `Timetables for the ${op.linhas.length} ${op.nome} lines (${nomeModo(op.modo).toLowerCase()}): weekday, Saturday and Sunday departures, route and stops${tr ? `, with the next ${plural} in real time` : ' and next departures at every stop'}.`,
