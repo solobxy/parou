@@ -1098,15 +1098,29 @@ function operadorPush(texto: string) {
   return OPERADORES_PUSH.find((o) => o.re.test(t));
 }
 
+/** Operadores escritos como na lista de linhas da app (feed: "cm", "metro_lisboa"…), quando a linha não traz o nome */
+const OPERADOR_DO_FEED: Record<string, string> = {
+  'cm': 'carris-metropolitana', 'carris metropolitana': 'carris-metropolitana', 'metro lisboa': 'metro-lisboa', 'ml': 'metro-lisboa',
+  'metro porto': 'metro-porto', 'transtejo soflusa': 'transtejo', 'mts': 'mts', 'cp': 'cp', 'stcp': 'stcp', 'carris': 'carris', 'fertagus': 'fertagus',
+};
+const CORES_METRO_LISBOA: Record<string, string> = { azul: 'azul', amarela: 'amarela', verde: 'verde', vermelha: 'vermelha', az: 'azul', am: 'amarela', vd: 'verde', vm: 'vermelha' };
+
 /**
  * Chave de uma linha para os avisos por linha: operador + código, iguais dos dois lados (a linha guardada na app
  * e a linha no aviso do operador). Sem acentos, sem «Linha» à frente e sem o sufixo de sentido das linhas da
  * Carris Metropolitana («1001_0» → «1001»). Ex.: «Metropolitano de Lisboa» + «Linha Azul» → «metro-lisboa|azul».
+ * `nome` (opcional): nome da linha, para o Metro de Lisboa quando o código não diz a cor.
  */
-export function chaveLinha(operador: string, linha: string): string {
-  const o = operadorPush(String(operador || ''));
-  const op = o && o.chave !== 'aviacao' ? o.chave : semAcentos(String(operador || '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const ln = semAcentos(String(linha || '')).replace(/^\[.*?\]/, '').replace(/^linha\s+/, '').replace(/_\d+$/, '').replace(/\s+/g, ' ').trim();
+export function chaveLinha(operador: string, linha: string, nome = ''): string {
+  const opTexto = semAcentos(String(operador || '')).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const o = operadorPush(opTexto);
+  const op = OPERADOR_DO_FEED[opTexto] || (o && o.chave !== 'aviacao' ? o.chave : opTexto.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+  let ln = semAcentos(String(linha || '')).replace(/^\[.*?\]/, '').replace(/^linha\s+/, '').replace(/_\d+$/, '').replace(/\s+/g, ' ').trim();
+  if (op === 'metro-lisboa') {
+    // Metro de Lisboa: a linha é a cor («Linha Azul», «AZ», ou só no nome)
+    const cor = (`${ln} ${semAcentos(String(nome || ''))}`.match(/\b(azul|amarela|verde|vermelha|az|am|vd|vm)\b/) || [])[1];
+    if (cor) ln = CORES_METRO_LISBOA[cor];
+  }
   return op && ln && ln.length <= 40 ? `${op}|${ln}` : '';
 }
 
@@ -1115,10 +1129,10 @@ export function chaveLinha(operador: string, linha: string): string {
  * nas próximas 12 h ou a decorrer há menos de 6 h. Avisos de rede inteira (mais de 30 linhas) ficam de fora: não são
  * «da tua linha» e as greves gerais já chegam pelos avisos do distrito.
  */
-export async function candidatosLinhas(): Promise<CandidatoPush[]> {
+export async function candidatosLinhas(lerAvisos: () => Promise<any[]> = () => getCentralAlerts()): Promise<CandidatoPush[]> {
   const agora = Date.now();
   const oficiais = await Promise.race([
-    getCentralAlerts().catch(() => []),
+    lerAvisos().catch(() => []),
     new Promise<any[]>((r) => setTimeout(() => r([]), 5000)),
   ]);
   // O mesmo aviso chega por duas fontes (TML e Carris Metropolitana): junta-se num só, com as linhas das duas

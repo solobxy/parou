@@ -1283,4 +1283,13 @@ export const FR: Record<string, string> = {
   'Saltar': 'Passer',
   'Diz para onde vais': 'Dites où vous allez',
   'Escreve um sítio (uma rua, um centro comercial, um hospital) e a PAROU mostra o melhor caminho, a pé incluído.': 'Saisissez un lieu (une rue, un centre commercial, un hôpital) et PAROU vous montre le meilleur chemin, trajets à pied compris.',
+  'Avisar-me': 'Me prévenir',
+  'Avisos da linha': 'Alertes de la ligne',
+  'Avisar-te sobre a linha {l}?': 'Recevoir les alertes de la ligne {l} ?',
+  'Vais saber o que se passa na linha {l}': 'Tu seras prévenu pour la ligne {l}',
+  'Greves, desvios e perturbações nesta linha, mesmo com a app fechada.': 'Grèves, déviations et perturbations sur cette ligne, même avec l’app fermée.',
+  'Greves, desvios e perturbações na linha {l} chegam-te mesmo com a app fechada.': 'Les grèves, déviations et perturbations de la ligne {l} t’arrivent même avec l’app fermée.',
+  'As linhas que guardas também recebem avisos de greves, desvios e perturbações.': 'Les lignes que tu enregistres reçoivent aussi les alertes de grèves, déviations et perturbations.',
+  'Não foi possível ligar os avisos': 'Impossible d’activer les alertes',
+  'A PAROU volta a tentar da próxima vez que a abrires.': 'PAROU réessaiera la prochaine fois que tu l’ouvriras.',
 };

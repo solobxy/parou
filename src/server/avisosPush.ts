@@ -189,9 +189,13 @@ async function enviar(sub: { endpoint: string; p256dh: string; auth: string }, d
 }
 
 /** Envia e trata da resposta (apaga subscrições que já não existem). Devolve true se entregou. */
+// Para os testes automáticos: trocar o envio (não sai nada para a rede) e a hora de silêncio
+let enviarFn: (sub: Subscricao, dados: object, urgente: boolean, ttl?: number) => Promise<number> = (sub, dados, urgente, ttl) => enviar(sub, dados, urgente, ttl);
+let silencioFn: () => boolean = () => horaDeSilencio();
+
 async function enviarA(sub: Subscricao, dados: object, urgente: boolean, ttl?: number): Promise<boolean> {
   try {
-    const estado = await enviar(sub, dados, urgente, ttl);
+    const estado = await enviarFn(sub, dados, urgente, ttl);
     if (estado === 404 || estado === 410) {
       base().prepare('DELETE FROM subscricoes WHERE endpoint = ?').run(sub.endpoint);
       return false;
@@ -266,7 +270,12 @@ function tituloDaLinha(c: CandidatoPush, cods: string[]): string {
   return `${nomes.length > 1 ? 'Linhas' : 'Linha'} ${lista} · ${c.opNome || c.titulo}`;
 }
 export function _testes() {
-  return { definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; }, ciclo, interessa, base, enviarLembretes, linhasSeguidas, tituloDaLinha };
+  return {
+    definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; },
+    definirEnvio: (f: typeof enviarFn) => { enviarFn = f; },
+    definirSilencio: (f: () => boolean) => { silencioFn = f; },
+    ciclo, interessa, base, enviarLembretes, linhasSeguidas, tituloDaLinha,
+  };
 }
 
 let ultimoCiclo: { quando: string; candidatos: number; novos: string[]; entregues: number; falhas: number } | null = null;
@@ -308,7 +317,7 @@ async function ciclo(): Promise<void> {
     }
 
     ultimoCiclo = { quando: new Date().toISOString(), candidatos: candidatos.length, novos: [], entregues: 0, falhas: 0 };
-    const silencio = horaDeSilencio();
+    const silencio = silencioFn();
     const novos: CandidatoPush[] = [];
     const gruposNoCiclo = new Set<string>();
     for (const c of candidatos) {
@@ -480,7 +489,7 @@ export function registarRotasPush(app: Express) {
       (Array.isArray(corpo?.linhas) ? corpo.linhas : [])
         .slice(0, 40)
         .filter((l: any) => l && typeof l.op === 'string' && typeof l.ln === 'string' && l.op.length <= 60 && l.ln.length <= 60)
-        .map((l: any) => chaveLinha(l.op, l.ln))
+        .map((l: any) => chaveLinha(l.op, l.ln, typeof l.nome === 'string' ? l.nome.slice(0, 80) : ''))
         .filter(Boolean),
     ));
     try {

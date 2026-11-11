@@ -1,4 +1,6 @@
 import { Occurrence, NotificationPreferences, NotificationLogItem } from '../types';
+import { getLocalFavorites } from './favoritesService';
+import { linhasParaAvisos, type LinhaParaAvisos } from '../utils/avisosLinha';
 
 const STORAGE_KEY_PREFS = 'parou_notification_preferences_v1';
 const STORAGE_KEY_LOGS = 'parou_notification_history_v1';
@@ -344,6 +346,43 @@ async function registoSW(): Promise<ServiceWorkerRegistration | null> {
   }
 }
 
+/** Linhas guardadas (estrela nos Horários, no Perto ou nos Favoritos), para os avisos só dessas linhas */
+export function linhasGuardadas(): LinhaParaAvisos[] {
+  if (typeof window === 'undefined') return [];
+  let antigos: unknown[] = [];
+  try {
+    const v = JSON.parse(localStorage.getItem('parou_favorite_line_ids') || '[]');
+    if (Array.isArray(v)) antigos = v;
+  } catch { /* lista ilegível */ }
+  try {
+    return linhasParaAvisos(getLocalFavorites() as any, antigos);
+  } catch {
+    return linhasParaAvisos([], antigos);
+  }
+}
+
+let ultimasLinhasEnviadas = '';
+
+/**
+ * Quando a pessoa guarda ou tira uma linha, o servidor fica a saber (para os avisos dessa linha).
+ * Só com os avisos ligados; espera um pouco para juntar várias estrelas seguidas num só pedido.
+ */
+export function vigiarLinhasGuardadas(): () => void {
+  if (typeof window === 'undefined') return () => {};
+  let espera: ReturnType<typeof setTimeout> | undefined;
+  const aoMudar = () => {
+    clearTimeout(espera);
+    espera = setTimeout(() => {
+      const prefs = getStoredNotificationPreferences();
+      if (!prefs.enabled || !pushSuportado() || Notification.permission !== 'granted') return;
+      if (JSON.stringify(linhasGuardadas()) === ultimasLinhasEnviadas) return;
+      void sincronizarPush(prefs);
+    }, 1500);
+  };
+  window.addEventListener('parou_favorites_updated', aoMudar);
+  return () => { clearTimeout(espera); window.removeEventListener('parou_favorites_updated', aoMudar); };
+}
+
 export function pushSuportado(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
@@ -386,11 +425,13 @@ export async function sincronizarPush(prefs: NotificationPreferences): Promise<'
     const distritos = (prefs.districts && prefs.districts.length > 0)
       ? prefs.districts
       : (prefs.selectedDistrict && prefs.selectedDistrict !== 'Todas' ? [prefs.selectedDistrict] : []);
+    const linhas = soLembretes ? [] : linhasGuardadas();
     const g = await fetch('/api/push/subscrever', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscricao: sub.toJSON(), distritos: soLembretes ? [] : distritos, modo: soLembretes ? 'lembretes' : 'alertas' }),
+      body: JSON.stringify({ subscricao: sub.toJSON(), distritos: soLembretes ? [] : distritos, linhas, modo: soLembretes ? 'lembretes' : 'alertas' }),
     });
+    if (g.ok) ultimasLinhasEnviadas = JSON.stringify(linhas);
     return g.ok ? 'ok' : 'erro';
   } catch (err) {
     console.warn('[Push] Não foi possível ativar:', err);
@@ -487,7 +528,7 @@ async function subscreverParaLembretes(reg: ServiceWorkerRegistration): Promise<
   const g = await fetch('/api/push/subscrever', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscricao: sub.toJSON(), distritos, modo: alertasLigados ? 'alertas' : 'lembretes' }),
+    body: JSON.stringify({ subscricao: sub.toJSON(), distritos, linhas: alertasLigados ? linhasGuardadas() : [], modo: alertasLigados ? 'alertas' : 'lembretes' }),
   });
   return g.ok ? sub : null;
 }

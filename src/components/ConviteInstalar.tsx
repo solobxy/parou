@@ -54,6 +54,8 @@ export const ConviteInstalar: React.FC = () => {
         agora: Date.now(),
       });
       if (!pode) return;
+      // O convite dos avisos de uma linha ocupa o mesmo sítio: não aparecem os dois
+      if (document.querySelector('[data-teste="convite-avisos-linha"]')) return;
       mostrado.current = true;
       try { sessionStorage.setItem(CHAVE_SESSAO, '1'); } catch {}
       const momento = String((e as CustomEvent<MomentoDeValor>).detail || 'outro');

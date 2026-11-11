@@ -486,6 +486,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   // Enquanto chegam, o lugar fica reservado (6 linhas-esqueleto): sem isto a secção aparecia por cima de tudo depois de
   // carregar e empurrava a página ~480 px para baixo (CLS 0,264 no separador Horários, medido a 10/11/2026).
   const [maisProcuradasPronto, setMaisProcuradasPronto] = useState(false);
+  // A estrela destas linhas também guarda o operador e o código (avisos da linha, separador Favoritos)
+  useEffect(() => { for (const l of maisProcuradas) linhasConhecidasRef.current.set(l.id, l); }, [maisProcuradas]);
   const chaveCidades = cidadesEfetivas.join(',');
   useEffect(() => {
     if (!eNovo) { setMaisProcuradas([]); setMaisProcuradasPronto(true); return; }

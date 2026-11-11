@@ -19,6 +19,7 @@ import { Logo } from './components/Logo';
 import { TopLoadingBanner } from './components/TopLoadingBanner';
 import { AvisoSemRede } from './components/AvisoSemRede';
 import { ConviteInstalar } from './components/ConviteInstalar';
+import { ConviteAvisosLinha } from './components/ConviteAvisosLinha';
 import { PontoDiario } from './components/PontoDiario';
 import { aplicarMetaRota } from './seo/rotasApp';
 import { FeaturedOccurrence } from './components/FeaturedOccurrence';
@@ -56,7 +57,8 @@ import { fetchTransitLines } from './services/transitApi';
 import { 
   getStoredNotificationPreferences, 
   dispatchOccurrenceNotification,
-  sincronizarPush 
+  sincronizarPush,
+  vigiarLinhasGuardadas,
 } from './services/notifications';
 import {
   observarSessao, subscribeUserProfile, subscribeReports, subscribeComplaints,
@@ -275,7 +277,9 @@ export default function App() {
       const p = getStoredNotificationPreferences();
       if (p.enabled) void sincronizarPush(p);
     }, 6000);
-    return () => clearTimeout(t);
+    // Guardar ou tirar uma linha muda os avisos que chegam (avisos por linha)
+    const parar = vigiarLinhasGuardadas();
+    return () => { clearTimeout(t); parar(); };
   }, []);
 
   // Filters state - strictly initialized to 'Todas' (no district pre-selected)
@@ -817,6 +821,7 @@ export default function App() {
       <TopLoadingBanner />
       <AvisoSemRede />
       <ConviteInstalar />
+      <ConviteAvisosLinha />
 
       {/* Top Bar Navigation (includes mobile-accessible Reclamações e Favoritos) */}
       <Header
