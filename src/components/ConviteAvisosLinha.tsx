@@ -26,11 +26,15 @@ function linhasAgora(): Map<string, LinhaGuardada> {
       if (!f || typeof f.id !== 'string' || !f.id.startsWith('line-')) continue;
       const id = f.id.slice(5);
       const op = String(f.operatorName || f.operatorId || id.split(':')[0] || '');
-      const metro = /metro/i.test(op);
-      const bruto = String((metro ? (f.lineName || f.title || f.lineCode) : (f.lineCode || f.title)) || id.split(':').pop() || '');
+      // Metro de Lisboa: a linha é a cor («Azul»); nos outros, o código («1001»)
+      const cor = /metro(politano)? de lisboa|metro_lisboa/i.test(`${op} ${id}`)
+        ? (`${f.lineName || ''} ${f.title || ''} ${f.lineCode || ''}`.match(/\b(azul|amarela|verde|vermelha)\b/i) || [])[1]
+        : '';
+      const bruto = String(cor || f.lineCode || f.title || id.split(':').pop() || '');
       // Sem código guardado fica o id da lista («cm:1001_0»): mostra só «1001»
       const curto = bruto.includes(':') ? (bruto.split(':').pop() || '').replace(/_\d+$/, '') : bruto;
-      m.set(id, { id, op, rotulo: curto.replace(/^linha\s+/i, '').trim().slice(0, 40) });
+      const limpo = curto.replace(/^linha\s+/i, '').trim();
+      m.set(id, { id, op, rotulo: (cor ? limpo.charAt(0).toUpperCase() + limpo.slice(1).toLowerCase() : limpo).slice(0, 24) });
     }
   } catch { /* sem favoritos */ }
   return m;
