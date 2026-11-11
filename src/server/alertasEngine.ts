@@ -1073,6 +1073,10 @@ export interface CandidatoPush {
   url: string;
   /** Tipo de aviso (greve, incendio, tempo…), para escolher a imagem no canal do WhatsApp */
   categoria?: string;
+  /** Avisos por linha: só vão a quem guardou uma destas linhas (chaves de chaveLinha), seja qual for o distrito */
+  linhas?: string[];
+  /** Nome do operador, para o título personalizado com a linha de cada pessoa */
+  opNome?: string;
 }
 
 const OPERADORES_PUSH: Array<{ chave: string; nome: string; re: RegExp; distritos: string[] }> = [
@@ -1092,6 +1096,76 @@ const OPERADORES_PUSH: Array<{ chave: string; nome: string; re: RegExp; distrito
 function operadorPush(texto: string) {
   const t = semAcentos(texto);
   return OPERADORES_PUSH.find((o) => o.re.test(t));
+}
+
+/**
+ * Chave de uma linha para os avisos por linha: operador + código, iguais dos dois lados (a linha guardada na app
+ * e a linha no aviso do operador). Sem acentos, sem «Linha» à frente e sem o sufixo de sentido das linhas da
+ * Carris Metropolitana («1001_0» → «1001»). Ex.: «Metropolitano de Lisboa» + «Linha Azul» → «metro-lisboa|azul».
+ */
+export function chaveLinha(operador: string, linha: string): string {
+  const o = operadorPush(String(operador || ''));
+  const op = o && o.chave !== 'aviacao' ? o.chave : semAcentos(String(operador || '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const ln = semAcentos(String(linha || '')).replace(/^\[.*?\]/, '').replace(/^linha\s+/, '').replace(/_\d+$/, '').replace(/\s+/g, ' ').trim();
+  return op && ln && ln.length <= 40 ? `${op}|${ln}` : '';
+}
+
+/**
+ * Avisos por linha (para quem guardou a linha): perturbações, desvios, obras e greves de linhas concretas, a começar
+ * nas próximas 12 h ou a decorrer há menos de 6 h. Avisos de rede inteira (mais de 30 linhas) ficam de fora: não são
+ * «da tua linha» e as greves gerais já chegam pelos avisos do distrito.
+ */
+export async function candidatosLinhas(): Promise<CandidatoPush[]> {
+  const agora = Date.now();
+  const oficiais = await Promise.race([
+    getCentralAlerts().catch(() => []),
+    new Promise<any[]>((r) => setTimeout(() => r([]), 5000)),
+  ]);
+  // O mesmo aviso chega por duas fontes (TML e Carris Metropolitana): junta-se num só, com as linhas das duas
+  const porTitulo = new Map<string, { a: any; op: string; nomeOp: string; chaves: Set<string>; inicioMs: number }>();
+  for (const a of oficiais as any[]) {
+    if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
+    if (/ipma/i.test(String(a.operador || '')) || /ipma/i.test(String(a.source || ''))) continue;
+    if (TIPOS_SO_INFORMATIVOS.has(String(a.tipo))) continue;
+    const linhas: string[] = Array.isArray(a.linhas) ? a.linhas.map(String) : [];
+    if (linhas.length === 0 || linhas.length > 30) continue;
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    if (Number.isFinite(fimMs) && fimMs < agora) continue;
+    const inicioMs = a.start_datetime ? Date.parse(String(a.start_datetime)) : NaN;
+    if (Number.isFinite(inicioMs) && (inicioMs - agora > 12 * 3600_000 || agora - inicioMs > 6 * 3600_000)) continue;
+    const o = operadorPush(String(a.operador || ''));
+    if (o?.chave === 'aviacao') continue;
+    const chaves = linhas.map((l) => chaveLinha(String(a.operador || ''), l)).filter(Boolean);
+    if (chaves.length === 0) continue;
+    const op = chaves[0].split('|')[0];
+    const k = `${op}|${semAcentos(String(a.título || '')).replace(/[^a-z0-9]/g, '').slice(0, 120)}`;
+    const ja = porTitulo.get(k);
+    if (ja) { chaves.forEach((c) => ja.chaves.add(c)); continue; }
+    porTitulo.set(k, { a, op, nomeOp: o?.nome || String(a.operador || 'Transportes'), chaves: new Set(chaves), inicioMs });
+  }
+  const lista: CandidatoPush[] = [];
+  for (const [k, { a, op, nomeOp, chaves, inicioMs }] of porTitulo) {
+    const titulo = String(a.título || '').replace(/\s+/g, ' ').trim();
+    const greve = a.tipo === 'greve';
+    const quando = Number.isFinite(inicioMs) && inicioMs > agora ? ` · ${quandoCurto(a.start_datetime)}` : '';
+    const corpo = `${greve && !/greve/i.test(titulo) ? 'Greve: ' : ''}${titulo.length > 140 ? `${titulo.slice(0, 137).trimEnd()}…` : titulo}${quando}`;
+    lista.push({
+      // Com o início no id: no Metro de Lisboa o aviso de cada linha volta a abrir com o mesmo id a cada perturbação
+      id: `linha:${a.id}@${a.start_datetime || ''}`,
+      // Contra avisos que piscam (abre, fecha, abre) e o mesmo aviso vindo da segunda fonte noutro ciclo
+      grupo: `linha:${k}`,
+      pausaHoras: op === 'metro-lisboa' ? 2 : 12,
+      titulo: nomeOp,
+      corpo: corpo || `Aviso da ${nomeOp}`,
+      distritos: [],
+      urgente: false,
+      url: '/alertas',
+      categoria: greve ? 'greve' : categoriaDoAviso(a),
+      linhas: Array.from(chaves),
+      opNome: nomeOp,
+    });
+  }
+  return lista;
 }
 
 /**

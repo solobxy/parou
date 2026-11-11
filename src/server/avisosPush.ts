@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { DateTime } from 'luxon';
-import { candidatosPush, type CandidatoPush } from './alertasEngine';
+import { candidatosPush, candidatosLinhas, chaveLinha, type CandidatoPush } from './alertasEngine';
 import { ipDe } from './limites';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
@@ -136,6 +136,8 @@ function base(): DatabaseSync {
   db.exec(`CREATE TABLE IF NOT EXISTS vistos (id TEXT PRIMARY KEY, quando INTEGER NOT NULL)`);
   // so_lembretes = 1: a subscrição só serve para lembretes de partida (não recebe alertas gerais)
   try { db.exec('ALTER TABLE subscricoes ADD COLUMN so_lembretes INTEGER NOT NULL DEFAULT 0'); } catch { /* já existe */ }
+  // linhas: as linhas guardadas na app (chaves de chaveLinha), para os avisos só dessas linhas
+  try { db.exec("ALTER TABLE subscricoes ADD COLUMN linhas TEXT NOT NULL DEFAULT '[]'"); } catch { /* já existe */ }
   db.exec(`CREATE TABLE IF NOT EXISTS lembretes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     endpoint TEXT NOT NULL,
@@ -156,6 +158,7 @@ interface Subscricao {
   p256dh: string;
   auth: string;
   distritos: string;
+  linhas?: string;
   dia: string;
   enviados_dia: number;
   falhas: number;
@@ -241,9 +244,29 @@ function horaDeSilencio(): boolean {
 }
 
 // Para os testes automáticos: permite trocar a fonte dos avisos e correr um ciclo à mão
-let fonteCandidatos: () => Promise<CandidatoPush[]> = candidatosPush;
+// Avisos gerais (por distrito) e avisos das linhas guardadas
+let fonteCandidatos: () => Promise<CandidatoPush[]> = async () => {
+  const [gerais, porLinha] = await Promise.all([candidatosPush(), candidatosLinhas().catch(() => [])]);
+  return [...gerais, ...porLinha];
+};
+
+/** O aviso é de uma das linhas que a pessoa guardou? Devolve os códigos dessas linhas (para o título). */
+function linhasSeguidas(c: CandidatoPush, linhasSub: string[]): string[] {
+  if (!c.linhas?.length || !linhasSub.length) return [];
+  const minhas = new Set(linhasSub);
+  return c.linhas.filter((k) => minhas.has(k)).map((k) => k.split('|')[1] || '');
+}
+function nomeDaLinha(cod: string): string {
+  return /^[a-z]/.test(cod) ? cod.charAt(0).toUpperCase() + cod.slice(1) : cod.toUpperCase();
+}
+/** Título com a linha da pessoa: «Linha 1001 · Carris Metropolitana», «Linhas Azul e Verde · Metro de Lisboa» */
+function tituloDaLinha(c: CandidatoPush, cods: string[]): string {
+  const nomes = cods.slice(0, 3).map(nomeDaLinha);
+  const lista = nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0];
+  return `${nomes.length > 1 ? 'Linhas' : 'Linha'} ${lista} · ${c.opNome || c.titulo}`;
+}
 export function _testes() {
-  return { definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; }, ciclo, interessa, base, enviarLembretes };
+  return { definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; }, ciclo, interessa, base, enviarLembretes, linhasSeguidas, tituloDaLinha };
 }
 
 let ultimoCiclo: { quando: string; candidatos: number; novos: string[]; entregues: number; falhas: number } | null = null;
@@ -266,8 +289,22 @@ async function ciclo(): Promise<void> {
         if (c.grupo) marcar.run(`grupo:${c.grupo}`, agora);
       }
       marcar.run('inicio', agora);
+      marcar.run('inicio-linhas', agora);
       console.log(`[Push] Início: ${candidatos.length} avisos atuais registados (não enviados)`);
       return;
+    }
+    // Primeira vez com os avisos por linha (servidor que já enviava avisos): os avisos de linhas que já estão
+    // a decorrer ficam registados sem envio, para não chegar de uma vez tudo o que já está ativo
+    // (durante 30 min: logo a seguir a arrancar, os avisos dos operadores ainda vão chegando aos poucos)
+    const inicioLinhas = jaVisto.get('inicio-linhas') as { quando: number } | undefined;
+    if (!inicioLinhas) marcar.run('inicio-linhas', agora);
+    if (!inicioLinhas || agora - inicioLinhas.quando < 30 * 60_000) {
+      const jaAtivos = candidatos.filter((c) => c.linhas?.length && !jaVisto.get(c.id));
+      for (const c of jaAtivos) {
+        marcar.run(c.id, agora);
+        if (c.grupo) marcar.run(`grupo:${c.grupo}`, agora);
+      }
+      if (jaAtivos.length) console.log(`[Push] Avisos por linha: ${jaAtivos.length} já ativos registados (não enviados)`);
     }
 
     ultimoCiclo = { quando: new Date().toISOString(), candidatos: candidatos.length, novos: [], entregues: 0, falhas: 0 };
@@ -289,7 +326,7 @@ async function ciclo(): Promise<void> {
     }
     if (novos.length === 0) return;
 
-    const subs = b.prepare('SELECT endpoint, p256dh, auth, distritos, dia, enviados_dia, falhas FROM subscricoes WHERE so_lembretes = 0').all() as unknown as Subscricao[];
+    const subs = b.prepare('SELECT endpoint, p256dh, auth, distritos, linhas, dia, enviados_dia, falhas FROM subscricoes WHERE so_lembretes = 0').all() as unknown as Subscricao[];
     const hoje = DateTime.now().setZone('Europe/Lisbon').toISODate() || '';
     let entregues = 0;
     let falhas = 0;
@@ -297,7 +334,20 @@ async function ciclo(): Promise<void> {
     const tarefas = subs.map((sub) => async () => {
       let distritos: string[] = [];
       try { distritos = JSON.parse(sub.distritos || '[]'); } catch {}
-      const meus = novos.filter((c) => interessa(c, distritos));
+      let linhasSub: string[] = [];
+      try { linhasSub = JSON.parse(sub.linhas || '[]'); } catch {}
+      // Avisos gerais pelo distrito; avisos por linha só a quem guardou a linha, com o nome da linha no título.
+      // O mesmo aviso não chega duas vezes (geral e da linha): fica o da linha, que diz qual é.
+      const daLinha = new Map<string, CandidatoPush>();
+      for (const c of novos) {
+        if (!c.linhas?.length) continue;
+        const cods = linhasSeguidas(c, linhasSub);
+        if (cods.length) daLinha.set(c.id.replace(/^linha:/, '').replace(/@[^@]*$/, ''), { ...c, titulo: tituloDaLinha(c, cods) });
+      }
+      const meus = [
+        ...novos.filter((c) => !c.linhas?.length && interessa(c, distritos) && !daLinha.has(c.id.replace(/^oficial:/, ''))),
+        ...daLinha.values(),
+      ];
       if (meus.length === 0) return;
       const jaHoje = sub.dia === hoje ? sub.enviados_dia : 0;
       const urgentes = meus.filter((c) => c.urgente);
@@ -366,7 +416,7 @@ export async function enviarLembretes(): Promise<number> {
 function limpeza() {
   try {
     const b = base();
-    b.prepare('DELETE FROM vistos WHERE quando < ? AND id != ?').run(Date.now() - 21 * 24 * 3600_000, 'inicio');
+    b.prepare('DELETE FROM vistos WHERE quando < ? AND id NOT IN (?, ?)').run(Date.now() - 21 * 24 * 3600_000, 'inicio', 'inicio-linhas');
     b.prepare('DELETE FROM subscricoes WHERE visto < ?').run(Date.now() - 395 * 24 * 3600_000);
   } catch {}
 }
@@ -425,17 +475,25 @@ export function registarRotasPush(app: Express) {
     const distritos = (Array.isArray(corpo?.distritos) ? corpo.distritos : [])
       .filter((d: unknown) => typeof d === 'string' && d.length > 0 && d.length <= 60)
       .slice(0, 30);
+    // Linhas guardadas na app ({ op: operador, ln: código }), para os avisos só dessas linhas
+    const linhas = Array.from(new Set(
+      (Array.isArray(corpo?.linhas) ? corpo.linhas : [])
+        .slice(0, 40)
+        .filter((l: any) => l && typeof l.op === 'string' && typeof l.ln === 'string' && l.op.length <= 60 && l.ln.length <= 60)
+        .map((l: any) => chaveLinha(l.op, l.ln))
+        .filter(Boolean),
+    ));
     try {
       const agora = Date.now();
       // modo "lembretes": a pessoa não ligou os alertas, só pediu avisos de partida
       const soLembretes = corpo?.modo === 'lembretes' ? 1 : 0;
       base()
         .prepare(
-          `INSERT INTO subscricoes (endpoint, p256dh, auth, distritos, criado, visto, so_lembretes) VALUES (?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO subscricoes (endpoint, p256dh, auth, distritos, linhas, criado, visto, so_lembretes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth,
-             distritos = excluded.distritos, visto = excluded.visto, falhas = 0, so_lembretes = excluded.so_lembretes`,
+             distritos = excluded.distritos, linhas = excluded.linhas, visto = excluded.visto, falhas = 0, so_lembretes = excluded.so_lembretes`,
         )
-        .run(sub.endpoint, sub.p256dh, sub.auth, JSON.stringify(soLembretes ? [] : distritos), agora, agora, soLembretes);
+        .run(sub.endpoint, sub.p256dh, sub.auth, JSON.stringify(soLembretes ? [] : distritos), JSON.stringify(soLembretes ? [] : linhas), agora, agora, soLembretes);
       res.json({ ok: true });
     } catch (err: any) {
       console.warn('[Push] Erro a guardar subscrição:', err?.message || err);
@@ -464,7 +522,7 @@ export function registarRotasPush(app: Express) {
       res.json({
         subscricoes: n,
         ultimoCiclo,
-        candidatosAgora: candidatos.map((c) => ({ titulo: c.titulo, corpo: c.corpo, distritos: c.distritos, urgente: c.urgente })),
+        candidatosAgora: candidatos.map((c) => ({ titulo: c.titulo, corpo: c.corpo, distritos: c.distritos, urgente: c.urgente, ...(c.linhas?.length ? { linhas: c.linhas.length } : {}) })),
       });
     } catch (err: any) {
       res.status(500).json({ erro: err?.message || 'erro' });
