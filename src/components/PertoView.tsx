@@ -78,6 +78,16 @@ import { descodificarPolilinha, trocosDoPercurso } from '../utils/caminho';
 import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
 import { useQualidadeGps } from '../utils/qualidadeGps';
 
+// Pontos de partida para quem ainda não ativou a localização (os nomes portugueses nunca se traduzem)
+const PONTOS_PARTIDA: Array<{ nome: string; cidade: string; lat: number; lon: number; tipo: 'comboio' | 'metro' }> = [
+  { nome: 'Cais do Sodré', cidade: 'Lisboa', lat: 38.7060, lon: -9.1446, tipo: 'comboio' },
+  { nome: 'Marquês de Pombal', cidade: 'Lisboa', lat: 38.7253, lon: -9.1500, tipo: 'metro' },
+  { nome: 'Trindade', cidade: 'Porto', lat: 41.1525, lon: -8.6090, tipo: 'metro' },
+  { nome: 'Campanhã', cidade: 'Porto', lat: 41.1486, lon: -8.5856, tipo: 'comboio' },
+  { nome: 'Coimbra-B', cidade: 'Coimbra', lat: 40.2224, lon: -8.4352, tipo: 'comboio' },
+  { nome: 'Braga', cidade: 'Braga', lat: 41.5480, lon: -8.4345, tipo: 'comboio' },
+];
+
 interface PertoViewProps {
   onSelectLineInSchedules?: (lineCode: string) => void;
   initialDestination?: { title: string; lat: number; lon: number } | null;
@@ -2345,7 +2355,31 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Lista de paragens */}
         {!emRota && (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-4 lg:px-3 lg:pt-3 space-y-2">
-          {!localizacaoPronta ? (
+          {!localizacaoPronta && gpsStatus !== 'requesting' ? (
+            // Sem localização: em vez de cartões vazios, pontos de partida reais (um toque e já se vê o que passa)
+            <div data-teste="pontos-partida">
+              <p className="px-1 pt-1 pb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#6B6B6B]">{t('Ou começa por uma estação')}</p>
+              <div className="rounded-[14px] border border-[#E6E6E3] divide-y divide-[#E6E6E3] overflow-hidden">
+                {PONTOS_PARTIDA.map((p) => (
+                  <button
+                    key={p.nome}
+                    type="button"
+                    onClick={() => { setManualLocation(p.lat, p.lon, p.nome); setFollowMode(true); }}
+                    className="w-full flex items-center gap-3 px-3.5 py-3 text-left bg-[#FFFFFF] active:bg-[#F4F4F2] hover:bg-[#FAFAF8] transition-colors cursor-pointer"
+                  >
+                    <span className="w-9 h-9 shrink-0 rounded-[10px] bg-[#F4F4F2] text-[#111111] flex items-center justify-center">
+                      {p.tipo === 'metro' ? <TrainFrontTunnel className="w-[18px] h-[18px] stroke-[2]" /> : <TrainFront className="w-[18px] h-[18px] stroke-[2]" />}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-bold text-[#111111] leading-tight truncate">{p.nome}</span>
+                      <span className="block text-[12.5px] text-[#6B6B6B] leading-snug">{p.cidade}</span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-[#9A9A96] shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : !localizacaoPronta ? (
             <div className="space-y-2" aria-hidden="true">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="rounded-[14px] border border-[#E6E6E3] p-3.5" style={{ opacity: 1 - i * 0.28 }}>
