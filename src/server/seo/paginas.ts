@@ -569,6 +569,38 @@ function viagensPorLinha(): Map<string, number> {
   viagensPorLinhaCache = { versao: v, m };
   return m;
 }
+// ------------------------------------------------------------------------------------
+// Variantes da mesma linha no sitemap. O GTFS traz uma linha por percurso e sentido (a Linha de Sintra tem 6,
+// a 14 da MobiCascais 16, com percursos de provas como «Ironman» e «Maratona»): o Google via-as como duplicadas
+// («o Google escolheu uma página canónica diferente», 25/10/2026) e gastava nelas as visitas que faz ao site.
+// Fica no sitemap uma página por linha e par de pontas (a variante com mais viagens); as outras continuam no ar
+// e ligadas a partir da principal. Percursos de eventos (provas, festas, recolhas) não se indexam.
+// ------------------------------------------------------------------------------------
+export const PERCURSO_EVENTO = /\b(ironman|maratona|meia[- ]maratona|especial|recolha|desvio|obras|festas?|concerto|futebol)\b/i;
+export function chaveVariante(l: Pick<Linha, 'codigo' | 'nome'>): string {
+  const pontas = String(l.nome || '').split(/\s+[-–—>]\s+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const ext = pontas.length >= 2 ? [pontas[0], pontas[pontas.length - 1]].sort().join('|') : pontas.join('|');
+  return `${String(l.codigo || '').toLowerCase()}#${ext}`;
+}
+export function escolherVariantes<T extends Pick<Linha, 'codigo' | 'nome' | 'routeId'>>(linhas: T[], viagens: Map<string, number>): Set<T> {
+  const melhor = new Map<string, T>();
+  for (const l of linhas) {
+    if (PERCURSO_EVENTO.test(l.nome || '')) continue;
+    const k = chaveVariante(l);
+    const atual = melhor.get(k);
+    if (!atual || (viagens.get(l.routeId) || 0) > (viagens.get(atual.routeId) || 0)) melhor.set(k, l);
+  }
+  return new Set(melhor.values());
+}
+const variantesCache = new WeakMap<Operador, { versao: string; s: Set<Linha> }>();
+function linhasDoSitemapDe(op: Operador): Set<Linha> {
+  const v = String(getVersaoBaseAtiva() || '');
+  const c = variantesCache.get(op);
+  if (c && c.versao === v) return c.s;
+  const s = escolherVariantes(op.linhas, viagensPorLinha());
+  variantesCache.set(op, { versao: v, s });
+  return s;
+}
 function linhasPrincipais(op: Operador, max = 12): Linha[] {
   let procuradas: string[] = [];
   try { procuradas = maisProcuradas('linha', { minimo: 3, max: 300 }).map((x) => x.id); } catch { /* sem estatísticas */ }
@@ -952,6 +984,7 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
       `Timetable for ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: first and last departure, weekday, Saturday and Sunday timetables and all ${nParagens} stops. Real time on PAROU.`,
       `Fahrplan ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: erste und letzte Abfahrt, Fahrpläne für Werktage, Samstage und Sonntage und alle ${nParagens} Haltestellen. Echtzeit bei PAROU.`,
       `Horaire ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''} : premier et dernier départ, horaires des jours ouvrables, samedis et dimanches et les ${nParagens} arrêts. Temps réel sur PAROU.`),
+    indexar: !PERCURSO_EVENTO.test(l.nome || ''),
     caminho: `/linhas/${op.slug}/${l.slug}`,
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Linhas', 'Lines', 'Linien', 'Lignes'), url: '/linhas' }, { nome: op.nome, url: `/linhas/${op.slug}` }, { nome, url: `/linhas/${op.slug}/${l.slug}` }],
@@ -2354,7 +2387,8 @@ export function registarPaginasSeo(app: Express) {
       urls.push({ loc: `/paragens/${o.slug}`, lastmod: dd, freq: 'weekly', pri: '0.5', soPt: true });
       const pags = Math.ceil(o.paragens.length / POR_PAGINA);
       for (let i = 2; i <= pags; i++) urls.push({ loc: `/paragens/${o.slug}?p=${i}`, lastmod: dd, freq: 'weekly', pri: '0.3', soPt: true });
-      for (const l of o.linhas) urls.push({ loc: `/linhas/${o.slug}/${l.slug}`, lastmod: dd, freq: 'weekly', pri: '0.7' });
+      const noSitemap = linhasDoSitemapDe(o);
+      for (const l of o.linhas) if (noSitemap.has(l)) urls.push({ loc: `/linhas/${o.slug}/${l.slug}`, lastmod: dd, freq: 'weekly', pri: '0.7' });
     }
     return urls;
   };
