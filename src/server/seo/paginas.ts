@@ -573,14 +573,15 @@ function viagensPorLinha(): Map<string, number> {
 // Variantes da mesma linha no sitemap. O GTFS traz uma linha por percurso e sentido (a Linha de Sintra tem 6,
 // a 14 da MobiCascais 16, com percursos de provas como «Ironman» e «Maratona»): o Google via-as como duplicadas
 // («o Google escolheu uma página canónica diferente», 25/10/2026) e gastava nelas as visitas que faz ao site.
-// Fica no sitemap uma página por linha e par de pontas (a variante com mais viagens); as outras continuam no ar
+// Fica no sitemap uma página por linha e percurso, nos dois sentidos (a variante com mais viagens); as outras continuam no ar
 // e ligadas a partir da principal. Percursos de eventos (provas, festas, recolhas) não se indexam.
 // ------------------------------------------------------------------------------------
 export const PERCURSO_EVENTO = /\b(ironman|maratona|meia[- ]maratona|especial|recolha|desvio|obras|festas?|concerto|futebol)\b/i;
 export function chaveVariante(l: Pick<Linha, 'codigo' | 'nome'>): string {
-  const pontas = String(l.nome || '').split(/\s+[-–—>]\s+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
-  const ext = pontas.length >= 2 ? [pontas[0], pontas[pontas.length - 1]].sort().join('|') : pontas.join('|');
-  return `${String(l.codigo || '').toLowerCase()}#${ext}`;
+  // Todas as partes do nome, sem ordem: o sentido contrário dá a mesma chave mesmo quando um nome de estação
+  // leva o mesmo traço («Lisboa Rossio – Mira Sintra – Meleças» e «Mira Sintra – Meleças – Lisboa Rossio»)
+  const partes = Array.from(new Set(String(l.nome || '').split(/\s+[-–—>]\s+/).map((x) => x.trim().toLowerCase()).filter(Boolean))).sort();
+  return `${String(l.codigo || '').toLowerCase()}#${partes.join('|')}`;
 }
 export function escolherVariantes<T extends Pick<Linha, 'codigo' | 'nome' | 'routeId'>>(linhas: T[], viagens: Map<string, number>): Set<T> {
   const melhor = new Map<string, T>();
