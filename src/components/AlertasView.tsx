@@ -130,13 +130,16 @@ function semAcentosTxt(s: string) {
   return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+/** Zonas de aviso do IPMA nas ilhas (não são distritos) */
+const ZONAS_ILHAS = new Set(['MCS', 'MCN', 'MRM', 'MPS', 'AOR', 'ACE', 'AOC']);
+
 /** Nome do distrito do IPMA -> opção do ecrã das notificações (ex.: Funchal -> "Funchal (Madeira)") */
 function opcaoDistrito(nome: string): string {
   const n = semAcentosTxt(nome);
   const op = CIDADES_OPTIONS.find((o) => o !== 'Todas' && semAcentosTxt(o).replace(/\s*\(.*\)/, '') === n);
   if (op) return op;
-  if (/angra|horta|acores/.test(n)) return 'Ponta Delgada (Açores)';
-  if (/porto santo|madeira/.test(n)) return 'Funchal (Madeira)';
+  if (/acores|ponta delgada|vila do porto|angra|graciosa|velas|madalena|horta|flores|corvo/.test(n)) return 'Ponta Delgada (Açores)';
+  if (/porto santo|madeira|funchal/.test(n)) return 'Funchal (Madeira)';
   return nome;
 }
 
@@ -787,7 +790,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
             <div className="pl-4 pr-1.5 text-[11px] text-white/60 border-t border-white/10 flex items-center justify-between gap-2">
               <span className="py-2 flex items-center gap-1.5 min-w-0">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{t('Sem avisos meteorológicos no distrito · IPMA, Open-Meteo')}</span>
+                <span className="truncate">{ZONAS_ILHAS.has(dados.local.area) ? t('Sem avisos meteorológicos para esta zona · IPMA, Open-Meteo') : t('Sem avisos meteorológicos no distrito · IPMA, Open-Meteo')}</span>
               </span>
               <button
                 type="button"

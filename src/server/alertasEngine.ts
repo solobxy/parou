@@ -12,6 +12,7 @@ import { categoriaDoAviso } from '../utils/imagemAviso';
 import { getCentralAlerts } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
+import { areasLocaisAviso, areaPelaPosicao, porAreaPreferida, nomeDaZona, regiaoDaZona, NOME_ZONA_AVISO } from './zonasAvisoIlhas';
 
 const UA = 'PAROU.PT/2.0 (+https://parou.pt)';
 const ZONA = 'Europe/Lisbon';
@@ -140,6 +141,12 @@ const DISTRITOS_RECURSO: DistritoIpma[] = [
   { area: 'VCT', nome: 'Viana do Castelo', globalIdLocal: 1160900, lat: 41.6952, lon: -8.8365, idRegiao: 1 },
   { area: 'VRL', nome: 'Vila Real', globalIdLocal: 1171400, lat: 41.3002, lon: -7.7398, idRegiao: 1 },
   { area: 'VIS', nome: 'Viseu', globalIdLocal: 1182300, lat: 40.6619, lon: -7.9097, idRegiao: 1 },
+  { area: 'MCS', nome: 'Funchal', globalIdLocal: 2310300, lat: 32.6485, lon: -16.9084, idRegiao: 2 },
+  { area: 'MPS', nome: 'Porto Santo', globalIdLocal: 2320100, lat: 33.07, lon: -16.34, idRegiao: 2 },
+  { area: 'AOR', nome: 'Ponta Delgada', globalIdLocal: 3420300, lat: 37.7415, lon: -25.6677, idRegiao: 3 },
+  { area: 'ACE', nome: 'Angra do Heroísmo', globalIdLocal: 3430100, lat: 38.67, lon: -27.22, idRegiao: 3 },
+  { area: 'ACE', nome: 'Horta', globalIdLocal: 3470100, lat: 38.5363, lon: -28.6315, idRegiao: 3 },
+  { area: 'AOC', nome: 'Santa Cruz das Flores', globalIdLocal: 3480200, lat: 39.45, lon: -31.13, idRegiao: 3 },
 ];
 
 async function obterDistritos(): Promise<DistritoIpma[]> {
@@ -300,7 +307,9 @@ async function avisosIpma(areaLocal: string, distritos: DistritoIpma[]): Promise
     if (!Array.isArray(j)) throw new Error('formato inesperado');
     return j as any[];
   }, [] as any[]);
-  const nomes = new Map(distritos.map((d) => [d.area, d.nome]));
+  const porArea = porAreaPreferida(distritos);
+  // Na ilha da Madeira contam como "aqui" a costa onde se está e as serras
+  const locais = new Set(areasLocaisAviso(areaLocal));
   const agora = DateTime.now().setZone(ZONA);
   const peso = { red: 3, orange: 2, yellow: 1 } as const;
   const lista: AvisoMeteo[] = [];
@@ -311,7 +320,7 @@ async function avisosIpma(areaLocal: string, distritos: DistritoIpma[]): Promise
     const inicio = DateTime.fromISO(String(w.startTime || ''), { zone: ZONA });
     if (!fim.isValid || fim < agora) continue;
     const area = String(w.idAreaAviso || '');
-    const local = area === areaLocal;
+    const local = locais.has(area);
     // Noutros distritos só interessam os avisos laranja e vermelho
     if (!local && nivel === 'yellow') continue;
     lista.push({
@@ -321,7 +330,7 @@ async function avisosIpma(areaLocal: string, distritos: DistritoIpma[]): Promise
       inicio: inicio.isValid ? inicio.toISO()! : '',
       fim: fim.toISO()!,
       area,
-      distrito: nomes.get(area) || area,
+      distrito: nomeDaZona(area, porArea),
       local,
       ativo: !inicio.isValid || inicio <= agora,
     });
@@ -691,12 +700,16 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
   const distritos = await comLimite(obterDistritos(), 3000, DISTRITOS_RECURSO);
   let distrito: DistritoIpma | undefined;
   const temGps = Number.isFinite(opcoes.lat) && Number.isFinite(opcoes.lon);
+  const porArea = porAreaPreferida(distritos);
   if (temGps) {
     distrito = [...distritos].sort(
       (a, b) => distanciaKm(opcoes.lat!, opcoes.lon!, a.lat, a.lon) - distanciaKm(opcoes.lat!, opcoes.lon!, b.lat, b.lon),
     )[0];
+    // Santana, São Vicente ou Porto Moniz: a cidade mais perto é o Funchal, mas a zona de aviso é a costa norte
+    const zona = distrito ? areaPelaPosicao(distrito.area, opcoes.lat!) : '';
+    if (distrito && zona !== distrito.area) distrito = porArea.get(zona) || distrito;
   } else if (opcoes.area) {
-    distrito = distritos.find((d) => d.area === opcoes.area);
+    distrito = porArea.get(opcoes.area);
   }
   if (!distrito) distrito = distritos.find((d) => d.area === 'LSB') || distritos[0];
   const lat = temGps ? opcoes.lat! : distrito.lat;
@@ -738,10 +751,10 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
     protecaoCivil,
     atualizado: new Date().toISOString(),
     local: { distrito: distrito.nome, area: distrito.area, regiao, lat, lon, porGps: temGps },
-    distritos: distritos
-      .filter((d) => d.idRegiao === 1 || ['MCN', 'MPS', 'ACE', 'AOR', 'AOC'].includes(d.area) || d.nome === 'Funchal' || d.nome === 'Ponta Delgada')
+    // Uma opção por zona de aviso: Ponta Delgada (não Vila do Porto), a costa norte da Madeira, etc.
+    distritos: Array.from(porArea.values())
+      .filter((d) => d.area !== 'MRM')
       .map((d) => ({ area: d.area, nome: d.nome }))
-      .filter((d, i, arr) => arr.findIndex((x) => x.area === d.area) === i)
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),
     tempo: { agora, dias },
     avisosMeteo: avisos,
@@ -886,7 +899,8 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
 
   // 2. Avisos meteorológicos do IPMA ativos (ou nas próximas 12 h), na capital de distrito
   const distritos = await obterDistritos().catch(() => DISTRITOS_RECURSO);
-  const porArea = new Map(distritos.map((d) => [d.area, d]));
+  // Inclui as zonas da Madeira que não estão na lista do IPMA (costa norte, serras)
+  const porArea = porAreaPreferida(distritos);
   const brutos = await emCache('ipma:avisos', 5 * 60_000, async () => {
     const j = await buscarJson('https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json');
     if (!Array.isArray(j)) throw new Error('formato inesperado');
@@ -918,7 +932,7 @@ export async function obterCamadasMapa(): Promise<{ atualizado: string; incendio
       tipo: 'aviso_tempo',
       lat: d.lat + dLat,
       lon: d.lon + dLon,
-      titulo: `Aviso ${nomesNivel[pior.awarenessLevelID]} · ${d.nome}`,
+      titulo: `Aviso ${nomesNivel[pior.awarenessLevelID]} · ${NOME_ZONA_AVISO[area] || d.nome}`,
       subtitulo: `${tipos.join(', ')} · até ${DateTime.fromISO(String(pior.endTime), { zone: ZONA }).toFormat("dd/LL 'às' HH:mm")}`,
       cor: coresNivel[pior.awarenessLevelID],
       gravidade: pior.awarenessLevelID === 'red' ? 'Grave' : pior.awarenessLevelID === 'orange' ? 'Moderada' : 'Informativo',
@@ -1234,7 +1248,7 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
   const nomesDistritos = Array.from(new Set(distritos.map((d) => d.nome)));
 
   // 1. Avisos do IPMA laranja e vermelhos (ativos ou nas próximas 12 h), um por distrito e nível
-  const porArea = new Map(distritos.map((d) => [d.area, d]));
+  const porArea = porAreaPreferida(distritos);
   const avisos = await emCache('ipma:avisos', 5 * 60_000, async () => {
     const j = await buscarJson('https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json');
     if (!Array.isArray(j)) throw new Error('formato inesperado');
@@ -1268,9 +1282,10 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
       id: `ipma:${k}:${inicio}`,
       grupo: `ipma:${k}`,
       pausaHoras: 12,
-      titulo: `Aviso ${nivel === 'red' ? 'vermelho' : 'laranja'} · ${d.nome}`,
+      titulo: `Aviso ${nivel === 'red' ? 'vermelho' : 'laranja'} · ${NOME_ZONA_AVISO[area] || d.nome}`,
       corpo: [tipos.join(', '), [comeca, ate].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
-      distritos: [d.nome],
+      // Nas ilhas chega a toda a região (quem escolheu "Funchal (Madeira)" recebe os da costa norte)
+      distritos: [d.nome, regiaoDaZona(d.idRegiao)].filter((x): x is string => Boolean(x)),
       urgente: nivel === 'red',
       url: '/alertas',
       categoria: 'tempo',

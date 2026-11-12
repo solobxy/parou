@@ -77,6 +77,7 @@ import { chaveDaPartida } from '../utils/chaveLinha';
 import { descodificarPolilinha, trocosDoPercurso } from '../utils/caminho';
 import { AvisoPrecisaoMapa } from './AvisoPrecisaoMapa';
 import { useQualidadeGps } from '../utils/qualidadeGps';
+import { zonaSemHorarios, HORARIOS_SIGA } from '../utils/zonasSemHorarios';
 
 // Pontos de partida para quem ainda não ativou a localização (os nomes portugueses nunca se traduzem)
 const PONTOS_PARTIDA: Array<{ nome: string; cidade: string; lat: number; lon: number; tipo: 'comboio' | 'metro' }> = [
@@ -2561,9 +2562,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 </button>
               </div>
             ) : (
+            !isDbLoading && stops.length === 0 && zonaSemHorarios(userCoords?.latitude, userCoords?.longitude) ? (
+              <SemHorariosNaZona zona={zonaSemHorarios(userCoords?.latitude, userCoords?.longitude)!} />
+            ) : (
             <div className="p-8 text-center text-sm text-[#6B6B6B]">
               {isDbLoading ? traduzirCarregamento(dbLoadingMessage || 'A carregar horários…') : t('Sem paragens nesta área.')}
             </div>
+            )
             )
           )}
         </div>
@@ -3039,3 +3044,27 @@ export const PertoView: React.FC<PertoViewProps> = ({
     </div>
   );
 };
+
+/** Madeira fora da rede do Funchal e Açores: explica que os operadores não publicam horários, em vez de parecer avaria */
+const SemHorariosNaZona: React.FC<{ zona: 'madeira' | 'acores' }> = ({ zona }) => (
+  <div className="px-6 py-8 text-center space-y-2.5">
+    <p className="text-[15px] font-semibold text-[#111111]">
+      {zona === 'madeira' ? t('Ainda não temos horários desta zona da Madeira') : t('Ainda não temos os autocarros dos Açores')}
+    </p>
+    <p className="text-[13px] leading-relaxed text-[#6B6B6B] max-w-sm mx-auto">
+      {zona === 'madeira'
+        ? t('Na Madeira, a PAROU tem as linhas dos Horários do Funchal. A CAM e a SIGA Rodoeste ainda não publicam os horários num formato que a app consiga ler.')
+        : t('Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.')}
+    </p>
+    {zona === 'madeira' && (
+      <a
+        href={HORARIOS_SIGA}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center h-10 px-4 rounded-[12px] bg-[#111111] text-[#FFFFFF] text-[13.5px] font-semibold"
+      >
+        {t('Ver os horários oficiais da SIGA')}
+      </a>
+    )}
+  </div>
+);

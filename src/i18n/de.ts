@@ -1292,4 +1292,10 @@ export const DE: Record<string, string> = {
   'As linhas que guardas também recebem avisos de greves, desvios e perturbações.': 'Gespeicherte Linien erhalten auch Hinweise zu Streiks, Umleitungen und Störungen.',
   'Não foi possível ligar os avisos': 'Hinweise konnten nicht aktiviert werden',
   'A PAROU volta a tentar da próxima vez que a abrires.': 'PAROU versucht es beim nächsten Öffnen erneut.',
+  'Ainda não temos horários desta zona da Madeira': 'Für diesen Teil Madeiras haben wir noch keine Fahrpläne',
+  'Ainda não temos os autocarros dos Açores': 'Die Busse der Azoren haben wir noch nicht',
+  'Na Madeira, a PAROU tem as linhas dos Horários do Funchal. A CAM e a SIGA Rodoeste ainda não publicam os horários num formato que a app consiga ler.': 'Auf Madeira hat PAROU die Linien von Horários do Funchal. CAM und SIGA Rodoeste veröffentlichen ihre Fahrpläne noch nicht in einem Format, das die App lesen kann.',
+  'Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.': 'Die Busunternehmen der Azoren veröffentlichen ihre Fahrpläne noch nicht in einem Format, das die App lesen kann. Sobald sie es tun, erscheinen sie hier.',
+  'Ver os horários oficiais da SIGA': 'Offizielle SIGA-Fahrpläne ansehen',
+  'Sem avisos meteorológicos para esta zona · IPMA, Open-Meteo': 'Keine Wetterwarnungen für dieses Gebiet · IPMA, Open-Meteo',
 };

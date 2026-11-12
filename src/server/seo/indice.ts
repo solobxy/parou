@@ -3,7 +3,7 @@
 // É construído a partir da base de horários e refeito quando chega uma base nova.
 import { getDatabase } from '../db/gtfsDatabase';
 import { getVersaoBaseAtiva } from '../dadosProntos';
-import { nomeBonito, semAcentos, slug } from './texto';
+import { nomeBonito, nomeParaEndereco, semAcentos, slug } from './texto';
 
 export interface Operador {
   feedId: string;
@@ -157,16 +157,22 @@ function construir(): Indice {
     for (const r of rotas) {
       let codigo = String(r.route_short_name || '').trim();
       const original = codigo;
+      // nome: o que se mostra; nomeEnd: o que forma o endereço (não muda quando o nome mostrado melhora)
       let nome = nomeBonito(String(r.route_long_name || '').trim());
+      let nomeEnd = nomeParaEndereco(String(r.route_long_name || '').trim());
       if (f.id === 'cp' && NOME_SERVICO_CP[codigo]) codigo = NOME_SERVICO_CP[codigo];
       if (!nome || f.id === 'cp') {
         const pu = primeiraUltima.get(r.route_id) as { inicio?: string; fim?: string } | undefined;
-        if (pu?.inicio && pu?.fim) nome = `${nomeBonito(pu.inicio)} – ${nomeBonito(pu.fim)}`;
+        if (pu?.inicio && pu?.fim) {
+          nome = `${nomeBonito(pu.inicio)} – ${nomeBonito(pu.fim)}`;
+          nomeEnd = `${nomeParaEndereco(pu.inicio)} – ${nomeParaEndereco(pu.fim)}`;
+        }
       }
-      if (f.id === 'metro_lisboa' && nome && !/^linha/i.test(nome)) { codigo = `Linha ${nome}`; nome = ''; }
+      if (f.id === 'metro_lisboa' && nome && !/^linha/i.test(nome)) { codigo = `Linha ${nome}`; nome = ''; nomeEnd = ''; }
       nome = nome.replace(/\s+-\s+/g, ' – ');
+      nomeEnd = nomeEnd.replace(/\s+-\s+/g, ' – ');
       if (!codigo && !nome) continue;
-      let s = slug(`${codigo} ${nome}`, 70);
+      let s = slug(`${codigo} ${nomeEnd || nome}`, 70);
       if (usados.has(s)) { let n = 2; while (usados.has(`${s}-${n}`)) n++; s = `${s}-${n}`; }
       usados.add(s);
       const sigla = original && original.length <= 5 ? original
@@ -197,14 +203,14 @@ function construir(): Indice {
         perto.lat += (p.stop_lat - perto.lat) / n;
         perto.lon += (p.stop_lon - perto.lon) / n;
       } else {
-        lista.push({ id: p.stop_id, feedId: f.id, slug: '', nome: nomeBonito(p.stop_name), lat: p.stop_lat, lon: p.stop_lon, stopIds: [p.stop_id] });
+        lista.push({ id: p.stop_id, feedId: f.id, slug: slug(nomeParaEndereco(p.stop_name), 70), nome: nomeBonito(p.stop_name), lat: p.stop_lat, lon: p.stop_lon, stopIds: [p.stop_id] });
         porNome.set(chave, lista);
       }
     }
     const usadosP = new Set<string>();
     const grupos = Array.from(porNome.values()).flat().sort((a, b) => a.id.localeCompare(b.id));
     for (const g of grupos) {
-      let s = slug(g.nome, 70);
+      let s = g.slug || slug(g.nome, 70);
       if (usadosP.has(s)) { let n = 2; while (usadosP.has(`${s}-${n}`)) n++; s = `${s}-${n}`; }
       usadosP.add(s);
       g.slug = s;

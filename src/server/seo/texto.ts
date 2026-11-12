@@ -1,4 +1,5 @@
 // Utilitários de texto para as páginas públicas (SEO): endereços legíveis, nomes bonitos e HTML seguro.
+import { expandirAbreviaturas } from '../../utils/abreviaturas';
 
 export function semAcentos(s: string): string {
   return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -70,9 +71,18 @@ function palavraBonita(p: string, primeira: boolean): string {
 
 /**
  * Nome legível de paragem/linha: "S.PEDRO C. /PASSAL" -> "S. Pedro C. / Passal",
- * "Porto Campanha" -> "Porto Campanhã". Nomes já bem escritos ficam como estão.
+ * "Porto Campanha" -> "Porto Campanhã", "CAM Trapiche  D2A (750B)" -> "Caminho Trapiche (750B)".
+ * Nomes já bem escritos ficam como estão.
  */
 export function nomeBonito(nome: string): string {
+  return nomeParaEndereco(expandirAbreviaturas(String(nome || '')));
+}
+
+/**
+ * Igual a nomeBonito mas sem desdobrar abreviaturas. Serve só para formar os endereços (slugs) das
+ * páginas: os endereços já publicados e indexados não podem mudar quando melhoramos o nome mostrado.
+ */
+export function nomeParaEndereco(nome: string): string {
   let s = String(nome || '').replace(/\s+/g, ' ').trim();
   if (!s) return s;
   const letras = s.replace(/[^A-Za-zÀ-ÿ]/g, '');

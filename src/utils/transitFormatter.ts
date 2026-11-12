@@ -1,4 +1,5 @@
 import { t, LOCALE } from '../i18n';
+import { expandirAbreviaturas } from './abreviaturas';
 /**
  * PAROU - Transit Text & Departures Formatter
  * Formata nomes em maiúsculas vindos de feeds GTFS (preservando siglas)
@@ -13,7 +14,7 @@ const ACRONYMS = new Set([
 
 const LOWERCASE_WORDS = new Set([
   'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'na', 'no', 'nas', 'nos',
-  'por', 'pra', 'para', 'com'
+  'por', 'pra', 'para', 'com', 'ao', 'aos', 'à', 'às', 'até', 'ou'
 ]);
 
 /** O operador (ex.: Carris Lisboa) por vezes só envia "Destino" ou "Destino terminal" em vez do destino verdadeiro */
@@ -38,10 +39,23 @@ export function destinoLegivel(destino?: string | null, nomeLinha?: string | nul
  * Converte nomes em maiúsculas (ex.: "AV.ALIADOS", "CORDOARIA-S.PEDRO DA COVA")
  * para Title Case ("Av. Aliados", "Cordoaria - S. Pedro da Cova"), mantendo siglas como CP, IC, STCP.
  */
+// Palavras curtas que aparecem em maiúsculas no meio de nomes normais mas não são siglas
+const PALAVRAS_CURTAS = new Set(['RIO', 'MAR', 'SUL', 'LUZ', 'SÉ', 'RUA', 'SÃO', 'VALE', 'ALTO', 'CRUZ', 'MATA', 'CASA',
+  'VILA', 'LAGO', 'POÇO', 'PICO', 'FOZ', 'PAZ', 'BOA', 'BOM', 'REI', 'SOL', 'NOVA', 'NOVO', 'ALVO', 'LOBO', 'OURO',
+  'MEIO', 'FIM', 'SEDE', 'LAPA', 'BICA', 'PAÇO', 'PENA', 'FARO', 'BEJA', 'MAIA', 'ILHA', 'LIMA', 'RIBA']);
+// Numeração romana ("D. João II", "Lusíadas III"): fica sempre em maiúsculas
+const ROMANO = /^(?=.{2,5}$)X{0,3}(IX|IV|V?I{0,3})$/;
+
 export function formatTransitName(raw?: string | null): string {
   if (!raw) return '';
-  let text = String(raw).trim();
+  let text = expandirAbreviaturas(String(raw));
   if (!text) return '';
+  // Nome já escrito com minúsculas pelo operador: as palavras curtas em maiúsculas são siglas
+  // ("(GNR)", "CMF", "EB1/JI") e ficam como estão, em vez de virar "Gnr" ou "Eb1/ji".
+  // Conta a proporção: "BOAVISTA - CABO DO MUNDO (Via MAR Shop.)" continua a ser um nome em maiúsculas.
+  const letras = text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  const minusculas = letras.replace(/[^a-zà-ÿ]/g, '').length;
+  const jaTemMinusculas = letras.length > 0 && minusculas / letras.length >= 0.25;
 
   // Insere espaço a seguir ao ponto se seguido imediatamente por letra (ex.: "AV.ALIADOS" -> "AV. ALIADOS", "S.PEDRO" -> "S. PEDRO")
   text = text.replace(/([A-Za-zÀ-ÖØ-öø-ÿ])\.(?=[A-Za-zÀ-ÖØ-öø-ÿ])/g, '$1. ');
@@ -56,29 +70,43 @@ export function formatTransitName(raw?: string | null): string {
     if (!match) return word;
     const [, pre, core, post] = match;
     if (!core) return word;
-
-    const upperCore = core.toUpperCase();
-    if (ACRONYMS.has(upperCore)) {
-      return pre + upperCore + post;
-    }
-
-    const lowerCore = core.toLowerCase();
-    if (idx > 0 && LOWERCASE_WORDS.has(lowerCore)) {
-      return pre + lowerCore + post;
-    }
-
-    // Abreviaturas comuns com ponto como "Av.", "R.", "S.", "Sto."
-    if (lowerCore.endsWith('.')) {
-      const stem = lowerCore.slice(0, -1);
-      return pre + stem.charAt(0).toUpperCase() + stem.slice(1) + '.' + post;
-    }
-
-    // "d'Este" / "D'ESTE" -> "D'Este" (a letra a seguir ao apóstrofo também leva maiúscula)
-    const comCaixa = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
-    const comApostrofo = comCaixa.replace(/(['’])([a-zà-ÿ])/g, (_m, ap: string, letra: string) => ap + letra.toUpperCase());
-    // No meio do nome, "d'" fica em minúscula: "Vila d'Este"
-    return pre + (idx > 0 && /^D['’]/.test(comApostrofo) ? 'd' + comApostrofo.slice(1) : comApostrofo) + post;
+    if (core.includes('/')) return pre + core.split('/').map((parte) => formatarPalavra(parte, idx, jaTemMinusculas)).join('/') + post;
+    return pre + formatarPalavra(core, idx, jaTemMinusculas) + post;
   }).join(' ');
+}
+
+function formatarPalavra(core: string, idx: number, jaTemMinusculas: boolean): string {
+  if (!core) return core;
+  const upperCore = core.toUpperCase();
+  const emMaiusculas = core === upperCore && /[A-ZÀ-Ý]/.test(core);
+  // Códigos com números ("D2A", "750B", "EB1", "IC19", "T-19") e numeração romana ficam em maiúsculas
+  if (emMaiusculas && /\d/.test(core) && core.length <= 8) return core;
+  if (emMaiusculas && ROMANO.test(core)) return core;
+  // Siglas não levam acentos ("URRÔ", "SÉ" são palavras)
+  if (jaTemMinusculas && emMaiusculas && /^[A-Z]{2,4}$/.test(core) && !LOWERCASE_WORDS.has(core.toLowerCase()) && !PALAVRAS_CURTAS.has(core)) {
+    return core;
+  }
+  // Palavras compostas ("CascaiShopping", "IronMan", "ESTBarreiro") ficam como o operador as escreveu;
+  // gralhas como "CHarneca" ou "SUl" (só duas maiúsculas no início) continuam a ser corrigidas
+  if (jaTemMinusculas && (/[a-zà-ÿ][A-ZÀ-Ý]/.test(core) || /^[A-ZÀ-Ý]{3,}[a-zà-ÿ]{2,}/.test(core))) return core;
+  if (ACRONYMS.has(upperCore)) return upperCore;
+
+  const lowerCore = core.toLowerCase();
+  if (idx > 0 && LOWERCASE_WORDS.has(lowerCore)) return lowerCore;
+  // "(via Courelas)": se o operador escreveu "via" em minúsculas, fica assim ("Via Rápida" não muda)
+  if (idx > 0 && jaTemMinusculas && core === 'via') return core;
+
+  // Abreviaturas comuns com ponto como "Av.", "R.", "S.", "Sto."
+  if (lowerCore.endsWith('.')) {
+    const stem = lowerCore.slice(0, -1);
+    return stem.charAt(0).toUpperCase() + stem.slice(1) + '.';
+  }
+
+  // "d'Este" / "D'ESTE" -> "D'Este" (a letra a seguir ao apóstrofo também leva maiúscula)
+  const comCaixa = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
+  const comApostrofo = comCaixa.replace(/(['’])([a-zà-ÿ])/g, (_m, ap: string, letra: string) => ap + letra.toUpperCase());
+  // No meio do nome, "d'" fica em minúscula: "Vila d'Este"
+  return idx > 0 && /^D['’]/.test(comApostrofo) ? 'd' + comApostrofo.slice(1) : comApostrofo;
 }
 
 // Formatadores criados uma única vez: construir um Intl.DateTimeFormat custa ~100× mais do que usá-lo,
