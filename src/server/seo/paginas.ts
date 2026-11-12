@@ -159,7 +159,7 @@ header.topo{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px so
 .btn.laranja{background:#FF6B1A;color:#111}.btn.claro{background:#F4F4F2;color:#111}
 nav.migalhas{font-size:13px;color:#6B6B6B;margin:4px 0 10px;display:flex;flex-wrap:wrap;gap:4px}nav.migalhas a{color:#6B6B6B;text-decoration:none;display:inline-flex;align-items:center;min-height:24px}nav.migalhas a:hover{text-decoration:underline}
 h1{font-size:30px;line-height:1.12;margin:6px 0 10px;letter-spacing:-.01em}h2{font-size:20px;margin:28px 0 10px;line-height:1.2}h3{font-size:16px;margin:16px 0 8px}
-.sub{color:#4A4A4A;margin:0 0 14px}.nota{font-size:13px;color:#6B6B6B}
+.sub{color:#4A4A4A;margin:0 0 14px}.resposta{font-size:16px;line-height:1.55;color:#1A1A1A;max-width:62ch}.nota{font-size:13px;color:#6B6B6B}
 .chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:28px;padding:0 8px;border-radius:7px;font:700 15px/1 "Barlow Condensed",Barlow,sans-serif;letter-spacing:.02em;color:#fff;background:#111;flex-shrink:0}
 .cartao{border:1px solid #E6E6E3;border-radius:16px;padding:14px 16px;margin:12px 0;background:#fff}
 .resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
@@ -828,6 +828,69 @@ async function horarioLinhaCM(l: Linha): Promise<HorarioLinha> {
   return { sentidos, hoje: resumo };
 }
 
+// ------------------------------------------------------------------------------------
+// Resposta direta no topo (40 a 60 palavras): é o que o Google e os assistentes de IA citam.
+// Só factos tirados dos dados (percurso, paragens, primeira e última partida, intervalo, data do horário).
+// ------------------------------------------------------------------------------------
+function sujeitoLinha(nome: string, op: Operador): string {
+  return /^linha/i.test(nome)
+    ? L(`A ${html(nome)} (${html(op.nome)})`, `${html(nome)} (${html(op.nome)})`, `Die ${html(nome)} (${html(op.nome)})`, `La ${html(nome)} (${html(op.nome)})`)
+    : L(`A linha ${html(nome)} (${html(op.nome)})`, `Line ${html(nome)} (${html(op.nome)})`, `Die Linie ${html(nome)} (${html(op.nome)})`, `La ligne ${html(nome)} (${html(op.nome)})`);
+}
+
+export function respostaLinha(o: { nome: string; op: Operador; percurso: string; nParagens: number; destino?: string; hoje: HorarioLinha['hoje']; uteis: number[]; data: string }): string {
+  const suj = sujeitoLinha(o.nome, o.op);
+  let t = o.percurso
+    ? L(`${suj} faz o percurso ${html(o.percurso)}`, `${suj} runs ${html(o.percurso)}`, `${suj} fährt die Strecke ${html(o.percurso)}`, `${suj} relie ${html(o.percurso)}`)
+    : suj;
+  if (o.nParagens) t += L(`, com ${o.nParagens} paragens`, `, with ${o.nParagens} stops`, ` mit ${o.nParagens} Haltestellen`, `, avec ${o.nParagens} arrêts`);
+  t += '. ';
+  const sentido = o.destino && destinoReal(o.destino) ? o.destino : '';
+  const h = o.hoje;
+  if (h.primeira != null && h.ultima != null && h.total) {
+    const ip = h.intervaloPonta ? L(`, de ${h.intervaloPonta} em ${h.intervaloPonta} minutos às horas de ponta`, `, every ${h.intervaloPonta} minutes at peak times`, `, zur Hauptverkehrszeit alle ${h.intervaloPonta} Minuten`, `, toutes les ${h.intervaloPonta} minutes aux heures de pointe`) : '';
+    t += sentido
+      ? L(`Hoje, no sentido ${html(sentido)}, a primeira partida é às ${hora(h.primeira)} e a última às ${hora(h.ultima)} (${h.total} partidas${ip}). `,
+          `Today, towards ${html(sentido)}, the first departure is at ${hora(h.primeira)} and the last at ${hora(h.ultima)} (${h.total} departures${ip}). `,
+          `Heute, Richtung ${html(sentido)}, fährt der erste um ${hora(h.primeira)} und der letzte um ${hora(h.ultima)} Uhr (${h.total} Abfahrten${ip}). `,
+          `Aujourd'hui, direction ${html(sentido)}, le premier départ est à ${hora(h.primeira)} et le dernier à ${hora(h.ultima)} (${h.total} départs${ip}). `)
+      : L(`Hoje, a primeira partida é às ${hora(h.primeira)} e a última às ${hora(h.ultima)} (${h.total} partidas${ip}). `,
+          `Today the first departure is at ${hora(h.primeira)} and the last at ${hora(h.ultima)} (${h.total} departures${ip}). `,
+          `Heute fährt der erste um ${hora(h.primeira)} und der letzte um ${hora(h.ultima)} Uhr (${h.total} Abfahrten${ip}). `,
+          `Aujourd'hui, le premier départ est à ${hora(h.primeira)} et le dernier à ${hora(h.ultima)} (${h.total} départs${ip}). `);
+  } else if (o.uteis.length) {
+    const u0 = hora(o.uteis[0]), u1 = hora(o.uteis[o.uteis.length - 1]);
+    t += L(`Hoje não há partidas${sentido ? ` no sentido ${html(sentido)}` : ''}. Nos dias úteis, a primeira é às ${u0} e a última às ${u1} (${o.uteis.length} partidas). `,
+      `There are no departures today${sentido ? ` towards ${html(sentido)}` : ''}. On weekdays the first is at ${u0} and the last at ${u1} (${o.uteis.length} departures). `,
+      `Heute gibt es keine Abfahrten${sentido ? ` Richtung ${html(sentido)}` : ''}. An Werktagen fährt der erste um ${u0} und der letzte um ${u1} Uhr (${o.uteis.length} Abfahrten). `,
+      `Pas de départ aujourd'hui${sentido ? ` direction ${html(sentido)}` : ''}. En semaine, le premier est à ${u0} et le dernier à ${u1} (${o.uteis.length} départs). `);
+  }
+  if (o.data) t += L(`Horário oficial atualizado a ${html(o.data)}.`, `Official timetable updated on ${html(o.data)}.`, `Offizieller Fahrplan, Stand ${html(o.data)}.`, `Horaire officiel mis à jour le ${html(o.data)}.`);
+  return `<p class="sub resposta">${t.trim()}</p>`;
+}
+
+const NA_TIPO: Record<string, string> = { Paragem: 'Na paragem', 'Estação': 'Na estação', Terminal: 'No terminal' };
+export function respostaParagem(o: { nome: string; local: string; op: Operador; palavra: string; linhas: Array<{ codigo: string; primeira: number | null; ultima: number | null }>; destinos: string[] }): string {
+  const cods = Array.from(new Set(o.linhas.map((x) => x.codigo)));
+  const lista = cods.length > 8 ? `${cods.slice(0, 8).join(', ')} ${L(`e mais ${cods.length - 8}`, `and ${cods.length - 8} more`, `und ${cods.length - 8} weitere`, `et ${cods.length - 8} autres`)}` : juntarComE(cods);
+  const onde = `${html(o.nome)}${o.local ? html(o.local) : ''} (${html(o.op.nome)})`;
+  let t: string;
+  if (!cods.length) {
+    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} não passa hoje nenhuma linha com horário publicado.`, `No line with a published timetable serves ${onde} today.`, `Heute hält an ${onde} keine Linie mit veröffentlichtem Fahrplan.`, `Aucune ligne avec un horaire publié ne dessert ${onde} aujourd'hui.`);
+  } else {
+    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} ${cods.length === 1 ? 'passa a linha' : `passam ${cods.length} linhas:`} ${html(lista)}`,
+      `${onde} is served by ${cods.length === 1 ? 'line' : `${cods.length} lines:`} ${html(lista)}`,
+      `An ${onde} ${cods.length === 1 ? 'hält die Linie' : `halten ${cods.length} Linien:`} ${html(lista)}`,
+      `${onde} est desservi par ${cods.length === 1 ? 'la ligne' : `${cods.length} lignes :`} ${html(lista)}`);
+    if (o.destinos.length) t += L(`, para ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, to ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, nach ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, vers ${html(juntarComE(o.destinos.slice(0, 4)))}`);
+    t += '. ';
+    const prim = o.linhas.map((x) => x.primeira).filter((x): x is number => x != null);
+    const ult = o.linhas.map((x) => x.ultima).filter((x): x is number => x != null);
+    if (prim.length && ult.length) t += L(`Hoje, a primeira passagem é às ${hora(Math.min(...prim))} e a última às ${hora(Math.max(...ult))}.`, `Today the first departure is at ${hora(Math.min(...prim))} and the last at ${hora(Math.max(...ult))}.`, `Heute ist die erste Abfahrt um ${hora(Math.min(...prim))} und die letzte um ${hora(Math.max(...ult))} Uhr.`, `Aujourd'hui, le premier passage est à ${hora(Math.min(...prim))} et le dernier à ${hora(Math.max(...ult))}.`);
+  }
+  return `<p class="sub resposta">${t.trim()}</p>`;
+}
+
 async function paginaLinha(op: Operador, l: Linha): Promise<string> {
   if (l.feedId === UNIR) return paginaLinhaUnir(op, l);
   const ix = obterIndice()!;
@@ -840,11 +903,7 @@ async function paginaLinha(op: Operador, l: Linha): Promise<string> {
   const percurso = (/[\p{L}\d]/u.test(l.nome || '') ? l.nome : '') || (h.sentidos[0] ? `${h.sentidos[0].paragens[0]?.nome} – ${h.sentidos[0].destino}` : '');
   const daDo = /^linha/i.test(nome) ? 'da' : 'do';
   let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
-<p class="sub">${L(
-    `Horário ${daDo} ${html(nome)} ${html(op.nome)} (${html(modo.toLowerCase())}): partidas de dias úteis, sábados e domingos e as ${nParagens} paragens do percurso.`,
-    `Timetable for ${html(nome)} ${html(op.nome)} (${html(nomeModo(modo).toLowerCase())}): weekday, Saturday and Sunday departures and all ${nParagens} stops on the route.`,
-    `Fahrplan ${html(nome)} ${html(op.nome)} (${html(nomeModo(modo))}): Abfahrten an Werktagen, Samstagen und Sonntagen und alle ${nParagens} Haltestellen der Strecke.`,
-    `Horaire ${html(nome)} ${html(op.nome)} (${html(nomeModo(modo).toLowerCase())}) : départs les jours ouvrables, samedis et dimanches et les ${nParagens} arrêts du trajet.`)}</p>
+${respostaLinha({ nome, op, percurso, nParagens, destino: h.sentidos[0]?.destino, hoje: h.hoje, uteis: h.sentidos[0]?.horarios.find((x) => x.tipo === 'uteis')?.partidas || [], data: dataBase() })}
 <div class="resumo">
 <div><b>${h.hoje.primeira != null ? hora(h.hoje.primeira) : '—'}</b><span>${L('Primeira partida hoje', 'First departure today', 'Erste Abfahrt heute', 'Premier départ aujourd\'hui')}</span></div>
 <div><b>${h.hoje.ultima != null ? hora(h.hoje.ultima) : '—'}</b><span>${L('Última partida hoje', 'Last departure today', 'Letzte Abfahrt heute', 'Dernier départ aujourd\'hui')}</span></div>
@@ -907,11 +966,7 @@ function paginaLinhaUnir(op: Operador, l: Linha): string {
   const nParagens = Math.max(0, ...sentidos.map((s) => s.paragens.length));
   const percurso = (/[\p{L}\d]/u.test(l.nome || '') ? l.nome : '') || (sentidos[0] && destinoReal(sentidos[0].destino) ? `${sentidos[0].paragens[0]?.nome} – ${sentidos[0].destino}` : '');
   let corpo = `<h1>${chip(l)} ${html(nome)}${percurso ? ` <span style="font-weight:500">· ${html(percurso)}</span>` : ''}</h1>
-<p class="sub">${L(
-    `${html(nome)} da ${html(op.nome)} (rede de ${modo === 'Barco' ? 'barcos' : 'autocarros'} da Área Metropolitana do Porto): percurso com as ${nParagens} paragens de cada sentido e horário de hoje.`,
-    `${html(nome)} of ${html(op.nome)} (${modo === 'Barco' ? 'boat' : 'bus'} network of the Área Metropolitana do Porto): route with all ${nParagens} stops in each direction and today's timetable.`,
-    `${html(nome)} von ${html(op.nome)} (${modo === 'Barco' ? 'Fährnetz' : 'Busnetz'} der Área Metropolitana do Porto): Strecke mit allen ${nParagens} Haltestellen je Richtung und Fahrplan von heute.`,
-    `${html(nome)} de ${html(op.nome)} (réseau de ${modo === 'Barco' ? 'bateaux' : 'bus'} de l'Área Metropolitana do Porto) : trajet avec les ${nParagens} arrêts de chaque sens et horaire du jour.`)}</p>
+${respostaLinha({ nome, op, percurso, nParagens, hoje: { primeira: null, ultima: null, total: 0, intervaloPonta: null }, uteis: [], data: dataBase() }).replace('</p>', ` ${L('O horário de hoje vem da AMP (Área Metropolitana do Porto) e aparece em cada sentido.', "Today's timetable comes from AMP (Área Metropolitana do Porto) and is shown for each direction.", 'Der heutige Fahrplan kommt von der AMP (Área Metropolitana do Porto) und steht bei jeder Richtung.', "L'horaire du jour vient de l'AMP (Área Metropolitana do Porto) et figure pour chaque sens.")}</p>`)}
 <p><a class="btn laranja" href="/transportes?linha=${encodeURIComponent(l.routeId)}">${L('Ver na app', 'See in the app', 'In der App ansehen', 'Voir dans l\'application')}</a></p>`;
   for (const s of sentidos) {
     const primeira = s.paragens[0];
@@ -1044,7 +1099,7 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   const destinos = Array.from(new Set(linhas.flatMap((x) => x.destinos))).slice(0, 4);
   const nomeH1 = lang() === 'en' ? `${html(g.nome)} ${html(tp.palavra)}` : `${tp.palavra} ${html(g.nome)}`;
   let corpo = `<h1>${nomeH1}${dados.concelho ? ` <span style="font-weight:500;color:#6B6B6B">· ${html(dados.concelho)}</span>` : ''}</h1>
-<p class="sub">${html(op.nome)} · ${nLinhas(linhas.length)}${destinos.length ? ` ${L('para', 'to', 'nach', 'vers')} ${html(destinos.join(', '))}` : ''}.</p>
+${respostaParagem({ nome: g.nome, local, op, palavra: tp.palavra, linhas: linhas.map((x) => ({ codigo: x.linha.codigo, primeira: x.primeira, ultima: x.ultima })), destinos })}
 <p><a class="btn laranja" href="/?local=${g.lat.toFixed(5)},${g.lon.toFixed(5)}&nome=${encodeURIComponent(g.nome)}&paragem=${encodeURIComponent(g.id)}">${L('Ver em tempo real', 'See in real time', 'In Echtzeit ansehen', 'Voir en temps réel')}</a></p>
 <h2>${L('Próximas partidas', 'Next departures', 'Nächste Abfahrten', 'Prochains départs')}</h2>`;
   if (g.feedId === UNIR) {
@@ -1102,6 +1157,8 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
       `Nächste Abfahrten – ${tp.palavra} ${g.nome}${local} (${op.nome})${codigos.length ? `: Linien ${codigos.join(', ')}` : ''}${destinos.length ? ` nach ${destinos.join(', ')}` : ''}. Erste und letzte Abfahrt von heute und Echtzeit bei PAROU.`,
       `Prochains départs – ${tp.palavra.toLowerCase()} ${g.nome}${local} (${op.nome})${codigos.length ? ` : lignes ${codigos.join(', ')}` : ''}${destinos.length ? ` vers ${destinos.join(', ')}` : ''}. Premier et dernier départ d'aujourd'hui et temps réel sur PAROU.`),
     caminho: `/paragens/${op.slug}/${g.slug}`,
+    // Sem nenhuma linha (paragem desativada ou sem horário publicado): a página fica para quem lá chega, mas não se indexa (o Google tratava-as como «soft 404»)
+    indexar: linhas.length > 0 || dados.semResposta === true,
     outrasLinguas: false, // dezenas de milhares de paragens: noutras línguas existem para quem lá chega, mas não se indexam
     corpo,
     script: g.feedId === UNIR ? scriptUnir(Object.fromEntries(linhas.map((x) => [x.linha.codigo, `/linhas/${op.slug}/${x.linha.slug}`]))) : undefined,

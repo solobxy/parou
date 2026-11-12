@@ -24,6 +24,7 @@ import { LinesEngine } from './src/server/linesEngine';
 import { registarRotasDadosUtilizador } from './src/server/dadosUtilizador';
 import { registarRotasComunidade, importarOcorrenciasPublicas, resolverOcorrenciasPublicasAusentes } from './src/server/comunidade/rotas';
 import { dentroDoLimite, ipDe } from './src/server/limites';
+import { registarRobos } from './src/server/robos';
 import { caminhoAPe } from './src/server/caminhoAPe';
 import { memoComJuncao } from './src/server/memoJuncao';
 import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
@@ -76,6 +77,8 @@ process.env.DISABLE_HMR = 'true';
 
 const app = express();
 app.disable('x-powered-by');
+// Contagem diária das visitas dos robôs de pesquisa e de IA (só números; ver src/server/robos.ts)
+registarRobos(app);
 app.use(compression());
 // Ninguém pode meter a PAROU dentro de outro site (proteção contra cliques enganadores)
 const CSP_BASE = "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
