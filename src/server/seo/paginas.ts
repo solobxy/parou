@@ -865,7 +865,7 @@ async function horarioLinhaCM(l: Linha): Promise<HorarioLinha> {
 // Só factos tirados dos dados (percurso, paragens, primeira e última partida, intervalo, data do horário).
 // ------------------------------------------------------------------------------------
 function sujeitoLinha(nome: string, op: Operador): string {
-  return /^linha/i.test(nome)
+  return /^(linha|line|linie|ligne)\b/i.test(nome)
     ? L(`A ${html(nome)} (${html(op.nome)})`, `${html(nome)} (${html(op.nome)})`, `Die ${html(nome)} (${html(op.nome)})`, `La ${html(nome)} (${html(op.nome)})`)
     : L(`A linha ${html(nome)} (${html(op.nome)})`, `Line ${html(nome)} (${html(op.nome)})`, `Die Linie ${html(nome)} (${html(op.nome)})`, `La ligne ${html(nome)} (${html(op.nome)})`);
 }
@@ -905,20 +905,28 @@ const NA_TIPO: Record<string, string> = { Paragem: 'Na paragem', 'Estação': 'N
 export function respostaParagem(o: { nome: string; local: string; op: Operador; palavra: string; linhas: Array<{ codigo: string; primeira: number | null; ultima: number | null }>; destinos: string[] }): string {
   const cods = Array.from(new Set(o.linhas.map((x) => x.codigo)));
   const lista = cods.length > 8 ? `${cods.slice(0, 8).join(', ')} ${L(`e mais ${cods.length - 8}`, `and ${cods.length - 8} more`, `und ${cods.length - 8} weitere`, `et ${cods.length - 8} autres`)}` : juntarComE(cods);
-  const onde = `${html(o.nome)}${o.local ? html(o.local) : ''} (${html(o.op.nome)})`;
+  const onde = `${html(o.nome)}${o.local ? html(o.local) : ''}`;
+  const rede = html(o.op.nome);
+  // Destinos sem o número da linha à frente nem o «(via …)», sem repetidos, no máximo 3
+  const vistos = new Set<string>();
+  const destinos = o.destinos.map((d) => d.replace(/^\s*\d+[A-Za-z]?\s+(?=\p{L})/u, '').replace(/\s*\((via|circ)[^)]*\)\s*$/i, '').trim())
+    .filter((d) => { const k = d.toLowerCase(); if (!d || vistos.has(k)) return false; vistos.add(k); return true; }).slice(0, 3);
   let t: string;
   if (!cods.length) {
-    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} não passa hoje nenhuma linha com horário publicado.`, `No line with a published timetable serves ${onde} today.`, `Heute hält an ${onde} keine Linie mit veröffentlichtem Fahrplan.`, `Aucune ligne avec un horaire publié ne dessert ${onde} aujourd'hui.`);
+    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} não passa hoje nenhuma linha da rede ${rede} com horário publicado.`, `No ${rede} line with a published timetable serves ${onde} today.`, `Heute hält an ${onde} keine ${rede}-Linie mit veröffentlichtem Fahrplan.`, `Aucune ligne ${rede} avec un horaire publié ne dessert ${onde} aujourd'hui.`);
   } else {
-    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} ${cods.length === 1 ? 'passa a linha' : `passam ${cods.length} linhas:`} ${html(lista)}`,
-      `${onde} is served by ${cods.length === 1 ? 'line' : `${cods.length} lines:`} ${html(lista)}`,
-      `An ${onde} ${cods.length === 1 ? 'hält die Linie' : `halten ${cods.length} Linien:`} ${html(lista)}`,
-      `${onde} est desservi par ${cods.length === 1 ? 'la ligne' : `${cods.length} lignes :`} ${html(lista)}`);
-    if (o.destinos.length) t += L(`, para ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, to ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, nach ${html(juntarComE(o.destinos.slice(0, 4)))}`, `, vers ${html(juntarComE(o.destinos.slice(0, 4)))}`);
+    t = L(`${NA_TIPO[o.palavra] || 'Na paragem'} ${onde} ${cods.length === 1 ? `passa a linha ${html(lista)} da rede ${rede}` : `passam ${cods.length} linhas da rede ${rede}: ${html(lista)}`}`,
+      `${onde} is served by ${cods.length === 1 ? `${rede} line ${html(lista)}` : `${cods.length} ${rede} lines: ${html(lista)}`}`,
+      `An ${onde} ${cods.length === 1 ? `hält die ${rede}-Linie ${html(lista)}` : `halten ${cods.length} ${rede}-Linien: ${html(lista)}`}`,
+      `${onde} est desservi par ${cods.length === 1 ? `la ligne ${rede} ${html(lista)}` : `${cods.length} lignes ${rede} : ${html(lista)}`}`);
+    if (destinos.length) t += L(`, com destino a ${html(juntarComE(destinos))}`, `, towards ${html(juntarComE(destinos))}`, `, Richtung ${html(juntarComE(destinos))}`, `, vers ${html(juntarComE(destinos))}`);
     t += '. ';
+    // O dia de serviço começa de madrugada: a «primeira» é a primeira a partir das 04:00 (as linhas da noite passam antes)
     const prim = o.linhas.map((x) => x.primeira).filter((x): x is number => x != null);
     const ult = o.linhas.map((x) => x.ultima).filter((x): x is number => x != null);
-    if (prim.length && ult.length) t += L(`Hoje, a primeira passagem é às ${hora(Math.min(...prim))} e a última às ${hora(Math.max(...ult))}.`, `Today the first departure is at ${hora(Math.min(...prim))} and the last at ${hora(Math.max(...ult))}.`, `Heute ist die erste Abfahrt um ${hora(Math.min(...prim))} und die letzte um ${hora(Math.max(...ult))} Uhr.`, `Aujourd'hui, le premier passage est à ${hora(Math.min(...prim))} et le dernier à ${hora(Math.max(...ult))}.`);
+    const primDia = prim.filter((x) => x % 86400 >= 4 * 3600);
+    const p0 = primDia.length ? Math.min(...primDia) : prim.length ? Math.min(...prim) : null;
+    if (p0 != null && ult.length) t += L(`Hoje, a primeira passagem é às ${hora(p0)} e a última às ${hora(Math.max(...ult))}.`, `Today the first departure is at ${hora(p0)} and the last at ${hora(Math.max(...ult))}.`, `Heute ist die erste Abfahrt um ${hora(p0)} und die letzte um ${hora(Math.max(...ult))} Uhr.`, `Aujourd'hui, le premier passage est à ${hora(p0)} et le dernier à ${hora(Math.max(...ult))}.`);
   }
   return `<p class="sub resposta">${t.trim()}</p>`;
 }
