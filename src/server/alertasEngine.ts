@@ -12,7 +12,7 @@ import { categoriaDoAviso } from '../utils/imagemAviso';
 import { getCentralAlerts } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
-import { areasLocaisAviso, areaPelaPosicao, porAreaPreferida, nomeDaZona, regiaoDaZona, NOME_ZONA_AVISO } from './zonasAvisoIlhas';
+import { areasLocaisAviso, zonaSoDeAvisos, porAreaPreferida, nomeDaZona, regiaoDaZona, NOME_ZONA_AVISO } from './zonasAvisoIlhas';
 
 const UA = 'PAROU.PT/2.0 (+https://parou.pt)';
 const ZONA = 'Europe/Lisbon';
@@ -705,11 +705,8 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
     distrito = [...distritos].sort(
       (a, b) => distanciaKm(opcoes.lat!, opcoes.lon!, a.lat, a.lon) - distanciaKm(opcoes.lat!, opcoes.lon!, b.lat, b.lon),
     )[0];
-    // Santana, São Vicente ou Porto Moniz: a cidade mais perto é o Funchal, mas a zona de aviso é a costa norte
-    const zona = distrito ? areaPelaPosicao(distrito.area, opcoes.lat!) : '';
-    if (distrito && zona !== distrito.area) distrito = porArea.get(zona) || distrito;
   } else if (opcoes.area) {
-    distrito = porArea.get(opcoes.area);
+    distrito = porArea.get(zonaSoDeAvisos(opcoes.area) ? 'MCS' : opcoes.area);
   }
   if (!distrito) distrito = distritos.find((d) => d.area === 'LSB') || distritos[0];
   const lat = temGps ? opcoes.lat! : distrito.lat;
@@ -751,9 +748,9 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
     protecaoCivil,
     atualizado: new Date().toISOString(),
     local: { distrito: distrito.nome, area: distrito.area, regiao, lat, lon, porGps: temGps },
-    // Uma opção por zona de aviso: Ponta Delgada (não Vila do Porto), a costa norte da Madeira, etc.
+    // Uma opção por zona de aviso: Ponta Delgada (e não Vila do Porto) para o grupo oriental, etc.
     distritos: Array.from(porArea.values())
-      .filter((d) => d.area !== 'MRM')
+      .filter((d) => !zonaSoDeAvisos(d.area))
       .map((d) => ({ area: d.area, nome: d.nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),
     tempo: { agora, dias },

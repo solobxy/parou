@@ -22,26 +22,29 @@ export const NOME_ZONA_AVISO: Record<string, string> = {
   AOC: 'Açores (grupo ocidental)',
 };
 
-/** Zonas da Madeira que o IPMA não põe na lista de cidades (previsão de São Vicente e do Funchal) */
+/** Zonas da Madeira que o IPMA não põe na lista de cidades (o IPMA só tem previsão diária do Funchal na ilha) */
 export const ZONAS_EXTRA: ZonaIpma[] = [
-  { area: 'MCN', nome: 'Madeira (costa norte)', globalIdLocal: 2311000, lat: 32.8, lon: -16.96, idRegiao: 2 },
+  { area: 'MCN', nome: 'Madeira (costa norte)', globalIdLocal: 2310300, lat: 32.8, lon: -16.96, idRegiao: 2 },
   { area: 'MRM', nome: 'Madeira (serras)', globalIdLocal: 2310300, lat: 32.735, lon: -16.93, idRegiao: 2 },
 ];
 
 /** Cidade que representa cada zona dos Açores (a lista do IPMA tem várias por zona) */
 const CIDADE_DA_ZONA: Record<string, string> = { AOR: 'Ponta Delgada', ACE: 'Angra do Heroísmo', AOC: 'Santa Cruz das Flores' };
 
-/** Na Madeira, a costa norte (Porto Moniz, São Vicente, Santana, Porto da Cruz) fica a norte disto */
-const LATITUDE_COSTA_NORTE = 32.77;
+/** Zonas de aviso da ilha da Madeira (o Porto Santo tem a sua) */
+const ILHA_DA_MADEIRA = ['MCS', 'MCN', 'MRM'];
 
-/** Avisos que contam como "aqui": na ilha da Madeira, a costa onde se está e as serras */
+/**
+ * Avisos que contam como "aqui". A ilha da Madeira é pequena e os autocarros atravessam-na: quem está
+ * no Funchal ou em Santana vê os avisos das duas costas e das serras, cada um com o nome da sua zona.
+ */
 export function areasLocaisAviso(area: string): string[] {
-  return area === 'MCS' || area === 'MCN' ? [area, 'MRM'] : [area];
+  return ILHA_DA_MADEIRA.includes(area) ? ILHA_DA_MADEIRA : [area];
 }
 
-/** Pelo GPS: quem está na ilha da Madeira a norte da cordilheira fica na zona da costa norte */
-export function areaPelaPosicao(area: string, lat: number): string {
-  return area === 'MCS' && lat >= LATITUDE_COSTA_NORTE ? 'MCN' : area;
+/** Zonas que não aparecem na escolha de local (na ilha da Madeira escolhe-se o Funchal) */
+export function zonaSoDeAvisos(area: string): boolean {
+  return area === 'MCN' || area === 'MRM';
 }
 
 /** Lista do IPMA com as zonas da Madeira que lhe faltam (só se a lista já tiver a Madeira) */

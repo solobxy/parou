@@ -39,6 +39,15 @@ export function expandirAbreviaturas(nome: string): string {
   // Palavras coladas dos Horários do Funchal
   s = s.replace(/\bCFreiras\b/g, 'Curral das Freiras').replace(/\bC ?Saúde\b/g, 'Centro de Saúde')
     .replace(/\bCAMVirtudes\b/g, 'Caminho Virtudes').replace(/\bMadShopping\b/g, 'Madeira Shopping');
+  // "Jamboto Via Hospital" -> "Jamboto via Hospital" (no meio é "passando por"; "Via Rápida" é estrada)
+  // Fica "Via" em nomes de sítios: "de Via Glória", "- Via Rara", "Via Rápida", "Via Norte"
+  const p = s.split(' ');
+  for (let i = 1; i < p.length - 1; i++) {
+    if (p[i] !== 'Via') continue;
+    if (/^[-–|(]$/.test(p[i - 1]) || /^(de|da|do|das|dos)$/i.test(p[i - 1]) || /^(Rápid|Rapid|Expres|Rara|Norte|Sul|Verde)/.test(p[i + 1])) continue;
+    p[i] = 'via';
+  }
+  s = p.join(' ');
   // "R 31 Janeiro" -> "Rua 31 Janeiro" (só no início, onde "R" é sempre rua)
   s = s.replace(/^R (?=[A-ZÀ-Ý0-9])/, 'Rua ');
   return s;
