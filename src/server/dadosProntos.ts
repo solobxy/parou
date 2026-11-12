@@ -206,6 +206,7 @@ export async function atualizarDados(): Promise<void> {
 
     clearServicesCache();
     reloadDatabaseConnection();
+    esquecerFusos();
     basePronta = true;
     try { if (builtAt) setAppState('dataset_built_at', builtAt); } catch {}
     versaoBaseAtiva = builtAt || versaoBaseAtiva;
@@ -251,13 +252,34 @@ export function iniciarDadosProntos(): void {
   setInterval(() => { void atualizarDados(); }, INTERVALO_MS);
 }
 
+// Fuso de cada operador. Os operadores novos entram sozinhos (Mobility Database) com ids como "mdb-1234",
+// por isso o nome não chega: um operador dos Açores (UTC-1) conhece-se pela posição das paragens.
+const fusoPorFeed = new Map<string, string>();
+
 export function getFeedTimezone(feedId?: string): string {
   if (!feedId) return 'Europe/Lisbon';
   const clean = feedId.toLowerCase();
   if (clean.includes('acores') || clean.includes('azores') || clean.includes('terceira') || clean.includes('saomiguel') || clean.includes('pico') || clean.includes('faial')) {
     return 'Atlantic/Azores';
   }
-  return 'Europe/Lisbon';
+  const guardado = fusoPorFeed.get(feedId);
+  if (guardado) return guardado;
+  let fuso = 'Europe/Lisbon';
+  try {
+    const r = getDatabase()
+      .prepare('SELECT AVG(stop_lat) AS lat, AVG(stop_lon) AS lon FROM stops WHERE feed_id = ?')
+      .get(feedId) as { lat: number | null; lon: number | null } | undefined;
+    if (r && typeof r.lat === 'number' && typeof r.lon === 'number' && r.lat > 36.5 && r.lat < 40 && r.lon > -32 && r.lon < -24.5) fuso = 'Atlantic/Azores';
+    fusoPorFeed.set(feedId, fuso);
+  } catch {
+    // base a carregar: tenta outra vez no próximo pedido
+  }
+  return fuso;
+}
+
+/** A base mudou (dados novos): o fuso de cada operador volta a ser calculado */
+export function esquecerFusos(): void {
+  fusoPorFeed.clear();
 }
 
 export function filtroServicosHoje(alias = 't', data: Date = new Date(), timezone = 'Europe/Lisbon'): string {
