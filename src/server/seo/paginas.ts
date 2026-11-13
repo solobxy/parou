@@ -171,7 +171,7 @@ ul.lista a:hover{background:#FAFAF8}.lista .t{flex:1;min-width:0}.lista .t small
 .lista .dir{color:#6B6B6B;font-size:14px;white-space:nowrap;font-variant-numeric:tabular-nums}
 ol.percurso{list-style:none;margin:0;padding:0 0 0 6px}ol.percurso li{position:relative;padding:6px 0 6px 22px;border-left:3px solid #E6E6E3}
 ol.percurso li:before{content:"";position:absolute;left:-7px;top:13px;width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid #111}
-ol.percurso a{text-decoration:none}ol.percurso a:hover{text-decoration:underline}ol.percurso small{color:#6B6B6B;margin-left:6px;font-variant-numeric:tabular-nums}
+ol.percurso a{text-decoration:none;display:block;margin:-6px 0;padding:6px 0}ol.percurso a:hover{text-decoration:underline}ol.percurso small{color:#6B6B6B;margin-left:6px;font-variant-numeric:tabular-nums}
 table.horas{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}table.horas td{padding:5px 8px;border-top:1px solid #EEE;vertical-align:top}
 table.horas td:first-child{font:700 17px/1.4 "Barlow Condensed",Barlow,sans-serif;width:44px;color:#111}table.horas td:last-child{color:#2B2B2B;word-spacing:6px}
 details{border:1px solid #E6E6E3;border-radius:14px;margin:10px 0;overflow:hidden}details>summary{cursor:pointer;padding:12px 14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:8px}
@@ -791,6 +791,7 @@ function seg(x){var a=String(x.chegada||'').split(':').map(Number);return a[0]*3
 function hm(s){s=((s%86400)+86400)%86400;return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')}
 function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function limpo(t){return String(t||'').replace(/\\s+/g,' ').trim()}
+function chipT(c){return '<span class="chip" style="background:#CE9926;color:#111">'+esc(c)+'</span>'}
 function chip(c){var u=L[c];return u?'<a class="chip" style="background:#CE9926;color:#111;text-decoration:none" href="'+esc(u)+'">'+esc(c)+'</a>':'<span class="chip" style="background:#CE9926;color:#111">'+esc(c)+'</span>'}
 var falha='<p class="nota">'+T.falha+'</p>';
 document.querySelectorAll('[data-unir]').forEach(function(el){
@@ -808,7 +809,7 @@ document.querySelectorAll('[data-unir]').forEach(function(el){
     }else{
       var px=t.map(function(x){return {l:limpo(x.linha),d:limpo(x.destino),s:seg(x)}}).filter(function(x){return x.s>=a-60}).sort(function(x,y){return x.s-y.s}).slice(0,12);
       if(!px.length){el.innerHTML='<p class="nota">'+T.semMais+'</p>';return}
-      el.innerHTML='<ul class="lista partidas">'+px.map(function(x){var m=Math.max(0,Math.round((x.s-a)/60));var q=m<=0?T.chegar:m<60?f(T.min,{m:m}):f(T.horas,{h:Math.floor(m/60),m:String(m%60).padStart(2,'0')});return '<li><div class="linha">'+chip(x.l)+'<span class="t">'+esc(x.d)+'</span><span class="hora">'+hm(x.s)+'<small>'+q+'</small></span></div></li>'}).join('')+'</ul><p class="nota">'+f(T.notaProx,{h:hm(a)})+'</p>';
+      el.innerHTML='<ul class="lista partidas">'+px.map(function(x){var m=Math.max(0,Math.round((x.s-a)/60));var q=m<=0?T.chegar:m<60?f(T.min,{m:m}):f(T.horas,{h:Math.floor(m/60),m:String(m%60).padStart(2,'0')});return '<li><a class="linha" href="'+esc(el.dataset.app||'/')+'">'+chipT(x.l)+'<span class="t">'+esc(x.d)+'</span><span class="hora">'+hm(x.s)+'<small>'+q+'</small></span></a></li>'}).join('')+'</ul><p class="nota">'+f(T.notaProx,{h:hm(a)})+'</p>';
     }
   }).catch(function(){el.innerHTML=falha});
 });
@@ -965,7 +966,8 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
     corpo += `<h3>${L('Paragens', 'Stops', 'Haltestellen', 'Arrêts')} (${s.paragens.length})</h3><ol class="percurso">${s.paragens.map((p) => {
       const g = ix.grupoPorStop.get(p.stopId);
       const nomeP = html(p.nome);
-      return `<li>${g ? `<a href="/paragens/${op.slug}/${g.slug}">${nomeP}</a>` : nomeP}${p.minutos ? `<small>+${p.minutos} min</small>` : ''}</li>`;
+      const min = p.minutos ? `<small>+${p.minutos} min</small>` : '';
+      return `<li>${g ? `<a href="/paragens/${op.slug}/${g.slug}">${nomeP}${min}</a>` : nomeP + min}</li>`;
     }).join('')}</ol>`;
   }
   // Outras linhas do mesmo operador (ligações internas)
@@ -1127,6 +1129,11 @@ function quandoChega(minutos: number): string {
   return L(`daqui a ${h} h ${m}`, `in ${h} h ${m} min`, `in ${h} Std. ${m} Min.`, `dans ${h} h ${m} min`);
 }
 
+// Abre a app centrada na paragem, com as partidas dela (PertoView lê local, nome e paragem)
+function urlAppParagem(g: GrupoParagem): string {
+  return `/?local=${g.lat.toFixed(5)},${g.lon.toFixed(5)}&nome=${encodeURIComponent(g.nome)}&paragem=${encodeURIComponent(g.id)}`;
+}
+
 async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   const ix = obterIndice()!;
   const dados = await dadosParagem(g);
@@ -1142,15 +1149,15 @@ async function paginaParagem(op: Operador, g: GrupoParagem): Promise<string> {
   const nomeH1 = lang() === 'en' ? `${html(g.nome)} ${html(tp.palavra)}` : `${tp.palavra} ${html(g.nome)}`;
   let corpo = `<h1>${nomeH1}${dados.concelho ? ` <span style="font-weight:500;color:#6B6B6B">· ${html(dados.concelho)}</span>` : ''}</h1>
 ${respostaParagem({ nome: g.nome, local, op, palavra: tp.palavra, linhas: linhas.map((x) => ({ codigo: x.linha.codigo, primeira: x.primeira, ultima: x.ultima })), destinos })}
-<p><a class="btn laranja" href="/?local=${g.lat.toFixed(5)},${g.lon.toFixed(5)}&nome=${encodeURIComponent(g.nome)}&paragem=${encodeURIComponent(g.id)}">${L('Ver em tempo real', 'See in real time', 'In Echtzeit ansehen', 'Voir en temps réel')}</a></p>
+<p><a class="btn laranja" href="${html(urlAppParagem(g))}">${L('Ver em tempo real', 'See in real time', 'In Echtzeit ansehen', 'Voir en temps réel')}</a></p>
 <h2>${L('Próximas partidas', 'Next departures', 'Nächste Abfahrten', 'Prochains départs')}</h2>`;
   if (g.feedId === UNIR) {
-    corpo += `<div data-unir="proximas" data-cods="${html(g.stopIds.slice(0, 3).map((x) => x.replace(/^unir:/, '')).join(','))}"><p class="nota">${L('A carregar as próximas partidas (horário da AMP)…', 'Loading the next departures (AMP timetable)…', 'Nächste Abfahrten werden geladen (AMP-Fahrplan) …', 'Chargement des prochains départs (horaire de l\'AMP)…')}</p></div>`;
+    corpo += `<div data-unir="proximas" data-app="${html(urlAppParagem(g))}" data-cods="${html(g.stopIds.slice(0, 3).map((x) => x.replace(/^unir:/, '')).join(','))}"><p class="nota">${L('A carregar as próximas partidas (horário da AMP)…', 'Loading the next departures (AMP timetable)…', 'Nächste Abfahrten werden geladen (AMP-Fahrplan) …', 'Chargement des prochains départs (horaire de l\'AMP)…')}</p></div>`;
   } else if (proximas.length) {
     const algumTempoReal = proximas.some((d) => d.tempoReal);
     corpo += `<ul class="lista partidas">${proximas.map((d) => {
       const c = d.linha ? chip(d.linha) : `<span class="chip">${html(d.codigo)}</span>`;
-      return `<li><div class="linha">${c}<span class="t">${html(d.destino)}${d.tempoReal ? `<small>${L('tempo real', 'real time', 'Echtzeit', 'temps réel')}</small>` : ''}</span><span class="hora">${html(d.hora)}<small>${quandoChega(d.minutos)}</small></span></div></li>`;
+      return `<li><a class="linha" href="${html(urlAppParagem(g))}">${c}<span class="t">${html(d.destino)}${d.tempoReal ? `<small>${L('tempo real', 'real time', 'Echtzeit', 'temps réel')}</small>` : ''}</span><span class="hora">${html(d.hora)}<small>${quandoChega(d.minutos)}</small></span></a></li>`;
     }).join('')}</ul><p class="nota">${L(
       `Calculado às ${agora.toFormat('HH:mm')} com o horário oficial${algumTempoReal ? ' e o tempo real do operador' : ''}. Para acompanhar ao minuto, abre a <a href="/">app PAROU</a>.`,
       `Calculated at ${agora.toFormat('HH:mm')} from the official timetable${algumTempoReal ? " and the operator's real-time data" : ''}. To follow it minute by minute, open the <a href="/">PAROU app</a>.`,
