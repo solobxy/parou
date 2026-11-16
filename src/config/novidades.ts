@@ -344,4 +344,27 @@ parou.pt`,
     imagens: ['/novidades/todos-autocarros-1.jpg', '/novidades/todos-autocarros-2.jpg'],
     comunidade: 'O mapa do Perto agora mostra todos os autocarros que estão no ecrã (STCP, Carris Metropolitana e TUB), de qualquer linha, e não só os das paragens perto de ti. Afasta o mapa para ver onde está cada um: ao longe são pontos coloridos e, de perto, aparece o número da linha.',
   },
+  {
+    id: 'metro-mondego',
+    data: '2026-11-16',
+    etiqueta: 'Novidade',
+    titulo: 'Metro Mondego na PAROU',
+    texto: `🚍 *Metro Mondego na PAROU*
+
+O metrobus de Coimbra, Miranda do Corvo e Lousã já está na app, com os horários oficiais:
+
+🔵 *U1* Coimbra B – Vale das Flores
+🔴 *U2* República – Vale das Flores
+🟢 *U3* República – Coimbra B
+🔵 *S1* Coimbra B – Serpins
+🔴 *S2* República – Serpins
+
+Vê as próximas partidas no Perto, planeia viagens com o metrobus e segue o percurso no mapa.
+
+Obrigado ao Carlos pelo aviso na Comunidade!
+
+parou.pt`,
+    imagens: ['/novidades/metro-mondego-1.jpg'],
+    comunidade: 'O Metro Mondego já está na PAROU: as 5 linhas do metrobus (U1, U2, U3, S1 e S2), de Coimbra B e da República até Vale das Flores, Miranda do Corvo, Lousã e Serpins, com os horários oficiais, no Perto, no planeador e com o percurso no mapa. Obrigado ao Carlos pelo aviso!',
+  },
 ];

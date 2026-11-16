@@ -484,6 +484,7 @@ const FEED_DO_CATALOGO: Record<string, string | null> = {
   'tcb-barreiro': 'tcb_barreiro',
   'tub-braga': 'tub_braga',
   'smtuc-coimbra': 'smtuc',
+  'metro-mondego': 'metro_mondego',
   'horarios-funchal': 'horarios_funchal',
   'vamus-algarve': 'vamus',
   'guimabus': 'guimabus',

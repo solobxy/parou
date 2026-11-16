@@ -23,6 +23,7 @@ export const OFFICIAL_AUTHORITY_KEYWORDS = [
   'ip trânsito',
   'ascendi',
   'smtuc',
+  'metro mondego',
   'tub',
 ];
 

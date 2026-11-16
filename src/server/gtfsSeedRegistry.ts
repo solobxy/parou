@@ -519,6 +519,7 @@ export const EXPECTED_NETWORKS = [
   { name: 'TUBA (Barcelos)', mode: 'Autocarro', defaultSeedId: 'tuba_barcelos' },
   { name: 'Mobiave (Famalicão)', mode: 'Autocarro', defaultSeedId: 'mobiave_famalicao' },
   { name: 'SMTUC (Coimbra)', mode: 'Autocarro / Trólecar', defaultSeedId: 'smtuc_coimbra' },
+  { name: 'Metro Mondego (Coimbra)', mode: 'Metrobus', defaultSeedId: 'metro_mondego' },
   { name: 'Vamus Algarve', mode: 'Autocarro', defaultSeedId: 'vamus_algarve' },
   { name: 'Próximo (Faro)', mode: 'Autocarro', defaultSeedId: 'proximo_faro' },
   { name: 'GIRO (Albufeira)', mode: 'Autocarro', defaultSeedId: 'giro_albufeira' },

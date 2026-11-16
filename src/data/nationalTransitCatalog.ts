@@ -354,6 +354,34 @@ export const INITIAL_TRANSIT_CATALOG: TransitCatalogEntry[] = [
     }
   },
   {
+    id: 'metro-mondego',
+    official_name: 'Metro Mondego, S.A. – Sistema de Mobilidade do Mondego',
+    short_name: 'Metro Mondego',
+    authority: 'Estado / AGIT – Agência para a Gestão do Sistema Intermodal da Região de Coimbra',
+    region: 'Centro / Região de Coimbra',
+    municipalities: ['Coimbra', 'Miranda do Corvo', 'Lousã'],
+    transport_modes: ['Autocarro'],
+    network_scope: 'Intermunicipal',
+    network_description: 'Metrobus elétrico em via dedicada: linhas urbanas em Coimbra (Coimbra B, República, Vale das Flores) e suburbanas até Miranda do Corvo, Lousã e Serpins.',
+    official_website: 'https://metromondego.pt',
+    source: 'AGIT – horários oficiais em NeTEx',
+    source_url: 'https://api.planner.agit.pt/v1/datasets/metro-mondego',
+    source_type: 'NeTEx',
+    format: 'NeTEx (convertido para GTFS)',
+    realtime_available: false,
+    alerts_available: false,
+    last_update: '2026-11-11T15:14:47Z',
+    validation_status: 'Ativa',
+    sync_status: 'Online',
+    sync_http_code: 200,
+    last_checked_at: new Date().toISOString(),
+    registry_ref: {
+      portal_name: 'dados.gov.pt / AGIT',
+      portal_url: 'https://dados.gov.pt/datasets/metro-mondego-netex',
+      dataset_id: 'metro-mondego-netex'
+    }
+  },
+  {
     id: 'horarios-funchal',
     official_name: 'Horários do Funchal - Transportes Públicos, S.A.',
     short_name: 'Horários do Funchal',

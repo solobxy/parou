@@ -3,6 +3,8 @@
 
 const ATRIBUICOES: Readonly<Record<string, string>> = {
   smtuc_coimbra: 'Fonte: Serviços Municipalizados de Transportes Urbanos de Coimbra (SMTUC)',
+  // Horários (NeTEx) e rede do metrobus publicados pela AGIT em dados.gov.pt, licença CC BY 4.0
+  metro_mondego: 'Fonte: Metro Mondego e AGIT – Agência para a Gestão do Sistema Intermodal da Região de Coimbra (dados abertos, CC BY 4.0)',
 };
 
 /** Texto de atribuição de uma fonte (id do feed), ou null se não houver um pedido específico. */

@@ -119,6 +119,7 @@ export const OPERADORES_OPTIONS = [
   'Transtejo Soflusa',
   'TUB (Braga)',
   'SMTUC (Coimbra)',
+  'Metro Mondego (Coimbra)',
   'Próximo (Faro)',
   'AveiroBus',
   'Brisa Autoestradas',

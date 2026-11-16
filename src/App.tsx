@@ -1311,7 +1311,7 @@ export default function App() {
             {[
               ['carris-metropolitana', 'Carris Metropolitana'], ['metro-de-lisboa', 'Metro de Lisboa'], ['carris', 'Carris'], ['cp', 'CP'],
               ['stcp', 'STCP'], ['metro-do-porto', 'Metro do Porto'], ['fertagus', 'Fertagus'], ['transtejo-soflusa', 'Transtejo e Soflusa'],
-              ['mobicascais', 'MobiCascais'], ['metro-sul-do-tejo', 'Metro Sul do Tejo'], ['smtuc', 'SMTUC'], ['tub-braga', 'TUB Braga'],
+              ['mobicascais', 'MobiCascais'], ['metro-sul-do-tejo', 'Metro Sul do Tejo'], ['smtuc', 'SMTUC'], ['metro-mondego', 'Metro Mondego'], ['tub-braga', 'TUB Braga'],
             ].map(([slug, nome]) => (
               <a key={slug} href={`/linhas/${slug}`} className="text-[#6B6B6B] hover:text-[#111111] transition-colors inline-flex items-center justify-center min-h-[28px] min-w-[28px]">{nome}</a>
             ))}

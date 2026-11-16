@@ -597,6 +597,7 @@ export function getAvailableTransitOperators(): string[] {
     'Carris Metropolitana',
     'TUB (Braga)',
     'SMTUC (Coimbra)',
+    'Metro Mondego (Coimbra)',
     'Próximo (Faro)',
     'AveiroBus',
   ];
