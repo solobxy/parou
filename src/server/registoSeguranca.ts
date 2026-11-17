@@ -33,9 +33,10 @@ export type TipoEvento =
   | 'erro_servidor' // erro interno (5xx)
   | 'pedido_grande' // corpo grande demais (413)
   | 'sondagem' // ferramenta à procura de ficheiros/painéis que não existem aqui
+  | 'raspagem' // página de paragem/linha travada por parecer cópia automática do site (ver travaoRaspagem.ts)
   | 'csp'; // o browser avisa que bloqueou (ou bloquearia) um script que não é da PAROU
 
-export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem', 'csp'];
+export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem', 'raspagem', 'csp'];
 
 const contexto = new AsyncLocalStorage<Request>();
 
@@ -213,6 +214,8 @@ function regras(agora: number): Array<{ nivel: Aviso['nivel']; codigo: string; t
   if ((topEntrada?.m || 0) >= 15 || j.entrada_falhada >= 40) out.push({ nivel: 'media', codigo: 'entrada_falhada', n: j.entrada_falhada, texto: `${j.entrada_falhada} entradas falhadas nas últimas ~2 horas (a origem mais ativa fez ${topEntrada?.m || 0})` });
   if (j.limite >= 300) out.push({ nivel: 'media', codigo: 'limite', n: j.limite, texto: `${j.limite} pedidos travados por excesso nas últimas ~2 horas` });
   if (j.origem_recusada >= 20) out.push({ nivel: 'baixa', codigo: 'origem_recusada', n: j.origem_recusada, texto: `${j.origem_recusada} pedidos de escrita vindos de outros sites` });
+  // Só fica no resumo (nível baixo, sem email): o travão já está a fazer o trabalho; serve para ver se o robô volta
+  if (j.raspagem >= 2000) out.push({ nivel: 'baixa', codigo: 'raspagem', n: j.raspagem, texto: `${j.raspagem} páginas travadas por parecerem cópia automática do site nas últimas ~2 horas` });
   if (j.sondagem >= 3000) out.push({ nivel: 'baixa', codigo: 'sondagem', n: j.sondagem, texto: `${j.sondagem} sondagens de ferramentas automáticas nas últimas ~2 horas` });
   return out;
 }

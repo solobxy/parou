@@ -29,6 +29,7 @@ import { caminhoAPe } from './src/server/caminhoAPe';
 import { memoComJuncao } from './src/server/memoJuncao';
 import { registarSeguranca, registarEvento } from './src/server/registoSeguranca';
 import { registarCspScripts } from './src/server/cspScripts';
+import { registarTravaoRaspagem } from './src/server/travaoRaspagem';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
 import { planearViagem } from './src/server/planeador';
@@ -108,6 +109,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 registarSeguranca(app);
 // Política de scripts (começa em modo de teste: só avisa; ver src/server/cspScripts.ts)
 registarCspScripts(app, CSP_BASE);
+// Travão à cópia automática das páginas de paragens e linhas (robôs com um IP novo em cada página; ver travaoRaspagem.ts)
+registarTravaoRaspagem(app);
 // Parâmetros repetidos (?q=a&q=b) ou aninhados (?q[a]=1) deixavam de ser texto e partiam as rotas:
 // fica sempre o primeiro valor, e só se for texto.
 app.use((req: Request, _res: Response, next: NextFunction) => {
