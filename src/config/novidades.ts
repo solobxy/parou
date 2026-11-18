@@ -367,4 +367,24 @@ parou.pt`,
     imagens: ['/novidades/metro-mondego-1.jpg'],
     comunidade: 'O Metro Mondego já está na PAROU: as 5 linhas do metrobus (U1, U2, U3, S1 e S2), de Coimbra B e da República até Vale das Flores, Miranda do Corvo, Lousã e Serpins, com os horários oficiais, no Perto, no planeador e com o percurso no mapa. Obrigado ao Carlos pelo aviso!',
   },
+  {
+    id: 'madeira-siga',
+    data: '2026-11-18',
+    etiqueta: 'Novidade',
+    titulo: 'Madeira na PAROU',
+    texto: `🚌 *Madeira na PAROU*
+
+Os autocarros da SIGA Rodoeste e da CAM já estão na app, com os horários oficiais da Rede SIGA:
+
+🟠 *SIGA Rodoeste*: do Funchal a Câmara de Lobos, Ribeira Brava, Ponta do Sol, Calheta, Porto Moniz e São Vicente
+🔵 *CAM*: Caniço, Santa Cruz, Camacha, Machico, Santana e Porto Santo, com o Aerobus para o aeroporto
+
+Vê as próximas partidas no Perto, planeia viagens e segue o percurso no mapa. Juntam-se aos Horários do Funchal, que já cá estavam.
+
+Obrigado ao IMT Madeira pelos dados!
+
+parou.pt`,
+    imagens: ['/novidades/madeira-siga-1.jpg', '/novidades/madeira-siga-2.jpg'],
+    comunidade: 'A Madeira já está toda na PAROU: além dos Horários do Funchal, entram os autocarros da SIGA Rodoeste (Câmara de Lobos, Ribeira Brava, Calheta, Porto Moniz, São Vicente) e da CAM (Caniço, Santa Cruz, Machico, Santana, Porto Santo e o Aerobus para o aeroporto), com os horários oficiais, no Perto, no planeador e no mapa. Obrigado ao IMT Madeira pelos dados!',
+  },
 ];
