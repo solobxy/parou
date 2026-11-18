@@ -489,6 +489,8 @@ const FEED_DO_CATALOGO: Record<string, string | null> = {
   'smtuc-coimbra': 'smtuc',
   'metro-mondego': 'metro_mondego',
   'horarios-funchal': 'horarios_funchal',
+  'siga-rodoeste': 'siga_rodoeste',
+  'cam-madeira': 'cam_madeira',
   'vamus-algarve': 'vamus',
   'guimabus': 'guimabus',
   'mobilis-leiria': null,

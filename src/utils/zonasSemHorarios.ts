@@ -1,9 +1,9 @@
-// Zonas de Portugal onde a PAROU ainda não tem horários de nenhum operador, para o Perto explicar
-// porquê em vez de um «Sem paragens nesta área» que parece avaria.
+// Zonas de Portugal onde o Perto explica porque não há paragens, em vez de um «Sem paragens nesta área» que parece avaria:
+// nos Açores ainda não há horários; na Madeira há (Funchal, SIGA Rodoeste e CAM), mas não em todo o lado.
 
 export type ZonaSemHorarios = 'madeira' | 'acores';
 
-/** Madeira e Porto Santo (fora da rede dos Horários do Funchal só há a SIGA, sem dados abertos) */
+/** Madeira e Porto Santo (Horários do Funchal, SIGA Rodoeste e CAM: aqui só se chega sem paragens por perto) */
 const MADEIRA = { sul: 32.55, norte: 33.15, oeste: -17.35, leste: -16.2 };
 /** Açores, das Flores e do Corvo a Santa Maria */
 const ACORES = { sul: 36.8, norte: 39.8, oeste: -31.4, leste: -24.9 };

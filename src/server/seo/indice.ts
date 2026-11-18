@@ -52,6 +52,7 @@ const SLUG_OPERADOR: Record<string, string> = {
   mts: 'metro-sul-do-tejo', tcb_barreiro: 'tcb-barreiro', stcp: 'stcp', metro_porto: 'metro-do-porto', tub_braga: 'tub-braga',
   guimabus: 'guimabus', tuba_barcelos: 'tuba-barcelos', mobiave: 'mobiave', smtuc: 'smtuc', metro_mondego: 'metro-mondego', vamus: 'vamus-algarve',
   proximo_faro: 'proximo-faro', giro: 'giro-albufeira', sobe_desce_tavira: 'sobe-e-desce-tavira', horarios_funchal: 'horarios-do-funchal',
+  siga_rodoeste: 'siga-rodoeste', cam_madeira: 'cam-madeira',
   'mdb-1272': 'mobicascais', carris_metropolitana: 'carris-metropolitana', 'tld-4257': 'autna', 'tld-4316': 'a-onda',
   'tld-4317': 'vai-e-vem', 'tld-4318': 'apanha-me', 'tld-4319': 'circuito-olhao', unir: 'unir',
 };
@@ -60,7 +61,8 @@ const NOME_OPERADOR: Record<string, string> = {
   metro_lisboa: 'Metro de Lisboa', carris: 'Carris', cp: 'CP – Comboios de Portugal', mts: 'Metro Sul do Tejo',
   stcp: 'STCP', metro_porto: 'Metro do Porto', smtuc: 'SMTUC', metro_mondego: 'Metro Mondego', 'mdb-1272': 'MobiCascais', proximo_faro: 'Próximo',
   giro: 'GIRO', tuba_barcelos: 'TUBA', mobiave: 'Mobiave', guimabus: 'Guimabus', tub_braga: 'TUB', vamus: 'Vamus Algarve',
-  sobe_desce_tavira: 'Sobe e Desce', horarios_funchal: 'Horários do Funchal', tcb_barreiro: 'TCB Barreiro',
+  sobe_desce_tavira: 'Sobe e Desce', horarios_funchal: 'Horários do Funchal', siga_rodoeste: 'SIGA Rodoeste', cam_madeira: 'CAM',
+  tcb_barreiro: 'TCB Barreiro',
   transtejo_soflusa: 'Transtejo e Soflusa', carris_metropolitana: 'Carris Metropolitana', fertagus: 'Fertagus',
   'tld-4257': 'AUTNA', 'tld-4316': 'A Onda', 'tld-4317': 'Vai e Vem', 'tld-4318': 'Apanha-me!', 'tld-4319': 'Circuito Olhão',
 };
@@ -72,7 +74,7 @@ export const REGIAO_OPERADOR: Record<string, string> = {
   tub_braga: 'Minho', guimabus: 'Minho', tuba_barcelos: 'Minho', mobiave: 'Minho',
   smtuc: 'Coimbra', metro_mondego: 'Coimbra',
   vamus: 'Algarve', proximo_faro: 'Algarve', giro: 'Algarve', sobe_desce_tavira: 'Algarve', 'tld-4319': 'Algarve',
-  horarios_funchal: 'Madeira',
+  horarios_funchal: 'Madeira', siga_rodoeste: 'Madeira', cam_madeira: 'Madeira',
   cp: 'Todo o país',
 };
 

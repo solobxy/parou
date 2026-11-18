@@ -42,6 +42,8 @@ export const DIRECT_GTFS_ZIP_URLS: Record<string, string> = {
   sobe_desce_tavira: 'https://files.mobilitydatabase.org/tld-4322/latest.zip',
   sobe_e_desce_tavira: 'https://files.mobilitydatabase.org/tld-4322/latest.zip',
   horarios_funchal: 'https://www.horariosdofunchal.pt/googletransit.zip',
+  siga_rodoeste: 'https://gtfs.tiim.pt/rede-siga/rede-siga-gtfs.zip',
+  cam_madeira: 'https://gtfs.tiim.pt/rede-siga/rede-siga-gtfs.zip',
   'mdb-1272': 'https://files.mobilitydatabase.org/mdb-1272/latest.zip',
   'tld-4257': 'https://files.mobilitydatabase.org/tld-4257/latest.zip',
   'tld-4316': 'https://files.mobilitydatabase.org/tld-4316/latest.zip',

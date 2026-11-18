@@ -358,6 +358,37 @@ export const SEED_FEEDS: FeedItem[] = [
     trips_count: 0,
     realtime_entities: 'não integrado',
   },
+  // Rede SIGA: o IMT Madeira publica a SIGA Rodoeste e a CAM num só ficheiro (o construtor separa os operadores)
+  {
+    id: 'siga_rodoeste',
+    operator_name: 'SIGA Rodoeste',
+    mode: 'Autocarro',
+    feed_type: 'gtfs',
+    source_origin: 'seed',
+    url: 'https://gtfs.tiim.pt/rede-siga/rede-siga-gtfs.zip',
+    license_url: 'https://siga.madeira.gov.pt/',
+    auth_type: 'none',
+    status: 'A aguardar',
+    lines_count: 0,
+    stops_count: 0,
+    trips_count: 0,
+    realtime_entities: 'não integrado',
+  },
+  {
+    id: 'cam_madeira',
+    operator_name: 'CAM – Companhia de Autocarros da Madeira',
+    mode: 'Autocarro',
+    feed_type: 'gtfs',
+    source_origin: 'seed',
+    url: 'https://gtfs.tiim.pt/rede-siga/rede-siga-gtfs.zip',
+    license_url: 'https://siga.madeira.gov.pt/',
+    auth_type: 'none',
+    status: 'A aguardar',
+    lines_count: 0,
+    stops_count: 0,
+    trips_count: 0,
+    realtime_entities: 'não integrado',
+  },
 
   // --- Outros Operadores do Catálogo Nacional (Sem URL direto GTFS disponível) ---
   {
@@ -525,5 +556,7 @@ export const EXPECTED_NETWORKS = [
   { name: 'GIRO (Albufeira)', mode: 'Autocarro', defaultSeedId: 'giro_albufeira' },
   { name: 'Sobe e Desce (Tavira)', mode: 'Autocarro', defaultSeedId: 'sobe_e_desce_tavira' },
   { name: 'Horários do Funchal', mode: 'Autocarro', defaultSeedId: 'horarios_funchal' },
+  { name: 'SIGA Rodoeste (Madeira)', mode: 'Autocarro', defaultSeedId: 'siga_rodoeste' },
+  { name: 'CAM (Madeira)', mode: 'Autocarro', defaultSeedId: 'cam_madeira' },
   { name: 'FlixBus (Portugal)', mode: 'Autocarro Longo Curso', defaultSeedId: 'flixbus_pt' },
 ];
