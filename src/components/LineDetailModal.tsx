@@ -43,7 +43,9 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
   const [activeDirectionIdx, setActiveDirectionIdx] = useState<number>(0);
   
   // Selected stop for departures
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  // Pela posição na lista: nas linhas circulares a mesma paragem aparece duas vezes
+  const [selectedStopIdx, setSelectedStopIdx] = useState<number | null>(null);
+  const pedidoPartidas = useRef(0);
   const [selectedStopDepartures, setSelectedStopDepartures] = useState<ApiStopDeparture[] | null>(null);
   const [isLoadingDepartures, setIsLoadingDepartures] = useState<boolean>(false);
 
@@ -89,22 +91,24 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
     }
   }, [isLoading, line, activeDirectionIdx]);
 
-  const handleSelectStop = async (stopId: string) => {
-    if (selectedStopId === stopId) {
-      setSelectedStopId(null);
+  const handleSelectStop = async (stopId: string, idx: number) => {
+    const pedido = ++pedidoPartidas.current;
+    if (selectedStopIdx === idx) {
+      setSelectedStopIdx(null);
       setSelectedStopDepartures(null);
       return;
     }
-    setSelectedStopId(stopId);
+    setSelectedStopIdx(idx);
+    setSelectedStopDepartures(null);
     setIsLoadingDepartures(true);
     try {
       const res = await fetchStopDepartures(stopId, 5);
-      setSelectedStopDepartures(res.departures);
+      if (pedido === pedidoPartidas.current) setSelectedStopDepartures(res.departures);
     } catch (err) {
       console.warn('Erro ao carregar partidas:', err);
-      setSelectedStopDepartures([]);
+      if (pedido === pedidoPartidas.current) setSelectedStopDepartures([]);
     } finally {
-      setIsLoadingDepartures(false);
+      if (pedido === pedidoPartidas.current) setIsLoadingDepartures(false);
     }
   };
 
@@ -186,7 +190,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                         key={idx}
                         onClick={() => {
                           setActiveDirectionIdx(idx);
-                          setSelectedStopId(null);
+                          setSelectedStopIdx(null);
                         }}
                         className={`px-3 py-1.5 rounded-[8px] text-xs font-semibold whitespace-nowrap min-h-[36px] cursor-pointer transition-colors ${
                           activeDirectionIdx === idx
@@ -206,13 +210,13 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                 {activeDirection?.stops && activeDirection.stops.length > 0 ? (
                   activeDirection.stops.map((stop, sIdx) => {
                     const isNearest = stop.id === nearestStopId;
-                    const isSelected = stop.id === selectedStopId;
+                    const isSelected = sIdx === selectedStopIdx;
 
                     return (
                       <div
-                        key={stop.id}
+                        key={`${stop.id}-${sIdx}`}
                         ref={isNearest ? nearestStopRef : undefined}
-                        onClick={() => handleSelectStop(stop.id)}
+                        onClick={() => handleSelectStop(stop.id, sIdx)}
                         data-teste="paragem-da-linha"
                         className={`p-3 transition-colors cursor-pointer ${
                           isSelected ? 'bg-[#F4F4F2]' : 'hover:bg-[#F4F4F2]'
