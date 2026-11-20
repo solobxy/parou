@@ -387,4 +387,21 @@ parou.pt`,
     imagens: ['/novidades/madeira-siga-1.jpg', '/novidades/madeira-siga-2.jpg'],
     comunidade: 'A Madeira já está toda na PAROU: além dos Horários do Funchal, entram os autocarros da SIGA Rodoeste (Câmara de Lobos, Ribeira Brava, Calheta, Porto Moniz, São Vicente) e da CAM (Caniço, Santa Cruz, Machico, Santana, Porto Santo e o Aerobus para o aeroporto), com os horários oficiais, no Perto, no planeador e no mapa. Obrigado ao IMT Madeira pelos dados!',
   },
+  {
+    id: 'horarios-proximos-dias',
+    data: '2026-11-20',
+    etiqueta: 'Novidade',
+    titulo: 'Horários de amanhã',
+    texto: `📅 *Horários de amanhã (e da semana toda)*
+
+Um utilizador ligou-me: queria ver o horário de amanhã de uma linha e não conseguia. Agora já dá.
+
+Abre a linha, toca numa paragem e escolhe o dia: hoje, amanhã ou os dias seguintes, até uma semana. Aparecem todas as partidas desse dia, arrumadas por hora.
+
+Se o operador ainda não publicou o horário de um dia, mostramos o previsto e avisamos.
+
+parou.pt`,
+    imagens: ['/novidades/horarios-proximos-dias-1.jpg'],
+    comunidade: 'Já dá para ver os horários de amanhã e dos dias seguintes: abre a linha, toca numa paragem e escolhe o dia. Aparecem todas as partidas desse dia, arrumadas por hora. Foi um pedido de um utilizador, obrigado!',
+  },
 ];
