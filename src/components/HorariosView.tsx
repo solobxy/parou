@@ -48,6 +48,28 @@ let lastAllLines: ApiLineItem[] = [];
 let lastAllLinesTotal = 0;
 let lastAllLinesCidades = '';
 
+// Linha pedida no endereço (?linha=…), lida uma só vez. Com a rede lenta, esta vista monta-se outra vez logo
+// a seguir ao arranque: a primeira montagem tirava o parâmetro e a segunda já não abria a linha.
+// Vale 30 s, para não voltar a abrir quando a pessoa sai dos Horários e regressa.
+let linhaDoEndereco: { id: string | null; lidaEm: number } | null = null;
+function lerLinhaDoEndereco(): string | null {
+  if (!linhaDoEndereco) {
+    let id: string | null = null;
+    try {
+      id = new URLSearchParams(window.location.search).get('linha');
+      if (id) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('linha');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search);
+      }
+    } catch {
+      id = null;
+    }
+    linhaDoEndereco = { id: id && id.length < 120 ? id : null, lidaEm: Date.now() };
+  }
+  return Date.now() - linhaDoEndereco.lidaEm < 30_000 ? linhaDoEndereco.id : null;
+}
+
 export const HorariosView: React.FC<HorariosViewProps> = ({ 
   filters: propFilters,
 }) => {
@@ -131,19 +153,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const retryAttemptRef = useRef<number>(0);
 
   // Line Detail Modal (abre logo se o endereço trouxer ?linha=…, ex.: vindo da página pública da linha)
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(() => {
-    try {
-      const id = new URLSearchParams(window.location.search).get('linha');
-      if (id) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('linha');
-        window.history.replaceState(window.history.state, '', url.pathname + url.search);
-      }
-      return id && id.length < 120 ? id : null;
-    } catch {
-      return null;
-    }
-  });
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(() => lerLinhaDoEndereco());
 
   // Quando uma linha é tirada (ou posta) no separador Favoritos, a estrela daqui acompanha
   const linhasNosFavoritos = () => new Set(getLocalFavorites().filter((f) => f.id.startsWith('line-')).map((f) => f.id.slice(5)));
@@ -932,7 +942,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
       {selectedLineId && (
         <LineDetailModal
           lineId={selectedLineId}
-          onClose={() => setSelectedLineId(null)}
+          onClose={() => { if (linhaDoEndereco) linhaDoEndereco.id = null; setSelectedLineId(null); }}
           userCoords={userCoords}
           isFavorite={favoriteLineIds.includes(selectedLineId)}
           onToggleFavorite={(id) => toggleFavoriteLine(id)}

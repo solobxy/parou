@@ -33,8 +33,8 @@ export const SeletorDias: React.FC<{ dias: DiaEscolhivel[]; escolhido: number; o
         type="button"
         aria-pressed={escolhido === i}
         onClick={() => onEscolher(i)}
-        className={`px-3 rounded-[8px] text-xs font-semibold whitespace-nowrap min-h-[40px] cursor-pointer transition-colors ${
-          escolhido === i ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
+        className={`shrink-0 px-3 rounded-[8px] border text-xs font-semibold whitespace-nowrap min-h-[40px] cursor-pointer transition-colors ${
+          escolhido === i ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#E6E6E3] text-[#111111] hover:border-[#6B6B6B]'
         }`}
       >
         {d.rotulo}
