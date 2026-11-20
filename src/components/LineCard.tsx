@@ -44,6 +44,7 @@ export const LineCard: React.FC<LineCardProps> = ({
   return (
     <div
       onClick={onClick}
+      data-linha={line.id}
       className="p-3.5 bg-[#FFFFFF] hover:bg-[#F4F4F2] border-b border-[#E6E6E3] transition-colors cursor-pointer flex items-center justify-between gap-3 min-h-[44px]"
     >
       {/* Left: Line Chip + Details */}
