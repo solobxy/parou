@@ -1298,4 +1298,11 @@ export const DE: Record<string, string> = {
   'Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.': 'Die Busunternehmen der Azoren veröffentlichen ihre Fahrpläne noch nicht in einem Format, das die App lesen kann. Sobald sie es tun, erscheinen sie hier.',
   'Ver os horários oficiais da SIGA': 'Offizielle SIGA-Fahrpläne ansehen',
   'Sem avisos meteorológicos para esta zona · IPMA, Open-Meteo': 'Keine Wetterwarnungen für dieses Gebiet · IPMA, Open-Meteo',
+  'Dia': 'Tag',
+  'A carregar horário…': 'Fahrplan wird geladen…',
+  'Não foi possível carregar o horário.': 'Der Fahrplan konnte nicht geladen werden.',
+  'É a última paragem neste sentido. Escolhe o outro sentido para ver as partidas.': 'Das ist die letzte Haltestelle in dieser Richtung. Wähle die andere Richtung, um die Abfahrten zu sehen.',
+  'Esta linha não passa aqui neste dia.': 'Diese Linie hält an diesem Tag hier nicht.',
+  'Ainda não há horário desta linha para este dia.': 'Für diese Linie gibt es an diesem Tag noch keinen Fahrplan.',
+  'Horário previsto: o operador ainda não publicou este dia.': 'Voraussichtlicher Fahrplan: Der Betreiber hat diesen Tag noch nicht veröffentlicht.',
 };

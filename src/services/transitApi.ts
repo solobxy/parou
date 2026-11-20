@@ -759,6 +759,22 @@ export async function fetchLineDetail(id: string, signal?: AbortSignal): Promise
   return await res.json();
 }
 
+/** Horário de uma linha numa paragem num dia (AAAA-MM-DD): hoje, amanhã ou os dias seguintes */
+export interface HorarioDoDia {
+  data: string;
+  estado: 'ok' | 'sem-partidas' | 'ultima-paragem' | 'sem-dados';
+  previsto: boolean;
+  dataReferencia?: string;
+  partidas: Array<{ s: number; hora: string; destino: string }>;
+}
+
+export async function fetchHorarioDoDia(lineId: string, stopId: string, sentido: number, data: string, signal?: AbortSignal): Promise<HorarioDoDia> {
+  const qs = new URLSearchParams({ paragem: stopId, sentido: String(sentido), data });
+  const res = await fetch(`/api/lines/${encodeURIComponent(lineId)}/dia?${qs}`, { signal: signal || AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`Falha ao obter o horário do dia (${res.status})`);
+  return await res.json();
+}
+
 export async function fetchStopDepartures(stopId: string, n = 5, signal?: AbortSignal): Promise<{ stop_id: string; stop_name: string; departures: ApiStopDeparture[] }> {
   const reqSignal = signal || AbortSignal.timeout(15000);
   const res = await fetch(`/api/stops/${encodeURIComponent(stopId)}/departures?n=${n}`, { signal: reqSignal });

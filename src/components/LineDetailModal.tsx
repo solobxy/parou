@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useVoltarFecha } from '../utils/janelas';
 import {
   X,
@@ -15,6 +15,7 @@ import {
   fetchStopDepartures,
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
+import { HorarioDoDiaPainel, SeletorDias, proximosDias } from './HorarioDoDia';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 import { registarProcura } from '../services/procuras';
@@ -47,6 +48,11 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
   const [isLoadingDepartures, setIsLoadingDepartures] = useState<boolean>(false);
 
   const nearestStopRef = useRef<HTMLDivElement | null>(null);
+  // Dia escolhido nas partidas de uma paragem: 0 = hoje (próximas partidas, com tempo real), 1 = amanhã, …
+  const dias = useMemo(() => proximosDias(7), []);
+  const [diaIdx, setDiaIdx] = useState(0);
+  // A UNIR não tem viagens na base (o horário vem da paragem): só há o dia de hoje
+  const temOutrosDias = !lineId.startsWith('unir:');
 
   useEffect(() => {
     let isMounted = true;
@@ -207,6 +213,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                         key={stop.id}
                         ref={isNearest ? nearestStopRef : undefined}
                         onClick={() => handleSelectStop(stop.id)}
+                        data-teste="paragem-da-linha"
                         className={`p-3 transition-colors cursor-pointer ${
                           isSelected ? 'bg-[#F4F4F2]' : 'hover:bg-[#F4F4F2]'
                         }`}
@@ -231,10 +238,19 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                           </span>
                         </div>
 
-                        {/* Dropdown next departures */}
+                        {/* Partidas da paragem: hoje (próximas) ou o horário de outro dia */}
                         {isSelected && (
-                          <div className="mt-3 pt-3 border-t border-[#E6E6E3] pl-7">
-                            {isLoadingDepartures ? (
+                          <div className="mt-3 pt-3 border-t border-[#E6E6E3] pl-7 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
+                            {temOutrosDias && <SeletorDias dias={dias} escolhido={diaIdx} onEscolher={setDiaIdx} />}
+                            {diaIdx > 0 && temOutrosDias ? (
+                              <HorarioDoDiaPainel
+                                lineId={lineId}
+                                stopId={stop.id}
+                                sentido={activeDirection?.direction_id ?? 0}
+                                data={dias[diaIdx].data}
+                                nomeLinha={line?.name}
+                              />
+                            ) : isLoadingDepartures ? (
                               <div className="py-2 text-xs text-[#6B6B6B] flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111]" />
                                 <span>{t('A carregar partidas…')}</span>

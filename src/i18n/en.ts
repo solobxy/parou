@@ -1298,4 +1298,11 @@ export const EN: Record<string, string> = {
   'Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.': 'Bus operators in the Azores don’t yet publish their timetables in a format the app can read. When they do, they’ll show up here.',
   'Ver os horários oficiais da SIGA': 'See the official SIGA timetables',
   'Sem avisos meteorológicos para esta zona · IPMA, Open-Meteo': 'No weather warnings for this area · IPMA, Open-Meteo',
+  'Dia': 'Day',
+  'A carregar horário…': 'Loading timetable…',
+  'Não foi possível carregar o horário.': 'Could not load the timetable.',
+  'É a última paragem neste sentido. Escolhe o outro sentido para ver as partidas.': 'This is the last stop in this direction. Choose the other direction to see departures.',
+  'Esta linha não passa aqui neste dia.': 'This line does not stop here on this day.',
+  'Ainda não há horário desta linha para este dia.': 'There is no timetable for this line on this day yet.',
+  'Horário previsto: o operador ainda não publicou este dia.': 'Expected timetable: the operator has not published this day yet.',
 };

@@ -880,6 +880,26 @@ app.get('/api/lines/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Horário de uma linha numa paragem num dia escolhido: hoje, amanhã e os dias seguintes (até 14 dias à frente)
+app.get('/api/lines/:id/dia', (req: Request, res: Response) => {
+  try {
+    if (!isDadosProntosPronto()) {
+      return res.status(503).json({ status: 'loading', isLoading: true, message: 'A carregar horários…' });
+    }
+    const data = lerDataPedida(req.query.data);
+    const paragem = typeof req.query.paragem === 'string' ? req.query.paragem.slice(0, 200) : '';
+    const sentido = Math.min(9, Math.max(0, Math.trunc(Number(req.query.sentido) || 0)));
+    if (!data || !paragem) {
+      return res.status(400).json({ error: 'Pedido inválido: falta a paragem ou a data (de ontem até 14 dias à frente).' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.json(horarioDoDia(String(req.params.id).slice(0, 200), paragem, sentido, data));
+  } catch (err: any) {
+    console.error('[API /api/lines/:id/dia] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao obter o horário do dia.' });
+  }
+});
+
 app.get('/api/stops/:id/departures', async (req: Request, res: Response) => {
   try {
     if (!isDadosProntosPronto()) {
@@ -1877,6 +1897,7 @@ import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
 import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
 import { calcularABordo } from './src/server/aBordo';
+import { horarioDoDia, lerDataPedida } from './src/server/horarioDoDia';
 import { cidadesValidas, linhasDasCidades } from './src/server/linhasDasCidades';
 import { CIDADES } from './src/data/cidades';
 import { DebugEngine } from './src/server/debugEngine';
