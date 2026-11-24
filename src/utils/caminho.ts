@@ -76,11 +76,14 @@ export interface EncaixeParagens {
 
 interface Candidato { pos: number; m: number; d: number }
 
-const MAX_CANDIDATOS = 6;
+/** Passagens pelo mesmo sítio a considerar por paragem (linhas de ida e volta pela mesma rua passam lá várias vezes) */
+const MAX_CANDIDATOS = 12;
 /** Além disto, uma paragem não é candidata a um sítio do desenho (só se não houver nada mais perto) */
 const FOLGA_CANDIDATOS_M = 60;
 /** Andar para trás no desenho custa isto por metro (as paragens vêm pela ordem da viagem) */
 const CUSTO_RETROCESSO = 4;
+/** Uma paragem a mais do que isto do desenho tem as coordenadas erradas (ou o desenho não passa lá): não conta para a ordem */
+const LONGE_DEMAIS_M = 400;
 
 /**
  * Encaixa as paragens (por ordem) no desenho, de modo a que a ordem se mantenha e a soma dos desvios seja a menor.
@@ -102,6 +105,7 @@ export function encaixarParagens(desenho: Ponto[], paragens: Ponto[]): EncaixePa
   for (let i = 1; i < n; i++) acum[i] = acum[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
 
   const candidatos: Candidato[][] = [];
+  const maisPerto: number[] = [];
   const d2 = new Float64Array(n - 1);
   const us = new Float64Array(n - 1);
   for (const p of paragens) {
@@ -119,6 +123,7 @@ export function encaixarParagens(desenho: Ponto[], paragens: Ponto[]): EncaixePa
       us[i] = u;
       if (d2[i] < melhor) melhor = d2[i];
     }
+    maisPerto.push(Math.sqrt(melhor));
     const corte = (Math.sqrt(melhor) + FOLGA_CANDIDATOS_M) ** 2;
     const locais: Candidato[] = [];
     for (let i = 0; i < n - 1; i++) {
@@ -138,19 +143,27 @@ export function encaixarParagens(desenho: Ponto[], paragens: Ponto[]): EncaixePa
     candidatos.push(escolhidos);
   }
 
+  // Paragens muito longe do desenho (coordenadas erradas no ficheiro do operador: uma paragem a 38 km do resto da linha)
+  // não entram na ordem: senão arrastavam as vizinhas e o desenho todo deixava de servir. Ficam no sítio da anterior e
+  // sem posição no desenho (a app liga-as em linha reta).
+  let ativos = paragens.map((_, s) => s).filter((s) => maisPerto[s] <= LONGE_DEMAIS_M);
+  if (ativos.length < 2) ativos = paragens.map((_, s) => s);
+
   // Viterbi: custo = soma dos desvios, mais um castigo por cada metro que se recua no desenho
   const custo: number[][] = [];
   const anterior: number[][] = [];
-  custo.push(candidatos[0].map((c) => c.d));
-  anterior.push(candidatos[0].map(() => -1));
-  for (let s = 1; s < candidatos.length; s++) {
+  custo.push(candidatos[ativos[0]].map((c) => c.d));
+  anterior.push(candidatos[ativos[0]].map(() => -1));
+  for (let t = 1; t < ativos.length; t++) {
+    const atual = candidatos[ativos[t]];
+    const antes = candidatos[ativos[t - 1]];
     const cs: number[] = [];
     const as: number[] = [];
-    for (const c of candidatos[s]) {
+    for (const c of atual) {
       let melhorCusto = Infinity;
       let melhorK = -1;
-      candidatos[s - 1].forEach((a, k) => {
-        const total = custo[s - 1][k] + c.d + (c.m >= a.m ? 0 : CUSTO_RETROCESSO * (a.m - c.m));
+      antes.forEach((a, k) => {
+        const total = custo[t - 1][k] + c.d + (c.m >= a.m ? 0 : CUSTO_RETROCESSO * (a.m - c.m));
         if (total < melhorCusto) { melhorCusto = total; melhorK = k; }
       });
       cs.push(melhorCusto);
@@ -164,11 +177,22 @@ export function encaixarParagens(desenho: Ponto[], paragens: Ponto[]): EncaixePa
   const posicoes = new Array<number>(paragens.length);
   const metrosNoDesenho = new Array<number>(paragens.length);
   const desviosM = new Array<number>(paragens.length);
-  for (let s = candidatos.length - 1; s >= 0; s--) {
+  for (let t = ativos.length - 1; t >= 0; t--) {
+    const s = ativos[t];
     posicoes[s] = candidatos[s][k].pos;
     metrosNoDesenho[s] = candidatos[s][k].m;
     desviosM[s] = candidatos[s][k].d;
-    k = anterior[s][k];
+    k = anterior[t][k];
+  }
+  // As que ficaram de fora: no sítio da anterior (ou da seguinte, se forem as primeiras), com o desvio real
+  for (let s = 0; s < paragens.length; s++) {
+    if (posicoes[s] !== undefined) continue;
+    let r = s - 1;
+    while (r >= 0 && posicoes[r] === undefined) r--;
+    if (r < 0) { r = s + 1; while (r < paragens.length && posicoes[r] === undefined) r++; }
+    posicoes[s] = posicoes[r];
+    metrosNoDesenho[s] = metrosNoDesenho[r];
+    desviosM[s] = maisPerto[s];
   }
   // Quem ficou ligeiramente atrás da paragem anterior (paragens dos dois lados da estrada) passa a ficar no mesmo sítio
   let retrocessoM = 0;
