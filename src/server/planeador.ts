@@ -72,7 +72,9 @@ const MIN_PARAGENS_POR_MEIO = 6;
  */
 const raioEstacao = (raio: number) => Math.max(raio, Math.min(raio + 500, 2000));
 
-function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PARAGENS, feedsSemViagens?: Set<string>, classeDoFeed?: (feed: string) => number): Paragem[] {
+const MAX_EXTRA = 40;
+
+function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PARAGENS, feedsSemViagens?: Set<string>, classeDoFeed?: (feed: string) => number, padroesDe?: (id: string) => number[]): Paragem[] {
   const raioMax = classeDoFeed ? raioEstacao(raio) : raio;
   const dLat = raioMax / 111000;
   const dLon = raioMax / (111000 * Math.max(0.1, Math.cos((lat * Math.PI) / 180)));
@@ -86,6 +88,22 @@ function paragensPerto(lat: number, lon: number, raio = RAIO_A_PE, max = MAX_PAR
     .filter((p) => p.dist <= raio || (classeDoFeed && p.dist <= raioMax && classeDoFeed(p.feed) !== MODO_RODOVIARIO))
     .sort((a, b) => a.dist - b.dist);
   const escolhidas = todas.filter((p) => p.dist <= raio).slice(0, max);
+  // Linhas que só param um pouco mais longe: numa rua do centro as 30 paragens mais perto são quase todas das mesmas linhas, e a
+  // paragem da linha que dava o melhor percurso (a 330 m, a 7.ª linha diferente) ficava de fora. Entra a mais perto de cada
+  // linha (e sentido) que as escolhidas ainda não servem, até mais MAX_EXTRA paragens.
+  if (padroesDe) {
+    const servidos = new Set<number>();
+    for (const p of escolhidas) for (const x of padroesDe(p.id)) servidos.add(x);
+    let extra = 0;
+    for (const p of todas) {
+      if (extra >= MAX_EXTRA || p.dist > raio || escolhidas.includes(p)) continue;
+      const novos = padroesDe(p.id).filter((x) => !servidos.has(x));
+      if (!novos.length) continue;
+      escolhidas.push(p);
+      extra++;
+      for (const x of novos) servidos.add(x);
+    }
+  }
   if (classeDoFeed) {
     for (const classe of new Set(todas.map((p) => classeDoFeed(p.feed)))) {
       if (classe === MODO_RODOVIARIO) continue;
@@ -410,8 +428,17 @@ export async function planearViagem(
   // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
   const semViagens = new Set<string>(['unir']);
   const classeDoFeed = (feed: string) => classeDeTransporte(null, String(feeds.get(feed)?.mode || ''));
-  let O = paragensPelaRede(oLat, oLon, paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed));
-  let D = paragensPelaRede(dLat, dLon, paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed));
+  // Linhas (padrões: linha e sentido) que param em cada paragem, do motor em memória
+  const ixP = indicePronto();
+  const padroesDe = ixP ? (id: string): number[] => {
+    const i = ixP.stopIdx.get(id);
+    if (i === undefined) return [];
+    const out: number[] = [];
+    for (let j = ixP.psStart[i]; j < ixP.psStart[i + 1]; j++) out.push(ixP.psPat[j]);
+    return out;
+  } : undefined;
+  let O = paragensPelaRede(oLat, oLon, paragensPerto(oLat, oLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed, padroesDe));
+  let D = paragensPelaRede(dLat, dLon, paragensPerto(dLat, dLon, RAIO_A_PE, MAX_PARAGENS, semViagens, classeDoFeed, padroesDe));
   const porId = new Map<string, Paragem>();
   let minO = new Map(O.map((p) => [p.id, p.minutos]));
   let minD = new Map(D.map((p) => [p.id, p.minutos]));

@@ -624,7 +624,10 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
       // chegada ao destino nesta ronda
       let melhorD = -1, melhorC = INF;
       for (const [d, egress] of destinos) {
-        if (kind[k][d] === 0) continue;
+        // Só conta quem SAI do transporte numa paragem do destino. Sair noutra e ir a pé a uma do destino (transbordo a pé) e daí ao
+        // destino partia o caminho a pé em dois, contava-o mais barato do que é (o castigo do a pé longo só pesava num dos bocados) e o
+        // ecrã mostrava depois outra coisa (19 min a pé desde a paragem onde se sai); o percurso bom, com mais um autocarro, ficava de fora.
+        if (kind[k][d] !== 1) continue;
         const c = tau[k][d] + egress;
         if (c < melhorC) { melhorC = c; melhorD = d; }
       }
