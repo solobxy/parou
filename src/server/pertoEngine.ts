@@ -338,6 +338,10 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
   const palavras = palavrasDaPesquisa(q);
   const pareceMorada = /\d/.test(q) || /\b(rua|r\.|av\.?|avenida|praceta|pra[cç]a|largo|travessa|tv\.?|estrada|alameda|beco|cal[cç]ada|urbaniza[cç][aã]o)\b/i.test(q);
   const comNumero = /\b\d{1,4}[a-z]?\b/i.test(q) && pareceMorada;
+  // Código postal completo ("4420-155", "4420 155", "4420155"): o código exato da tabela de locais vem primeiro. O Photon
+  // responde a estes pedidos com o código mais parecido que conhece (4410-151 em Gaia para 4420-155), que não é o pedido.
+  const cpPedido = q.match(/^(\d{4})\s*[-‐–]?\s*(\d{3})$/);
+  const codigoPostal = cpPedido ? `${cpPedido[1]}-${cpPedido[2]}` : '';
 
   type Cand = DestinationSuggestion & { _pontos: number; _texto: number; _norm: string };
   const cands: Cand[] = [];
@@ -356,7 +360,7 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
       type: LOCALIDADE.has(l.cat) ? 'CITY' : 'PLACE',
       category: l.cat, place: l.sitio || undefined,
       distanceFromUserMeters: l.distancia !== undefined ? Math.round(l.distancia) : undefined,
-      _pontos: l.pontos, _texto: l.texto, _norm: normalizarParaPesquisa(l.nome),
+      _pontos: l.pontos + (codigoPostal && l.nome === codigoPostal ? 5 : 0), _texto: l.texto, _norm: normalizarParaPesquisa(l.nome),
     });
   }
 
@@ -410,8 +414,10 @@ export async function sugestoesLocais(query: string, userLat?: number, userLon?:
     for (const m of moradas) {
       const norm = normalizarParaPesquisa(m.title);
       let texto = correspondencia(qNorm, palavras, norm);
-      if (texto <= 0) texto = comNumero ? 0.7 : 0.35; // o Photon encontra variações que a comparação simples não apanha
-      const imp = comNumero && /\d/.test(m.title) ? 0.55 : 0.12;
+      // Código postal pedido: só conta como bom o resultado do Photon com esse mesmo código
+      const outroCodigo = Boolean(codigoPostal) && !`${m.title} ${m.subtitle}`.includes(codigoPostal);
+      if (texto <= 0) texto = outroCodigo ? 0.2 : comNumero ? 0.7 : 0.35; // o Photon encontra variações que a comparação simples não apanha
+      const imp = outroCodigo ? 0.05 : comNumero && /\d/.test(m.title) ? 0.55 : 0.12;
       cands.push({ ...m, category: 'morada', place: m.subtitle, _texto: texto, _norm: norm, _pontos: pontuar(texto, imp, m.distanceFromUserMeters) });
     }
   }
