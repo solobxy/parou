@@ -9,7 +9,7 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { categoriaDoAviso } from '../utils/imagemAviso';
-import { getCentralAlerts } from './centralAlertsEngine';
+import { getCentralAlerts, ePlenarioOuConstrangimento } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
 import { areasLocaisAviso, zonaSoDeAvisos, porAreaPreferida, nomeDaZona, regiaoDaZona, NOME_ZONA_AVISO } from './zonasAvisoIlhas';
@@ -583,7 +583,8 @@ function campo(item: string, nome: string): string {
   return m ? m[1] : '';
 }
 
-const RE_GREVE = /\bgreve|\bparalisac|servicos minimos|plenario de trabalhadores/;
+// (os plenários de trabalhadores não são greves: ficam à parte, como «possíveis constrangimentos»)
+const RE_GREVE = /\bgreve|\bparalisac|servicos minimos/;
 const RE_TRANSPORTES = /\b(comboios?|ferrovi\w*|cp\b|metro\b|metropolitano|carris|stcp|autocarros?|transportes? publicos?|fertagus|transtejo|soflusa|travessia do tejo|navegante|andante|metrobus|brt\b|alta velocidade|aeroporto|ryanair|tap\b|easyjet|maquinistas|revisores|motoristas)/;
 const RE_TRANSITO_FORTE = /\b(transito(?! em julgado)|estrada cortada|cortad[ao]s? ao transito|corte de estrada|condicionamento de transito|engarrafamento|filas de transito|ponte 25 de abril|ponte vasco da gama|ponte da arrabida|ponte do freixo|ponte do infante|vci\b|segunda circular|eixo norte-sul|crel|cril|autoestrada|auto-estrada)\b/;
 const RE_ACIDENTE = /\b(acidente|despiste|colisao|capotou|atropel\w*)/;
@@ -599,7 +600,7 @@ function classificarNoticia(titulo: string, resumo: string): Noticia['categoria'
   if (RE_EXCLUIR.test(tt)) return null;
   // "UNIR" (rede de autocarros do Porto) só conta em maiúsculas — "unir" é um verbo
   const transportes = RE_TRANSPORTES.test(t) || /\bUNIR\b/.test(`${titulo} ${resumo}`);
-  if (RE_GREVE.test(tt) && transportes) return 'greve';
+  if (RE_GREVE.test(tt) && transportes && !(ePlenarioOuConstrangimento(tt) && !/\bgreve/.test(tt))) return 'greve';
   if (RE_INCENDIO.test(tt)) return 'incendio';
   if (RE_TEMPO.test(tt)) return 'tempo';
   if (RE_TRANSITO_FORTE.test(tt) || (RE_ACIDENTE.test(tt) && RE_VIA.test(t))) return 'transito';
@@ -1394,6 +1395,10 @@ export interface GreveResumo {
   chaves: string[];
   /** Greve geral: conta para todos os operadores */
   geral: boolean;
+  /** 'greve' (com selo de greve) ou 'constrangimento' (plenários e possíveis constrangimentos: sem selo de greve) */
+  tipo: 'greve' | 'constrangimento';
+  /** Outros dias com perturbações previstas pelo operador, fora da greve (AAAA-MM-DD) */
+  perturbacoes: string[];
 }
 
 export async function obterGreves(): Promise<{ atualizado: string; greves: GreveResumo[]; completo: boolean }> {
@@ -1407,7 +1412,8 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
   ]);
   const completo = oficiaisOk;
   for (const a of oficiais as any[]) {
-    if (a.tipo !== 'greve') continue;
+    const constrangimento = ePlenarioOuConstrangimento(String(a.título || ''), String(a.descrição || '')) && !/\bgreve/i.test(String(a.título || ''));
+    if (a.tipo !== 'greve' && !constrangimento) continue;
     if (a.status !== 'Ativo' && a.status !== 'Futuro') continue;
     const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
     if (Number.isFinite(fimMs) && fimMs < agora) continue;
@@ -1431,12 +1437,16 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
       fonte: String(a.source || a.operador || 'Operador'),
       origem: 'operador',
       publicada: a.published_datetime ? String(a.published_datetime) : null,
+      tipo: constrangimento ? 'constrangimento' : 'greve',
+      perturbacoes: !constrangimento && Array.isArray(a.dias_perturbacao) ? a.dias_perturbacao.map(String) : [],
     });
   }
   const feeds = await Promise.all(FONTES_RSS.map((f) => lerFeed(f).catch(() => [])));
   const vistos = new Set<string>();
   for (const n of feeds.flat().sort((a, b) => b.data.localeCompare(a.data))) {
-    if (n.categoria !== 'greve') continue;
+    // Notícias de plenários nos transportes: à parte, sem selo de greve
+    const plenarioNot = n.categoria !== 'greve' && ePlenarioOuConstrangimento(n.titulo) && RE_TRANSPORTES.test(semAcentos(`${n.titulo} ${n.texto}`));
+    if (n.categoria !== 'greve' && !plenarioNot) continue;
     const idade = agora - Date.parse(n.data);
     if (!Number.isFinite(idade) || idade > 72 * 3600_000) continue;
     const chave = semAcentos(n.titulo).replace(/[^a-z0-9 ]/g, '').split(' ').filter((p) => p.length > 3).slice(0, 6).join(' ');
@@ -1459,6 +1469,8 @@ export async function obterGreves(): Promise<{ atualizado: string; greves: Greve
       fonte: n.fonte,
       origem: 'noticia',
       publicada: n.data,
+      tipo: plenarioNot ? 'constrangimento' : 'greve',
+      perturbacoes: [],
     });
   }
   greves.sort((x, y) =>

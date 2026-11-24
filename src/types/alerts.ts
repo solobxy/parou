@@ -36,6 +36,8 @@ export interface CentralAlert {
   // Metadata for deduplication & severity
   content_hash?: string;
   severity?: 'Grave' | 'Moderada' | 'Informativo';
+  /** Greves: outros dias com perturbações previstas que o operador refere (AAAA-MM-DD), fora do período da greve */
+  dias_perturbacao?: string[];
 }
 
 export interface AlertCenterDiagnostic {

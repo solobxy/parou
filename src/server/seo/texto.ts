@@ -118,3 +118,28 @@ export function cortar(s: string, max: number): string {
   const t = String(s || '').replace(/\s+/g, ' ').trim();
   return t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
 }
+
+const PALAVRAS_SOLTAS = /\s+(?:e|de|da|do|das|dos|com|para|a|o|as|os|em|na|no|ao|à|and|of|the|with|for|to|in|und|mit|für|von|der|die|das|et|avec|pour|du|des|le|la|les|au|aux)$/i;
+
+/**
+ * Descrição para os motores de pesquisa: inteira e sem reticências, até `max` caracteres (o Google mostra ~155).
+ * Se o texto for mais longo, ficam as frases completas que cabem; se a primeira frase já não couber, corta-se na última
+ * vírgula (ou palavra) antes do limite e fecha-se com ponto, sem deixar uma palavra solta no fim ("e", "de", "com").
+ */
+export function descricaoInteira(s: string, max = 155): string {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const frases = t.split(/(?<=[.!?])\s+/);
+  let out = '';
+  for (const f of frases) {
+    const junto = out ? `${out} ${f}` : f;
+    if (junto.length > max) break;
+    out = junto;
+  }
+  if (out.length >= 70) return out;
+  let corte = t.slice(0, max - 1);
+  const k = Math.max(corte.lastIndexOf(', '), corte.lastIndexOf('; '), corte.lastIndexOf(' — '), corte.lastIndexOf(' – '), corte.lastIndexOf(': '));
+  corte = k >= 70 ? corte.slice(0, k) : corte.replace(/\s+\S*$/, '');
+  for (let i = 0; i < 3; i++) corte = corte.replace(/[\s,;:—–(-]+$/, '').replace(PALAVRAS_SOLTAS, '');
+  return `${corte}.`;
+}

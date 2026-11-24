@@ -10,12 +10,6 @@ export const MAX_CIDADES = 8;
 // Os horários da Carris Metropolitana vivem no feed "cmh", mas a app usa os códigos "cm:<id>"
 const rotaDaApp = (id: string): string => (id.startsWith('cmh:') ? `cm:${id.slice(4)}` : id);
 
-function distKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
-  const r = Math.PI / 180;
-  const x = (bLon - aLon) * r * Math.cos(((aLat + bLat) / 2) * r);
-  const y = (bLat - aLat) * r;
-  return Math.sqrt(x * x + y * y) * 6371;
-}
 
 let cache: { ix: Indice; porCidade: Map<string, Set<string>> } | null = null;
 

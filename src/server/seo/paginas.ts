@@ -13,7 +13,7 @@ import { obterIndice, paragensPerto, modoDoTipo, NOME_REGIAO, type Linha, type G
 import { horarioDaLinha, linhasDaParagem, NOME_TIPO_DIA, partidasNoDia, proximoDia, type HorarioLinha, type TipoDia } from './horarios';
 import { linhasCM, paragensCM, padraoCM, partidasPadrao, passagensHojeCMComEstado } from './carrisMetropolitana';
 import { getDatabase } from '../db/gtfsDatabase';
-import { html, hora, cortar, slug, nomeBonito } from './texto';
+import { html, hora, cortar, slug, nomeBonito, descricaoInteira } from './texto';
 import { LinesEngine } from '../linesEngine';
 import { isDadosProntosPronto, getManifestData, getVersaoBaseAtiva } from '../dadosProntos';
 import { obterGreves, type GreveResumo } from '../alertasEngine';
@@ -23,7 +23,6 @@ import { chipLegivel } from '../../utils/contraste';
 import { escolherLinhaAtual } from '../../utils/linhaAntiga';
 import { tituloLinha, descricaoLinha, type DadosTituloLinha } from './titulos';
 import { maisProcuradas } from '../estatisticas';
-import { distanciaMetros } from './indice';
 import { CacheLimitada } from '../cacheLimitada';
 import { atribuicaoNaLingua } from '../../utils/atribuicoes';
 
@@ -283,6 +282,9 @@ const BANDEIRA_SVG: Record<Lang, string> = {
 // Troca de idioma nas páginas do servidor: guarda a escolha (cookie para o servidor, localStorage para a app) e recarrega
 const SCRIPT_IDIOMA = `function parouIdioma(l){try{localStorage.setItem('parou_idioma',l)}catch(e){}try{document.cookie='parou_idioma='+l+';path=/;max-age=31536000;samesite=lax'}catch(e){}}document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('[data-idioma]');if(b){parouIdioma(b.getAttribute('data-idioma'));if(!b.getAttribute('href'))location.reload()}});`;
 
+// Troca as datas por "hoje/amanhã/ontem" no browser (no dia em que se vê a página, hora de Lisboa)
+const SCRIPT_QUANDO = `(function(){var L=(document.documentElement.lang||'pt').slice(0,2),W={pt:['ontem','hoje','amanhã',' às '],en:['yesterday','today','tomorrow',' at '],de:['gestern','heute','morgen',' um '],fr:['hier','aujourd\\'hui','demain',' à ']}[L]||null;if(!W)return;var f=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Lisbon',year:'numeric',month:'2-digit',day:'2-digit'});function d(x){var p=f.format(x).split('-');return Date.UTC(+p[0],+p[1]-1,+p[2])/864e5}var h=d(new Date());document.querySelectorAll('time[data-quando]').forEach(function(t){var x=new Date(t.getAttribute('datetime'));if(isNaN(x))return;var n=Math.round(d(x)-h);if(n<-1||n>1)return;var hm=t.getAttribute('data-quando');t.textContent=W[n+1]+(hm?W[3]+hm+(L==='de'?' Uhr':''):'')})})();`;
+
 function migalhasHtml(m: Migalha[]): string {
   if (!m.length) return '';
   return `<nav class="migalhas" aria-label="${L('Estás em', 'You are here', 'Du bist hier', 'Vous êtes ici')}">${m
@@ -330,7 +332,8 @@ function pagina(o: OpcoesPagina): string {
   // O canónico é o da própria língua (/en/linhas/…); as páginas que só se indexam em português apontam para a portuguesa
   const canonico = `${SITE}${ingles ? o.caminho : urlNoIdioma(o.caminho, lang())}`;
   const titulo = o.titulo;
-  const desc = cortar(o.descricao, 158);
+  // Descrição inteira (até ~155 caracteres), sem reticências: frases completas, nunca cortada a meio
+  const desc = descricaoInteira(o.descricao);
   const migalhas = o.migalhas || [];
   const ld: object[] = [...(o.jsonld || [])];
   if (migalhas.length) {
@@ -365,6 +368,7 @@ ${ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(
 <main>${migalhasHtml(migalhas)}${o.corpo}</main>
 ${rodape()}
 ${o.script ? `<script>${o.script}</script>` : ''}
+${o.corpo.includes('data-quando=') ? `<script>${SCRIPT_QUANDO}</script>` : ''}
 <script>${scriptVisita(lang())}</script>
 </body></html>`;
   // Nas outras línguas, as ligações (e o canónico) ficam nessa língua; depois entram os botões das línguas e o hreflang,
@@ -513,7 +517,7 @@ function paginaInicioIdioma(): string {
 ${perguntas.map(([q, r]) => `<details><summary>${html(q)}</summary><div class="dentro"><p>${html(r)}</p></div></details>`).join('')}`;
   return pagina({
     titulo: L('', 'PAROU — real-time buses, metro and trains in Portugal (Lisbon, Porto…)', 'PAROU — Busse, U-Bahn und Züge in Portugal in Echtzeit (Lissabon, Porto…)', 'PAROU — bus, métro et trains en temps réel au Portugal (Lisbonne, Porto…)'),
-    descricao: L('', 'Free public transport app for Portugal: real-time buses, metro, trains and ferries in Lisbon, Porto and beyond, trip planner, timetables, strikes and alerts. No ads.', 'Kostenlose Nahverkehrs-App für Portugal: Busse, U-Bahn, Züge und Fähren in Echtzeit in Lissabon, Porto und mehr, Routenplaner, Fahrpläne, Streiks und Warnungen. Ohne Werbung.', 'Application gratuite de transports au Portugal : bus, métro, trains et bateaux en temps réel à Lisbonne, Porto et ailleurs, calcul d\'itinéraire, horaires, grèves et alertes. Sans publicité.'),
+    descricao: L('', 'Free public transport app for Portugal: real-time buses, metro, trains and ferries in Lisbon, Porto and beyond, journey planner and strikes.', 'Kostenlose Nahverkehrs-App für Portugal: Busse, U-Bahn, Züge und Fähren in Echtzeit in Lissabon, Porto und mehr, mit Routenplaner.', 'Application gratuite de transports au Portugal : bus, métro, trains et bateaux en temps réel à Lisbonne, Porto et ailleurs, sans publicité.'),
     caminho: '/',
     corpo,
     jsonld: [
@@ -547,10 +551,10 @@ function paginaHub(): string {
   return pagina({
     titulo: L('Linhas e horários de autocarros, metro e comboios em Portugal | PAROU', 'Bus, metro and train lines and timetables in Portugal | PAROU', 'Linien und Fahrpläne für Bus, U-Bahn und Zug in Portugal | PAROU', 'Lignes et horaires de bus, métro et train au Portugal | PAROU'),
     descricao: L(
-      `Horários de autocarro, metro, comboio e barco em Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto e mais ${outros} operadores. Paragens e tempo real.`,
-      `Bus, metro, train and boat timetables in Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto and ${outros} more operators. Stops and real time.`,
-      `Fahrpläne für Bus, U-Bahn, Zug und Fähre in Portugal: Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto und ${outros} weitere Verkehrsunternehmen. Haltestellen und Echtzeit.`,
-      `Horaires de bus, métro, train et bateau au Portugal : Carris Metropolitana, Carris, Metro de Lisboa, CP, STCP, Metro do Porto et ${outros} autres opérateurs. Arrêts et temps réel.`),
+      `Horários de autocarro, metro, comboio e barco em Portugal: Carris Metropolitana, Metro de Lisboa, CP, STCP, Metro do Porto e mais ${outros} operadores.`,
+      `Bus, metro, train and ferry timetables in Portugal: Carris Metropolitana, Metro de Lisboa, CP, STCP, Metro do Porto and ${outros} more operators.`,
+      `Fahrpläne für Bus, U-Bahn, Zug und Fähre in Portugal: Carris Metropolitana, Metro de Lisboa, CP, STCP, Metro do Porto und ${outros} weitere.`,
+      `Horaires de bus, métro, train et bateau au Portugal : Carris Metropolitana, Metro de Lisboa, CP, STCP, Metro do Porto et ${outros} autres opérateurs.`),
     caminho: '/linhas',
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Linhas e horários', 'Lines and timetables', 'Linien und Fahrpläne', 'Lignes et horaires'), url: '/linhas' }],
@@ -1259,27 +1263,49 @@ ${nav}<ul class="lista">${fatia.map((g) => `<li><a href="/paragens/${op.slug}/${
   });
 }
 
+/**
+ * Data e hora de um aviso, sempre por extenso ("segunda, 24 de novembro às 07:00"; sem hora quando é o dia inteiro).
+ * Nunca "hoje" ou "amanhã" no HTML: as páginas ficam em cache e no Google, e "começa amanhã" deixava de ser verdade.
+ * As palavras relativas são calculadas no browser, na hora de mostrar (quandoHtml + SCRIPT_QUANDO).
+ */
 function quando(iso: string | null): string {
   if (!iso) return '';
   const d = DateTime.fromISO(iso, { zone: ZONA }).setLocale(LOCALE());
   if (!d.isValid) return '';
-  const hoje = DateTime.now().setZone(ZONA).startOf('day');
-  const dias = Math.round(d.startOf('day').diff(hoje, 'days').days);
-  const h = d.toFormat('HH:mm');
-  if (dias === 0) return L(`hoje às ${h}`, `today at ${h}`, `heute um ${h} Uhr`, `aujourd'hui à ${h}`);
-  if (dias === 1) return L(`amanhã às ${h}`, `tomorrow at ${h}`, `morgen um ${h} Uhr`, `demain à ${h}`);
-  if (dias === -1) return L(`ontem às ${h}`, `yesterday at ${h}`, `gestern um ${h} Uhr`, `hier à ${h}`);
-  return d.toFormat(L("cccc, d 'de' LLLL 'às' HH:mm", "cccc, d LLLL 'at' HH:mm", "cccc, d. LLLL 'um' HH:mm 'Uhr'", "cccc d LLLL 'à' HH:mm"));
+  const diaInteiro = d.toFormat('HH:mm') === '00:00' || d.toFormat('HH:mm') === '23:59';
+  return d.toFormat(diaInteiro
+    ? L("cccc, d 'de' LLLL", 'cccc, d LLLL', 'cccc, d. LLLL', 'cccc d LLLL')
+    : L("cccc, d 'de' LLLL 'às' HH:mm", "cccc, d LLLL 'at' HH:mm", "cccc, d. LLLL 'um' HH:mm 'Uhr'", "cccc d LLLL 'à' HH:mm"));
+}
+/** Como quando(), num <time> que o browser troca por "hoje", "amanhã" ou "ontem" quando for o caso */
+function quandoHtml(iso: string | null): string {
+  const t = quando(iso);
+  if (!t || !iso) return '';
+  const d = DateTime.fromISO(iso, { zone: ZONA });
+  const hm = d.toFormat('HH:mm');
+  return `<time datetime="${html(d.toUTC().toISO() || iso)}" data-quando="${hm === '00:00' || hm === '23:59' ? '' : hm}">${html(t)}</time>`;
+}
+/** Dias curtos de uma greve para a grelha ("23/11 a 27/11", "até 27/11") */
+function diasCurtos(g: GreveResumo): string {
+  const f = (iso: string | null) => (iso ? DateTime.fromISO(iso, { zone: ZONA }) : null);
+  const a = f(g.inicio), b = f(g.fim);
+  const dm = (d: DateTime) => d.toFormat('dd/LL');
+  if (g.aDecorrer && b?.isValid) return `${L('até', 'until', 'bis', 'jusqu\'au')} ${dm(b)}`;
+  if (a?.isValid && b?.isValid && dm(a) !== dm(b)) return `${dm(a)} ${L('a', 'to', 'bis', 'au')} ${dm(b)}`;
+  return a?.isValid ? dm(a) : '';
 }
 
 async function paginaGreves(): Promise<string> {
   const { greves, completo } = await grevesPartilhadas();
   const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
-  const oficiais = greves.filter((g) => g.origem === 'operador');
-  const noticias = greves.filter((g) => g.origem === 'noticia');
+  const oficiais = greves.filter((g) => g.origem === 'operador' && g.tipo !== 'constrangimento');
+  const noticias = greves.filter((g) => g.origem === 'noticia' && g.tipo !== 'constrangimento');
+  const constrangimentos = greves.filter((g) => g.tipo === 'constrangimento');
   const grelhaOperadores = `<h2>${L('Greve por operador', 'Strikes by operator', 'Streiks nach Verkehrsunternehmen', 'Grèves par opérateur')}</h2><div class="grelha ops">${OPERADORES_GREVE.map((x) => {
-    const e = grevesDoOperador(greves, x.chave, completo).estado;
-    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${LT(PILULA_GREVE[e])}</small></a>`;
+    const r = grevesDoOperador(greves, x.chave, completo);
+    const g1 = r.ativas[0] || r.futuras[0];
+    const dias = g1 ? diasCurtos(g1) : '';
+    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${LT(PILULA_GREVE[r.estado])}${dias ? ` · ${html(dias)}` : ''}</small></a>`;
   }).join('')}</div>`;
   let corpo = `<h1>${L('Greves nos transportes hoje e próximas greves', 'Transport strikes today and upcoming strikes', 'Streiks im Nahverkehr heute und kommende Streiks', 'Grèves dans les transports aujourd\'hui et prochaines grèves')}</h1>
 <p class="sub">${L(
@@ -1313,6 +1339,7 @@ async function paginaGreves(): Promise<string> {
   if (noticias.length) {
     corpo += `<h2>${L('Nas notícias', 'In the news', 'In den Nachrichten', 'Dans l\'actualité')}</h2><ul class="lista">${noticias.map(linhaNoticiaGreve).join('')}</ul>`;
   }
+  corpo += seccaoConstrangimentos(constrangimentos);
   corpo += `<h2>${L('Serviços mínimos e alternativas', 'Minimum services and alternatives', 'Mindestbetrieb und Alternativen', 'Services minimaux et alternatives')}</h2><p>${L(
     'Em dia de greve, vê na <a href="/">PAROU</a> o que está realmente a circular perto de ti: onde o operador publica tempo real (como a Carris Metropolitana, a STCP e o Metro de Lisboa) vês os veículos que estão de facto a andar. Consulta também os <a href="/linhas">horários das linhas</a> para planear alternativas.',
     'On a strike day, check <a href="/">PAROU</a> to see what is really running near you: where the operator publishes real-time data (such as Carris Metropolitana, STCP and Metro de Lisboa) you see the vehicles that are actually moving. Also check the <a href="/linhas">timetables</a> to plan alternatives.',
@@ -1321,10 +1348,10 @@ async function paginaGreves(): Promise<string> {
   return pagina({
     titulo: L('Greves de transportes hoje: metro, CP, Carris e STCP | PAROU', 'Transport strikes today: metro, CP, Carris and STCP | PAROU', 'Streiks im Nahverkehr heute: U-Bahn, CP, Carris und STCP | PAROU', 'Grèves dans les transports aujourd\'hui : métro, CP, Carris et STCP | PAROU'),
     descricao: L(
-      'Há greve hoje? Greves anunciadas no metro de Lisboa e do Porto, na CP e nos comboios, na Carris, na STCP, na Fertagus e noutros transportes, com datas, serviços mínimos e notícias. Atualizado sempre.',
-      'Is there a strike today? Strikes announced at CP, Metro de Lisboa, Metro do Porto, Carris, STCP, Fertagus and other transport, with dates, minimum services and news. Always up to date.',
-      'Gibt es heute einen Streik? Angekündigte Streiks bei U-Bahn Lissabon und Porto, CP und Zügen, Carris, STCP, Fertagus und anderen Verkehrsmitteln, mit Terminen, Mindestbetrieb und Nachrichten. Immer aktuell.',
-      'Y a-t-il une grève aujourd\'hui ? Grèves annoncées dans les métros de Lisbonne et de Porto, à la CP et dans les trains, à la Carris, à la STCP, chez Fertagus et dans d\'autres transports, avec dates, services minimaux et actualités. Toujours à jour.'),
+      'Há greve hoje? Greves anunciadas no metro, na CP, Carris, STCP, Fertagus e outros transportes, com datas e serviços mínimos. Sempre atualizado.',
+      'Is there a strike today? Strikes announced on the metro, CP, Carris, STCP, Fertagus and other transport, with dates and minimum services.',
+      'Gibt es heute einen Streik? Angekündigte Streiks bei U-Bahn, CP, Carris, STCP, Fertagus und mehr, mit Terminen und Mindestbetrieb.',
+      'Y a-t-il une grève aujourd\u2019hui\u00a0? Grèves annoncées au métro, à la CP, Carris, STCP, Fertagus et ailleurs, avec dates et services minimaux.'),
     caminho: '/greves',
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Greves', 'Strikes', 'Streiks', 'Grèves'), url: '/greves' }],
@@ -1464,13 +1491,16 @@ function grevesPartilhadas() {
 
 type EstadoGreve = 'ativa' | 'anunciada' | 'noticias' | 'nenhuma' | 'incerta';
 function grevesDoOperador(greves: GreveResumo[], chave: string, completo = true) {
-  const minhas = greves.filter((g) => g.geral || g.chaves.includes(chave));
+  const doOperador = greves.filter((g) => g.geral || g.chaves.includes(chave));
+  // Plenários e "possíveis constrangimentos" não levam o selo de greve
+  const constrangimentos = doOperador.filter((g) => g.tipo === 'constrangimento');
+  const minhas = doOperador.filter((g) => g.tipo !== 'constrangimento');
   const oficiais = minhas.filter((g) => g.origem === 'operador');
   const ativas = oficiais.filter((g) => g.aDecorrer);
   const futuras = oficiais.filter((g) => !g.aDecorrer).sort((a, b) => String(a.inicio || '').localeCompare(String(b.inicio || '')));
   const noticias = minhas.filter((g) => g.origem === 'noticia');
   const estado: EstadoGreve = ativas.length ? 'ativa' : futuras.length ? 'anunciada' : noticias.length ? 'noticias' : completo ? 'nenhuma' : 'incerta';
-  return { ativas, futuras, noticias, estado };
+  return { ativas, futuras, noticias, constrangimentos, estado };
 }
 
 const PILULA_GREVE: Record<EstadoGreve, { bg: string; fg: string } & Textos> = {
@@ -1483,14 +1513,29 @@ const PILULA_GREVE: Record<EstadoGreve, { bg: string; fg: string } & Textos> = {
 const pilulaGreve = (e: EstadoGreve) => `<span class="estado" style="background:${PILULA_GREVE[e].bg};color:${PILULA_GREVE[e].fg}">${LT(PILULA_GREVE[e])}</span>`;
 
 function cartaoGreve(g: GreveResumo): string {
-  return `<div class="cartao"><b>${html(g.titulo)}</b><p class="nota" style="margin:4px 0">${[g.operador ? html(g.operador) : '', g.inicio ? `${g.aDecorrer ? L('a decorrer desde', 'ongoing since', 'läuft seit', 'en cours depuis') : L('começa', 'starts', 'beginnt', 'commence')} ${html(quando(g.inicio))}` : '', g.fim ? `${L('até', 'until', 'bis', 'jusqu\'à')} ${html(quando(g.fim))}` : ''].filter(Boolean).join(' · ')}</p>${g.resumo ? `<p style="margin:6px 0 0">${html(g.resumo)}</p>` : ''}${g.url ? `<p class="nota" style="margin:6px 0 0"><a href="${html(g.url)}" rel="nofollow noopener" target="_blank">${L('Ver no site do operador', "See on the operator's website", 'Auf der Website des Verkehrsunternehmens ansehen', 'Voir sur le site de l\'opérateur')}</a></p>` : ''}</div>`;
+  const datas = g.aDecorrer
+    ? [g.inicio ? `${L('a decorrer desde', 'ongoing since', 'läuft seit', 'en cours depuis')} ${quandoHtml(g.inicio)}` : L('a decorrer', 'ongoing', 'läuft', 'en cours'), g.fim ? `${L('até', 'until', 'bis', 'jusqu\'à')} ${quandoHtml(g.fim)}` : '']
+    : [g.inicio ? `${L('de', 'from', 'vom', 'du')} ${quandoHtml(g.inicio)}` : '', g.fim ? `${L('a', 'to', 'bis', 'au')} ${quandoHtml(g.fim)}` : ''];
+  const perturbacoes = (g.perturbacoes || []).map((d) => DateTime.fromISO(d, { zone: ZONA }).setLocale(LOCALE())).filter((d) => d.isValid);
+  const extra = perturbacoes.length
+    ? `<p class="nota" style="margin:6px 0 0">${L('O operador prevê perturbações também a', 'The operator also expects disruption on', 'Das Verkehrsunternehmen rechnet auch mit Störungen am', 'L\'opérateur prévoit aussi des perturbations le')} ${juntarComE(perturbacoes.map((d) => d.toFormat(L("d 'de' LLLL", 'd LLLL', 'd. LLLL', 'd LLLL'))))}.</p>`
+    : '';
+  const selo = g.tipo === 'constrangimento'
+    ? `<span class="estado" style="background:#F4F4F2;color:#111111">${L('Plenário / possíveis constrangimentos', 'Staff meeting / possible disruption', 'Betriebsversammlung / mögliche Einschränkungen', 'Assemblée du personnel / perturbations possibles')}</span> `
+    : '';
+  return `<div class="cartao">${selo}<b>${html(g.titulo)}</b><p class="nota" style="margin:4px 0">${[g.operador ? html(g.operador) : '', datas.filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</p>${extra}${g.resumo ? `<p style="margin:6px 0 0">${html(g.resumo)}</p>` : ''}${g.url ? `<p class="nota" style="margin:6px 0 0"><a href="${html(g.url)}" rel="nofollow noopener" target="_blank">${g.origem === 'noticia' ? html(g.fonte) : L('Ver no site do operador', "See on the operator's website", 'Auf der Website des Verkehrsunternehmens ansehen', 'Voir sur le site de l\'opérateur')}</a></p>` : ''}</div>`;
 }
-const linhaNoticiaGreve = (g: GreveResumo) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${html(quando(g.publicada))}` : ''}</small></span></a></li>`;
+/** Plenários e "possíveis constrangimentos": à parte das greves, sem o selo de greve */
+function seccaoConstrangimentos(lista: GreveResumo[]): string {
+  if (!lista.length) return '';
+  return `<h2>${L('Plenários e possíveis constrangimentos', 'Staff meetings and possible disruption', 'Betriebsversammlungen und mögliche Einschränkungen', 'Assemblées du personnel et perturbations possibles')}</h2><p class="nota">${L('Não são greves: o serviço continua, mas pode haver atrasos ou viagens suprimidas durante algumas horas.', 'These are not strikes: service continues, but there may be delays or cancelled trips for a few hours.', 'Das sind keine Streiks: Der Betrieb läuft weiter, aber es kann einige Stunden lang Verspätungen oder Ausfälle geben.', 'Ce ne sont pas des grèves : le service continue, mais il peut y avoir des retards ou des voyages supprimés pendant quelques heures.')}</p>${lista.map(cartaoGreve).join('')}`;
+}
+const linhaNoticiaGreve = (g: GreveResumo) => `<li><a href="${html(g.url)}" rel="nofollow noopener" target="_blank"><span class="t">${html(g.titulo)}<small>${html(g.fonte)}${g.publicada ? ` · ${quandoHtml(g.publicada)}` : ''}</small></span></a></li>`;
 
 async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   const { greves, completo } = await grevesPartilhadas();
   const agora = DateTime.now().setZone(ZONA).setLocale(LOCALE());
-  const { ativas, futuras, noticias, estado } = grevesDoOperador(greves, o.chave, completo);
+  const { ativas, futuras, noticias, constrangimentos, estado } = grevesDoOperador(greves, o.chave, completo);
   const ix = obterIndice();
   // Se o índice ainda não está pronto, mostra na mesma as alternativas (as páginas de linhas respondem sozinhas)
   const existe = (slug: string) => (ix && ix.operadores.length ? ix.porSlugOperador.has(slug) : true);
@@ -1580,7 +1625,7 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   ];
 
   let corpo = `<h1>${L(`Greve ${html(o.de)} hoje`, `${html(o.nome)} strike today`, `Streik bei ${html(o.nome)} heute`, `Grève chez ${html(o.nome)} aujourd'hui`)}</h1>
-<p>${pilulaGreve(estado)}</p>
+<p>${pilulaGreve(estado)}${primeira && (estado === 'ativa' || estado === 'anunciada') ? ` <span class="nota">${html(diasCurtos(primeira))}</span>` : ''}</p>
 <p class="sub">${html(resposta)} ${L('Atualizado', 'Updated', 'Aktualisiert', 'Mis à jour')} ${html(agora.toFormat(L("d 'de' LLLL 'às' HH:mm", "d LLLL 'at' HH:mm", "d. LLLL 'um' HH:mm 'Uhr'", "d LLLL 'à' HH:mm")))}.</p>
 <p><a class="btn laranja" href="/">${L('Ver o que circula perto de mim', "See what's running near me", 'Sieh, was in meiner Nähe fährt', 'Voir ce qui circule près de moi')}</a> <a class="btn claro" href="/linhas/${o.slug}">${L(`Linhas e horários`, 'Lines and timetables', 'Linien und Fahrpläne', 'Lignes et horaires')}</a></p>`;
   if (emIngles()) corpo += `<p class="nota">${L('', 'Strike notices are published in Portuguese by the operators and the news outlets, so the details below are in Portuguese.', 'Streikmeldungen werden von den Verkehrsunternehmen und den Nachrichtenseiten auf Portugiesisch veröffentlicht, daher sind die Einzelheiten unten auf Portugiesisch.', 'Les avis de grève sont publiés en portugais par les opérateurs et les médias ; les détails ci-dessous sont donc en portugais.')}</p>`;
@@ -1591,6 +1636,7 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   if (noticias.length) {
     corpo += `<h2>${L('Nas notícias', 'In the news', 'In den Nachrichten', 'Dans l\'actualité')}</h2><ul class="lista">${noticias.map(linhaNoticiaGreve).join('')}</ul>`;
   }
+  corpo += seccaoConstrangimentos(constrangimentos);
   if (estado === 'nenhuma') {
     corpo += `<div class="cartao"><b>${L('Sem greve anunciada.', 'No strike announced.', 'Kein Streik angekündigt.', 'Aucune grève annoncée.')}</b><p class="nota" style="margin:6px 0 0">${L(
       'Esta página atualiza-se sozinha: se for anunciada uma greve, aparece aqui com as datas.',
@@ -1619,8 +1665,10 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
   corpo += `<h2>${L('Perguntas frequentes', 'Frequently asked questions', 'Häufige Fragen', 'Questions fréquentes')}</h2>${perguntas.map((q) => `<h3>${html(q.p)}</h3><p>${html(q.r)}</p>`).join('')}`;
 
   corpo += `<h2>${L('Greves noutros operadores', 'Strikes at other operators', 'Streiks bei anderen Verkehrsunternehmen', 'Grèves chez d\'autres opérateurs')}</h2><div class="grelha ops">${OPERADORES_GREVE.filter((x) => x.slug !== o.slug).map((x) => {
-    const e = grevesDoOperador(greves, x.chave, completo).estado;
-    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${LT(PILULA_GREVE[e])}</small></a>`;
+    const r = grevesDoOperador(greves, x.chave, completo);
+    const g1 = r.ativas[0] || r.futuras[0];
+    const dias = g1 ? diasCurtos(g1) : '';
+    return `<a href="/greves/${x.slug}"><b>${html(x.nome).replace('/', '/<wbr>')}</b><small>${LT(PILULA_GREVE[r.estado])}${dias ? ` · ${html(dias)}` : ''}</small></a>`;
   }).join('')}</div><p><a href="/greves">${L('Ver todas as greves', 'See all strikes', 'Alle Streiks ansehen', 'Voir toutes les grèves')}</a></p>
 <p class="nota">${L(
     'Fonte: avisos publicados pelos operadores e notícias dos últimos dias. A PAROU é gratuita, sem anúncios e sem fins lucrativos; confirma sempre no site do operador.',
@@ -1649,7 +1697,7 @@ async function paginaGrevesOperador(o: OperadorGreve): Promise<string> {
     `${curta} Dates, services minimaux, actualité et alternatives un jour de grève, toujours à jour.`);
   return pagina({
     titulo,
-    descricao: cortar(descricao, 220),
+    descricao,
     caminho: `/greves/${o.slug}`,
     corpo,
     migalhas: [{ nome: L('Início', 'Home', 'Start', 'Accueil'), url: '/' }, { nome: L('Greves', 'Strikes', 'Streiks', 'Grèves'), url: '/greves' }, { nome: o.nome, url: `/greves/${o.slug}` }],

@@ -1,3 +1,4 @@
+import { descricaoInteira } from './texto';
 // Títulos e descrições (em português) das páginas de linhas, pensados para quem pesquisa no Google.
 //
 // O que os dados do Search Console mostraram (out/2026): a maior parte das pesquisas é só o número da linha
@@ -12,7 +13,8 @@ const MAX_TITULO = 65;
 const MAX_TITULO_COM_OPERADOR = 72;
 // O Google mostra ~120 a 160 caracteres, mas lê a descrição toda: o que importa vem primeiro e o resto
 // (sábados/domingos, paragens) fica para quem tem ecrã maior. Sem limite oficial (Google Search Central).
-const MAX_DESCRICAO = 200;
+// O Google mostra ~155 caracteres: a descrição fica inteira dentro disso (nunca cortada com reticências)
+const MAX_DESCRICAO = 155;
 
 export interface ResumoDia { partidas: number[] }
 
@@ -122,15 +124,17 @@ export function descricaoLinha(d: DadosTituloLinha): string {
         + (intervalo && intervalo <= 60 ? `, de ${intervalo} em ${intervalo} min na hora de ponta` : `, ${u.length} partidas por dia`) + '.'
       : '';
   // Ordem: horas (o que se procura), a linha e o operador, o percurso e o resto (o fim é o que se corta)
-  const montar = (percurso: string) => {
+  const montar = (percurso: string, comExtras = true) => {
     const p = percurso && percurso.toLowerCase() !== nome.toLowerCase() ? ` (${percurso})` : '';
+    const resto = comExtras ? `: ${extras}.` : '.';
     const frase = horas
-      ? `${horas} ${nome} · ${d.operador}${p}: ${extras}.`
-      : `Horário da ${nome} · ${d.operador}${p}: ${extras}.`;
+      ? `${horas} ${nome} · ${d.operador}${p}${resto}`
+      : `Horário da ${nome} · ${d.operador}${p}${resto}`;
     return frase.replace(/\s+/g, ' ').trim();
   };
-  // Sem parênteses dentro de parênteses: "(Penafiel (Esc.) – Valongo)" fica "(Penafiel – Valongo)"
-  const longo = montar(/\(/.test(semVia(d.percurso)) ? semParenteses(d.percurso) : semVia(d.percurso));
-  if (longo.length <= MAX_DESCRICAO) return longo;
-  return cortarFrase(montar(semParenteses(d.percurso)), MAX_DESCRICAO);
+  // Sem parênteses dentro de parênteses: "(Penafiel (Esc.) – Valongo)" fica "(Penafiel – Valongo)".
+  // Se não couber, sai primeiro o percurso e depois o resto, mas a frase fica sempre inteira.
+  const percurso = /\(/.test(semVia(d.percurso)) ? semParenteses(d.percurso) : semVia(d.percurso);
+  const opcoes = [montar(percurso), montar(semParenteses(d.percurso)), montar(''), montar(percurso, false), montar('', false)];
+  return opcoes.find((x) => x.length <= MAX_DESCRICAO) || descricaoInteira(opcoes[opcoes.length - 1], MAX_DESCRICAO);
 }

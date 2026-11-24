@@ -5,6 +5,7 @@ import {
   AlertCenterDiagnostic 
 } from '../types/alerts';
 import { getTmlAlerts, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
+import { DateTime } from 'luxon';
 
 // In-memory central alert repository with deduplication and state tracking
 interface CentralAlertsState {
@@ -54,10 +55,21 @@ function generateContentHash(title: string, desc: string, start: string, end?: s
   return Math.abs(hash).toString(36);
 }
 
+/** Plenário de trabalhadores ou aviso de "possíveis constrangimentos" (não é uma greve) */
+export function ePlenarioOuConstrangimento(titulo: string, texto = ''): boolean {
+  const t = `${titulo} ${texto}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return /\bplenario|\bposs[iy]ve(?:l|is) constrangimento|\bconstrangimentos? (?:na|no|nas|nos) (?:circulacao|servico|oferta)/.test(t);
+}
+
 // Classify raw alert cause/effect/text into one of the 13 canonical types
 export function classifyAlertType(title: string, desc: string, cause?: string, effect?: string): CentralAlertType {
   const fullText = `${title} ${desc} ${cause || ''} ${effect || ''}`.toLowerCase();
 
+  // Plenários de trabalhadores e "possíveis constrangimentos" não são greves (ex.: plenário na Alsa Todi): ficam como
+  // perturbação possível, mesmo que a fonte os marque com a causa STRIKE. Só é greve se o título disser greve.
+  if (ePlenarioOuConstrangimento(title, desc) && !/\bgreve/i.test(title)) {
+    return 'atraso significativo';
+  }
   if (cause?.toUpperCase() === 'STRIKE' || fullText.includes('greve') || fullText.includes('paralisação')) {
     return 'greve';
   }
@@ -610,6 +622,127 @@ async function ingestIpmaAlerts(): Promise<number> {
   }
 }
 
+// ---------------------------------------------------------------------------------
+// CP — avisos oficiais (os mesmos de https://www.cp.pt/avisos). O site da CP lê-os deste endereço público, em JSON
+// (conteúdos do Liferay): título, resumo, data de início, data de fim e texto. As datas vêm só com o dia: a greve de
+// "23/11 a 27/11" vale do início do dia 23 ao fim do dia 27 (hora de Lisboa).
+// ---------------------------------------------------------------------------------
+export const CP_AVISOS_URL = 'https://www.cp.pt/bei/getContentsList?path=PWA/Homepage/Avisos&itensPage=50&page=1&order=priority:desc';
+const MESES_PT = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+function campoCp(campos: any[], nome: string, etiqueta: RegExp): string {
+  const c = campos.find((x) => x?.name === nome) || campos.find((x) => etiqueta.test(String(x?.label || '')));
+  const v = c?.contentFieldValue?.data;
+  return typeof v === 'string' ? v : '';
+}
+
+/** Dia (hora de Lisboa) de uma data da CP ("2026-11-23T00:00:00Z") */
+function diaCp(valor: string): DateTime | null {
+  if (!valor) return null;
+  const d = DateTime.fromISO(valor, { zone: 'Europe/Lisbon' });
+  return d.isValid ? d.startOf('day') : null;
+}
+
+/**
+ * Outros dias com perturbações que o aviso refere ("poderão ocorrer perturbações nos dias 22 e 28 de novembro"):
+ * datas (AAAA-MM-DD) fora do período principal, para a página das greves as mostrar à parte.
+ */
+export function diasDePerturbacao(texto: string, inicio: DateTime, fim: DateTime): string[] {
+  const t = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const dias = new Set<string>();
+  for (const frase of t.split(/(?<=[.;!?\n])\s+/)) {
+    if (!/perturba/.test(frase)) continue;
+    const re = new RegExp(`((?:\\b\\d{1,2}\\s*(?:,|e)\\s*)*\\b\\d{1,2})\\s+de\\s+(${MESES_PT.join('|')})`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(frase))) {
+      const mes = MESES_PT.indexOf(m[2]) + 1;
+      for (const n of m[1].split(/\s*(?:,|e)\s*/).map(Number)) {
+        if (!(n >= 1 && n <= 31)) continue;
+        // o ano é o do período principal (ou o seguinte, se o mês já passou: aviso de dezembro para janeiro)
+        let d = DateTime.fromObject({ year: inicio.year, month: mes, day: n }, { zone: 'Europe/Lisbon' });
+        if (d.isValid && d < inicio.minus({ months: 6 })) d = d.plus({ years: 1 });
+        if (!d.isValid || (d >= inicio.startOf('day') && d <= fim)) continue;
+        dias.add(d.toISODate()!);
+      }
+    }
+  }
+  return [...dias].sort();
+}
+
+/** Um aviso da CP no formato dos alertas centrais (null se não tiver data de início) */
+export function avisoDaCp(item: any, agoraIso = new Date().toISOString()): CentralAlert | null {
+  const campos: any[] = item?.contentFields?.['pt-PT'] || (Array.isArray(item?.contentFields) ? item.contentFields : []);
+  const titulo = textoDeHtml(campoCp(campos, 'Text48691729', /^t[ií]tulo/i) || String(item?.title?.['pt-PT'] || '').replace(/\s*\|.*$/, ''));
+  const lead = textoDeHtml(campoCp(campos, 'Campo69402820', /^lead/i));
+  const corpo = textoDeHtml(campoCp(campos, 'RichText98970637', /^texto$/i));
+  const inicio = diaCp(campoCp(campos, 'Date35268359', /in[ií]cio/i));
+  const fimDia = diaCp(campoCp(campos, 'Field40441023', /\bfim\b/i));
+  if (!titulo || !inicio) return null;
+  const fim = fimDia ? fimDia.endOf('day') : null;
+  const extId = String(item?.friendlyUrlPath || item?.id || titulo);
+  const descricao = [lead, corpo].filter(Boolean).join(' — ').slice(0, 1500);
+  const tipo = classifyAlertType(titulo, `${lead} ${corpo}`);
+  const start = inicio.toUTC().toISO()!;
+  const end = fim ? fim.toUTC().toISO()! : null;
+  const { regiao, municipios } = extractGeoEntities(`${titulo} ${lead} ${corpo}`, 'CP');
+  const alerta: CentralAlert = {
+    id: `alert-cp-${extId}`,
+    external_id: extId,
+    tipo,
+    título: titulo,
+    descrição: descricao || titulo,
+    operador: 'CP',
+    linhas: [],
+    paragens: [],
+    região: tipo === 'greve' ? 'Nacional' : regiao,
+    municípios: municipios,
+    start_datetime: start,
+    end_datetime: end,
+    published_datetime: String(item?.datePublished || start),
+    source: 'CP — avisos oficiais',
+    source_url: item?.friendlyUrlPath ? `https://www.cp.pt/pt/detalhe-aviso/${item.friendlyUrlPath}` : 'https://www.cp.pt/avisos',
+    last_update: String(item?.dateModified || agoraIso),
+    status: computeAlertStatus(start, end, false),
+    content_hash: generateContentHash(titulo, descricao, start, end),
+    severity: tipo === 'greve' ? 'Grave' : 'Moderada',
+  };
+  if (tipo === 'greve') {
+    const extra = diasDePerturbacao(`${lead}. ${corpo}`, inicio, fim || inicio.endOf('day'));
+    if (extra.length) alerta.dias_perturbacao = extra;
+  }
+  return alerta;
+}
+
+async function ingestCpAlerts(): Promise<number> {
+  const sourceName = 'CP — avisos oficiais';
+  try {
+    const res = await fetch(CP_AVISOS_URL, {
+      headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (https://parou.pt)', Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data: any = await res.json();
+    const itens: any[] = Array.isArray(data?.item) ? data.item : [];
+    let imported = 0;
+    const vistos = new Set<string>();
+    for (const item of itens) {
+      const a = avisoDaCp(item);
+      if (!a) continue;
+      const key = `${sourceName}:${a.external_id}`;
+      vistos.add(key);
+      const existing = centralState.alerts.get(key);
+      if (existing && existing.content_hash === a.content_hash) { existing.status = a.status; centralState.duplicatesAvoidedCount++; continue; }
+      centralState.alerts.set(key, a);
+      if (!existing) imported++;
+    }
+    retirarDesaparecidos(sourceName, vistos);
+    return imported;
+  } catch (err: any) {
+    centralState.sourcesErrorList.push({ source: sourceName, error: err?.message || 'Falha ao ler os avisos da CP', last_attempt: new Date().toISOString() });
+    return 0;
+  }
+}
+
 // Re-evaluate statuses dynamically on every access
 function reevaluateAllAlertStatuses(): void {
   for (const [, alert] of centralState.alerts) {
@@ -633,6 +766,7 @@ export async function runCentralAlertsSync(): Promise<{
     ingestCarrisMetropolitanaAlerts(),
     ingestMetroLisboaAlerts(),
     ingestIpmaAlerts(),
+    ingestCpAlerts(),
   ]);
 
   reevaluateAllAlertStatuses();
