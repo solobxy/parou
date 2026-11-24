@@ -1220,6 +1220,18 @@ function distritosNoTexto(texto: string, nomes: string[]): string[] {
   return Array.from(achados);
 }
 
+/**
+ * Data por extenso, sem "hoje"/"amanhã" ("terça, 25 de novembro às 07:00"): para textos que ficam guardados ou são lidos
+ * mais tarde (publicações automáticas da comunidade, posts do canal do WhatsApp). "Amanhã" escrito hoje fica errado amanhã.
+ */
+export function quandoFixo(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const dt = DateTime.fromISO(String(iso), { zone: ZONA });
+  if (!dt.isValid) return '';
+  return dt.setLocale('pt-PT').toFormat("cccc, d 'de' LLLL 'às' HH:mm").replace(/-feira/, '');
+}
+
+/** Hora relativa ("amanhã às 07:00"), só para notificações push, que se leem no momento */
 function quandoCurto(iso: string | null | undefined): string {
   if (!iso) return '';
   const dt = DateTime.fromISO(String(iso), { zone: ZONA });
@@ -1274,8 +1286,9 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
     const tipos = Array.from(new Set(ws.map((w) => String(w.awarenessTypeName || 'Aviso'))));
     const inicio = String(ws[0].startTime || '');
     const fim = ws.map((w) => String(w.endTime || '')).sort().pop() || '';
-    const comeca = Date.parse(inicio) > agora ? `a partir de ${quandoCurto(inicio)}` : '';
-    const ate = fim ? `até ${quandoCurto(fim).replace(/^hoje às /, 'às ')}` : '';
+    // No canal (publicações e WhatsApp, lidos mais tarde) as datas vão por extenso; nas notificações, relativas
+    const comeca = Date.parse(inicio) > agora ? `a partir de ${canal ? quandoFixo(inicio) : quandoCurto(inicio)}` : '';
+    const ate = fim ? `até ${canal ? quandoFixo(fim) : quandoCurto(fim).replace(/^hoje às /, 'às ')}` : '';
     lista.push({
       id: `ipma:${k}:${inicio}`,
       grupo: `ipma:${k}`,
@@ -1320,7 +1333,7 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
       : /lisboa/.test(reg) ? ['Lisboa', 'Setúbal'] : /porto/.test(reg) ? ['Porto'] : distritosNoTexto(semAcentos(`${a.título || ''} ${(a.municípios || []).join(' ')}`), nomesDistritos);
     if (!op && distritosAviso.length === 0 && !greve) continue;
     const titulo = String(a.título || '').replace(/\s+/g, ' ').trim();
-    const quando = Number.isFinite(inicioMs) && inicioMs > agora ? ` · ${quandoCurto(a.start_datetime)}` : '';
+    const quando = Number.isFinite(inicioMs) && inicioMs > agora ? ` · ${canal ? quandoFixo(a.start_datetime) : quandoCurto(a.start_datetime)}` : '';
     lista.push({
       id: `oficial:${a.id}`,
       grupo: greve ? `greve:${op?.chave || semAcentos(nomeOp)}` : `grave:${op?.chave || semAcentos(nomeOp)}`,
