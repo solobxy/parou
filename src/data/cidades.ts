@@ -24,29 +24,46 @@ export const CIDADES: Cidade[] = [
 ].map(([slug, nome, lat, lon, raioKm]) => ({ slug: slug as string, nome: nome as string, lat: lat as number, lon: lon as number, raioKm: raioKm as number }));
 
 // ------------------------------------------------------------------------------------------------
-// Margens do Tejo: Lisboa e as cidades da margem sul (Almada, Seixal, Barreiro, Montijo) ficam a poucos km umas das
-// outras, e o círculo de cada uma apanhava paragens da outra margem (o Metro Sul do Tejo em Cacilhas contava como
-// Lisboa; a Baixa contava como Almada). A linha abaixo segue o meio do rio entre Oeiras e o Barreiro (lon, lat).
+// Margens dos rios: Lisboa e a margem sul (Almada, Seixal, Barreiro, Montijo), e o Porto e Gaia, ficam a poucos km umas
+// das outras, e o círculo de cada cidade apanhava paragens da outra margem (o Metro Sul do Tejo em Cacilhas contava como
+// Lisboa; o Cais de Gaia contava como Porto). As linhas abaixo são o meio do Tejo e do Douro no OpenStreetMap
+// (waterway=river, lidas a 24/11/2026), de montante para a foz, com um ponto a cada ~300 m: [lon, lat].
+// Quem desce o rio tem a margem sul à esquerda (no Tejo, no troço do estuário que vai para sudoeste, a margem do Montijo
+// e de Alcochete também fica à esquerda), por isso "margem sul" = à esquerda do troço do rio mais perto.
 // ------------------------------------------------------------------------------------------------
-const MEIO_DO_TEJO: ReadonlyArray<readonly [number, number]> = [
-  [-9.33, 38.672], [-9.26, 38.676], [-9.22, 38.680], [-9.19, 38.686], [-9.17, 38.692], [-9.15, 38.697],
-  [-9.13, 38.700], [-9.115, 38.700], [-9.10, 38.692], [-9.05, 38.690], [-8.95, 38.690],
-];
-const MARGEM_SUL = new Set(['almada', 'seixal', 'barreiro', 'montijo']);
-const MARGEM_NORTE = new Set(['lisboa', 'oeiras', 'loures', 'odivelas', 'amadora']);
+type Rio = ReadonlyArray<readonly [number, number]>;
+const TEJO: Rio = [[-9.0264, 38.8594], [-9.0286, 38.849], [-9.0313, 38.8205], [-9.0323, 38.8094], [-9.0352, 38.7921], [-9.0416, 38.775], [-9.0523, 38.7587], [-9.062, 38.7414], [-9.075, 38.7258], [-9.0819, 38.7202], [-9.0929, 38.7108], [-9.1075, 38.7035], [-9.1299, 38.6972], [-9.1361, 38.6958], [-9.1667, 38.6912], [-9.1742, 38.6901], [-9.2028, 38.6858], [-9.2321, 38.6835], [-9.2529, 38.6848], [-9.2674, 38.6857], [-9.2781, 38.6829], [-9.2853, 38.681], [-9.2964, 38.6781], [-9.3017, 38.6747], [-9.3079, 38.6707], [-9.3082, 38.6704]];
+const DOURO: Rio = [[-8.4482, 41.0536], [-8.4522, 41.0566], [-8.4549, 41.0586], [-8.4582, 41.0611], [-8.4601, 41.0641], [-8.4631, 41.0689], [-8.4687, 41.0735], [-8.4733, 41.0755], [-8.481, 41.0748], [-8.4831, 41.074], [-8.4915, 41.0715], [-8.4973, 41.0706], [-8.5024, 41.0705], [-8.5079, 41.0707], [-8.5137, 41.0728], [-8.5177, 41.0763], [-8.5196, 41.0803], [-8.5217, 41.086], [-8.5239, 41.092], [-8.5255, 41.0957], [-8.5284, 41.1008], [-8.5319, 41.1039], [-8.5364, 41.1063], [-8.5394, 41.1106], [-8.5424, 41.1148], [-8.5445, 41.1175], [-8.5485, 41.1216], [-8.554, 41.1233], [-8.5596, 41.124], [-8.5654, 41.1244], [-8.5687, 41.1257], [-8.571, 41.128], [-8.5726, 41.1335], [-8.5744, 41.1384], [-8.5775, 41.141], [-8.5825, 41.1417], [-8.586, 41.1408], [-8.5903, 41.139], [-8.594, 41.1386], [-8.5976, 41.14], [-8.6014, 41.141], [-8.6051, 41.1409], [-8.613, 41.139], [-8.6171, 41.1391], [-8.6206, 41.1408], [-8.6264, 41.1436], [-8.6314, 41.1445], [-8.6347, 41.1461], [-8.6385, 41.1473], [-8.6432, 41.1468], [-8.6506, 41.1455], [-8.6513, 41.1454], [-8.6559, 41.1442], [-8.6617, 41.1446], [-8.6668, 41.1451], [-8.6712, 41.1455], [-8.6759, 41.1456]];
+const MARGEM: Record<string, { rio: Rio; sul: boolean }> = {
+  lisboa: { rio: TEJO, sul: false }, oeiras: { rio: TEJO, sul: false }, loures: { rio: TEJO, sul: false },
+  odivelas: { rio: TEJO, sul: false }, amadora: { rio: TEJO, sul: false }, 'vila-franca-de-xira': { rio: TEJO, sul: false },
+  almada: { rio: TEJO, sul: true }, seixal: { rio: TEJO, sul: true }, barreiro: { rio: TEJO, sul: true }, montijo: { rio: TEJO, sul: true },
+  porto: { rio: DOURO, sul: false }, gondomar: { rio: DOURO, sul: false }, valongo: { rio: DOURO, sul: false },
+  matosinhos: { rio: DOURO, sul: false }, maia: { rio: DOURO, sul: false },
+  'vila-nova-de-gaia': { rio: DOURO, sul: true },
+};
 
-/** O ponto fica a sul do meio do Tejo (só faz sentido entre Oeiras e o Montijo) */
-export function aSulDoTejo(lat: number, lon: number): boolean {
-  const p = MEIO_DO_TEJO;
-  if (lon <= p[0][0]) return lat < p[0][1];
-  for (let i = 1; i < p.length; i++) {
-    if (lon <= p[i][0]) {
-      const [x0, y0] = p[i - 1], [x1, y1] = p[i];
-      return lat < y0 + ((lon - x0) / (x1 - x0)) * (y1 - y0);
-    }
+/** O ponto fica na margem esquerda (sul) do rio: lado do troço mais perto (km, projeção local) */
+function margemSul(rio: Rio, lat: number, lon: number): boolean {
+  const kx = 111.32 * Math.cos((lat * Math.PI) / 180), ky = 110.54;
+  let melhor = Infinity, lado = 0;
+  for (let i = 0; i < rio.length - 1; i++) {
+    const ax = (rio[i][0] - lon) * kx, ay = (rio[i][1] - lat) * ky;
+    const bx = (rio[i + 1][0] - lon) * kx, by = (rio[i + 1][1] - lat) * ky;
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    const d = Math.hypot(ax + t * dx, ay + t * dy);
+    // produto vetorial: positivo = o ponto (na origem) fica à esquerda de quem segue de a para b
+    if (d < melhor) { melhor = d; lado = dx * (-ay) - dy * (-ax); }
   }
-  return lat < p[p.length - 1][1];
+  return lado > 0;
 }
+
+/** O ponto fica a sul do Tejo (entre a foz e Vila Franca de Xira) */
+export function aSulDoTejo(lat: number, lon: number): boolean { return margemSul(TEJO, lat, lon); }
+/** O ponto fica a sul do Douro (entre a foz e Melres) */
+export function aSulDoDouro(lat: number, lon: number): boolean { return margemSul(DOURO, lat, lon); }
 
 function kmEntre(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const r = Math.PI / 180;
@@ -55,11 +72,11 @@ function kmEntre(aLat: number, aLon: number, bLat: number, bLon: number): number
   return Math.sqrt(x * x + y * y) * 6371;
 }
 
-/** A paragem (ou ponto) conta como da cidade: dentro do raio e, à volta do Tejo, na mesma margem que a cidade */
+/** A paragem (ou ponto) conta como da cidade: dentro do raio e, à volta do Tejo e do Douro, na mesma margem que a cidade */
 export function naCidade(c: Cidade, lat: number, lon: number): boolean {
   if (!(Math.abs(lat - c.lat) <= c.raioKm / 111 + 0.001)) return false;
   if (kmEntre(c.lat, c.lon, lat, lon) > c.raioKm) return false;
-  if (MARGEM_NORTE.has(c.slug) && lat < 38.75 && aSulDoTejo(lat, lon)) return false;
-  if (MARGEM_SUL.has(c.slug) && !aSulDoTejo(lat, lon)) return false;
+  const m = MARGEM[c.slug];
+  if (m && margemSul(m.rio, lat, lon) !== m.sul) return false;
   return true;
 }
