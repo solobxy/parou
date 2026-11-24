@@ -3,14 +3,14 @@
 
 export interface Meta { titulo: string; descricao: string; canonico: string; indexar: boolean }
 
-const DESCRICAO_INICIO = 'Vê o que passa perto de ti em tempo real: autocarros da Carris Metropolitana, Carris e STCP, metro, comboios da CP e barcos. Horários dos principais operadores, greves e alertas. Grátis e sem anúncios.';
+const DESCRICAO_INICIO = 'Vê o que passa perto de ti em tempo real: autocarros da Carris Metropolitana, Carris e STCP, metro, comboios da CP e barcos, horários e greves. Grátis.';
 
 export const ROTAS: Record<string, Meta> = {
   '/': { titulo: 'PAROU — app de autocarros, metro e comboios em tempo real', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
   '/perto': { titulo: 'Transportes perto de mim em tempo real | PAROU', descricao: DESCRICAO_INICIO, canonico: '/', indexar: true },
-  '/transportes': { titulo: 'Horários de autocarros, metro e comboios em Portugal | PAROU', descricao: 'Pesquisa qualquer linha de autocarro, metro, comboio ou barco em Portugal e vê os próximos horários e o tempo real: Carris Metropolitana, Carris, Metro, CP, STCP e mais.', canonico: '/transportes', indexar: true },
+  '/transportes': { titulo: 'Horários de autocarros, metro e comboios em Portugal | PAROU', descricao: 'Pesquisa qualquer linha de autocarro, metro, comboio ou barco em Portugal e vê os próximos horários e o tempo real: Carris, Metro, CP, STCP e mais.', canonico: '/transportes', indexar: true },
   '/horarios': { titulo: 'Horários de autocarros, metro e comboios em Portugal | PAROU', descricao: 'Pesquisa qualquer linha de autocarro, metro, comboio ou barco em Portugal e vê os próximos horários e o tempo real.', canonico: '/transportes', indexar: true },
-  '/alertas': { titulo: 'Alertas de transportes: greves, mau tempo e perturbações | PAROU', descricao: 'Greves, avisos do IPMA, incêndios, perturbações nos transportes e feriados que mexem com as tuas viagens, sempre atualizados. Recebe os avisos no telemóvel.', canonico: '/alertas', indexar: true },
+  '/alertas': { titulo: 'Alertas de transportes: greves, mau tempo e perturbações | PAROU', descricao: 'Greves, avisos do IPMA, incêndios, perturbações nos transportes e feriados que mexem com as tuas viagens. Recebe os avisos no telemóvel.', canonico: '/alertas', indexar: true },
   '/mapa': { titulo: 'Mapa de incêndios em Portugal em direto: avisos e perturbações | PAROU', descricao: 'Mapa em direto com os incêndios ativos em Portugal (ocorrências da Proteção Civil), avisos meteorológicos do IPMA, greves e perturbações nos transportes.', canonico: '/mapa', indexar: true },
   '/ocorrencias': { titulo: 'Ocorrências nos transportes e no trânsito agora | PAROU', descricao: 'Acidentes, atrasos, avarias e cortes de via reportados pela comunidade nas últimas 24 horas em Portugal.', canonico: '/ocorrencias', indexar: true },
   '/reports': { titulo: 'Ocorrências nos transportes e no trânsito agora | PAROU', descricao: 'Acidentes, atrasos, avarias e cortes de via reportados pela comunidade nas últimas 24 horas.', canonico: '/ocorrencias', indexar: true },
@@ -18,12 +18,12 @@ export const ROTAS: Record<string, Meta> = {
   '/catalogo': { titulo: 'Operadores de transportes públicos em Portugal | PAROU', descricao: 'Todos os operadores de autocarro, metro, comboio e barco com horários na PAROU, por região.', canonico: '/catalogo', indexar: true },
   '/cobertura': { titulo: 'Cobertura de horários e dados de transportes | PAROU', descricao: 'Que operadores e linhas de transportes públicos a PAROU cobre em Portugal e de onde vêm os dados.', canonico: '/cobertura', indexar: true },
   '/coverage': { titulo: 'Cobertura de horários e dados de transportes | PAROU', descricao: 'Que operadores e linhas de transportes públicos a PAROU cobre em Portugal.', canonico: '/cobertura', indexar: true },
-  '/sobre': { titulo: 'Sobre a PAROU — transportes em tempo real, grátis', descricao: 'A PAROU é uma app gratuita e sem fins lucrativos com os transportes perto de ti em tempo real, horários dos principais operadores, greves e alertas em Portugal.', canonico: '/sobre', indexar: true },
+  '/sobre': { titulo: 'Sobre a PAROU — transportes em tempo real, grátis', descricao: 'A PAROU é uma app gratuita e sem fins lucrativos com os transportes perto de ti em tempo real, horários, greves e alertas em Portugal.', canonico: '/sobre', indexar: true },
   '/privacidade': { titulo: 'Política de privacidade | PAROU', descricao: 'Que dados a PAROU usa, para quê e quais são os teus direitos (RGPD).', canonico: '/privacidade', indexar: true },
   '/termos': { titulo: 'Termos de utilização | PAROU', descricao: 'Termos de utilização da PAROU, serviço gratuito de informação sobre transportes públicos em Portugal.', canonico: '/termos', indexar: true },
   '/apagar-conta': { titulo: 'Apagar a conta PAROU | Como pedir o apagamento dos dados', descricao: 'Como apagar a tua conta da PAROU e os dados associados: na app, aqui ou por email. O que é apagado e o que fica.', canonico: '/apagar-conta', indexar: true },
   '/contactar': { titulo: 'Contactar a PAROU | Dinis Sousa', descricao: 'Fala com o autor da PAROU: email e telemóvel para dúvidas, sugestões, erros nos horários, parcerias e dados de operadores.', canonico: '/contactar', indexar: true },
-  '/comunidade': { titulo: 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes', descricao: 'Fala com quem anda nos mesmos transportes: faz perguntas, partilha queixas e elogios sobre CP, Metro, Carris, STCP e mais. Respostas dos operadores e sem anúncios.', canonico: '/comunidade', indexar: true },
+  '/comunidade': { titulo: 'Comunidade PAROU — perguntas, queixas e elogios sobre transportes', descricao: 'Fala com quem anda nos mesmos transportes: faz perguntas, partilha queixas e elogios sobre CP, Metro, Carris, STCP e mais. Sem anúncios.', canonico: '/comunidade', indexar: true },
   '/favoritos': { titulo: 'Os meus favoritos | PAROU', descricao: 'As tuas linhas e paragens favoritas na PAROU.', canonico: '/favoritos', indexar: false },
   '/atrasos': { titulo: 'Atrasos nos transportes agora | PAROU', descricao: 'Atrasos reportados pela comunidade nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
   '/acidentes': { titulo: 'Acidentes de trânsito agora | PAROU', descricao: 'Acidentes reportados nas últimas 24 horas.', canonico: '/ocorrencias', indexar: false },
