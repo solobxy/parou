@@ -319,6 +319,9 @@ function alternativas(caminho: string): string {
   return linhas.join('');
 }
 
+/** O primeiro texto que cabe numa descrição (até 155 caracteres); se nenhum couber, o último (pagina() acerta-o) */
+const cabe = (...textos: string[]): string => textos.find((x) => x.length <= 155) || textos[textos.length - 1];
+
 /** Atribuição pedida pelo operador (ex.: «Fonte — Transtejo Soflusa (TTSL)»), na língua da página */
 function notaFonte(feedId: string): string {
   const t = atribuicaoNaLingua(feedId, lang());
@@ -999,13 +1002,24 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
     codigo: l.codigo, percurso, operador: op.nome, modo, nParagens, tempoReal: COM_TEMPO_REAL.has(op.slug),
     uteis: partidasDe('uteis'), sabado: partidasDe('sabado'), domingo: partidasDe('domingo'),
   };
+  // Descrição inteira noutras línguas: se não couber com o percurso, sai o percurso (nunca a frase cortada a meio)
+  const descLinhaLingua = ((): [string, string, string] => {
+    const com = (p: string) => [
+      `Timetable for ${nome} ${op.nome}${p}: first and last departure, weekday, Saturday and Sunday timetables and all ${nParagens} stops.`,
+      `Fahrplan ${nome} ${op.nome}${p}: erste und letzte Abfahrt, Fahrpläne für Werktage, Samstage und Sonntage und alle ${nParagens} Haltestellen.`,
+      `Horaire ${nome} ${op.nome}${p} : premier et dernier départ, horaires des jours ouvrables, samedis et dimanches et les ${nParagens} arrêts.`];
+    const curtas = [
+      `${nome} ${op.nome}: weekday, Saturday and Sunday timetables and all ${nParagens} stops.`,
+      `${nome} ${op.nome}: Fahrpläne für Werktage, Samstage und Sonntage und alle ${nParagens} Haltestellen.`,
+      `${nome} ${op.nome} : horaires de semaine, du samedi et du dimanche et les ${nParagens} arrêts.`];
+    const fim = ['Real time on PAROU.', 'Echtzeit bei PAROU.', 'Temps réel sur PAROU.'];
+    const p = percurso ? ` (${percurso})` : '';
+    const v = [0, 1, 2].map((n) => cabe(`${com(p)[n]} ${fim[n]}`, com(p)[n], com('')[n], curtas[n]));
+    return [v[0], v[1], v[2]];
+  })();
   return pagina({
     titulo: lang() === 'pt' ? tituloLinha(dadosTitulo) : cortar(L(`${tituloBase}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${tituloBase}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${tituloBase} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
-    descricao: L(
-      descricaoLinha(dadosTitulo),
-      `Timetable for ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: first and last departure, weekday, Saturday and Sunday timetables and all ${nParagens} stops. Real time on PAROU.`,
-      `Fahrplan ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: erste und letzte Abfahrt, Fahrpläne für Werktage, Samstage und Sonntage und alle ${nParagens} Haltestellen. Echtzeit bei PAROU.`,
-      `Horaire ${nome} ${op.nome}${percurso ? ` (${percurso})` : ''} : premier et dernier départ, horaires des jours ouvrables, samedis et dimanches et les ${nParagens} arrêts. Temps réel sur PAROU.`),
+    descricao: L(descricaoLinha(dadosTitulo), descLinhaLingua[0], descLinhaLingua[1], descLinhaLingua[2]),
     indexar: !PERCURSO_EVENTO.test(l.nome || ''),
     caminho: `/linhas/${op.slug}/${l.slug}`,
     corpo,
@@ -1048,7 +1062,7 @@ ${respostaLinha({ nome, op, percurso, nParagens, hoje: { primeira: null, ultima:
   return pagina({
     titulo: lang() === 'pt' ? tituloLinha(dadosTitulo) : cortar(L(`${nome} ${op.nome}: horários e paragens${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: timetable and stops${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome}: Fahrplan und Haltestellen${percurso ? ` (${percurso})` : ''}`, `${nome} ${op.nome} : horaires et arrêts${percurso ? ` (${percurso})` : ''}`), 64) + ' | PAROU',
     descricao: L(
-      `${descricaoLinha(dadosTitulo).replace(/\.$/, '')} e horário de hoje.`,
+      cabe(`${descricaoLinha(dadosTitulo).replace(/\.$/, '')} e horário de hoje.`, descricaoLinha(dadosTitulo)),
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: all ${nParagens} stops on the route in each direction and today's timetable. Departures minute by minute on PAROU.`,
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''}: alle ${nParagens} Haltestellen der Strecke in jeder Richtung und der Fahrplan von heute. Abfahrten minutengenau bei PAROU.`,
       `${nome} ${op.nome}${percurso ? ` (${percurso})` : ''} : les ${nParagens} arrêts du trajet dans chaque sens et l'horaire du jour. Départs à la minute près sur PAROU.`),
