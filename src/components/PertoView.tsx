@@ -32,6 +32,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
+import FonteOperador from './FonteOperador';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
@@ -2877,6 +2878,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         </div>
                       );
                     })}
+                    <FonteOperador ids={[selectedStop.operatorId, ...sorted.map((d: any) => d.operatorId)]} className="pt-2.5" />
                   </>
                 );
               })()}

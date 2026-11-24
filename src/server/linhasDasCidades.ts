@@ -2,7 +2,7 @@
 // Usa o índice dos horários que já está em memória (o do planeador): uma linha é "da cidade" se tem alguma
 // paragem a menos de raioKm do centro dela. Sem consultas à base: milissegundos, e fica em cache até o índice mudar.
 import { indicePronto, type Indice } from './planeadorIndice';
-import { CIDADES, type Cidade } from '../data/cidades';
+import { CIDADES, naCidade, type Cidade } from '../data/cidades';
 
 /** Máximo de cidades por pedido */
 export const MAX_CIDADES = 8;
@@ -28,7 +28,7 @@ function linhasDaCidade(ix: Indice, c: Cidade): Set<string> {
     const lo = ix.lon[s];
     // (NaN nunca passa estas comparações: paragens sem coordenadas ficam de fora)
     if (!(Math.abs(la - c.lat) <= dLat) || !(Math.abs(lo - c.lon) <= dLon)) continue;
-    if (distKm(c.lat, c.lon, la, lo) > c.raioKm) continue;
+    if (!naCidade(c, la, lo)) continue;
     for (let k = ix.psStart[s]; k < ix.psStart[s + 1]; k++) out.add(rotaDaApp(ix.padroes[ix.psPat[k]].route));
   }
   return out;

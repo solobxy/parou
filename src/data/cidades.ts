@@ -22,3 +22,44 @@ export const CIDADES: Cidade[] = [
   ['caldas-da-rainha', 'Caldas da Rainha', 39.4036, -9.1386, 3], ['portimao', 'Portimão', 37.1386, -8.5372, 4], ['albufeira', 'Albufeira', 37.0889, -8.2503, 4],
   ['loule', 'Loulé', 37.1377, -8.0197, 4], ['lagos', 'Lagos', 37.1028, -8.6730, 3], ['olhao', 'Olhão', 37.0260, -7.8411, 3], ['covilha', 'Covilhã', 40.2806, -7.5043, 3],
 ].map(([slug, nome, lat, lon, raioKm]) => ({ slug: slug as string, nome: nome as string, lat: lat as number, lon: lon as number, raioKm: raioKm as number }));
+
+// ------------------------------------------------------------------------------------------------
+// Margens do Tejo: Lisboa e as cidades da margem sul (Almada, Seixal, Barreiro, Montijo) ficam a poucos km umas das
+// outras, e o círculo de cada uma apanhava paragens da outra margem (o Metro Sul do Tejo em Cacilhas contava como
+// Lisboa; a Baixa contava como Almada). A linha abaixo segue o meio do rio entre Oeiras e o Barreiro (lon, lat).
+// ------------------------------------------------------------------------------------------------
+const MEIO_DO_TEJO: ReadonlyArray<readonly [number, number]> = [
+  [-9.33, 38.672], [-9.26, 38.676], [-9.22, 38.680], [-9.19, 38.686], [-9.17, 38.692], [-9.15, 38.697],
+  [-9.13, 38.700], [-9.115, 38.700], [-9.10, 38.692], [-9.05, 38.690], [-8.95, 38.690],
+];
+const MARGEM_SUL = new Set(['almada', 'seixal', 'barreiro', 'montijo']);
+const MARGEM_NORTE = new Set(['lisboa', 'oeiras', 'loures', 'odivelas', 'amadora']);
+
+/** O ponto fica a sul do meio do Tejo (só faz sentido entre Oeiras e o Montijo) */
+export function aSulDoTejo(lat: number, lon: number): boolean {
+  const p = MEIO_DO_TEJO;
+  if (lon <= p[0][0]) return lat < p[0][1];
+  for (let i = 1; i < p.length; i++) {
+    if (lon <= p[i][0]) {
+      const [x0, y0] = p[i - 1], [x1, y1] = p[i];
+      return lat < y0 + ((lon - x0) / (x1 - x0)) * (y1 - y0);
+    }
+  }
+  return lat < p[p.length - 1][1];
+}
+
+function kmEntre(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const r = Math.PI / 180;
+  const x = (bLon - aLon) * r * Math.cos(((aLat + bLat) / 2) * r);
+  const y = (bLat - aLat) * r;
+  return Math.sqrt(x * x + y * y) * 6371;
+}
+
+/** A paragem (ou ponto) conta como da cidade: dentro do raio e, à volta do Tejo, na mesma margem que a cidade */
+export function naCidade(c: Cidade, lat: number, lon: number): boolean {
+  if (!(Math.abs(lat - c.lat) <= c.raioKm / 111 + 0.001)) return false;
+  if (kmEntre(c.lat, c.lon, lat, lon) > c.raioKm) return false;
+  if (MARGEM_NORTE.has(c.slug) && lat < 38.75 && aSulDoTejo(lat, lon)) return false;
+  if (MARGEM_SUL.has(c.slug) && !aSulDoTejo(lat, lon)) return false;
+  return true;
+}

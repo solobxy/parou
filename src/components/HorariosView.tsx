@@ -25,6 +25,7 @@ import { completarLinhasUnir } from '../services/unirPerto';
 import { FilterState } from '../types';
 import { LineCard } from './LineCard';
 import { LineDetailModal } from './LineDetailModal';
+import FonteOperador from './FonteOperador';
 import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { SeletorCidades, BotaoCidades } from './SeletorCidades';
@@ -744,6 +745,7 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                 <span>{dbLoadingMessage || 'A carregar horários…'}</span>
               </div>
             ) : upcomingNearLines.length > 0 ? (
+              <>
               <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
                 {upcomingNearLines.map((line) => (
                   <LineCard
@@ -758,6 +760,8 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
                   />
                 ))}
               </div>
+              <FonteOperador ids={[...upcomingNearLines, ...laterNearLines].map((l) => l.feed_id || l.operator_id)} />
+              </>
             ) : (
               <div className="p-4 border border-[#E6E6E3] rounded-[8px] text-xs text-[#6B6B6B] text-center bg-[#FFFFFF]">
                 {t('Sem partidas previstas nos próximos 90 minutos.')}

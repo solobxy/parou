@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import FonteOperador from './FonteOperador';
 import { useVoltarFecha } from '../utils/janelas';
 import {
   X,
@@ -333,6 +334,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                   </div>
                 )}
               </div>
+              <FonteOperador ids={[line?.feed_id, line?.operator_id]} className="mt-3" />
               {/* Página pública da linha: horário completo de dias úteis, sábados e domingos */}
               <a
                 href={`/linha/${encodeURIComponent(lineId)}`}

@@ -6,7 +6,7 @@
 // próximas partidas, paragens perto), dados estruturados (schema.org) e liga às outras e à app.
 // =====================================================================================
 import type { Express, Request, Response, NextFunction } from 'express';
-import { CIDADES } from '../../data/cidades';
+import { CIDADES, naCidade } from '../../data/cidades';
 import { DateTime } from 'luxon';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { obterIndice, paragensPerto, modoDoTipo, NOME_REGIAO, type Linha, type GrupoParagem, type Operador } from './indice';
@@ -25,6 +25,7 @@ import { tituloLinha, descricaoLinha, type DadosTituloLinha } from './titulos';
 import { maisProcuradas } from '../estatisticas';
 import { distanciaMetros } from './indice';
 import { CacheLimitada } from '../cacheLimitada';
+import { atribuicaoNaLingua } from '../../utils/atribuicoes';
 
 const SITE = 'https://parou.pt';
 const ZONA = 'Europe/Lisbon';
@@ -314,6 +315,12 @@ function alternativas(caminho: string): string {
   const linhas = (['pt', 'en', 'de', 'fr'] as Lang[]).map((l) => `<link rel="alternate" hreflang="${LANG_HTML[l]}" href="${html(SITE + urlNoIdioma(caminho, l))}">`);
   linhas.push(`<link rel="alternate" hreflang="x-default" href="${html(SITE + caminho)}">`);
   return linhas.join('');
+}
+
+/** Atribuição pedida pelo operador (ex.: «Fonte — Transtejo Soflusa (TTSL)»), na língua da página */
+function notaFonte(feedId: string): string {
+  const t = atribuicaoNaLingua(feedId, lang());
+  return t ? `<p class="nota fonte-operador">${html(t)}</p>` : '';
 }
 
 function pagina(o: OpcoesPagina): string {
@@ -620,7 +627,7 @@ function cidadesDoOperador(op: Operador): Array<(typeof CIDADES)[number]> {
   const ix = obterIndice();
   const c = cidadesPorOperador.get(op.slug);
   if (c && c.ix === ix) return c.c;
-  const lista = CIDADES.filter((cid) => op.paragens.some((p) => Math.abs(p.lat - cid.lat) < 0.1 && Math.abs(p.lon - cid.lon) < 0.12 && distanciaMetros(p, cid) <= cid.raioKm * 1000));
+  const lista = CIDADES.filter((cid) => op.paragens.some((p) => Math.abs(p.lat - cid.lat) < 0.1 && Math.abs(p.lon - cid.lon) < 0.12 && naCidade(cid, p.lat, p.lon)));
   cidadesPorOperador.set(op.slug, { ix, c: lista });
   return lista;
 }
@@ -680,7 +687,7 @@ ${principais.length >= 4 && op.linhas.length > 8 ? `<h2>${L(`Linhas ${html(op.no
 <ul class="lista">${principais.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>` : ''}
 <h2>${L(`Todas as linhas ${html(op.nome)}`, `All ${html(op.nome)} lines`, `Alle Linien ${html(op.nome)}`, `Toutes les lignes ${html(op.nome)}`)}</h2>
 <ul class="lista">${op.linhas.map((l) => `<li><a href="/linhas/${op.slug}/${l.slug}">${chip(l)}<span class="t">${html(nomeLinha(l))}${l.nome ? `<small>${html(l.nome)}</small>` : ''}</span></a></li>`).join('')}</ul>
-<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`, `Offizielle Fahrpläne von ${html(op.nome)}. Stand: ${html(dataBase())}.`, `Horaires officiels publiés par ${html(op.nome)}. Mis à jour le ${html(dataBase())}.`)}${op.slug === 'stcp' ? ` ${L('Tempo real: dados abertos da STCP (licença CC BY 4.0).', 'Real time: STCP open data (CC BY 4.0 licence).', 'Echtzeit: offene Daten der STCP (Lizenz CC BY 4.0).', 'Temps réel : données ouvertes de la STCP (licence CC BY 4.0).')}` : ''}</p>`
+<p class="nota">${L(`Horários oficiais publicados pela ${html(op.nome)}. Atualizado a ${html(dataBase())}.`, `Official timetables published by ${html(op.nome)}. Updated ${html(dataBase())}.`, `Offizielle Fahrpläne von ${html(op.nome)}. Stand: ${html(dataBase())}.`, `Horaires officiels publiés par ${html(op.nome)}. Mis à jour le ${html(dataBase())}.`)}${op.slug === 'stcp' ? ` ${L('Tempo real: dados abertos da STCP (licença CC BY 4.0).', 'Real time: STCP open data (CC BY 4.0 licence).', 'Echtzeit: offene Daten der STCP (Lizenz CC BY 4.0).', 'Temps réel : données ouvertes de la STCP (licence CC BY 4.0).')}` : ''}</p>${notaFonte(op.feedId)}`
     + (perguntas.length ? `<h2>Perguntas frequentes</h2>${perguntas.map((x) => `<details><summary>${html(x.q)}</summary><div class="dentro"><p>${x.rHtml}</p></div></details>`).join('')}` : '')
     + (cidades.length ? `<h2>${L(`${html(op.nome)} por cidade`, `${html(op.nome)} by city`, `${html(op.nome)} nach Stadt`, `${html(op.nome)} par ville`)}</h2><ul class="lista">${cidades.map((c) => `<li><a href="/cidade/${c.slug}"><span class="t">${L(`Transportes em ${html(c.nome)}`, `Public transport in ${html(c.nome)}`, `Öffentlicher Verkehr in ${html(c.nome)}`, `Transports à ${html(c.nome)}`)}</span></a></li>`).join('')}</ul>` : '');
   return pagina({
@@ -980,7 +987,7 @@ ${h.hoje.intervaloPonta ? `<div><b>${h.hoje.intervaloPonta} min</b><span>${L('In
     `Horários oficiais publicados pela ${html(op.nome)} (atualizados a ${html(dataBase())}). Podem mudar em feriados, greves ou obras: para os próximos ${plural} em tempo real usa a <a href="/">app PAROU</a>.`,
     `Official timetables published by ${html(op.nome)} (updated ${html(dataBase())}). They can change on holidays, strikes or roadworks: for the next ${plural} in real time use the <a href="/">PAROU app</a>.`,
     `Offizielle Fahrpläne von ${html(op.nome)} (Stand: ${html(dataBase())}). An Feiertagen, bei Streiks oder Bauarbeiten können sie sich ändern: Für die nächsten ${plural} in Echtzeit nutze die <a href="/">PAROU-App</a>.`,
-    `Horaires officiels publiés par ${html(op.nome)} (mis à jour le ${html(dataBase())}). Ils peuvent changer les jours fériés, en cas de grève ou de travaux : pour les prochains ${plural} en temps réel, utilisez l'<a href="/">application PAROU</a>.`)}</p>`;
+    `Horaires officiels publiés par ${html(op.nome)} (mis à jour le ${html(dataBase())}). Ils peuvent changer les jours fériés, en cas de grève ou de travaux : pour les prochains ${plural} en temps réel, utilisez l'<a href="/">application PAROU</a>.`)}</p>${notaFonte(op.feedId)}`;
   const tituloBase = `${nome} ${op.nome}`;
   const s0 = h.sentidos[0];
   const partidasDe = (tipo: TipoDia) => s0?.horarios.find((x) => x.tipo === tipo)?.partidas || [];
@@ -1196,7 +1203,7 @@ ${respostaParagem({ nome: g.nome, local, op, palavra: tp.palavra, linhas: linhas
         `Stops and lines published by AMP – Área Metropolitana do Porto (updated ${html(dataBase())}); timetables requested from AMP on the spot.`,
         `Haltestellen und Linien von der AMP – Área Metropolitana do Porto veröffentlicht (Stand: ${html(dataBase())}); Fahrpläne werden live bei der AMP abgefragt.`,
         `Arrêts et lignes publiés par l'AMP – Área Metropolitana do Porto (mis à jour le ${html(dataBase())}) ; horaires demandés à l'AMP en direct.`)}</p>`
-    : `<p class="nota">${L(`Horários oficiais da ${html(op.nome)} (atualizados a ${html(dataBase())}).`, `Official timetables from ${html(op.nome)} (updated ${html(dataBase())}).`, `Offizielle Fahrpläne von ${html(op.nome)} (Stand: ${html(dataBase())}).`, `Horaires officiels de ${html(op.nome)} (mis à jour le ${html(dataBase())}).`)}</p>`;
+    : `<p class="nota">${L(`Horários oficiais da ${html(op.nome)} (atualizados a ${html(dataBase())}).`, `Official timetables from ${html(op.nome)} (updated ${html(dataBase())}).`, `Offizielle Fahrpläne von ${html(op.nome)} (Stand: ${html(dataBase())}).`, `Horaires officiels de ${html(op.nome)} (mis à jour le ${html(dataBase())}).`)}</p>${notaFonte(op.feedId)}`;
   const tituloLinhas = codigos.length ? ` — ${codigos.slice(0, 4).join(', ')}` : '';
   return pagina({
     titulo: cortar(L(`${g.nome}${local} (${op.nome}): próximos ${plural}${tituloLinhas}`, `${g.nome}${local} (${op.nome}): next ${plural}${tituloLinhas}`, `${g.nome}${local} (${op.nome}): nächste ${plural}${tituloLinhas}`, `${g.nome}${local} (${op.nome}) : prochains ${plural}${tituloLinhas}`), 66) + ' | PAROU',
@@ -1951,8 +1958,8 @@ function paginaCidade(c: (typeof CIDADES)[number]): string {
     const perto: Array<{ g: GrupoParagem; d: number }> = [];
     for (const g of op.paragens) {
       if (Math.abs(g.lat - c.lat) > 0.1 || Math.abs(g.lon - c.lon) > 0.13) continue;
-      const d = distKm(c, g);
-      if (d <= c.raioKm) perto.push({ g, d });
+      if (!naCidade(c, g.lat, g.lon)) continue; // dentro do raio e na mesma margem do Tejo
+      perto.push({ g, d: distKm(c, g) });
     }
     if (perto.length) porOperador.push({ op, n: perto.length, perto: perto.sort((a, b) => a.d - b.d) });
   }
