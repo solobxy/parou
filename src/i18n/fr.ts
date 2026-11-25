@@ -346,7 +346,7 @@ export const FR: Record<string, string> = {
   'A palavra-passe é demasiado longa.': 'Le mot de passe est trop long.',
   'A palavra-passe atual não está certa.': 'Le mot de passe actuel n’est pas correct.',
   'A palavra-passe não está certa.': 'Le mot de passe n’est pas correct.',
-  'A recuperação por email ainda não está ativa. Escreve para contacto@parou.pt e ajudamos.': 'La récupération par e-mail n’est pas encore active. Écrivez à contacto@parou.pt et nous vous aiderons.',
+  'A recuperação por email ainda não está ativa. Escreve para diniscash@gmail.com e ajudamos.': 'La récupération par e-mail n’est pas encore active. Écrivez à diniscash@gmail.com et nous vous aiderons.',
   'Não foi possível concluir. Tenta outra vez.': 'Impossible de terminer. Réessayez.',
   'Se existir uma conta com este email, enviámos um link para criares uma palavra-passe nova. Vê também o lixo eletrónico.': 'Si un compte existe avec cet e-mail, nous avons envoyé un lien pour créer un nouveau mot de passe. Vérifiez aussi vos courriers indésirables.',
   'Escreve um email válido.': 'Saisissez une adresse e-mail valide.',
@@ -367,7 +367,7 @@ export const FR: Record<string, string> = {
   'Não foi possível identificar o dispositivo.': 'Impossible d’identifier l’appareil.',
   'Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste continuam visíveis, sem ligação à conta. Isto não se pode desfazer.': 'La suppression du compte efface votre profil, vos points et vos favoris synchronisés. Les signalements que vous avez publiés restent visibles, sans lien avec le compte. Cette action est irréversible.',
   'Escreve a tua palavra-passe para confirmar': 'Saisissez votre mot de passe pour confirmer',
-  'Não foi possível apagar agora. Tenta outra vez ou escreve para contacto@parou.pt.': 'Suppression impossible pour le moment. Réessayez ou écrivez à contacto@parou.pt.',
+  'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.': 'Suppression impossible pour le moment. Réessayez ou écrivez à diniscash@gmail.com.',
 
   // Alertes (météo, jours fériés, incendies)
   'Céu limpo': 'Ciel dégagé',

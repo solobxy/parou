@@ -174,7 +174,7 @@ parou.pt`,
 
 Já podes recuperá-la por email: toca em _"Esqueci-me da palavra-passe"_, abre o link que recebes e escolhe uma nova. O link vale 1 hora.
 
-Dúvidas? contacto@parou.pt
+Dúvidas? diniscash@gmail.com
 
 parou.pt`,
     imagens: ['/novidades/recuperar-1.jpg'],

@@ -4,7 +4,7 @@ import { lerPreferenciaContagem, mudarPreferenciaContagem } from '../services/es
 import { apagarConta, observarSessao, utilizadorAutenticado } from '../services/conta';
 import { Trash2 } from 'lucide-react';
 
-export const CONTACTO = 'contacto@parou.pt';
+export const CONTACTO = 'diniscash@gmail.com';
 export const TELEFONE = '913 488 258';
 export const TELEFONE_LINK = '+351913488258';
 export const ATUALIZADO = '15 de outubro de 2026';
@@ -63,7 +63,7 @@ export function ApagarAqui() {
     const r = await apagarConta(palavra);
     if (r === 'ok') { setEstado('apagada'); return; }
     setEstado('repouso');
-    setErro(r === 'palavra-errada' ? t('A palavra-passe não está certa.') : t('Não foi possível apagar agora. Tenta outra vez ou escreve para contacto@parou.pt.'));
+    setErro(r === 'palavra-errada' ? t('A palavra-passe não está certa.') : t('Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.'));
   };
   return (
     <div className="rounded-[14px] border border-[#F3C5C1] bg-[#FDF2F1] p-4 space-y-3" data-teste="apagar-aqui">

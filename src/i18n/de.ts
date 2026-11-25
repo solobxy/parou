@@ -346,7 +346,7 @@ export const DE: Record<string, string> = {
   'A palavra-passe é demasiado longa.': 'Das Passwort ist zu lang.',
   'A palavra-passe atual não está certa.': 'Das aktuelle Passwort ist nicht korrekt.',
   'A palavra-passe não está certa.': 'Das Passwort ist nicht korrekt.',
-  'A recuperação por email ainda não está ativa. Escreve para contacto@parou.pt e ajudamos.': 'Die Wiederherstellung per E-Mail ist noch nicht aktiv. Schreibe an contacto@parou.pt, dann helfen wir dir.',
+  'A recuperação por email ainda não está ativa. Escreve para diniscash@gmail.com e ajudamos.': 'Die Wiederherstellung per E-Mail ist noch nicht aktiv. Schreibe an diniscash@gmail.com, dann helfen wir dir.',
   'Não foi possível concluir. Tenta outra vez.': 'Das hat leider nicht geklappt. Versuche es erneut.',
   'Se existir uma conta com este email, enviámos um link para criares uma palavra-passe nova. Vê também o lixo eletrónico.': 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir dir einen Link zum Festlegen eines neuen Passworts geschickt. Sieh auch im Spam-Ordner nach.',
   'Escreve um email válido.': 'Gib eine gültige E-Mail-Adresse ein.',
@@ -367,7 +367,7 @@ export const DE: Record<string, string> = {
   'Não foi possível identificar o dispositivo.': 'Das Gerät konnte nicht erkannt werden.',
   'Apagar a conta remove o teu perfil, os pontos e os favoritos sincronizados. As ocorrências que publicaste continuam visíveis, sem ligação à conta. Isto não se pode desfazer.': 'Beim Löschen des Kontos werden dein Profil, deine Punkte und die synchronisierten Favoriten entfernt. Von dir veröffentlichte Meldungen bleiben sichtbar, ohne Verbindung zum Konto. Das kann nicht rückgängig gemacht werden.',
   'Escreve a tua palavra-passe para confirmar': 'Gib zur Bestätigung dein Passwort ein',
-  'Não foi possível apagar agora. Tenta outra vez ou escreve para contacto@parou.pt.': 'Das Löschen ist gerade nicht möglich. Versuche es erneut oder schreibe an contacto@parou.pt.',
+  'Não foi possível apagar agora. Tenta outra vez ou escreve para diniscash@gmail.com.': 'Das Löschen ist gerade nicht möglich. Versuche es erneut oder schreibe an diniscash@gmail.com.',
 
   // Warnungen (Wetter, Feiertage, Brände)
   'Céu limpo': 'Klarer Himmel',
