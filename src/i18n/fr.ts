@@ -1313,4 +1313,6 @@ export const FR: Record<string, string> = {
   'Esta linha não passa aqui neste dia.': 'Cette ligne ne passe pas ici ce jour-là.',
   'Ainda não há horário desta linha para este dia.': 'Il n’y a pas encore d’horaires de cette ligne pour ce jour.',
   'Horário previsto: o operador ainda não publicou este dia.': 'Horaires prévus : l’exploitant n’a pas encore publié ce jour.',
+  'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.': 'Pour que la demande revienne : touche l’icône à côté de l’adresse, réinitialise les autorisations et touche à nouveau Activer la localisation.',
+  'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.': 'Chrome n’a pas affiché la demande d’Android pour l’activer : il la met en pause après un refus.',
 };

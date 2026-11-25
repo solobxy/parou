@@ -117,6 +117,11 @@ export function useUserLocation() {
   const [coords, setCoordsEstado] = useState<UserCoords | null>(() => memoriaPosicao);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [motivoBloqueio, setMotivoBloqueio] = useState<MotivoBloqueio | null>(null);
+  // O Chrome no Android não chegou a mostrar o aviso «Ligar a localização?»: a recusa veio logo a seguir ao toque.
+  // O Chrome só mostra esse aviso a um site com um toque e fora da pausa que faz depois de alguém o recusar
+  // (7 dias, depois 30, depois 90, em todos os sites). Com o aviso no ecrã, a resposta só chega quando a pessoa escolhe.
+  const [semAvisoSistema, setSemAvisoSistema] = useState<boolean>(false);
+  const toqueRef = useRef<number>(0);
   const [followMode, setFollowMode] = useState<boolean>(true);
   const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
 
@@ -169,6 +174,8 @@ export function useUserLocation() {
     }
 
     try { localStorage.removeItem(CHAVE_DESLIGADA); } catch {}
+    // Pedido nascido de um toque? (só esse pode abrir o aviso do Android)
+    try { if ((navigator as any).userActivation?.isActive === true) toqueRef.current = Date.now(); } catch {}
     ultimaLeituraRef.current = Date.now();
     reiniciosSeguidosRef.current = 0;
     // Acelerómetro: com o telemóvel quieto o filtro não deixa o ponto andar sozinho dentro de casa
@@ -229,6 +236,7 @@ export function useUserLocation() {
         return;
       }
       setMotivoBloqueio(null);
+      setSemAvisoSistema(false);
       setCoords(newCoords);
       setStatus('active');
       setErrorMessage(null);
@@ -324,8 +332,12 @@ export function useUserLocation() {
         // Quem já autorizou antes e agora falha quase sempre tem a localização do telemóvel
         // desligada (ou a poupança de bateria ligada), não um bloqueio no browser
         const semPedido = (): MotivoBloqueio => (jaDeuLocalizacao() ? 'sistema' : 'site');
+        const logoAposToque = toqueRef.current > 0 && Date.now() - toqueRef.current < 900;
         navigator.permissions?.query({ name: 'geolocation' as PermissionName })
-          .then((r) => setMotivoBloqueio(r.state === 'prompt' ? 'recusado' : r.state === 'granted' ? 'sistema' : semPedido()))
+          .then((r) => {
+            setMotivoBloqueio(r.state === 'prompt' ? 'recusado' : r.state === 'granted' ? 'sistema' : semPedido());
+            if (r.state === 'granted' && logoAposToque) setSemAvisoSistema(true);
+          })
           .catch(() => setMotivoBloqueio(semPedido()));
         if (!navigator.permissions?.query) setMotivoBloqueio(semPedido());
       } catch {
@@ -572,6 +584,7 @@ export function useUserLocation() {
     coords,
     errorMessage,
     motivoBloqueio,
+    semAvisoSistema,
     followMode,
     isRefreshingGps,
     setFollowMode,
