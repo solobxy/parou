@@ -5,6 +5,9 @@ export const FONTES_OFICIAIS: ReadonlyArray<{ nome: string; url: string }> = [
   { nome: 'ANEPC (Proteção Civil)', url: 'https://prociv.gov.pt' },
   { nome: 'IPMA (tempo)', url: 'https://www.ipma.pt' },
   { nome: 'Fogos.pt (incêndios, dados da ANEPC)', url: 'https://fogos.pt' },
+  { nome: 'IMT – Ponto de Acesso Nacional (horários)', url: 'https://nap-portugal.imt-ip.pt' },
+  { nome: 'dados.gov.pt (dados abertos)', url: 'https://dados.gov.pt' },
+  { nome: 'Diário da República (feriados)', url: 'https://diariodarepublica.pt' },
 ];
 
 export const AVISO_NAO_GOVERNAMENTAL =
