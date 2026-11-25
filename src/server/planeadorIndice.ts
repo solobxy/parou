@@ -9,6 +9,7 @@
 // segundo plano, aos poucos, sem bloquear o servidor.
 // =====================================================================================
 import { getDatabase } from './db/gtfsDatabase';
+import { NAO, type CamadaTempoReal, type RtPadrao } from './tempoRealPlaneador';
 
 const MARGEM = 120; // segundos entre sair de uma viagem e entrar noutra
 const RAIO_VIZ = 300; // metros a pé entre paragens num transbordo
@@ -92,7 +93,7 @@ export interface Indice {
 }
 
 export interface Corrida { pat: number; t: number; b: number; a: number }
-export interface Jornada { k: number; rides: Corrida[]; destStop: number; chegada: number }
+export interface Jornada { k: number; rides: Corrida[]; destStop: number; chegada: number; /** Previsões em direto usadas na pesquisa (para as horas do percurso) */ rt?: CamadaTempoReal }
 
 function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const R = 6371000, p = Math.PI / 180;
@@ -430,6 +431,8 @@ export interface PedidoPesquisa {
   sint?: boolean;
   /** Só a pesquisa com estes meios de transporte (máscara BIT_METRO | BIT_COMBOIO | BIT_BARCO), sem a normal nem as alternativas */
   soModos?: number;
+  /** Tempo real (tempoRealPlaneador.ts): atrasos, paragens já passadas ou saltadas e viagens suprimidas, por padrão */
+  rt?: CamadaTempoReal;
 }
 
 /** Paragens com serviço (de feeds com horários) a menos de `raio` metros (máx. ~330 m com esta grelha) */
@@ -490,6 +493,42 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
     return -1;
   };
 
+  const rt = pedido.rt;
+  /** Hora prevista de uma viagem com previsões (-1 = não se pode usar esta paragem) */
+  const horaRt = (pd: Padrao, rp: RtPadrao, t: number, pos: number, chegada: boolean): number => {
+    const nS = pd.stops.length;
+    const base = chegada ? pd.arr[t * nS + pos] : pd.dep[t * nS + pos];
+    if (base < 0) return -1;
+    const a = rp.viagens.get(t);
+    if (!a) return base;
+    const d = a[pos];
+    return d === NAO ? -1 : base + d;
+  };
+  /**
+   * Como acharViagem, com as horas previstas: uma viagem atrasada pode partir depois de outras que no horário saíam mais tarde,
+   * por isso procura-se desde `min - maior atraso` e fica a que parte primeiro (a partir de `min`) segundo as previsões.
+   */
+  const acharViagemRt = (p: number, pos: number, min: number, rp: RtPadrao): number => {
+    const pd = ix.padroes[p];
+    const nS = pd.stops.length, m = mascara(p);
+    const desde = min - rp.maxAtraso;
+    let lo = 0, hi = pd.nT;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pd.dep[mid * nS + pos] < desde) lo = mid + 1; else hi = mid;
+    }
+    let melhor = -1, melhorH = INF;
+    for (let i = lo; i < pd.nT; i++) {
+      const d = pd.dep[i * nS + pos];
+      if (d - rp.maxAdianto > melhorH || d - rp.maxAdianto > limiteSaida) break;
+      if (!m[i] || pd.pick[i * nS + pos]) continue;
+      const h = horaRt(pd, rp, i, pos, false);
+      if (h < 0 || h < min || h > limiteSaida) continue; // já passou, vai saltar, foi suprimida ou parte antes de se chegar
+      if (h < melhorH) { melhorH = h; melhor = i; }
+    }
+    return melhor;
+  };
+
   const reconstruir = (k: number, destino: number): Jornada | null => {
     const rides: Corrida[] = [];
     let kk = k, cur = destino, guarda = 0;
@@ -508,7 +547,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
     }
     if (kind[0][cur] !== 3 || !rides.length) return null;
     rides.reverse();
-    return { k, rides, destStop: destino, chegada: 0 };
+    return { k, rides, destStop: destino, chegada: 0, ...(rt ? { rt } : {}) };
   };
 
   /** `modos`: máscara de tipos de transporte permitidos (0 = todos); serve para garantir uma opção de metro, comboio ou barco */
@@ -560,6 +599,36 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
             if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
               const min = prev + margem + ESPERA_SINT;
               if (min <= FIM_SINT && min <= limiteSaida && (!aBordo || min < t0 + pos * PASSO_SINT)) { t0 = min - pos * PASSO_SINT; emb0 = pos; aBordo = true; }
+            }
+          }
+          continue;
+        }
+        const rp = rt?.get(p);
+        if (rp) {
+          // Padrão com previsões em direto: as mesmas regras, com as horas previstas
+          let t = -1, emb = 0;
+          for (let pos = qPos[p]; pos < nS; pos++) {
+            const s = pd.stops[pos];
+            if (t >= 0) {
+              const a = horaRt(pd, rp, t, pos, true);
+              if (a >= 0 && a < best[s] && a < alvo) {
+                tau[k][s] = a; best[s] = a; kind[k][s] = 1;
+                pPat[k][s] = p; pT[k][s] = t; pB[k][s] = emb; pA[k][s] = pos; rk[k][s] = pd.routeIdx;
+                if (marca[s] !== carimbo) { marca[s] = carimbo; novos.push(s); }
+              }
+            }
+            const prev = anterior[s];
+            if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
+              const min = prev + margem;
+              const ht = t >= 0 ? horaRt(pd, rp, t, pos, false) : -1;
+              if (t < 0 || (ht >= 0 && min <= ht)) {
+                const t2 = acharViagemRt(p, pos, min, rp);
+                if (t2 >= 0) {
+                  const h2 = horaRt(pd, rp, t2, pos, false);
+                  if (t < 0 || (t2 !== t && h2 < ht)) { t = t2; emb = pos; }
+                  else if (k === 1 && t2 === t && prev < anterior[pd.stops[emb]]) emb = pos;
+                }
+              }
             }
           }
           continue;

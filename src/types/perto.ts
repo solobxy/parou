@@ -93,6 +93,8 @@ export interface RouteLeg {
   durationMinutes: number;
   distanceMeters?: number;
   isRealtime?: boolean;
+  /** Só com tempo real: minutos de atraso (negativo = adiantado) da viagem à partida, segundo o operador */
+  atrasoMinutos?: number;
   departureTime?: string;
   arrivalTime?: string;
   /** Para desenhar no mapa: paragens do percurso (embarque → desembarque) ou os dois extremos do troço a pé */

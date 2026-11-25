@@ -1,5 +1,5 @@
 import React from 'react';
-import { Footprints, ChevronDown, ChevronRight } from 'lucide-react';
+import { Footprints, ChevronDown, ChevronRight, Radio } from 'lucide-react';
 import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
@@ -23,6 +23,12 @@ interface Props {
   /** Mostra o "Avisar-me" para sair a horas (só faz sentido na viagem que começa agora) */
   avisar?: boolean;
   onSelecionar: () => void;
+}
+
+/** "em direto", "em direto, 4 min de atraso", "em direto, 2 min adiantado" */
+function textoDireto(atraso?: number): string {
+  if (atraso === undefined || Math.abs(atraso) < 2) return t('em direto');
+  return atraso > 0 ? t('em direto, {n} min de atraso', { n: atraso }) : t('em direto, {n} min adiantado', { n: -atraso });
 }
 
 /** Cor da barra de uma linha na linha do tempo: a cor oficial, ou preto quando a linha não tem cor (ou é branca) */
@@ -126,7 +132,17 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
             ))}
           </div>
 
-          {apoio && <p className="mt-1.5 text-[12.5px] text-[#6B6B6B] leading-snug">{apoio}</p>}
+          {apoio && (
+            <p className="mt-1.5 text-[12.5px] text-[#6B6B6B] leading-snug">
+              {primeira?.isRealtime && (
+                <span className="inline-flex align-[-2px] mr-1" data-teste="em-direto">
+                  <Radio className="w-3.5 h-3.5 stroke-[2] text-[#111111]" aria-hidden="true" />
+                  <span className="sr-only">{t('Em direto')}: </span>
+                </span>
+              )}
+              {apoio}
+            </p>
+          )}
         </div>
       </button>
 
@@ -173,6 +189,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
                           leg.stopsCount ? tn(leg.stopsCount, '{n} paragem', '{n} paragens') : '',
                           leg.durationMinutes ? `${leg.durationMinutes} min` : '',
                           leg.operatorName || '',
+                          leg.isRealtime ? textoDireto(leg.atrasoMinutos) : '',
                         ].filter(Boolean).join(' · ')}
                       </span>
                     </span>
@@ -190,7 +207,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
               <span className="flex justify-center" aria-hidden="true"><span className="w-3.5 h-3.5 rounded-[3px] bg-[#111111]" /></span>
               <span className="text-[15px] font-bold text-[#111111] leading-tight">{destinoNome}</span>
             </li>
-            <li className="mt-3 text-[12px] text-[#6B6B6B]">{route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
+            <li className="mt-3 text-[12px] text-[#6B6B6B]">{route.realtimeStatus === 'TEMPO_REAL' ? t('Horas em direto do operador nas linhas marcadas; as outras são programadas.') : route.realtimeLabel === 'Horário da AMP' ? t('Horários programados da AMP; podem mudar com o trânsito.') : t('Horários programados; podem mudar com o trânsito.')}</li>
           </ol>
         </div>
       )}

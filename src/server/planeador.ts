@@ -16,6 +16,7 @@ import { getDatabase, getActiveServiceIds, getAllFeeds } from './db/gtfsDatabase
 import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import { caminhoAPe, distanciasAPe, type CaminhoAPe } from './caminhoAPe';
 import { podarMapa } from './cacheLimitada';
+import { atualizarTempoReal, camadaTempoReal, horaPrevista } from './tempoRealPlaneador';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
@@ -43,6 +44,8 @@ interface Linha { short: string; long: string; tipo: number; cor: string; feed: 
 interface Perna {
   trip: string; route: string; feed: string; destinoViagem: string;
   de: string; para: string; parte: number; chega: number; paragens: number; sa?: number; sb?: number;
+  /** Horas previstas em direto (tempo real do operador); atraso à partida, em segundos */
+  direto?: boolean; atraso?: number;
 }
 
 function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -194,10 +197,20 @@ function modoDaLinha(l: Linha | undefined, modoFeed: string | undefined): Modo {
 function pernasDeJornada(ix: Indice, j: Jornada): Perna[] {
   return j.rides.map((r) => {
     const pd = ix.padroes[r.pat], nS = pd.stops.length, o = r.t * nS;
+    let parte = pd.dep[o + r.b], chega = pd.arr[o + r.a] || pd.dep[o + r.b];
+    let direto = false, atraso: number | undefined;
+    // A pesquisa usou as horas previstas: as do percurso também (sem previsão, ou se não se pode usar, fica o horário)
+    if (j.rt?.has(r.pat)) {
+      const hp = horaPrevista(ix, j.rt, r.pat, r.t, r.b, false), hc = horaPrevista(ix, j.rt, r.pat, r.t, r.a, true);
+      if (hp.hora >= 0 && hc.hora >= 0 && hp.atraso !== undefined) {
+        parte = hp.hora; chega = Math.max(hc.hora, hp.hora); direto = true; atraso = hp.atraso;
+      }
+    }
     return {
       trip: pd.tripId[r.t], route: pd.route, feed: pd.feedSaida, destinoViagem: String(pd.headsign[r.t] || '').trim(),
-      de: ix.stopId[pd.stops[r.b]], para: ix.stopId[pd.stops[r.a]], parte: pd.dep[o + r.b], chega: pd.arr[o + r.a] || pd.dep[o + r.b],
+      de: ix.stopId[pd.stops[r.b]], para: ix.stopId[pd.stops[r.a]], parte, chega,
       paragens: r.a - r.b, sa: pd.seq[o + r.b], sb: pd.seq[o + r.a],
+      ...(direto ? { direto, atraso } : {}),
     };
   });
 }
@@ -400,6 +413,8 @@ export async function planearViagem(
 ): Promise<RespostaPlano> {
   // Acabado de arrancar: espera pelo motor em memória em vez de responder com o SQL (pior e mais lento)
   if (!indicePronto()) await esperarIndice();
+  // Previsões em direto dos operadores (no máximo 0,8 s; sem elas fica o horário)
+  await atualizarTempoReal(800);
   const db = getDatabase();
   const feeds = new Map(getAllFeeds().map((f: any) => [f.id, f]));
   const nomeOperador = (feed: string) => String(feeds.get(feed)?.operator_name || feed.toUpperCase());
@@ -452,12 +467,12 @@ export async function planearViagem(
   registarParagens();
 
   // Dias de serviço: hoje e, de madrugada, as viagens de ontem depois da meia-noite (24:xx)
-  const dias: Array<{ desvio: number; ativo: (feed: string) => Set<string> }> = [
-    { desvio: 0, ativo: servicosDoDia(lis.toFormat('yyyyMMdd'), lis.toFormat('cccc').toLowerCase()) },
+  const dias: Array<{ desvio: number; ativo: (feed: string) => Set<string>; data?: string }> = [
+    { desvio: 0, ativo: servicosDoDia(lis.toFormat('yyyyMMdd'), lis.toFormat('cccc').toLowerCase()), data: lis.toFormat('yyyyMMdd') },
   ];
   if (agoraSegs < 5 * 3600) {
     const ontem = lis.minus({ days: 1 });
-    dias.push({ desvio: 86400, ativo: servicosDoDia(ontem.toFormat('yyyyMMdd'), ontem.toFormat('cccc').toLowerCase()) });
+    dias.push({ desvio: 86400, ativo: servicosDoDia(ontem.toFormat('yyyyMMdd'), ontem.toFormat('cccc').toLowerCase()), data: ontem.toFormat('yyyyMMdd') });
   }
 
   const linhasCache = new Map<string, Linha>();
@@ -493,7 +508,8 @@ export async function planearViagem(
       toStopName: para,
       stopsCount: p.paragens,
       durationMinutes: Math.max(1, Math.round((p.chega - p.parte) / 60)),
-      isRealtime: false,
+      isRealtime: !!p.direto,
+      ...(p.direto && p.atraso !== undefined ? { atrasoMinutos: Math.round(p.atraso / 60) } : {}),
       departureTime: hm(p.parte - desvio),
       arrivalTime: hm(p.chega - desvio),
     } as RouteLeg;
@@ -551,6 +567,7 @@ export async function planearViagem(
             legs.push({ mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: andarD, distanceMeters: Math.round(fim.metros * DESVIO_RUAS) });
             const chegada = ultima.chega + andarD * 60 - dia.desvio;
             const trocas = pernas.length - 1;
+            const emDireto = pernas.some((x) => x.direto);
             opcoes.push({
               id: `${trocas ? 't' : 'd'}-${pernas.map((x) => x.trip).join('-')}-${primeira.de}-${ultima.para}`,
               type: trocas ? 'fewest_transfers' : 'fastest', title: trocas ? 'Com transbordo' : 'Direto',
@@ -558,7 +575,7 @@ export async function planearViagem(
               totalDurationMinutes: Math.round((chegada - agoraSegs) / 60),
               departureTime: hm(primeira.parte - dia.desvio - andarO * 60), arrivalTime: hm(chegada),
               walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
-              legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Horário programado', relevantAlerts: [],
+              legs, realtimeStatus: emDireto ? 'TEMPO_REAL' : 'PROGRAMADO', realtimeLabel: emDireto ? 'Tempo real' : 'Horário programado', relevantAlerts: [],
               _saida: primeira.parte - dia.desvio - andarO * 60,
               _chegada: chegada, _pontos: chegada + trocas * 6 * 60, // com transbordos, o que distingue um percurso são as viagens a seguir à primeira (o mesmo comboio apanhado a partir de várias linhas é uma só opção)
               _assinatura: assinaturaDe(pernas),
@@ -575,7 +592,7 @@ export async function planearViagem(
           const origens = origensDe(O);
           if (!origens.length || !destinos.size) continue;
           const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number) =>
-            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos });
+            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos, rt: dia.data ? camadaTempoReal(ix, dia.data) : undefined });
           const jornadas = pedir(origens, destinos, janela > 3 * 3600 ? 2000 : 2500);
           juntarJornadas(jornadas, dia);
           // Menos a pé: o motor só guarda o que chega mais cedo, por isso, se o melhor percurso obriga a andar muito até à
