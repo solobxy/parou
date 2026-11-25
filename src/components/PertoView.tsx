@@ -58,8 +58,11 @@ import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { InputPesquisa } from './InputPesquisa';
 import { ConteudoSugestao } from './SugestaoDestino';
 import { OpcaoRota } from './OpcaoRota';
-import { RotaVariosDestinos, type MapaViagem } from './RotaVariosDestinos';
-import { EditorParagens, linhaVazia, type LinhaEditor } from './EditorParagens';
+import type { MapaViagem } from './RotaVariosDestinos';
+import { linhaVazia, type LinhaEditor } from '../services/rotaVarios';
+// Vários destinos e o editor de paragens só carregam quando se abrem (não fazem falta ao abrir o Perto)
+const RotaVariosDestinos = React.lazy(() => import('./RotaVariosDestinos').then((m) => ({ default: m.RotaVariosDestinos })));
+const EditorParagens = React.lazy(() => import('./EditorParagens').then((m) => ({ default: m.EditorParagens })));
 import { MAX_DESTINOS, calcularTroco, novoUid, ordenarOpcoes, textoSemLigacao, type DestinoViagem, type LongeDeParagens } from '../services/rotaVarios';
 import { textoMetros, traduzirDistancia } from '../utils/distancia';
 import { opcoesComUnir } from '../services/hibridasUnir';
@@ -2308,7 +2311,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* Vários destinos: um troço por destino, cada um com as suas opções */}
         {emViagem && (
-          <RotaVariosDestinos
+          <React.Suspense fallback={<div className="p-4 space-y-3" aria-hidden="true"><div className="parou-esqueleto h-24" /><div className="parou-esqueleto h-24" /></div>}><RotaVariosDestinos
             origem={{ lat: userCoords?.latitude ?? 38.7253, lon: userCoords?.longitude ?? -9.1500 }}
             origemNome={userCoords?.isManual ? userCoords.locationLabel : undefined}
             destinos={destinosViagem}
@@ -2317,7 +2320,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             onMapa={setMapaViagem}
             onAdicionar={abrirEditor}
             inicial={viagemSemente}
-          />
+          /></React.Suspense>
         )}
 
         {/* Route Planning Result Panel (if destination active) */}
@@ -3026,14 +3029,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
       </section>
 
       {editor && (
-        <EditorParagens
+        <React.Suspense fallback={null}><EditorParagens
           origem={{ lat: userCoords?.latitude ?? 38.7253, lon: userCoords?.longitude ?? -9.1500 }}
           origemNome={userCoords?.isManual ? userCoords.locationLabel : undefined}
           linhas={editor.linhas}
           ativaInicial={editor.ativa}
           onFechar={() => setEditor(null)}
           onConfirmar={aplicarEditor}
-        />
+        /></React.Suspense>
       )}
 
       <FolhaLocalizacao

@@ -22,24 +22,13 @@ import { ConviteInstalar } from './components/ConviteInstalar';
 import { ConviteAvisosLinha } from './components/ConviteAvisosLinha';
 import { PontoDiario } from './components/PontoDiario';
 import { aplicarMetaRota } from './seo/rotasApp';
-import { FeaturedOccurrence } from './components/FeaturedOccurrence';
-import { ImportantOccurrencesList } from './components/ImportantOccurrencesList';
-import { FiltersPanel } from './components/FiltersPanel';
-import { RecentOccurrencesFeed } from './components/RecentOccurrencesFeed';
-import { ReportsView } from './components/ReportsView';
 import { OccurrenceDetailModal } from './components/OccurrenceDetailModal';
 import { fecharJanelas, navegarHistorico } from './utils/janelas';
 import { BEM_VINDO_AO_ABRIR, BEM_VINDO_DEMO_AO_ABRIR } from './utils/bemVindo';
-import { ReportDetailPage } from './components/ReportDetailPage';
 import { PertoView } from './components/PertoView';
-import { NotificationModal } from './components/NotificationModal';
 import { NotificationToast } from './components/NotificationToast';
-import { PublicSourcesModal } from './components/PublicSourcesModal';
 import { MobileNav, MobileTab } from './components/MobileNav';
 import { BotaoWhatsApp } from './components/BotaoWhatsApp';
-import { MobileFilterModal } from './components/MobileFilterModal';
-import { FavoritosView } from './components/FavoritosView';
-import { NotFoundView } from './components/NotFoundView';
 import { useFavorites } from './hooks/useFavorites';
 import { useOfflineReports } from './hooks/useOfflineReports';
 
@@ -70,7 +59,7 @@ import { iniciarCopiaDados } from './services/copiaDados';
 import { iniciarContagem } from './services/estatisticas';
 import { usePontosMapa } from './hooks/usePontosMapa';
 import { eOcorrenciaAtual } from './utils/quando';
-import { PaginaInformativa, PaginaInfo } from './components/PaginaInformativa';
+import type { PaginaInfo } from './components/PaginaInformativa';
 import { t } from './i18n';
 
 // Ecrãs pesados ou pouco usados carregam só quando se abrem (a app abre mais depressa)
@@ -96,6 +85,32 @@ const FUNDO_PAGINA = (
     <div className="parou-esqueleto h-24" />
   </div>
 );
+
+// Mais ecrãs que não fazem falta ao abrir a app (o Perto): páginas informativas, ocorrências, favoritos, janelas de filtros e
+// avisos. Carregam quando se abrem; cada um traz a sua espera. Tiram ~110 KB (~35 KB pela rede) ao arranque. As janelas só se
+// carregam quando abrem (fechadas não mostravam nada: «if (!isOpen) return null»).
+function comEspera<P extends object>(carregar: () => Promise<React.ComponentType<P>>, espera: React.ReactNode = null) {
+  const Preguicoso = React.lazy(() => carregar().then((c) => ({ default: c })));
+  const Componente = (props: P) => <React.Suspense fallback={espera}><Preguicoso {...props} /></React.Suspense>;
+  return Componente;
+}
+function janelaComEspera<P extends { isOpen: boolean }>(carregar: () => Promise<React.ComponentType<P>>) {
+  const Preguicoso = React.lazy(() => carregar().then((c) => ({ default: c })));
+  const Componente = (props: P) => (props.isOpen ? <React.Suspense fallback={null}><Preguicoso {...props} /></React.Suspense> : null);
+  return Componente;
+}
+const NotFoundView = comEspera(() => import('./components/NotFoundView').then((m) => m.NotFoundView), FUNDO_PAGINA);
+const PaginaInformativa = comEspera(() => import('./components/PaginaInformativa').then((m) => m.PaginaInformativa), FUNDO_PAGINA);
+const ReportDetailPage = comEspera(() => import('./components/ReportDetailPage').then((m) => m.ReportDetailPage), FUNDO_PAGINA);
+const ReportsView = comEspera(() => import('./components/ReportsView').then((m) => m.ReportsView), FUNDO_PAGINA);
+const FavoritosView = comEspera(() => import('./components/FavoritosView').then((m) => m.FavoritosView), FUNDO_PAGINA);
+const FiltersPanel = comEspera(() => import('./components/FiltersPanel').then((m) => m.FiltersPanel));
+const FeaturedOccurrence = comEspera(() => import('./components/FeaturedOccurrence').then((m) => m.FeaturedOccurrence));
+const ImportantOccurrencesList = comEspera(() => import('./components/ImportantOccurrencesList').then((m) => m.ImportantOccurrencesList));
+const RecentOccurrencesFeed = comEspera(() => import('./components/RecentOccurrencesFeed').then((m) => m.RecentOccurrencesFeed));
+const NotificationModal = janelaComEspera(() => import('./components/NotificationModal').then((m) => m.NotificationModal));
+const PublicSourcesModal = janelaComEspera(() => import('./components/PublicSourcesModal').then((m) => m.PublicSourcesModal));
+const MobileFilterModal = janelaComEspera(() => import('./components/MobileFilterModal').then((m) => m.MobileFilterModal));
 
 const ABAS_POR_CAMINHO: Record<string, 'mapa' | 'reports' | 'perto' | 'horarios' | 'favoritos' | 'catalogo' | 'reclamacoes' | 'comunidade' | 'alertas' | 'coverage'> = {
   '/': 'perto', '/perto': 'perto', '/mapa': 'mapa', '/transportes': 'horarios', '/horarios': 'horarios',

@@ -11,19 +11,9 @@ import { MAX_DESTINOS, novoUid, type Ponto } from '../services/rotaVarios';
 import { useVoltarFecha } from '../utils/janelas';
 import type { DestinationSuggestion } from '../types/perto';
 
-/** Uma linha do editor: o texto escrito e (se já foi escolhido nos resultados) o local */
-export interface LinhaEditor {
-  /** Identifica a linha no ecrã (não muda quando se escolhe o local, para o campo não perder o cursor) */
-  chave: string;
-  /** Identifica o local escolhido (muda quando o local muda: é o que faz recalcular os percursos) */
-  uid: string;
-  texto: string;
-  dest: DestinationSuggestion | null;
-  /** Minutos que se fica nesta paragem antes de seguir (guardado para quando a linha já existia) */
-  permanencia: number;
-}
-
-export const linhaVazia = (texto = ''): LinhaEditor => ({ chave: novoUid(), uid: novoUid(), texto, dest: null, permanencia: 0 });
+// A linha do editor e linhaVazia vivem em services/rotaVarios.ts (o Perto usa-as sem carregar o editor)
+export { linhaVazia, type LinhaEditor } from '../services/rotaVarios';
+import { linhaVazia, type LinhaEditor } from '../services/rotaVarios';
 
 interface Props {
   /** Nome da partida (por omissão, "A tua localização") */
