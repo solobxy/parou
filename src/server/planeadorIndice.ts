@@ -12,6 +12,12 @@ import { getDatabase } from './db/gtfsDatabase';
 import { NAO, type CamadaTempoReal, type RtPadrao } from './tempoRealPlaneador';
 
 const MARGEM = 120; // segundos entre sair de uma viagem e entrar noutra
+/**
+ * Margem quando as duas viagens do transbordo têm previsões em direto do operador (a que se deixa e a que se apanha): as horas já
+ * contam com os atrasos, por isso chega 1 min (mais o caminho a pé). Na comparação com o Transitous, metade das viagens em que a
+ * PAROU chegava depois eram transbordos de 2 min que os 2 min de margem + o caminho não deixavam fazer.
+ */
+export const MARGEM_DIRETO = 60;
 const RAIO_VIZ = 300; // metros a pé entre paragens num transbordo
 // Nas estações (metro, comboio, barco) as paragens ficam mais longe umas das outras: Entre Campos (metro) e Entrecampos (CP) estão a
 // mais de 400 m, e com 300 m o planeador apanhava um autocarro de 2 minutos para fazer esse caminho. Até 500 m quando uma delas é estação.
@@ -513,10 +519,10 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
    * Como acharViagem, com as horas previstas: uma viagem atrasada pode partir depois de outras que no horário saíam mais tarde,
    * por isso procura-se desde `min - maior atraso` e fica a que parte primeiro (a partir de `min`) segundo as previsões.
    */
-  const acharViagemRt = (p: number, pos: number, min: number, rp: RtPadrao): number => {
+  const acharViagemRt = (p: number, pos: number, min: number, rp: RtPadrao, minDireto = min): number => {
     const pd = ix.padroes[p];
     const nS = pd.stops.length, m = mascara(p);
-    const desde = min - rp.maxAtraso;
+    const desde = Math.min(min, minDireto) - rp.maxAtraso;
     let lo = 0, hi = pd.nT;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
@@ -528,10 +534,19 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
       if (d - rp.maxAdianto > melhorH || d - rp.maxAdianto > limiteSaida) break;
       if (!m[i] || pd.pick[i * nS + pos]) continue;
       const h = horaRt(pd, rp, i, pos, false);
-      if (h < 0 || h < min || h > limiteSaida) continue; // já passou, vai saltar, foi suprimida ou parte antes de se chegar
+      // com previsão nesta viagem (e na que se deixa: minDireto), a margem curta
+      if (h < 0 || h < (rp.viagens.has(i) ? minDireto : min) || h > limiteSaida) continue; // já passou, vai saltar, foi suprimida ou parte antes de se chegar
       if (h < melhorH) { melhorH = h; melhor = i; }
     }
     return melhor;
+  };
+  /** A chegada a `s` na ronda k veio de uma viagem com previsões em direto (diretamente ou a pé a partir da paragem onde se saiu) */
+  const chegouEmDireto = (k: number, s: number): boolean => {
+    if (!rt) return false;
+    let x = s;
+    if (kind[k][x] === 2) x = pFrom[k][x];
+    if (kind[k][x] !== 1) return false;
+    return !!rt.get(pPat[k][x])?.viagens.has(pT[k][x]);
   };
 
   const reconstruir = (k: number, destino: number): Jornada | null => {
@@ -625,9 +640,11 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
             const prev = anterior[s];
             if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
               const min = prev + margem;
+              // transbordo entre duas viagens com previsões em direto: margem curta
+              const minDireto = k > 1 && chegouEmDireto(k - 1, s) ? prev + MARGEM_DIRETO : min;
               const ht = t >= 0 ? horaRt(pd, rp, t, pos, false) : -1;
-              if (t < 0 || (ht >= 0 && min <= ht)) {
-                const t2 = acharViagemRt(p, pos, min, rp);
+              if (t < 0 || (ht >= 0 && Math.min(min, minDireto) <= ht)) {
+                const t2 = acharViagemRt(p, pos, min, rp, minDireto);
                 if (t2 >= 0) {
                   const h2 = horaRt(pd, rp, t2, pos, false);
                   if (t < 0 || (t2 !== t && h2 < ht)) { t = t2; emb = pos; }
