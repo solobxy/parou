@@ -234,6 +234,9 @@ const BASES_A_COPIAR = [
   { nome: 'comunidade', ficheiro: FICHEIRO_COMUNIDADE },
   { nome: 'utilizadores', ficheiro: path.join(PASTA, 'utilizadores.db') },
   { nome: 'push', ficheiro: path.join(PASTA, 'push.db') },
+  // arquivo de avisos, greves e notícias e atrasos medidos: não se recuperam de outra forma
+  { nome: 'historico', ficheiro: path.join(PASTA, 'historico.db') },
+  { nome: 'atrasos', ficheiro: path.join(PASTA, 'atrasos.db') },
 ];
 const DIAS_DE_COPIAS = 30;
 

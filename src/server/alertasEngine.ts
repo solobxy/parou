@@ -13,6 +13,7 @@ import { getCentralAlerts, ePlenarioOuConstrangimento } from './centralAlertsEng
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
 import { areasLocaisAviso, zonaSoDeAvisos, porAreaPreferida, nomeDaZona, regiaoDaZona, NOME_ZONA_AVISO } from './zonasAvisoIlhas';
+import { arquivarNoticias } from './historico';
 
 const UA = 'PAROU.PT/2.0 (+https://parou.pt)';
 const ZONA = 'Europe/Lisbon';
@@ -636,6 +637,8 @@ async function lerFeed(fonte: { nome: string; url: string }): Promise<Array<Omit
         texto: semAcentos(`${titulo} ${resumoBruto}`),
       });
     }
+    // Arquivo permanente das notícias (relatórios e histórico de greves e perturbações)
+    try { arquivarNoticias(lista); } catch (e: any) { console.warn('[Histórico] notícias:', e?.message || e); }
     return lista;
   }, []);
 }

@@ -6,6 +6,7 @@ import {
 } from '../types/alerts';
 import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
 import { DateTime } from 'luxon';
+import { arquivarAvisos } from './historico';
 
 // In-memory central alert repository with deduplication and state tracking
 interface CentralAlertsState {
@@ -825,6 +826,8 @@ export async function runCentralAlertsSync(): Promise<{
 
   reevaluateAllAlertStatuses();
   centralState.lastSync = Date.now();
+  // Arquivo permanente: cada aviso e cada mudança (para relatórios e notícias); uma falha aqui não estraga a sincronização
+  try { arquivarAvisos([...centralState.alerts.values()]); } catch (e: any) { console.warn('[Histórico] avisos:', e?.message || e); }
 
   const newImported = centralState.alerts.size - initialCount;
   console.log(`[Central Alerts Engine] Sincronização concluída. Total: ${centralState.alerts.size} alertas auditados.`);
