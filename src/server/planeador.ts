@@ -606,6 +606,16 @@ export async function planearViagem(
             procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos, rt: dia.data ? camadaTempoReal(ix, dia.data) : undefined });
           const jornadas = pedir(origens, destinos, janela > 3 * 3600 ? 2000 : 2500);
           juntarJornadas(jornadas, dia);
+          // O castigo de andar muito (custoAPe) entra na hora a que se chega à paragem: a 12 min a pé "chegava-se" aos 16 e
+          // perdia-se o autocarro que passa aos 13 (Faro, Vamus 59, achado na comparação com o Transitous). Procura-se também
+          // com o tempo real a pé; quem ordena e corta as opções continua a ser a escolha final, que pesa o esforço.
+          if (O.some((p) => p.minutos > 8) || D.some((p) => p.minutos > 8)) {
+            const oR: typeof origens = [];
+            for (const p of O) { const i = ix.stopIdx.get(p.id); if (i !== undefined) oR.push({ stop: i, t: base + p.minutos * 60 }); }
+            const dR = new Map<number, number>();
+            for (const p of D) { const i = ix.stopIdx.get(p.id); if (i !== undefined) dR.set(i, p.minutos * 60); }
+            if (oR.length && dR.size) juntarJornadas(pedir(oR, dR, 1200), dia);
+          }
           // Menos a pé: o motor só guarda o que chega mais cedo, por isso, se o melhor percurso obriga a andar muito até à
           // primeira paragem ou desde a última, procura-se outra vez só com as paragens mais perto. Ex.: São Bento → Aeroporto
           // (Porto): o metro D e depois o E chega à mesma hora que "11 min a pé até ao Bolhão e o E", mas quase sem andar.
