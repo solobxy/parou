@@ -3,6 +3,7 @@ import { X, AlertCircle, Loader2 } from 'lucide-react';
 import { useVoltarFecha } from '../utils/janelas';
 import { loginWithEmail, registerWithEmail, pedirRecuperacao, redefinirPalavraPasse } from '../services/conta';
 import { t } from '../i18n';
+import { CampoIsco } from './CampoIsco';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -160,6 +161,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         )}
 
         <form onSubmit={handleSubmit} className="space-y-2.5">
+          <CampoIsco />
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-semibold text-[#6B6B6B] mb-1">

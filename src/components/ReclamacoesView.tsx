@@ -25,6 +25,7 @@ import {
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { t, LOCALE } from '../i18n';
 import { resumoDoVotante } from '../utils/resumo';
+import { CampoIsco } from './CampoIsco';
 
 interface ReclamacoesViewProps {
   currentUser?: UserProfile | null;
@@ -354,6 +355,7 @@ export const ReclamacoesView: React.FC<ReclamacoesViewProps> = ({
             {formError && <p role="alert" className="text-xs text-[#D92D20]">{t(formError)}</p>}
 
             <form onSubmit={handleSubmitComplaint} className="space-y-3 text-xs">
+              <CampoIsco />
               <div>
                 <label className="block text-[#6B6B6B] font-semibold mb-1">{t('Operador')}</label>
                 <select aria-label={t('Operador')}

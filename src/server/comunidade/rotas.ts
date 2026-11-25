@@ -103,9 +103,19 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     res.json({ utilizador: conta ? perfilDaConta(conta) : null, emailAtivo: emailAtivo() });
   });
 
+  // Campo isco (components/CampoIsco.tsx): um robô encheu o campo escondido. Finge-se que correu bem (para não aprender a
+  // contorná-lo), não se guarda nada e fica registado no registo de segurança.
+  const eRobo = (req: any, res: any, resposta: unknown, estado = 201): boolean => {
+    if (String(req.headers['x-parou-isco'] || '') !== '1') return false;
+    registarEvento('isco', estado, req);
+    res.status(estado).json(resposta);
+    return true;
+  };
+
   app.post('/api/conta/registar', async (req, res) => {
     try {
       if (!dentroDoLimite(`registo:${ipDe(req)}`, 10, 3600_000)) return semLimite(res);
+      if (eRobo(req, res, { utilizador: null }, 200)) return;
       const { conta, token } = await registar(req.body?.email, req.body?.palavraPasse, req.body?.nome);
       pôrCookie(req, res, token);
       try { marcarAcesso(conta.id, lerCookie(req, 'parou_idioma')); } catch {}
@@ -266,6 +276,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       const conta = contaDoPedido(req, res);
       const ip = ipDe(req);
       if (!dentroDoLimite(`nova-ocorrencia:${ip}`, conta ? 8 : 4, 10 * 60_000) || !dentroDoLimite(`nova-ocorrencia-dia:${ip}`, 40, 24 * 3600_000)) return semLimite(res);
+      if (eRobo(req, res, { id: `occ-${Date.now().toString(36)}` })) return;
       res.status(201).json({ id: criarOcorrencia(req.body, conta) });
     } catch (err) { erro(res, err); }
   });
@@ -319,6 +330,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
       const conta = contaDoPedido(req, res);
       const ip = ipDe(req);
       if (!dentroDoLimite(`nova-reclamacao:${ip}`, conta ? 6 : 3, 10 * 60_000) || !dentroDoLimite(`nova-reclamacao-dia:${ip}`, 20, 24 * 3600_000)) return semLimite(res);
+      if (eRobo(req, res, { id: `rec-${Date.now().toString(36)}` })) return;
       res.status(201).json({ id: criarReclamacao(req.body, conta) });
     } catch (err) { erro(res, err); }
   });
@@ -388,6 +400,7 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     try {
       const conta = contaDoPedido(req, res);
       if (!dentroDoLimite(`nova-conversa:${ipDe(req)}`, 12, 10 * 60_000)) return semLimite(res);
+      if (eRobo(req, res, { id: `pub-${Date.now().toString(36)}` })) return;
       res.status(201).json({ id: criarConversa(conta, req.body) });
     } catch (err) { erro(res, err); }
   });

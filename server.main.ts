@@ -151,7 +151,7 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 });
 
 // Rotas de administração e diagnóstico: só com a chave de administração (ver /etc/parou.env).
-// Sem chave configurada ficam todas fechadas. A chave vem no cabeçalho x-parou-admin ou em ?chave=.
+// Sem chave configurada ficam todas fechadas. A chave vem só no cabeçalho x-parou-admin (em ?chave= deixou de valer, 25/11/2026).
 // Guarda-se no servidor só o resumo SHA-256 da chave (PAROU_ADMIN_HASH), nunca a chave em si.
 const CHAVE_ADMIN = String(process.env.PAROU_ADMIN_TOKEN || '').trim();
 const RESUMO_ADMIN = String(process.env.PAROU_ADMIN_HASH || '').trim().toLowerCase();
@@ -163,7 +163,8 @@ const ROTAS_ADMIN: RegExp[] = [
   /^\/debug(\/.*)?$/i,
 ];
 function pedidoDeAdmin(req: Request): boolean {
-  const dada = String(req.headers['x-parou-admin'] || req.query.chave || '');
+  // Só no cabeçalho: no endereço (?chave=…) a chave ficava guardada em históricos, registos e no "Referer" de outros sites
+  const dada = String(req.headers['x-parou-admin'] || '');
   if (dada.length < 16) return false;
   const resumoDado = crypto.createHash('sha256').update(dada).digest('hex');
   const esperado = RESUMO_ADMIN.length === 64

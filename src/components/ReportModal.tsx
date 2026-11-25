@@ -15,6 +15,7 @@ import {
   CONCELHOS_BY_CIDADE
 } from '../data/mockData';
 import { t } from '../i18n';
+import { CampoIsco } from './CampoIsco';
 import {
   checkReportRateLimit,
   recordReportSubmission,
@@ -237,6 +238,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+            <CampoIsco />
             {errorMsg && (
               <div className="p-3 rounded-[8px] bg-[#F4F4F2] border border-[#D92D20] text-xs text-[#D92D20]">
                 {t(errorMsg)}

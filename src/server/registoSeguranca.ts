@@ -34,9 +34,10 @@ export type TipoEvento =
   | 'pedido_grande' // corpo grande demais (413)
   | 'sondagem' // ferramenta à procura de ficheiros/painéis que não existem aqui
   | 'raspagem' // página de paragem/linha travada por parecer cópia automática do site (ver travaoRaspagem.ts)
-  | 'csp'; // o browser avisa que bloqueou (ou bloquearia) um script que não é da PAROU
+  | 'csp' // o browser avisa que bloqueou (ou bloquearia) um script que não é da PAROU
+  | 'isco'; // um robô preencheu o campo escondido de um formulário (registo, ocorrência, reclamação, publicação)
 
-export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem', 'raspagem', 'csp'];
+export const TIPOS: TipoEvento[] = ['chave_errada', 'admin_negado', 'entrada_falhada', 'redefinir_falhada', 'limite', 'origem_recusada', 'erro_servidor', 'pedido_grande', 'sondagem', 'raspagem', 'csp', 'isco'];
 
 const contexto = new AsyncLocalStorage<Request>();
 

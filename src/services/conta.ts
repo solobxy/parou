@@ -4,6 +4,7 @@
 //   (só quando o ecrã está visível, e o servidor responde "sem alterações" quando nada mudou).
 import { Occurrence, UserProfile, Complaint, ComplaintComment } from '../types';
 import { cabecalhosAdmin } from '../utils/admin';
+import { iscoPreenchido } from '../components/CampoIsco';
 
 // ---------------------------------------------------------------------------------------------
 // Pedidos ao servidor
@@ -21,7 +22,7 @@ export async function pedido<T = any>(metodo: string, url: string, corpo?: unkno
       r = await fetch(url, {
         method: metodo,
         credentials: 'same-origin',
-        headers: { ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}), ...cabecalhosAdmin() },
+        headers: { ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}), ...cabecalhosAdmin(), ...(metodo === 'POST' && iscoPreenchido() ? { 'x-parou-isco': '1' } : {}) },
         body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
         signal: AbortSignal.timeout(15000),
       });

@@ -5,6 +5,7 @@ import { Folha } from '../Folha';
 import { publicar, TIPOS_ESCOLHIVEIS, TipoConversa } from '../../services/comunidade';
 import { ROTULO_TIPO, OPERADORES_COMUNIDADE, textoDeErro } from './pecas';
 import { posicaoAtual } from '../../utils/posicao';
+import { CampoIsco } from '../CampoIsco';
 
 const DICA_TIPO: Record<TipoConversa, string> = {
   queixa: 'Algo correu mal',
@@ -88,6 +89,7 @@ const Formulario: React.FC<CompositorProps> = ({ onFechar, onPublicado, operador
       }
     >
       <form id="form-nova-publicacao" onSubmit={enviar} className="space-y-4 pt-2">
+        <CampoIsco />
         <fieldset>
           <legend className="text-[13px] font-semibold text-[#4A4A4A] mb-1.5">{t('Sobre o quê?')}</legend>
           <div role="radiogroup" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
