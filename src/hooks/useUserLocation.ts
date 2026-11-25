@@ -549,6 +549,63 @@ export function useUserLocation() {
     };
   }, [activateLocation]);
 
+  // Localização do telemóvel desligada (o site tem autorização): assim que a pessoa a liga nas definições rápidas, a PAROU
+  // mostra logo onde ela está, sem tocar em nada. Puxar a barra das definições não esconde a página (não há
+  // visibilitychange), por isso, com o ecrã visível, pergunta-se em silêncio a cada 1,5 s. Com a localização desligada
+  // a resposta é um erro imediato (não liga o GPS nem gasta bateria). Só quando o site já está autorizado: nunca abre a
+  // pergunta do browser sozinho, nem volta a ligar a quem a desligou na app.
+  const sondaRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    let parado = false;
+    let autorizado: boolean | null = null;
+    let ultimaConsulta = 0;
+    const podePerguntar = async (): Promise<boolean> => {
+      if (desligadaPelaPessoa() || memoriaPosicao?.isManual) return false;
+      // a autorização do site lê-se no máximo a cada 10 s (pode mudar nas definições do browser)
+      if (autorizado === null || Date.now() - ultimaConsulta > 10_000) {
+        ultimaConsulta = Date.now();
+        try {
+          if (navigator.permissions?.query) {
+            const r = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+            autorizado = r.state === 'granted';
+          } else {
+            autorizado = jaDeuLocalizacao();
+          }
+        } catch {
+          autorizado = jaDeuLocalizacao();
+        }
+      }
+      return autorizado === true;
+    };
+    const id = setInterval(async () => {
+      if (parado || sondaRef.current || document.visibilityState !== 'visible') return;
+      const st = statusRef.current;
+      const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable';
+      if (!desligadaNoTelemovel) return;
+      sondaRef.current = true;
+      try {
+        if (!(await podePerguntar()) || parado) return;
+        await new Promise<void>((fim) => {
+          try {
+            navigator.geolocation.getCurrentPosition(
+              () => {
+                fim();
+                const agora = statusRef.current;
+                if (!parado && (agora === 'denied' || agora === 'unavailable')) activateLocation(true);
+              },
+              () => fim(),
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60_000 },
+            );
+          } catch { fim(); }
+        });
+      } finally {
+        sondaRef.current = false;
+      }
+    }, 1500);
+    return () => { parado = true; clearInterval(id); };
+  }, [activateLocation]);
+
   // Vigia: com o ecrã visível e o GPS a seguir, se não chega nenhuma leitura há 25 s o seguimento recomeça
   // (acontece com o browser a poupar bateria). Se continua calado espera cada vez mais (25 s, 50 s, 100 s… até 5 min):
   // dentro de um edifício sem sinal não vale a pena ligar o recetor de GPS sem parar.
