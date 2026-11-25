@@ -186,6 +186,37 @@ function retirarDesaparecidos(fonte: string, vistos: Set<string>): void {
 /** Agências da Carris Metropolitana na plataforma GO da TML (os avisos delas vêm da API da própria Carris Metropolitana) */
 const AGENCIAS_TML_CM = new Set(['LA77N', 'BNA17', 'YA15B', 'A2L1N']);
 const LINHAS_METRO_LISBOA_TML: Record<string, string> = { '1': 'Azul', '2': 'Amarela', '3': 'Verde', '4': 'Vermelha' };
+/**
+ * A plataforma da TML tem o mesmo aviso uma vez por cada dia em que acontece (a MobiCascais publicou o desvio da linha 27 no
+ * Natal como 7 avisos, cada um com o título e o texto das datas que faltam). Juntam-se os que têm a mesma agência, o mesmo texto (sem as datas) e as
+ * mesmas linhas e paragens: fica o da próxima vez que acontece (o que está a decorrer ou o primeiro que ainda não acabou), com
+ * esse período, para o estado (Ativo/Futuro) continuar certo, e com um código fixo do grupo.
+ */
+export function juntarRepetidosTml(lista: TmlAlertRaw[], agoraMs = Date.now()): TmlAlertRaw[] {
+  const grupos = new Map<string, TmlAlertRaw[]>();
+  const saida: TmlAlertRaw[] = [];
+  for (const a of lista) {
+    const refs = (a.references || []).map((r) => `${r.parent_id || ''}:${[...(r.child_ids || [])].sort().join(',')}`).sort().join('|');
+    // O texto sem as datas: cada repetição traz a lista dos dias que faltam («nos dias 28 e 29 de novembro, 5, 8…»)
+    const texto = String(a.description || '').toLowerCase()
+      .replace(/\b(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/g, ' ')
+      .replace(/\b(dias?|de|e)\b/g, ' ').replace(/\d+/g, ' ').replace(/[,.;:]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!texto) { saida.push(a); continue; }
+    const k = `${a.agency_id || ''}|${a.cause || ''}|${a.effect || ''}|${refs}|${texto}`;
+    const g = grupos.get(k);
+    if (g) g.push(a); else grupos.set(k, [a]);
+  }
+  for (const [k, g] of grupos) {
+    if (g.length === 1) { saida.push(g[0]); continue; }
+    const ordem = [...g].sort((x, y) => (x.active_period_start_date || 0) - (y.active_period_start_date || 0));
+    const proximo = ordem.find((x) => !x.active_period_end_date || x.active_period_end_date >= agoraMs) || ordem[ordem.length - 1];
+    let h = 0;
+    for (let i = 0; i < k.length; i++) h = (Math.imul(h, 31) + k.charCodeAt(i)) | 0;
+    saida.push({ ...proximo, _id: `grupo-${(h >>> 0).toString(36)}` });
+  }
+  return saida;
+}
+
 /** Nome do operador de uma agência da TML, como a app o escreve nas outras fontes */
 export function operadorDaAgenciaTml(id: string | undefined, nome?: string): string | null {
   const porId: Record<string, string> = {
@@ -205,7 +236,7 @@ async function ingestTmlAlerts(): Promise<number> {
   const sourceUrl = 'https://go.tmlmobilidade.pt';
 
   try {
-    const rawAlerts = await getTmlAlerts();
+    const rawAlerts = juntarRepetidosTml(await getTmlAlerts());
     const agencias = new Map((await getTmlAgencies().catch(() => [])).map((ag) => [ag._id, String(ag.name || '')]));
     let imported = 0;
     const vistos = new Set<string>();
