@@ -159,11 +159,20 @@ function paragensPelaRede(lat: number, lon: number, lista: Paragem[]): Paragem[]
 /** Serviços ativos por operador num dia (cache da chamada) */
 /** Viagens da Carris Metropolitana do feed "cmh": passam a usar as paragens e o operador da API */
 function normalizarCmh(r: { de: string; para: string; feed: string }) {
+  if (r.feed === 'unirh') {
+    if (r.de.startsWith('unirh:')) r.de = `unir:${r.de.slice(6)}`;
+    if (r.para.startsWith('unirh:')) r.para = `unir:${r.para.slice(6)}`;
+    r.feed = 'unir';
+    return;
+  }
   if (r.feed !== 'cmh') return;
   if (r.de.startsWith('cmh:')) r.de = `cm:${r.de.slice(4)}`;
   if (r.para.startsWith('cmh:')) r.para = `cm:${r.para.slice(4)}`;
   r.feed = 'carris_metropolitana';
 }
+
+/** Linha como a app a guarda: as viagens "cmh:" usam "cm:" (Carris Metropolitana) e as "unirh:" usam "unir:" (UNIR) */
+const rotaDaApp = (r: string): string => (r.startsWith('cmh:') ? `cm:${r.slice(4)}` : r.startsWith('unirh:') ? `unir:${r.slice(6)}` : r);
 
 function servicosDoDia(dataStr: string, diaSemana: string) {
   const cache = new Map<string, Set<string>>();
@@ -400,7 +409,7 @@ function custoAPe(minutos: number): number {
  */
 function assinaturaDe(pernas: Perna[]): string {
   const linhaVisivel = (p: Perna) => {
-    const r = getDatabase().prepare('SELECT route_short_name AS s, route_long_name AS l FROM routes WHERE route_id = ?').get(p.route.startsWith('cmh:') ? `cm:${p.route.slice(4)}` : p.route) as any;
+    const r = getDatabase().prepare('SELECT route_short_name AS s, route_long_name AS l FROM routes WHERE route_id = ?').get(rotaDaApp(p.route)) as any;
     return `${p.feed}:${String(r?.s || r?.l || p.route).trim().toLowerCase()}`;
   };
   if (pernas.length === 1) return `D:${linhaVisivel(pernas[0])}`;
@@ -441,7 +450,9 @@ export async function planearViagem(
 
   // A UNIR não tem horários na base (vêm da AMP pelo telemóvel). A Carris Metropolitana tem: as
   // viagens estão no feed "cmh" com paragens "cmh:<id>" iguais às "cm:<id>" da API (ver parou-dados).
-  const semViagens = new Set<string>(['unir']);
+  // Com os horários da UNIR na base (GTFS da TMP) as paragens da UNIR entram como as outras; sem eles ficam de fora (a AMP completa)
+  const unirHorarios = !!indicePronto()?.unirComHorarios;
+  const semViagens = new Set<string>(unirHorarios ? [] : ['unir']);
   const classeDoFeed = (feed: string) => classeDeTransporte(null, String(feeds.get(feed)?.mode || ''));
   // Linhas (padrões: linha e sentido) que param em cada paragem, do motor em memória
   const ixP = indicePronto();
@@ -478,7 +489,7 @@ export async function planearViagem(
   const linhasCache = new Map<string, Linha>();
   const linha = (route: string): Linha | undefined => {
     if (linhasCache.has(route)) return linhasCache.get(route);
-    const r = db.prepare('SELECT route_short_name, route_long_name, route_type, route_color, feed_id FROM routes WHERE route_id = ?').get(route.startsWith('cmh:') ? `cm:${route.slice(4)}` : route) as any;
+    const r = db.prepare('SELECT route_short_name, route_long_name, route_type, route_color, feed_id FROM routes WHERE route_id = ?').get(rotaDaApp(route)) as any;
     const l = r ? { short: String(r.route_short_name || r.route_long_name || ''), long: String(r.route_long_name || ''), tipo: Number(r.route_type ?? 3), cor: r.route_color ? `#${String(r.route_color).replace(/^#/, '')}` : '#111111', feed: r.feed_id } : undefined;
     linhasCache.set(route, l as Linha);
     return l;
@@ -518,7 +529,7 @@ export async function planearViagem(
   let janela = 3 * 3600; // até onde se procuram partidas (o resto do dia e a manhã seguinte, se não houver nada)
   const executar = () => {
   if (O.length && D.length) {
-    const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : [p.id]));
+    const comCmh = (ps: Paragem[]) => ps.flatMap((p) => (p.id.startsWith('cm:') ? [p.id, `cmh:${p.id.slice(3)}`] : p.id.startsWith('unir:') ? [p.id, `unirh:${p.id.slice(5)}`] : [p.id]));
     const idsO = comCmh(O), idsD = comCmh(D);
     // -------------------------------------------------------------- motor em memória (vários transbordos)
     let feito = false;
@@ -911,7 +922,7 @@ export async function planearViagem(
   // paragens: o JOIN não as acha e o troço ficava sem pontos (e o troço a pé seguinte saía do sítio errado)
   const qParagensDaViagem = db.prepare('SELECT stop_id FROM stop_times WHERE trip_id = ? AND stop_sequence BETWEEN ? AND ? ORDER BY stop_sequence');
   const qParagem = db.prepare('SELECT stop_lat AS lat, stop_lon AS lon, stop_name AS nome FROM stops WHERE stop_id = ?');
-  const idDaParagem = (id: string) => (id.startsWith('cmh:') ? `cm:${id.slice(4)}` : id);
+  const idDaParagem = (id: string) => (id.startsWith('cmh:') ? `cm:${id.slice(4)}` : id.startsWith('unirh:') ? `unir:${id.slice(6)}` : id);
   const paragem = (id: string) => qParagem.get(idDaParagem(id)) as { lat: number; lon: number; nome: string } | undefined;
   for (const o of escolhidas) {
     for (const l of o.legs as any[]) {
@@ -961,8 +972,9 @@ export async function planearViagem(
 
   // ------------------------------------------------------------------ UNIR (o telemóvel completa)
   const unir: CandidatoUnir[] = [];
-  const uO = paragensPerto(oLat, oLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
-  const uD = paragensPerto(dLat, dLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
+  // Com horários da UNIR na base, a UNIR já vem nos percursos normais: as pesquisas à parte (horas pela AMP) não fazem falta
+  const uO = unirHorarios ? [] : paragensPerto(oLat, oLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
+  const uD = unirHorarios ? [] : paragensPerto(dLat, dLon, RAIO_A_PE, 400).filter((p) => p.feed === 'unir').slice(0, 25);
   const queAnteriores = db.prepare(
     'SELECT stop_id AS id, stop_sequence AS seq FROM stop_routes WHERE route_id = ? AND direction_id = ? AND stop_sequence > ? AND stop_sequence < ? ORDER BY stop_sequence DESC LIMIT 3',
   );
@@ -1024,7 +1036,7 @@ export async function planearViagem(
   const emTransitoReg = routes.filter((r) => r.id !== 'a-pe');
   const aPeReg = emTransitoReg.length ? Math.min(...emTransitoReg.map((r) => r.walkingMinutes)) : 0;
   const fracoReg = !emTransitoReg.length || aPeReg > 9 || emTransitoReg[0].transfersCount > 0 || emTransitoReg[0].totalDurationMinutes > 45;
-  if (modoLig && (fracoReg || uO.length || uD.length)) {
+  if (modoLig && !unirHorarios && (fracoReg || uO.length || uD.length)) {
     try {
       const ix = indicePronto();
       const dia = dias[0];

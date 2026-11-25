@@ -90,6 +90,8 @@ export interface Indice {
   nRotas: number;
   /** 1 = a paragem tem pelo menos uma linha de metro, comboio ou barco */
   estacao: Uint8Array;
+  /** A UNIR tem horários na base (feed "unirh"): entra na pesquisa normal e as pesquisas estimadas ("sint") deixam de ser precisas */
+  unirComHorarios?: boolean;
 }
 
 export interface Corrida { pat: number; t: number; b: number; a: number }
@@ -196,6 +198,7 @@ async function construir(dbAny: any): Promise<Indice> {
       if (ti === undefined || n >= total) continue;
       let sid: string = r.stop_id;
       if (tFeed[ti] === 'cmh' && sid.startsWith('cmh:')) sid = `cm:${sid.slice(4)}`;
+      else if (tFeed[ti] === 'unirh' && sid.startsWith('unirh:')) sid = `unir:${sid.slice(6)}`; // horários da UNIR (TMP): paragens da AMP
       let si = stopIdx.get(sid);
       if (si === undefined) si = addStop(sid, NaN, NaN);
       let a = r.a == null ? -1 : Number(r.a), d = r.d == null ? -1 : Number(r.d);
@@ -310,7 +313,7 @@ async function construir(dbAny: any): Promise<Indice> {
       });
       const trips = sg.map((k) => g.trips[k]);
       padroes.push({
-        feed: g.feed, feedSaida: g.feed === 'cmh' ? 'carris_metropolitana' : g.feed, route: g.route, routeIdx: ri,
+        feed: g.feed, feedSaida: g.feed === 'cmh' ? 'carris_metropolitana' : g.feed === 'unirh' ? 'unir' : g.feed, route: g.route, routeIdx: ri,
         modo: classeRota.get(`${g.feed}|${g.route}`) ?? MODO_RODOVIARIO,
         stops: g.stops, nT, dep, arr, seq, pick,
         tripId: trips.map((t) => tId[t]), service: trips.map((t) => tSvc[t]), headsign: trips.map((t) => tHs[t]),
@@ -320,8 +323,10 @@ async function construir(dbAny: any): Promise<Indice> {
   }
   grupos.clear();
 
-  // --- linhas da UNIR sem horários: um padrão "freq" por linha e sentido (a hora vem de uma espera média, não de viagens)
-  try {
+  // --- linhas da UNIR sem horários: um padrão "freq" por linha e sentido (a hora vem de uma espera média, não de viagens).
+  // Com os horários da UNIR na base (feed "unirh", GTFS da TMP) não fazem falta: a UNIR entra como as outras linhas.
+  const unirComHorarios = tFeed.some((f) => f === 'unirh');
+  if (!unirComHorarios) try {
     const linhasU = dbAny.prepare(
       `SELECT sr.route_id AS r, sr.direction_id AS d, sr.stop_id AS s, sr.stop_sequence AS q FROM stop_routes sr
        JOIN stops st ON st.stop_id = sr.stop_id WHERE st.feed_id = 'unir' ORDER BY sr.route_id, sr.direction_id, sr.stop_sequence`,
@@ -382,7 +387,7 @@ async function construir(dbAny: any): Promise<Indice> {
     if (l) l.push(s); else grelha.set(k, [s]);
   }
 
-  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, grelhaS, viz: new Map(), vizS: new Map(), nRotas: routeIdxMap.size, estacao };
+  return { db: dbAny, construidoEm: Date.now() - t0, stopId, stopIdx, lat, lon, padroes, psStart, psPat, psPos, grelha, grelhaS, viz: new Map(), vizS: new Map(), nRotas: routeIdxMap.size, estacao, unirComHorarios };
 }
 
 function vizinhos(ix: Indice, s: number, sint = false): { ids: Int32Array; min: Uint8Array } {

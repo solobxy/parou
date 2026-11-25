@@ -5,6 +5,7 @@
 // direto sobre as viagens que estão a circular (GTFS-Realtime, "trip updates"):
 //   - Carris Metropolitana: previsões da plataforma GO da TML (organização LA3SO), com os mesmos códigos de viagem do GTFS
 //     que a base guarda como "cmh:<viagem>";
+//   - UNIR: previsões da TMP na mesma plataforma (organização 53JAZ), com os códigos do GTFS da TMP ("unirh:<viagem>");
 //   - TUB (Braga): as mesmas previsões que a app já usa nas partidas ("tub_braga:<viagem>").
 // Para cada viagem com previsão calcula-se o atraso em cada paragem do padrão: o motor passa a usar a hora prevista para
 // entrar, sair e fazer transbordos, deixa de propor viagens suprimidas e não entra em paragens por onde o veículo já passou
@@ -17,6 +18,8 @@ import { registerCacheClearCallback } from './db/gtfsDatabase';
 
 /** Previsões em GTFS-Realtime da Carris Metropolitana (plataforma GO da TML; sem chave) */
 export const URL_PREVISOES_CM = 'https://go.tmlmobilidade.pt/hub/api/v1/LA3SO/eta/gtfs.pb';
+/** Previsões em GTFS-Realtime da UNIR (TMP, na mesma plataforma; sem chave) */
+export const URL_PREVISOES_UNIR = 'https://go.tmlmobilidade.pt/hub/api/v1/53JAZ/eta/gtfs.pb';
 
 /** Valor de atraso que quer dizer "não se pode usar esta paragem nesta viagem" (já passou, vai saltar ou foi suprimida) */
 export const NAO = 0x40000000;
@@ -32,31 +35,32 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 interface Fonte { prefixo: string; feed: string; viagens: Map<string, ViagemTub>; hora: number; quando: number }
 
-let cm: Fonte | null = null;
-let emCurso: Promise<void> | null = null;
-let ultimoPedido = 0;
-let falhou = false;
-let ultimoAviso = 0;
+/** Uma fonte da plataforma GO da TML: um pedido partilhado por todos, no máximo de 20 em 20 s (60 s depois de uma falha) */
+interface FonteTml { nome: string; url: string; prefixo: string; feed: string; dados: Fonte | null; emCurso: Promise<void> | null; ultimoPedido: number; falhou: boolean; ultimoAviso: number }
+const fontesTml: FonteTml[] = [
+  { nome: 'Carris Metropolitana', url: URL_PREVISOES_CM, prefixo: 'cmh:', feed: 'cmh', dados: null, emCurso: null, ultimoPedido: 0, falhou: false, ultimoAviso: 0 },
+  { nome: 'UNIR', url: URL_PREVISOES_UNIR, prefixo: 'unirh:', feed: 'unirh', dados: null, emCurso: null, ultimoPedido: 0, falhou: false, ultimoAviso: 0 },
+];
 let versao = 0;
 
-async function pedirCm(): Promise<void> {
-  ultimoPedido = Date.now();
+async function pedirTml(f: FonteTml): Promise<void> {
+  f.ultimoPedido = Date.now();
   try {
-    const res = await fetch(URL_PREVISOES_CM, { headers: { 'User-Agent': 'PAROU.PT/2.0 (+https://parou.pt)' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetch(f.url, { headers: { 'User-Agent': 'PAROU.PT/2.0 (+https://parou.pt)' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const corpo = new Uint8Array(await res.arrayBuffer());
     if (corpo.byteLength > MAX_BYTES) throw new Error('ficheiro grande demais');
     const hora = lerHoraDoFicheiro(corpo);
     const viagens = new Map<string, ViagemTub>();
     for (const v of lerViagensTub(corpo, hora)) viagens.set(v.tripId, v);
-    cm = { prefixo: 'cmh:', feed: 'cmh', viagens, hora, quando: Date.now() };
+    f.dados = { prefixo: f.prefixo, feed: f.feed, viagens, hora, quando: Date.now() };
     versao++;
-    falhou = false;
+    f.falhou = false;
   } catch (e: any) {
-    falhou = true;
-    if (Date.now() - ultimoAviso > 10 * 60 * 1000) {
-      ultimoAviso = Date.now();
-      console.warn(`[Planeador] previsões da Carris Metropolitana: não consegui ler (${e?.message || e}); uso o horário.`);
+    f.falhou = true;
+    if (Date.now() - f.ultimoAviso > 10 * 60 * 1000) {
+      f.ultimoAviso = Date.now();
+      console.warn(`[Planeador] previsões da ${f.nome}: não consegui ler (${e?.message || e}); uso o horário.`);
     }
   }
 }
@@ -66,22 +70,23 @@ const idade = (f: { hora: number; quando: number }) => Math.max((Date.now() - f.
 let tub: Fonte | null = null;
 
 /**
- * Atualiza as previsões (um pedido partilhado por todos, no máximo de 20 em 20 s) e espera por elas até `maxEsperaMs`.
- * Chamar no início de cada planeamento.
+ * Atualiza as previsões e espera por elas até `maxEsperaMs` (só se não houver nenhumas de há menos de 1 min: aí usa-se o
+ * que há e atualiza-se por trás). Chamar no início de cada planeamento.
  */
 export async function atualizarTempoReal(maxEsperaMs = 800): Promise<void> {
   const agora = Date.now();
-  const fresca = !!cm && agora - cm.quando < TTL_MS;
-  if (!fresca && !emCurso && agora - ultimoPedido >= (falhou ? ESPERA_APOS_FALHA_MS : TTL_MS)) {
-    emCurso = pedirCm().finally(() => { emCurso = null; });
-  }
-  // Com previsões de há menos de 1 min usa-se o que há e atualiza-se por trás (não se faz esperar ninguém)
   const recente = (f: Fonte | null) => !!f && idade(f) < 60;
-  const pedidoTub = viagensTub(recente(tub) ? 0 : maxEsperaMs).then((d) => {
+  const espera: Promise<unknown>[] = [];
+  for (const f of fontesTml) {
+    const fresca = !!f.dados && agora - f.dados.quando < TTL_MS;
+    if (!fresca && !f.emCurso && agora - f.ultimoPedido >= (f.falhou ? ESPERA_APOS_FALHA_MS : TTL_MS)) {
+      f.emCurso = pedirTml(f).finally(() => { f.emCurso = null; });
+    }
+    if (!fresca && f.emCurso && !recente(f.dados)) espera.push(f.emCurso);
+  }
+  espera.push(viagensTub(recente(tub) ? 0 : maxEsperaMs).then((d) => {
     if (d && (!tub || tub.viagens !== d.dados)) { tub = { prefixo: 'tub_braga:', feed: 'tub_braga', viagens: d.dados, hora: Math.floor(Date.now() / 1000 - d.idadeS), quando: Date.now() - d.idadeS * 1000 }; versao++; }
-  }).catch(() => undefined);
-  const espera: Promise<unknown>[] = [pedidoTub];
-  if (!fresca && emCurso && !recente(cm)) espera.push(emCurso);
+  }).catch(() => undefined));
   let t: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([Promise.all(espera), new Promise<void>((r) => { t = setTimeout(r, maxEsperaMs); })]);
   if (t) clearTimeout(t);
@@ -102,7 +107,7 @@ function viagensDoIndice(ix: Indice): Map<string, number> {
   if (viagemDe && viagemDe.ix === ix) return viagemDe.mapa;
   const mapa = new Map<string, number>();
   ix.padroes.forEach((pd, p) => {
-    if (pd.freq || (pd.feed !== 'cmh' && pd.feed !== 'tub_braga')) return;
+    if (pd.freq || (pd.feed !== 'cmh' && pd.feed !== 'unirh' && pd.feed !== 'tub_braga')) return;
     for (let t = 0; t < pd.nT; t++) mapa.set(pd.tripId[t], p * 1048576 + t);
   });
   viagemDe = { ix, mapa };
@@ -114,7 +119,7 @@ function viagensDoIndice(ix: Indice): Map<string, number> {
  * Fica em memória enquanto as previsões não mudarem.
  */
 export function camadaTempoReal(ix: Indice, diaServico: string): CamadaTempoReal | undefined {
-  const fontes = [cm, tub].filter((f): f is Fonte => !!f && idade(f) <= IDADE_MAXIMA_S);
+  const fontes = [...fontesTml.map((f) => f.dados), tub].filter((f): f is Fonte => !!f && idade(f) <= IDADE_MAXIMA_S);
   if (!fontes.length) return undefined;
   if (camadasDe !== ix) { camadas.clear(); camadasDe = ix; }
   const chave = `${diaServico}|${versao}|${fontes.map((f) => f.feed).join(',')}`;
@@ -156,7 +161,7 @@ export function atrasosDaViagem(ix: Indice, p: number, t: number, v: ViagemTub, 
   const pd = ix.padroes[p], nS = pd.stops.length, o = t * nS;
   const atrasos = new Int32Array(nS).fill(NAO);
   if (v.cancelada) return atrasos;
-  const prefixoParagem = prefixo === 'cmh:' ? 'cm:' : prefixo;
+  const prefixoParagem = prefixo === 'cmh:' ? 'cm:' : prefixo === 'unirh:' ? 'unir:' : prefixo;
   const marcas = new Map<number, { d: number | null; salta: boolean }>();
   let ultima = 0;
   const paragens = [...v.paragens].sort((a, b) => a.sequencia - b.sequencia);
@@ -201,5 +206,6 @@ export function horaPrevista(ix: Indice, rt: CamadaTempoReal | undefined, p: num
 
 /** Só para os testes: esquece as previsões */
 export function limparTempoRealPlaneador(): void {
-  cm = null; tub = null; emCurso = null; ultimoPedido = 0; falhou = false; camadas.clear(); versao++;
+  for (const f of fontesTml) { f.dados = null; f.emCurso = null; f.ultimoPedido = 0; f.falhou = false; }
+  tub = null; camadas.clear(); versao++;
 }
