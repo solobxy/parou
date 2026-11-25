@@ -1,5 +1,5 @@
 import React from 'react';
-import { Footprints, ChevronDown, ChevronRight, Radio } from 'lucide-react';
+import { Footprints, ChevronDown, ChevronRight, Radio, TriangleAlert, ArrowUpRight } from 'lucide-react';
 import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
@@ -84,6 +84,8 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
       : '';
 
   const salto = (route.arrivalDayOffset || 0) - (route.departureDayOffset || 0);
+  // Greve oficial num dos troços: aparece já no resumo (pode não haver esse transporte)
+  const greve = route.legs.find((l) => l.mode === 'TRANSIT' && l.greve)?.greve;
   // A que chega primeiro e a que se recomenda (tempo e esforço); "Mais rápido" vinha só pelo texto, que muda com a língua
   const destaque = route.highlight || (/^Mais rápido/.test(route.badgeLabel || '') ? 'mais_rapido' : undefined);
 
@@ -152,6 +154,15 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
               {apoio}
             </p>
           )}
+          {greve && (
+            <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] text-[#111111] leading-snug" data-teste="greve-rota">
+              <TriangleAlert className="w-3.5 h-3.5 mt-[2px] shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
+              <span>
+                <span className="font-semibold">{greve.previsto ? t('Perturbações previstas na {o}', { o: greve.operador }) : t('Greve na {o}', { o: greve.operador })}</span>
+                {` · ${t('pode não circular')}`}
+              </span>
+            </p>
+          )}
         </div>
       </button>
 
@@ -207,6 +218,24 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
                           leg.isRealtime ? textoDireto(leg.atrasoMinutos) : '',
                         ].filter(Boolean).join(' · ')}
                       </span>
+                      {leg.greve && (
+                        <span className="basis-full flex items-start gap-1.5 text-[13px] text-[#111111] leading-snug" data-teste="greve-troco">
+                          <TriangleAlert className="w-4 h-4 mt-px shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
+                          <span className="flex flex-col items-start">
+                            <span>
+                              {leg.greve.previsto
+                                ? t('A {o} prevê perturbações neste dia por causa da greve.', { o: leg.greve.operador })
+                                : t('Greve na {o} à hora desta viagem: pode não circular.', { o: leg.greve.operador })}
+                            </span>
+                            {leg.greve.url && (
+                              <a href={leg.greve.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 min-h-[40px] -mb-2 font-semibold underline underline-offset-2 decoration-[#6B6B6B] hover:decoration-[#111111] rounded-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]">
+                                {t('Aviso oficial')}
+                                <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.25]" aria-hidden="true" />
+                              </a>
+                            )}
+                          </span>
+                        </span>
+                      )}
                     </span>
                   </li>
                   <li className="grid grid-cols-[44px_20px_1fr] gap-x-2 items-center">

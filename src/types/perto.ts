@@ -105,6 +105,19 @@ export interface RouteLeg {
   caminho?: string;
   /** O autocarro passou na hora há 1–2 min e não há previsão em direto: pode ainda não ter passado */
   talvezJaPassou?: boolean;
+  /** Greve confirmada pelo operador (aviso oficial) no dia e hora deste troço */
+  greve?: GreveTroco;
+}
+
+/** Greve oficial que afeta um troço */
+export interface GreveTroco {
+  /** Título do aviso oficial */
+  titulo: string;
+  /** Página do aviso oficial */
+  url: string;
+  operador: string;
+  /** Não é dia de greve, mas o operador avisa que ainda há perturbações nesse dia */
+  previsto?: boolean;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }

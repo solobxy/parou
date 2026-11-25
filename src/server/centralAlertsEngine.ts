@@ -860,6 +860,17 @@ export interface CentralAlertQuery {
   search?: string;
 }
 
+// Avisos já em memória, sem esperar pela rede (para o planeador: um pedido de percurso não pode ficar à espera das fontes).
+// Se estão velhos, pede-se uma atualização em segundo plano, que serve os pedidos seguintes.
+let atualizacaoEmCurso: Promise<unknown> | null = null;
+export function avisosEmMemoria(): CentralAlert[] {
+  if ((Date.now() - centralState.lastSync > 60 * 1000 || centralState.alerts.size === 0) && !atualizacaoEmCurso) {
+    atualizacaoEmCurso = runCentralAlertsSync().catch(() => {}).finally(() => { atualizacaoEmCurso = null; });
+  }
+  reevaluateAllAlertStatuses();
+  return Array.from(centralState.alerts.values());
+}
+
 // Retrieve filtered central alerts
 export async function getCentralAlerts(query: CentralAlertQuery = {}): Promise<CentralAlert[]> {
   // If never synced or older than 60s, trigger sync

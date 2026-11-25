@@ -1321,5 +1321,11 @@ export const EN: Record<string, string> = {
   'Se ainda não tens cartão Andante Azul, custa mais {p}.': 'If you don’t have a blue Andante card yet, add {p}.',
   'Tarifário oficial': 'Official fares',
   'App Anda': 'Anda app',
+  'Greve na {o}': '{o} strike',
+  'Perturbações previstas na {o}': '{o} disruption expected',
+  'pode não circular': 'may not run',
+  'A {o} prevê perturbações neste dia por causa da greve.': '{o} expects disruption on this day because of the strike.',
+  'Greve na {o} à hora desta viagem: pode não circular.': '{o} strike at the time of this trip: it may not run.',
+  'Aviso oficial': 'Official notice',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Same time as line {l} in the official timetable; only one of them runs then',
 };
