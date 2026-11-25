@@ -55,6 +55,7 @@ import { CentralAlert } from '../types/alerts';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
+import { AvisoMesmaHora } from './AvisoMesmaHora';
 import { InputPesquisa } from './InputPesquisa';
 import { ConteudoSugestao } from './SugestaoDestino';
 import { OpcaoRota } from './OpcaoRota';
@@ -1008,6 +1009,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             state: d.state,
             statusDescription: d.state_reason || d.state,
             ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
+            ...(d.mesma_hora_que ? { mesmaHoraQue: d.mesma_hora_que } : {}),
           }));
           setPartidasExtra({ id, deps, aCarregar: false });
         })
@@ -2511,6 +2513,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {destination}
                                 </div>
                                 {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="mt-1" />}
+                                <AvisoMesmaHora linha={dep.mesmaHoraQue} />
                               </div>
                             </div>
                             <div className="shrink-0 flex items-center gap-1 pl-2">
@@ -2860,6 +2863,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {dep.operatorName && <span className="truncate">{dep.operatorName}</span>}
                                 </div>
                               )}
+                              <AvisoMesmaHora linha={dep.mesmaHoraQue} />
                             </div>
                           </div>
                           <div className="shrink-0 flex items-center gap-1">

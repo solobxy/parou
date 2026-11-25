@@ -39,6 +39,11 @@ export interface LiveDeparture {
   display_text: string;
   vehicle_id?: string;
   aviso_horario?: string;
+  /**
+   * Metro com horário (sem tempo real) que, no horário oficial, tem a mesma hora que outra linha no mesmo sentido e na mesma
+   * estação: na linha só cabe um metro de cada vez. Traz a letra da outra linha (Metro do Porto: A e F, ver marcarMesmaHora).
+   */
+  mesma_hora_que?: string;
 }
 
 export interface LiveVehicle {

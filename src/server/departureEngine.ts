@@ -156,6 +156,49 @@ export function clearNextDeparturesCache(): void {
 // Base nova: as partidas guardadas vêm da base antiga
 registerCacheClearCallback(clearNextDeparturesCache);
 
+/**
+ * O horário oficial do Metro do Porto (PDF e GTFS desde 7/9/2026) dá a mesma hora, minuto a minuto, a 74 das 84 viagens da linha A
+ * e a uma viagem da F no troço comum (Senhora da Hora–Estádio do Dragão). Na estação passa um só metro a essa hora (confirmado em
+ * Campanhã, 25/11/2026); o outro passa minutos depois, a uma hora que o horário não diz. Não se sabe qual dos dois está certo, por
+ * isso não se mexe nas horas: marca-se a partida para a app avisar. Só metro e elétrico (route_type 0 e 1) sem tempo real, na mesma
+ * paragem, ao mesmo minuto, linhas diferentes do mesmo operador e o mesmo sentido (direction_id).
+ */
+export function marcarMesmaHora(deps: LiveDeparture[], sentidoDe?: (tripIds: string[]) => Map<string, number>): void {
+  const grupos = new Map<string, LiveDeparture[]>();
+  for (const d of deps) {
+    if (d.is_realtime || (d.route_type !== 0 && d.route_type !== 1)) continue;
+    const k = `${d.feed_id}|${d.stop_id}|${Math.floor(d.dep_epoch_secs / 60)}`;
+    const l = grupos.get(k);
+    if (l) l.push(d); else grupos.set(k, [d]);
+  }
+  const suspeitos = [...grupos.values()].filter((l) => new Set(l.map((d) => d.route_id)).size > 1);
+  if (!suspeitos.length) return;
+  let sentido: Map<string, number>;
+  try {
+    const ids = [...new Set(suspeitos.flat().map((d) => d.trip_id))];
+    sentido = sentidoDe ? sentidoDe(ids) : sentidoDasViagens(ids);
+  } catch {
+    return;
+  }
+  for (const l of suspeitos) {
+    for (const d of l) {
+      const sd = sentido.get(d.trip_id);
+      if (sd === undefined) continue;
+      const outra = l.find((x) => x !== d && x.route_id !== d.route_id && sentido.get(x.trip_id) === sd);
+      if (outra) d.mesma_hora_que = outra.route_short_name || outra.route_id;
+    }
+  }
+}
+
+function sentidoDasViagens(ids: string[]): Map<string, number> {
+  const m = new Map<string, number>();
+  if (!ids.length) return m;
+  const db = getDatabase();
+  const rows = db.prepare(`SELECT trip_id, direction_id FROM trips WHERE trip_id IN (${ids.map(() => '?').join(',')})`).all(...ids) as Array<{ trip_id: string; direction_id: number | null }>;
+  for (const r of rows) if (r.direction_id !== null && r.direction_id !== undefined) m.set(String(r.trip_id), Number(r.direction_id));
+  return m;
+}
+
 export class DepartureEngine {
   /**
    * Main nextDepartures engine:
@@ -504,6 +547,8 @@ export class DepartureEngine {
         d.display_text = 'sem horário';
       }
     }
+
+    marcarMesmaHora(activeDepartures);
 
     // 5. Handling "Nothing left today" and "Fora de serviço"
     let statusNotice: string | undefined;

@@ -106,6 +106,7 @@ export async function getNearbyTransitData(
       statusDescription: d.state_reason || d.state,
       isDelayed: d.is_delayed,
       aviso_horario: d.aviso_horario,
+      ...(d.mesma_hora_que ? { mesmaHoraQue: d.mesma_hora_que } : {}),
       dep_epoch_secs: d.dep_epoch_secs,
       realtime_epoch_secs: d.realtime_epoch_secs,
     }));

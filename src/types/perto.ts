@@ -19,6 +19,8 @@ export interface NextDeparture {
   statusDescription: string; // "Em circulação ao vivo", "No horário programado", "+4 min de atraso"
   vehicleId?: string;
   aviso_horario?: string;
+  /** No horário oficial tem a mesma hora que esta linha, no mesmo sentido (só passa um metro): ver marcarMesmaHora */
+  mesmaHoraQue?: string;
   dep_epoch_secs?: number;
   realtime_epoch_secs?: number;
 }
