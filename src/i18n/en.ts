@@ -1315,5 +1315,11 @@ export const EN: Record<string, string> = {
   'Horário previsto: o operador ainda não publicou este dia.': 'Expected timetable: the operator has not published this day yet.',
   'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.': 'To get the prompt back: tap the icon next to the address, reset the permissions and tap Turn on location again.',
   'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.': 'Chrome did not show the Android prompt to turn it on: it pauses it after someone dismisses it.',
+  'Greve na {o}': '{o} strike',
+  'Perturbações previstas na {o}': '{o} disruption expected',
+  'pode não circular': 'may not run',
+  'A {o} prevê perturbações neste dia por causa da greve.': '{o} expects disruption on this day because of the strike.',
+  'Greve na {o} à hora desta viagem: pode não circular.': '{o} strike at the time of this trip: it may not run.',
+  'Aviso oficial': 'Official notice',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Same time as line {l} in the official timetable; only one of them runs then',
 };

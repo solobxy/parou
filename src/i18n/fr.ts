@@ -1315,5 +1315,11 @@ export const FR: Record<string, string> = {
   'Horário previsto: o operador ainda não publicou este dia.': 'Horaires prévus : l’exploitant n’a pas encore publié ce jour.',
   'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.': 'Pour que la demande revienne : touche l’icône à côté de l’adresse, réinitialise les autorisations et touche à nouveau Activer la localisation.',
   'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.': 'Chrome n’a pas affiché la demande d’Android pour l’activer : il la met en pause après un refus.',
+  'Greve na {o}': 'Grève {o}',
+  'Perturbações previstas na {o}': 'Perturbations prévues {o}',
+  'pode não circular': 'peut ne pas circuler',
+  'A {o} prevê perturbações neste dia por causa da greve.': '{o} prévoit des perturbations ce jour-là à cause de la grève.',
+  'Greve na {o} à hora desta viagem: pode não circular.': 'Grève {o} à l’heure de ce trajet : il peut ne pas circuler.',
+  'Aviso oficial': 'Avis officiel',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Même horaire que la ligne {l} dans l’horaire officiel ; une seule des deux passe',
 };

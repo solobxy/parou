@@ -18,6 +18,7 @@ import { caminhoAPe, distanciasAPe, type CaminhoAPe } from './caminhoAPe';
 import { podarMapa } from './cacheLimitada';
 import { atualizarTempoReal, camadaTempoReal, horaPrevista } from './tempoRealPlaneador';
 import { janelaTalvez } from './atrasosMedidos';
+import { grevesParaPlaneador, greveDoTroco } from './grevesPlaneador';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
@@ -433,8 +434,8 @@ export async function planearViagem(
 ): Promise<RespostaPlano> {
   // Acabado de arrancar: espera pelo motor em memória em vez de responder com o SQL (pior e mais lento)
   if (!indicePronto()) await esperarIndice();
-  // Previsões em direto dos operadores (no máximo 0,8 s; sem elas fica o horário)
-  await atualizarTempoReal(800);
+  // Previsões em direto dos operadores (no máximo 0,8 s; sem elas fica o horário) e greves oficiais (no máximo 1,5 s)
+  const [, greves] = await Promise.all([atualizarTempoReal(800), grevesParaPlaneador()]);
   const db = getDatabase();
   const feeds = new Map(getAllFeeds().map((f: any) => [f.id, f]));
   const nomeOperador = (feed: string) => String(feeds.get(feed)?.operator_name || feed.toUpperCase());
@@ -536,6 +537,8 @@ export async function planearViagem(
       ...(p.direto && p.atraso !== undefined ? { atrasoMinutos: Math.round(p.atraso / 60) } : {}),
       departureTime: hm(p.parte - desvio),
       arrivalTime: hm(p.chega - desvio),
+      // Greve confirmada pelo operador no dia e hora deste troço (sem greve fica undefined e não vai na resposta)
+      greve: greveDoTroco(p.feed, (epocaMeiaNoite + p.parte - desvio) * 1000, greves),
     } as RouteLeg;
   };
 
