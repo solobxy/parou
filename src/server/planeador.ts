@@ -18,6 +18,7 @@ import { caminhoAPe, distanciasAPe, type CaminhoAPe } from './caminhoAPe';
 import { podarMapa } from './cacheLimitada';
 import { atualizarTempoReal, camadaTempoReal, horaPrevista } from './tempoRealPlaneador';
 import { janelaTalvez } from './atrasosMedidos';
+import { tarifaDaViagem } from './tarifaAndante';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
@@ -983,9 +984,12 @@ export async function planearViagem(
   const idDaParagem = (id: string) => (id.startsWith('cmh:') ? `cm:${id.slice(4)}` : id.startsWith('unirh:') ? `unir:${id.slice(6)}` : id);
   const paragem = (id: string) => qParagem.get(idDaParagem(id)) as { lat: number; lon: number; nome: string } | undefined;
   for (const o of escolhidas) {
+    const pernasDaOpcao: Perna[] = [];
+    let todasComPerna = true;
     for (const l of o.legs as any[]) {
       const p: Perna | undefined = l._perna;
       delete l._perna;
+      if (l.mode === 'TRANSIT') { if (p) pernasDaOpcao.push(p); else todasComPerna = false; }
       if (l.mode === 'TRANSIT' && p) {
         try {
           if (p.sa != null && p.sb != null) {
@@ -1007,6 +1011,11 @@ export async function planearViagem(
       }
     }
     ligarTrocosAPe(o.legs, { lat: oLat, lon: oLon }, { lat: dLat, lon: dLon });
+    // Título Andante (só com dados oficiais e certeza; senão a opção vai sem preço)
+    if (todasComPerna && pernasDaOpcao.length) {
+      const tarifa = tarifaDaViagem(pernasDaOpcao, agora);
+      if (tarifa) o.tarifa = tarifa;
+    }
   }
   // Troços a pé pelas ruas: desenho, metros e minutos do caminho a sério (e fora as opções que deixam de dar)
   const pelasRuas = trocosPelasRuas(escolhidas, agoraSegs);

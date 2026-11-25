@@ -3,6 +3,7 @@ import { Footprints, ChevronDown, ChevronRight, Radio } from 'lucide-react';
 import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
+import { BilheteRota, PrecoRota } from './BilheteRota';
 import { formatTransitName } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import type { TransitRouteOption } from '../types/perto';
@@ -137,6 +138,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
                 )}
               </React.Fragment>
             ))}
+            {route.tarifa && <PrecoRota tarifa={route.tarifa} />}
           </div>
 
           {apoio && (
@@ -164,6 +166,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
             </p>
           )}
           {avisar && !route.possivelAtraso && <AvisoPartida route={route} />}
+          {route.tarifa && <BilheteRota tarifa={route.tarifa} />}
           {/* Linha do tempo (como no Google Maps e no Citymapper): horas à esquerda, a cor da linha ao meio, as paragens à
               direita; os troços a pé a tracejado. O que importa (onde entrar, onde sair, a que horas) lê-se de relance. */}
           <ol className="mt-3 pt-3 border-t border-[#E6E6E3]" data-teste="passo-a-passo">
