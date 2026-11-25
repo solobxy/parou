@@ -255,6 +255,14 @@ type OpcaoInterna = TransitRouteOption & { _chegada: number; _saida?: number };
  * transbordo que já não cabe entre os dois transportes, ou uma saída que já passou, tira a opção (se houver outras).
  * Sem rede na zona (ou sem caminho razoável) o troço fica como estava.
  */
+/** A opção "pode ainda não ter passado" fica logo a seguir à primeira (nunca no topo: não é garantida) */
+function depoisDaRecomendada<T extends { _talvez?: boolean }>(lista: T[]): void {
+  const i = lista.findIndex((o) => o._talvez);
+  if (i < 0 || lista.length < 2) return;
+  const [t] = lista.splice(i, 1);
+  lista.splice(1, 0, t);
+}
+
 export function trocosPelasRuas<T extends OpcaoInterna>(opcoes: T[], agoraSegs: number): T[] {
   const memo = new Map<string, CaminhoAPe | null>();
   const ruas = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
@@ -288,7 +296,9 @@ export function trocosPelasRuas<T extends OpcaoInterna>(opcoes: T[], agoraSegs: 
         o.arrivalTime = hm(o._chegada);
       } else if (!antes) {
         // primeiro troço: sai-se mais cedo (ou mais tarde)
-        if (o._saida !== undefined) {
+        if (o.possivelAtraso) {
+          // sai-se já (o autocarro pode vir atrasado): a hora de saída não muda
+        } else if (o._saida !== undefined) {
           o._saida -= delta * 60;
           o.departureTime = hm(o._saida);
           if (o._saida < agoraSegs - 60) impossiveis.add(o);
@@ -430,10 +440,12 @@ export async function planearViagem(
   const lis = DateTime.fromJSDate(agora).setZone(ZONA);
   const meiaNoite = lis.startOf('day');
   const agoraSegs = lis.hour * 3600 + lis.minute * 60 + lis.second;
+  /** pedido para sair agora (não para outra hora): só aí se admite que um autocarro venha atrasado */
+  const paraAgora = Math.abs(agora.getTime() - Date.now()) <= 5 * 60 * 1000;
   const epocaMeiaNoite = Math.floor(meiaNoite.toSeconds());
   const distTotal = distM(oLat, oLon, dLat, dLon);
 
-  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string; _saida?: number; /** sai mais tarde do que a melhor (para quem a perde) */ _seguinte?: boolean }> = [];
+  const opcoes: Array<TransitRouteOption & { _chegada: number; _pontos: number; _assinatura: string; _saida?: number; /** sai mais tarde do que a melhor (para quem a perde) */ _seguinte?: boolean; /** 1.º autocarro sem previsão que já devia ter passado (pode vir atrasado) */ _talvez?: boolean }> = [];
 
   // ------------------------------------------------------------------ a pé
   if (distTotal <= 1600) {
@@ -551,12 +563,18 @@ export async function planearViagem(
           const metros = i !== undefined ? distM(ix.lat[i], ix.lon[i], dLat, dLon) : 0;
           return { min: minutosAPe(metros), metros };
         };
-        const juntarJornadas = (jornadas: Jornada[], dia: { desvio: number }) => {
+        const juntarJornadas = (jornadas: Jornada[], dia: { desvio: number }, talvez = false) => {
           for (const j of jornadas) {
             const pernas: Perna[] = pernasDeJornada(ix, j);
             const primeira = pernas[0], ultima = pernas[pernas.length - 1];
             const fim = aPeNoFim(ultima.para);
             const andarO = minO.get(primeira.de) || 1, andarD = fim.min;
+            // "Pode ainda não ter passado": só o 1.º autocarro, sem previsão em direto, que pelo horário passou até 2 min antes de
+            // se chegar à paragem (com previsão sabe-se onde vem; o metro e o comboio são pontuais)
+            if (talvez) {
+              const chegaParagem = agoraSegs + andarO * 60, passa = primeira.parte - dia.desvio;
+              if (primeira.direto || ix.padroes[j.rides[0].pat]?.modo !== MODO_RODOVIARIO || passa >= chegaParagem || passa < chegaParagem - 120) continue;
+            }
             const legs: RouteLeg[] = [
               { mode: 'WALK', instruction: `Ir a pé até ${nomeDe(primeira.de)}`, durationMinutes: andarO, distanceMeters: Math.round((porId.get(`o:${primeira.de}`)?.dist || 0) * DESVIO_RUAS) },
             ];
@@ -573,12 +591,28 @@ export async function planearViagem(
                   metrosAPe += m; andarTotal += min;
                 }
               }
-              legs.push(pernaTransito(pn, dia.desvio));
+              const perna = pernaTransito(pn, dia.desvio);
+              if (talvez && i === 0) perna.talvezJaPassou = true;
+              legs.push(perna);
             });
             legs.push({ mode: 'WALK', instruction: `Ir a pé até ${destNome}`, durationMinutes: andarD, distanceMeters: Math.round(fim.metros * DESVIO_RUAS) });
             const chegada = ultima.chega + andarD * 60 - dia.desvio;
             const trocas = pernas.length - 1;
             const emDireto = pernas.some((x) => x.direto);
+            if (talvez) {
+              opcoes.push({
+                id: `p-${pernas.map((x) => x.trip).join('-')}-${primeira.de}-${ultima.para}`,
+                type: trocas ? 'fewest_transfers' : 'fastest', title: trocas ? 'Com transbordo' : 'Direto',
+                badgeLabel: 'Pode ainda não ter passado',
+                totalDurationMinutes: Math.round((chegada - agoraSegs) / 60),
+                departureTime: hm(agoraSegs), arrivalTime: hm(chegada),
+                walkingDistanceMeters: Math.round(metrosAPe * DESVIO_RUAS), walkingMinutes: andarTotal, transfersCount: trocas,
+                legs, realtimeStatus: 'PROGRAMADO', realtimeLabel: 'Pode ainda não ter passado', relevantAlerts: [], possivelAtraso: true,
+                _saida: agoraSegs, _talvez: true,
+                _chegada: chegada, _pontos: chegada + trocas * 6 * 60, _assinatura: `talvez|${assinaturaDe(pernas)}`,
+              });
+              continue;
+            }
             opcoes.push({
               id: `${trocas ? 't' : 'd'}-${pernas.map((x) => x.trip).join('-')}-${primeira.de}-${ultima.para}`,
               type: trocas ? 'fewest_transfers' : 'fastest', title: trocas ? 'Com transbordo' : 'Direto',
@@ -602,8 +636,8 @@ export async function planearViagem(
           };
           const origens = origensDe(O);
           if (!origens.length || !destinos.size) continue;
-          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number) =>
-            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos, rt: dia.data ? camadaTempoReal(ix, dia.data) : undefined });
+          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number, folgaSemDireto?: number) =>
+            procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos, folgaSemDireto, rt: dia.data ? camadaTempoReal(ix, dia.data) : undefined });
           const jornadas = pedir(origens, destinos, janela > 3 * 3600 ? 2000 : 2500);
           juntarJornadas(jornadas, dia);
           // O castigo de andar muito (custoAPe) entra na hora a que se chega à paragem: a 12 min a pé "chegava-se" aos 16 e
@@ -656,6 +690,10 @@ export async function planearViagem(
             if (o3.length) juntarJornadas(pedir(o3, destinos, 500), dia);
             for (let i = antes; i < opcoes.length; i++) opcoes[i]._seguinte = true;
           }
+          // Pedido para agora: o autocarro sem previsão em direto que passou na hora há 1–2 min costuma vir atrasado (UNIR, 25/11/2026:
+          // 2,5 min em média, metade com 2+ min). Procura-se outra vez deixando-o apanhar até 2 min depois da hora; entra como
+          // alternativa marcada, nunca como a recomendada.
+          if (dia.desvio === 0 && paraAgora) juntarJornadas(pedir(origens, destinos, 600, undefined, 120), dia, true);
         }
         feito = true;
       } catch (err: any) {
@@ -834,7 +872,7 @@ export async function planearViagem(
   const escolhidas: typeof opcoes = [];
   const vistas = new Set<string>();
   // Não vale a pena mostrar opções muito piores do que a melhor (chegam bem mais tarde)
-  const melhorChegada = Math.min(...opcoes.filter((o) => o.id !== 'a-pe').map((o) => o._chegada));
+  const melhorChegada = Math.min(...opcoes.filter((o) => o.id !== 'a-pe' && !o._talvez).map((o) => o._chegada));
   const tolerancia = Number.isFinite(melhorChegada) ? Math.max(20 * 60, 0.5 * (melhorChegada - agoraSegs)) : 0;
   // Uma opção é dominada por outra que chega antes (ou à mesma hora) e não dá mais trabalho: nem mais transbordos e a pé,
   // nem claramente mais esforço (minutos a pé + 7 por transbordo). Ex.: "3 autocarros, 44 min" ao lado de "metro + barco, 25 min";
@@ -852,6 +890,7 @@ export async function planearViagem(
   const chave = (o: typeof opcoes[0]) => (autocarrosDe(o) ? o._assinatura : `${o._assinatura}|sem-autocarro`);
   for (const o of opcoes) {
     if (o._seguinte) continue; // as que saem mais tarde só entram no fim, se houver poucas
+    if (o._talvez) continue; // "pode ainda não ter passado" entra à parte, no fim
     if (vistas.has(chave(o))) continue;
     if (o.id !== 'a-pe' && Number.isFinite(melhorChegada) && o._chegada - melhorChegada > tolerancia) continue;
     // Transbordos que não ganham nada à melhor direta não interessam
@@ -884,7 +923,7 @@ export async function planearViagem(
       const menosAPe = emTransito.length ? Math.min(...emTransito.map((e) => e.walkingMinutes)) : Infinity;
       const menosTrocas = emTransito.length ? Math.min(...emTransito.map((e) => e.transfersCount)) : Infinity;
       const candidatas = opcoes
-        .filter((x) => x.id !== 'a-pe' && !vistas.has(chave(x)) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
+        .filter((x) => x.id !== 'a-pe' && !x._talvez && !vistas.has(chave(x)) && usaModo(x, modo) && x._chegada - melhorChegada <= tolerancia
           && x.walkingMinutes <= menosAPe + 11 && x.transfersCount <= menosTrocas + 1)
         // a melhor do meio de transporte: chega cedo e dá pouco trabalho
         .sort((a, b) => (a._chegada + esforco(a) * 60) - (b._chegada + esforco(b) * 60));
@@ -913,9 +952,14 @@ export async function planearViagem(
         escolhidas.push(x);
       }
     }
+    // "Pode ainda não ter passado": o autocarro que devia ter passado há 1–2 min, só se chegar bem antes (3+ min) da melhor garantida
+    const garantidaMaisCedo = Math.min(...escolhidas.filter((e) => e.id !== 'a-pe').map((e) => e._chegada));
+    const talvez = opcoes.filter((x) => x._talvez && x._chegada <= garantidaMaisCedo - 180)
+      .sort((a, b) => a._chegada - b._chegada || a.walkingMinutes - b.walkingMinutes)[0];
+    if (talvez) escolhidas.push(talvez);
     // No máximo 5 (é o que a app mostra): saem as piores das que não são a única do seu meio de transporte
     while (escolhidas.length > MAX_OPCOES) {
-      const sai = [...escolhidas].reverse().find((e) => e.id !== 'a-pe' && !garantidas.has(e.id) && !MODOS_A_GARANTIR.some((m) => usaModo(e, m) && escolhidas.filter((x) => usaModo(x, m)).length === 1));
+      const sai = [...escolhidas].reverse().find((e) => e.id !== 'a-pe' && !e._talvez && !garantidas.has(e.id) && !MODOS_A_GARANTIR.some((m) => usaModo(e, m) && escolhidas.filter((x) => usaModo(x, m)).length === 1));
       if (!sai) break;
       escolhidas.splice(escolhidas.indexOf(sai), 1);
     }
@@ -923,6 +967,7 @@ export async function planearViagem(
   // Mostra-se pela melhor opção (tempo até chegar mais o esforço: a pé, transbordos, autocarros; ver custoDaOpcao), não só pela
   // hora de chegada: "metro F + C, 6 min a pé" à frente de "autocarro + comboio + autocarro, 21 min a pé" que chega 6 min antes
   escolhidas.sort(ordemDasOpcoes);
+  depoisDaRecomendada(escolhidas);
   // Percursos para desenhar no mapa (só das opções escolhidas): as paragens de cada viagem e os troços a pé
   const qPontos = db.prepare(
     `SELECT s.stop_lat AS lat, s.stop_lon AS lon, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id
@@ -964,10 +1009,13 @@ export async function planearViagem(
   const pelasRuas = trocosPelasRuas(escolhidas, agoraSegs);
   if (pelasRuas.length !== escolhidas.length) escolhidas.splice(0, escolhidas.length, ...pelasRuas);
   escolhidas.sort(ordemDasOpcoes);
+  depoisDaRecomendada(escolhidas);
 
-  const melhor = escolhidas.filter((o) => o.id !== 'a-pe')[0];
-  const maisRapida = maisRapidaDe(escolhidas);
-  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, _seguinte, ...resto }) => {
+  // a "pode ainda não ter passado" nunca é a recomendada nem a mais rápida (não é garantida)
+  const garantidasFinais = escolhidas.filter((o) => !o._talvez);
+  const melhor = garantidasFinais.filter((o) => o.id !== 'a-pe')[0];
+  const maisRapida = maisRapidaDe(garantidasFinais);
+  const routes = escolhidas.map(({ _chegada, _pontos, _assinatura, _saida, _seguinte, _talvez, ...resto }) => {
     // Só aparecem quando a viagem sai ou chega noutro dia (0 = hoje): "Sair amanhã às 07:10"
     const o: typeof resto = { ...resto };
     if (o.id !== 'a-pe') {

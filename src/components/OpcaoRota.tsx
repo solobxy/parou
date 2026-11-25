@@ -67,6 +67,13 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
   const primeira = route.legs.find((l) => l.mode === 'TRANSIT');
   const apoio = aPe
     ? t('{m} m a pé', { m: route.walkingDistanceMeters })
+    : primeira && route.possivelAtraso
+      // o autocarro passou na hora há 1–2 min, sem previsão em direto: diz-se isso, não "apanha às 12:23"
+      ? t('Pode ainda não ter passado: {l} das {h} em {p}', {
+          l: `${t('linha')} ${primeira.lineCode || ''}`.trim(),
+          h: primeira.departureTime || route.departureTime,
+          p: formatTransitName(primeira.fromStopName || ''),
+        })
     : primeira
       ? t('Apanha {l} às {h} em {p}', {
           l: `${t('linha')} ${primeira.lineCode || ''}`.trim(),
@@ -151,7 +158,12 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
           <p className="text-[12.5px] text-[#6B6B6B] leading-snug">
             {`${route.departureDayOffset ? t('Sair amanhã às {h}', { h: route.departureTime }) : t('Sair às {h}', { h: route.departureTime })} · ${t('{n} min a pé', { n: route.walkingMinutes })}${route.transfersCount ? ` · ${tn(route.transfersCount, '{n} transbordo', '{n} transbordos')}` : ''}`}
           </p>
-          {avisar && <AvisoPartida route={route} />}
+          {route.possivelAtraso && (
+            <p className="mt-2 text-[12.5px] text-[#111111] leading-snug" data-teste="possivel-atraso">
+              {t('Sem dados em direto: estes autocarros costumam vir uns minutos atrasados. Se já tiver passado, segue a primeira opção.')}
+            </p>
+          )}
+          {avisar && !route.possivelAtraso && <AvisoPartida route={route} />}
           {/* Linha do tempo (como no Google Maps e no Citymapper): horas à esquerda, a cor da linha ao meio, as paragens à
               direita; os troços a pé a tracejado. O que importa (onde entrar, onde sair, a que horas) lê-se de relance. */}
           <ol className="mt-3 pt-3 border-t border-[#E6E6E3]" data-teste="passo-a-passo">

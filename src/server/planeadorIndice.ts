@@ -444,6 +444,11 @@ export interface PedidoPesquisa {
   soModos?: number;
   /** Tempo real (tempoRealPlaneador.ts): atrasos, paragens já passadas ou saltadas e viagens suprimidas, por padrão */
   rt?: CamadaTempoReal;
+  /**
+   * Segundos: no 1.º autocarro, uma viagem sem previsão em direto pode ser apanhada até este tempo depois da hora do horário
+   * (os autocarros vêm muitas vezes atrasados). Só para a pesquisa "pode ainda não ter passado" (planeador.ts).
+   */
+  folgaSemDireto?: number;
 }
 
 /** Paragens com serviço (de feeds com horários) a menos de `raio` metros (máx. ~330 m com esta grelha) */
@@ -505,6 +510,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
   };
 
   const rt = pedido.rt;
+  const folgaSemDireto = Math.max(0, Math.min(300, pedido.folgaSemDireto || 0));
   /** Hora prevista de uma viagem com previsões (-1 = não se pode usar esta paragem) */
   const horaRt = (pd: Padrao, rp: RtPadrao, t: number, pos: number, chegada: boolean): number => {
     const nS = pd.stops.length;
@@ -639,9 +645,11 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
             }
             const prev = anterior[s];
             if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
-              const min = prev + margem;
+              const min0 = prev + margem;
               // transbordo entre duas viagens com previsões em direto: margem curta
-              const minDireto = k > 1 && chegouEmDireto(k - 1, s) ? prev + MARGEM_DIRETO : min;
+              const minDireto = k > 1 && chegouEmDireto(k - 1, s) ? prev + MARGEM_DIRETO : min0;
+              // sem previsão, o 1.º autocarro pode vir atrasado (só na pesquisa "pode ainda não ter passado")
+              const min = min0 - (k === 1 && pd.modo === MODO_RODOVIARIO ? folgaSemDireto : 0);
               const ht = t >= 0 ? horaRt(pd, rp, t, pos, false) : -1;
               if (t < 0 || (ht >= 0 && Math.min(min, minDireto) <= ht)) {
                 const t2 = acharViagemRt(p, pos, min, rp, minDireto);
@@ -668,7 +676,7 @@ export function procurar(ix: Indice, pedido: PedidoPesquisa): Jornada[] {
           }
           const prev = anterior[s];
           if (prev < INF && rk[k - 1][s] !== pd.routeIdx) {
-            const min = prev + margem;
+            const min = prev + margem - (k === 1 && pd.modo === MODO_RODOVIARIO ? folgaSemDireto : 0);
             if (t < 0 || min <= pd.dep[t * nS + pos]) {
               const t2 = acharViagem(p, pos, min);
               if (t2 >= 0 && (t < 0 || t2 < t)) { t = t2; emb = pos; }

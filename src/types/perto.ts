@@ -101,6 +101,8 @@ export interface RouteLeg {
   pontos?: PontoRota[];
   /** Troço de transporte: o desenho da estrada (ou do carril) entre o embarque e o desembarque, em polilinha codificada; sem ele a app une as paragens em linha reta */
   caminho?: string;
+  /** O autocarro passou na hora há 1–2 min e não há previsão em direto: pode ainda não ter passado */
+  talvezJaPassou?: boolean;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }
@@ -127,6 +129,8 @@ export interface TransitRouteOption {
   /** Dias (0 = hoje) até a viagem sair / chegar; só vem preenchido quando não é hoje */
   departureDayOffset?: number;
   arrivalDayOffset?: number;
+  /** Alternativa com um autocarro sem previsão que já devia ter passado (costuma vir atrasado); nunca é a recomendada */
+  possivelAtraso?: boolean;
 }
 
 /** Ligação direta da UNIR encontrada pelo servidor (linha, sentido e paragens); a hora vem da AMP */

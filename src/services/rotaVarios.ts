@@ -84,9 +84,14 @@ export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[]
     return true;
   });
   // Até 5 opções, com pelo menos uma de cada meio de transporte (o metro não pode ficar de fora só por haver 5 autocarros mais rápidos)
-  const escolhidas = limitarComModos(unicas, 5);
-  const melhor = escolhidas.find((r) => r.id !== 'a-pe');
-  const rapida = maisRapidaDe(escolhidas);
+  // "Pode ainda não ter passado" (autocarro sem previsão que já devia ter passado): logo a seguir à primeira, nunca a
+  // recomendada nem a mais rápida, porque não é garantida
+  const talvez = unicas.find((r) => r.possivelAtraso);
+  const escolhidas = limitarComModos(unicas.filter((r) => !r.possivelAtraso), talvez ? 4 : 5);
+  if (talvez) escolhidas.splice(Math.min(1, escolhidas.length), 0, talvez);
+  const garantidas = escolhidas.filter((r) => !r.possivelAtraso);
+  const melhor = garantidas.find((r) => r.id !== 'a-pe');
+  const rapida = maisRapidaDe(garantidas);
   return escolhidas.map((r) => {
     const highlight: TransitRouteOption['highlight'] = r.id === 'a-pe' ? undefined
       : r.id === rapida?.id ? 'mais_rapido' : r.id === melhor?.id ? 'melhor' : undefined;
@@ -94,6 +99,7 @@ export function ordenarOpcoes(lista: TransitRouteOption[]): TransitRouteOption[]
       ...r,
       highlight,
       badgeLabel: r.id === 'a-pe' ? t('A pé')
+        : r.possivelAtraso ? t('Pode ainda não ter passado')
         : highlight === 'mais_rapido' ? (r.transfersCount ? `${t('Mais rápido')} · ${tn(r.transfersCount, '{n} transbordo', '{n} transbordos')}` : t('Mais rápido'))
         : highlight === 'melhor' ? t('Melhor opção')
         : r.transfersCount ? tn(r.transfersCount, '{n} transbordo', '{n} transbordos') : t('Direto'),
