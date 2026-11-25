@@ -17,6 +17,7 @@ import { caminhoDoTroco, caminhoDoTrocoUnir } from './caminhos';
 import { caminhoAPe, distanciasAPe, type CaminhoAPe } from './caminhoAPe';
 import { podarMapa } from './cacheLimitada';
 import { atualizarTempoReal, camadaTempoReal, horaPrevista } from './tempoRealPlaneador';
+import { janelaTalvez } from './atrasosMedidos';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
 import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
@@ -569,11 +570,13 @@ export async function planearViagem(
             const primeira = pernas[0], ultima = pernas[pernas.length - 1];
             const fim = aPeNoFim(ultima.para);
             const andarO = minO.get(primeira.de) || 1, andarD = fim.min;
-            // "Pode ainda não ter passado": só o 1.º autocarro, sem previsão em direto, que pelo horário passou até 2 min antes de
-            // se chegar à paragem (com previsão sabe-se onde vem; o metro e o comboio são pontuais)
+            // "Pode ainda não ter passado": só o 1.º autocarro, sem previsão em direto, que pelo horário passou há pouco antes de
+            // se chegar à paragem (com previsão sabe-se onde vem; o metro e o comboio são pontuais). Quanto é "há pouco" depende
+            // do operador e da hora: os atrasos medidos nos últimos 14 dias (atrasosMedidos.ts)
             if (talvez) {
+              const pd0 = ix.padroes[j.rides[0].pat];
               const chegaParagem = agoraSegs + andarO * 60, passa = primeira.parte - dia.desvio;
-              if (primeira.direto || ix.padroes[j.rides[0].pat]?.modo !== MODO_RODOVIARIO || passa >= chegaParagem || passa < chegaParagem - 120) continue;
+              if (primeira.direto || pd0?.modo !== MODO_RODOVIARIO || passa >= chegaParagem || passa < chegaParagem - janelaTalvez(pd0.feed, lis)) continue;
             }
             const legs: RouteLeg[] = [
               { mode: 'WALK', instruction: `Ir a pé até ${nomeDe(primeira.de)}`, durationMinutes: andarO, distanceMeters: Math.round((porId.get(`o:${primeira.de}`)?.dist || 0) * DESVIO_RUAS) },
@@ -636,7 +639,7 @@ export async function planearViagem(
           };
           const origens = origensDe(O);
           if (!origens.length || !destinos.size) continue;
-          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number, folgaSemDireto?: number) =>
+          const pedir = (orig: typeof origens, dest: typeof destinos, orcamentoMs: number, soModos?: number, folgaSemDireto?: number | ((feed: string) => number)) =>
             procurar(ix, { origens: orig, destinos: dest, ativo: dia.ativo, maxK: 4, limiteSaida: base + janela, orcamentoMs, soModos, folgaSemDireto, rt: dia.data ? camadaTempoReal(ix, dia.data) : undefined });
           const jornadas = pedir(origens, destinos, janela > 3 * 3600 ? 2000 : 2500);
           juntarJornadas(jornadas, dia);
@@ -690,10 +693,10 @@ export async function planearViagem(
             if (o3.length) juntarJornadas(pedir(o3, destinos, 500), dia);
             for (let i = antes; i < opcoes.length; i++) opcoes[i]._seguinte = true;
           }
-          // Pedido para agora: o autocarro sem previsão em direto que passou na hora há 1–2 min costuma vir atrasado (UNIR, 25/11/2026:
-          // 2,5 min em média, metade com 2+ min). Procura-se outra vez deixando-o apanhar até 2 min depois da hora; entra como
-          // alternativa marcada, nunca como a recomendada.
-          if (dia.desvio === 0 && paraAgora) juntarJornadas(pedir(origens, destinos, 600, undefined, 120), dia, true);
+          // Pedido para agora: o autocarro sem previsão em direto que passou na hora há pouco costuma vir atrasado (UNIR, 25/11/2026:
+          // 2,5 min em média, metade com 2+ min). Procura-se outra vez deixando-o apanhar até à janela medida para o operador;
+          // entra como alternativa marcada, nunca como a recomendada.
+          if (dia.desvio === 0 && paraAgora) juntarJornadas(pedir(origens, destinos, 600, undefined, (feed) => janelaTalvez(feed, lis)), dia, true);
         }
         feito = true;
       } catch (err: any) {
