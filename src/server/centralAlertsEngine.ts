@@ -724,6 +724,14 @@ export function diasDePerturbacao(texto: string, inicio: DateTime, fim: DateTime
   return [...dias].sort();
 }
 
+/** Greve que só afeta serviços a bordo (cafetaria, bar, restauração de um concessionário) e não a circulação dos comboios */
+export function greveSoDeServicosABordo(texto: string): boolean {
+  const t = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const servicos = /\b(cafetaria|bar|restauracao|catering|refeicoes|concessionari[oa])\b/.test(t);
+  const circulacao = /\b(supress\w*|suprimid\w*|servicos minimos|nao se realiz\w*|cancelad\w*|perturbacoes na circulacao)\b/.test(t);
+  return servicos && !circulacao;
+}
+
 /** Um aviso da CP no formato dos alertas centrais (null se não tiver data de início) */
 export function avisoDaCp(item: any, agoraIso = new Date().toISOString()): CentralAlert | null {
   const campos: any[] = item?.contentFields?.['pt-PT'] || (Array.isArray(item?.contentFields) ? item.contentFields : []);
@@ -736,7 +744,9 @@ export function avisoDaCp(item: any, agoraIso = new Date().toISOString()): Centr
   const fim = fimDia ? fimDia.endOf('day') : null;
   const extId = String(item?.friendlyUrlPath || item?.id || titulo);
   const descricao = [lead, corpo].filter(Boolean).join(' — ').slice(0, 1500);
-  const tipo = classifyAlertType(titulo, `${lead} ${corpo}`);
+  let tipo = classifyAlertType(titulo, `${lead} ${corpo}`);
+  // Greve só de serviços a bordo (cafetaria e bar do concessionário, 25/11/2026): os comboios circulam, não é uma greve da CP
+  if (tipo === 'greve' && greveSoDeServicosABordo(`${titulo} ${lead} ${corpo}`)) tipo = 'outros alertas oficiais';
   const start = inicio.toUTC().toISO()!;
   const end = fim ? fim.toUTC().toISO()! : null;
   const { regiao, municipios } = extractGeoEntities(`${titulo} ${lead} ${corpo}`, 'CP');

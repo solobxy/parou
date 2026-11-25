@@ -1,7 +1,8 @@
 // Arquivo permanente da PAROU: tudo o que as fontes publicam e depois desaparece fica guardado para sempre, com cada mudança.
 //  - avisos dos operadores e do IPMA (perturbações, greves, obras, desvios…): o estado atual de cada um e todas as versões
 //    (o texto, as datas, as linhas e o estado de cada vez que mudam), com quando foi visto pela primeira e pela última vez;
-//  - notícias de transportes, trânsito, greves, tempo e obras que a app mostra (título, resumo do feed, ligação, data).
+//  - notícias de transportes, trânsito, greves, tempo e obras que a app mostra (título, resumo do feed, ligação, data);
+//  - horários de cada dia: viagens, primeira e última de cada linha (horariosArquivo.ts).
 // Nada sobre quem usa a app. Serve para relatórios (dia, semana, mês, trimestre, anos), para reportar aos operadores e
 // para notícias. Não se apaga nada.
 import { DatabaseSync } from 'node:sqlite';
@@ -44,6 +45,11 @@ export function baseHistorico(): DatabaseSync {
       primeiro_visto INTEGER NOT NULL, ultimo_visto INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS noticias_data ON noticias (data);
+    CREATE TABLE IF NOT EXISTS horarios_dia (
+      dia TEXT NOT NULL, feed TEXT NOT NULL, linha TEXT NOT NULL, nome TEXT,
+      viagens INTEGER NOT NULL, primeira INTEGER, ultima INTEGER, -- segundos desde a meia-noite (-1 = sem)
+      PRIMARY KEY (dia, feed, linha)
+    ) WITHOUT ROWID;
   `);
   _bd = b;
   return b;

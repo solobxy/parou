@@ -6,6 +6,7 @@ import { eAdmin } from '../utils/admin';
 import { utilizadorAutenticado } from '../services/conta';
 import { fetchEstatisticasAdmin, type EstatisticasAdmin } from '../services/estatisticasAdmin';
 import { fetchSegurancaAdmin, type ResumoSeguranca } from '../services/segurancaAdmin';
+import { RelatoriosAdmin } from './RelatoriosAdmin';
 
 // Painel só para a administração (conta do Criador ou chave de administração).
 // "Pessoas" são telemóveis/browsers diferentes que abriram a app (contagem anónima, uma por dia);
@@ -66,6 +67,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
         )}
 
         {dados && <Numeros d={dados} aoVerContas={() => setVerContas(true)} />}
+        <RelatoriosAdmin />
       </div>
     </Folha>
     <PainelContas aberta={verContas} onFechar={() => setVerContas(false)} />

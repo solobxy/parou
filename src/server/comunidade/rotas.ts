@@ -22,6 +22,7 @@ import { iniciarAvisosAutomaticos } from './avisos';
 import { emailAtivo, enviarEmail, htmlDoEmail } from './email';
 import { dentroDoLimite, ipDe } from '../limites';
 import { registarEvento, resumoAdmin as resumoSeguranca, descarregarRegisto } from '../registoSeguranca';
+import { relatorioAParte, PERIODOS, type Periodo } from '../relatorios';
 
 const COOKIE = 'parou_sessao';
 
@@ -480,6 +481,17 @@ export function registarRotasComunidade(app: Express, opcoes: { eAdmin: (req: Re
     } catch (err) { erro(res, err); }
   });
   // Registo de segurança (só totais, rotas e códigos de origem do dia; nunca IPs). Chave de administração ou conta do Criador.
+  // Relatórios (dia, semana, mês, trimestre, ano, 2 e 3 anos, desde sempre): atrasos, pontualidade, avisos, greves e viagens
+  app.get('/api/comunidade/admin/relatorio', async (req, res) => {
+    if (!eAdmin(req, res)) { registarEvento('admin_negado', 403); return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' }); }
+    try {
+      const periodo = String(req.query.periodo || 'semana');
+      if (!(periodo in PERIODOS)) return void res.status(400).json({ erro: 'Período desconhecido.', codigo: 'pedido' });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(await relatorioAParte(periodo as Periodo));
+    } catch { res.status(500).json({ erro: 'Não foi possível fazer o relatório.', codigo: 'interno' }); }
+  });
+
   app.get('/api/comunidade/admin/seguranca', (req, res) => {
     if (!eAdmin(req, res)) { registarEvento('admin_negado', 403); return void res.status(403).json({ erro: 'Só para administração.', codigo: 'proibido' }); }
     try {

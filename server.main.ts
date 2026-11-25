@@ -40,6 +40,8 @@ import { iniciarFogos, obterIncidentes } from './src/server/fogosEngine';
 import { getAllFeeds, logFetch, reloadDatabaseConnection, getSentidoParagem } from './src/server/db/gtfsDatabase';
 import { iniciarDadosProntos, getEstadoDadosProntos, isDadosProntosPronto, atualizarDados, getManifestFeedsMap } from './src/server/dadosProntos';
 import { iniciarMedicaoAtrasos } from './src/server/atrasosMedidos';
+import { iniciarArquivoHorarios } from './src/server/horariosArquivo';
+import { iniciarRelatorios } from './src/server/relatorios';
 import {
   getMasterSourceRegistry,
   syncAllOfficialGtfs,
@@ -2237,6 +2239,9 @@ startServer().catch(err => {
 iniciarDadosProntos();
 // Atrasos reais dos autocarros (de 5 em 5 min): dão a janela do "pode ainda não ter passado" a cada operador
 iniciarMedicaoAtrasos();
+// Horários de cada dia guardados para sempre (viagens por linha) e relatórios de cada período guardados às 05:30
+iniciarArquivoHorarios();
+iniciarRelatorios();
 
 process.on('uncaughtException', (err: any) => {
   console.error('[PAROU.PT] Erro não tratado (o servidor continua):', err?.message || err);
