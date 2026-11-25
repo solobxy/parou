@@ -1315,5 +1315,11 @@ export const FR: Record<string, string> = {
   'Horário previsto: o operador ainda não publicou este dia.': 'Horaires prévus : l’exploitant n’a pas encore publié ce jour.',
   'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.': 'Pour que la demande revienne : touche l’icône à côté de l’adresse, réinitialise les autorisations et touche à nouveau Activer la localisation.',
   'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.': 'Chrome n’a pas affiché la demande d’Android pour l’activer : il la met en pause après un refus.',
+  'Bilhete Andante Z{n}': 'Titre Andante Z{n}',
+  'Andante Z{n}': 'Andante Z{n}',
+  'Viagem simples: vale {d} desde a 1.ª validação.': 'Trajet simple : valable {d} après la première validation.',
+  'Se ainda não tens cartão Andante Azul, custa mais {p}.': 'Sans carte Andante bleue, ajoutez {p}.',
+  'Tarifário oficial': 'Tarifs officiels',
+  'App Anda': 'Application Anda',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Même horaire que la ligne {l} dans l’horaire officiel ; une seule des deux passe',
 };

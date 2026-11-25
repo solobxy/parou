@@ -1315,5 +1315,11 @@ export const DE: Record<string, string> = {
   'Horário previsto: o operador ainda não publicou este dia.': 'Voraussichtlicher Fahrplan: Der Betreiber hat diesen Tag noch nicht veröffentlicht.',
   'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.': 'Damit die Abfrage wiederkommt: Tippe auf das Symbol neben der Adresse, setze die Berechtigungen zurück und tippe erneut auf Standort aktivieren.',
   'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.': 'Chrome hat die Android-Abfrage zum Einschalten nicht gezeigt: Nach einer Ablehnung pausiert Chrome sie.',
+  'Bilhete Andante Z{n}': 'Andante-Ticket Z{n}',
+  'Andante Z{n}': 'Andante Z{n}',
+  'Viagem simples: vale {d} desde a 1.ª validação.': 'Einzelfahrt: gültig {d} ab der ersten Entwertung.',
+  'Se ainda não tens cartão Andante Azul, custa mais {p}.': 'Ohne blaue Andante-Karte kommen {p} dazu.',
+  'Tarifário oficial': 'Offizielle Tarife',
+  'App Anda': 'Anda-App',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Laut offiziellem Fahrplan zur gleichen Zeit wie Linie {l}; es fährt nur eine der beiden',
 };

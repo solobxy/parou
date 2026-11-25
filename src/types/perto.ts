@@ -133,6 +133,27 @@ export interface TransitRouteOption {
   arrivalDayOffset?: number;
   /** Alternativa com um autocarro sem previsão que já devia ter passado (costuma vir atrasado); nunca é a recomendada */
   possivelAtraso?: boolean;
+  /** Título de transporte a comprar, só quando há dados oficiais e certeza (hoje: Andante, no Porto) */
+  tarifa?: TarifaViagem;
+}
+
+/** Título Andante de uma viagem, com os preços oficiais (andante.pt) */
+export interface TarifaViagem {
+  sistema: 'andante';
+  /** 2 = Z2 */
+  zonas: number;
+  /** Viagem ocasional simples, em euros */
+  preco: number;
+  /** O mesmo título por 24 horas, em euros */
+  preco24h?: number;
+  /** Cartão Andante Azul (para quem ainda não tem), em euros */
+  cartao?: number;
+  /** Duração máxima do título, em minutos, desde a 1.ª validação */
+  duracaoMin: number;
+  /** AAAA-MM-DD: desde quando valem estes preços */
+  emVigorDesde?: string;
+  /** Página oficial dos preços */
+  fonte: string;
 }
 
 /** Ligação direta da UNIR encontrada pelo servidor (linha, sentido e paragens); a hora vem da AMP */
