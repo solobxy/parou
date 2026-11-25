@@ -4,7 +4,7 @@ import {
   CentralAlertStatus, 
   AlertCenterDiagnostic 
 } from '../types/alerts';
-import { getTmlAlerts, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
+import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
 import { DateTime } from 'luxon';
 
 // In-memory central alert repository with deduplication and state tracking
@@ -183,6 +183,22 @@ function retirarDesaparecidos(fonte: string, vistos: Set<string>): void {
   }
 }
 
+/** Agências da Carris Metropolitana na plataforma GO da TML (os avisos delas vêm da API da própria Carris Metropolitana) */
+const AGENCIAS_TML_CM = new Set(['LA77N', 'BNA17', 'YA15B', 'A2L1N']);
+const LINHAS_METRO_LISBOA_TML: Record<string, string> = { '1': 'Azul', '2': 'Amarela', '3': 'Verde', '4': 'Vermelha' };
+/** Nome do operador de uma agência da TML, como a app o escreve nas outras fontes */
+export function operadorDaAgenciaTml(id: string | undefined, nome?: string): string | null {
+  const porId: Record<string, string> = {
+    IA9T6: 'Carris', IA2N9: 'Metro de Lisboa', HF16N: 'MobiCascais', N18KL: 'CP', LTP61: 'Transtejo Soflusa',
+    A3H3M: 'TCB Barreiro', '7NTB1': 'Fertagus', KB1F6: 'Metro Sul do Tejo',
+    KJTOU: 'UNIR', '1H6XC': 'UNIR', OP1VZ: 'UNIR', VZAS3: 'UNIR', '8NDX4': 'UNIR',
+  };
+  if (id && porId[id]) return porId[id];
+  if (id && AGENCIAS_TML_CM.has(id)) return 'Carris Metropolitana';
+  const n = String(nome || '').trim();
+  return n ? (/^unir$/i.test(n) ? 'UNIR' : n) : null;
+}
+
 // Ingest TML GO Hub Official Alerts (Real GTFS-RT endpoint)
 async function ingestTmlAlerts(): Promise<number> {
   const sourceName = 'TML GO Hub';
@@ -190,10 +206,13 @@ async function ingestTmlAlerts(): Promise<number> {
 
   try {
     const rawAlerts = await getTmlAlerts();
+    const agencias = new Map((await getTmlAgencies().catch(() => [])).map((ag) => [ag._id, String(ag.name || '')]));
     let imported = 0;
     const vistos = new Set<string>();
 
     for (const raw of rawAlerts) {
+      // Os da Carris Metropolitana chegam pela API dela (ingestCarrisMetropolitanaAlerts): aqui repetiam-se
+      if (raw.agency_id && AGENCIAS_TML_CM.has(raw.agency_id)) continue;
       const extId = raw._id || `tml-${raw.title || ''}-${raw.active_period_start_date || 0}`;
       const key = `${sourceName}:${extId}`;
       vistos.add(key);
@@ -217,7 +236,9 @@ async function ingestTmlAlerts(): Promise<number> {
       if (raw.references && Array.isArray(raw.references)) {
         raw.references.forEach((ref) => {
           if (ref.parent_id) {
-            const clean = String(ref.parent_id).replace(/^\[.*?\]/, '').trim();
+            let clean = String(ref.parent_id).replace(/^\[.*?\]/, '').trim();
+            // Metro de Lisboa: a TML numera as linhas (1 Azul, 2 Amarela, 3 Verde, 4 Vermelha); a app chama-as pela cor
+            if (raw.agency_id === 'IA2N9' && LINHAS_METRO_LISBOA_TML[clean]) clean = LINHAS_METRO_LISBOA_TML[clean];
             if (clean) rawLines.push(clean);
           }
           if (ref.child_ids && Array.isArray(ref.child_ids)) {
@@ -229,12 +250,14 @@ async function ingestTmlAlerts(): Promise<number> {
       const lines = Array.from(new Set(rawLines));
       const stops = Array.from(new Set(rawStops));
 
-      // Check if alert belongs to UNIR or Carris Metropolitana based on lines or title
-      let operador = 'Carris Metropolitana';
+      // Operador pela agência do aviso (nome como a app o escreve); sem agência conhecida, pelo texto, como antes
+      let operador = operadorDaAgenciaTml(raw.agency_id, agencias.get(String(raw.agency_id || ''))) || 'Carris Metropolitana';
       const full = `${title} ${desc} ${lines.join(' ')}`.toLowerCase();
-      // O TML GO Hub é da Área Metropolitana de Lisboa: nunca são alertas da UNIR (Porto).
-      // (Antes, "transporte" contém "porto" e linhas 3xxx de Sesimbra/Setúbal passavam por UNIR.)
-      if (full.includes('fertagus')) {
+      // Sem agência conhecida, nunca se adivinha a UNIR pelo texto ("transporte" contém "porto" e as linhas 3xxx de
+      // Sesimbra/Setúbal passavam por UNIR): só a agência diz que é da UNIR.
+      if (operador !== 'Carris Metropolitana') {
+        // já se sabe pela agência
+      } else if (full.includes('fertagus')) {
         operador = 'Fertagus';
       } else if (full.includes('transtejo') || full.includes('soflusa')) {
         operador = 'Transtejo Soflusa';
@@ -304,7 +327,7 @@ async function ingestCarrisMetropolitanaAlerts(): Promise<number> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    // (o endereço antigo /alerts só redireciona para /v2/alerts; o TML GO Hub, que também dava estes alertas, deixou de existir)
+    // (o endereço antigo /alerts só redireciona para /v2/alerts; a plataforma GO da TML também os tem, mas lá saltam-se para não se repetirem)
     const res = await fetch('https://api.carrismetropolitana.pt/v2/alerts', {
       headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0' },
       signal: controller.signal,

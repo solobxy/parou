@@ -222,7 +222,10 @@ function setCache<T>(key: string, data: T, ttlMs: number): void {
   CACHE.set(key, { data, timestamp: Date.now(), ttlMs });
 }
 
-const API_BASE = 'https://go.tmlmobilidade.pt/hub/api/v1';
+// A API pede a organização em cada endereço (/hub/api/v1/<organização>/...); os endereços sem ela dão 404 desde que a TML
+// mudou a plataforma GO. "Y4FLB" = Portugal: Carris Metropolitana, os outros operadores da AML, a UNIR e mais.
+export const ORGANIZACAO_TML = 'Y4FLB';
+const API_BASE = `https://go.tmlmobilidade.pt/hub/api/v1/${ORGANIZACAO_TML}`;
 const HEADERS = {
   'User-Agent': 'PAROU-PT/2.0 (Transport Audit & Monitoring)',
   'Accept': 'application/json',

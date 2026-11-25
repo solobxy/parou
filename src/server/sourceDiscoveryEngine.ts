@@ -217,7 +217,7 @@ async function discoverFromTmlGoHub(): Promise<{ operators: DiscoveredOperator[]
           : ['Lisboa', 'Sintra', 'Cascais', 'Loures', 'Amadora', 'Oeiras', 'Odivelas', 'Almada', 'Setúbal', 'Seixal'],
         transport_types: [transportType],
         official_url: ag.website_url || 'https://go.tmlmobilidade.pt',
-        data_url: `https://go.tmlmobilidade.pt/hub/api/v1/vehicles/positions?agency=${agCode}`,
+        data_url: `https://go.tmlmobilidade.pt/hub/api/v1/Y4FLB/vehicles/positions?agency=${agCode}`,
         source_type: positionsEnabled ? 'GTFS-RT' : (gtfsEnabled ? 'GTFS' : 'REST_API'),
         gtfs_available: gtfsEnabled,
         gtfs_rt_available: positionsEnabled,
