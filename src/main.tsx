@@ -81,11 +81,29 @@ if (typeof window !== 'undefined') {
 }
 
 apanharErrosGlobais();
-createRoot(document.getElementById('root')!).render(
-  <ProtecaoErros>
-    <App />
-  </ProtecaoErros>,
-);
+// O CSS principal chega sem travar o primeiro ecrã (vite.config.ts, cssSemBloquear): o esqueleto do index.html aparece logo e a
+// app só substitui o esqueleto quando o CSS já está aplicado (nunca um ecrã sem estilos). No máximo 4 s à espera.
+function cssPronto(): Promise<void> {
+  const l = document.getElementById('parou-css') as HTMLLinkElement | null;
+  if (!l || (l.rel === 'stylesheet' && l.sheet)) return Promise.resolve();
+  return new Promise((resolver) => {
+    let acabou = false;
+    const fim = () => { if (!acabou) { acabou = true; resolver(); } };
+    const ver = () => { if (l.rel === 'stylesheet' && l.sheet) fim(); };
+    l.addEventListener('load', () => { ver(); requestAnimationFrame(ver); });
+    l.addEventListener('error', fim);
+    const intervalo = setInterval(() => { ver(); if (acabou) clearInterval(intervalo); }, 30);
+    setTimeout(() => { clearInterval(intervalo); fim(); }, 4000);
+  });
+}
+
+void cssPronto().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <ProtecaoErros>
+      <App />
+    </ProtecaoErros>,
+  );
+});
 
 // O service worker (app instalável e rápida a abrir) é gerado e registado pelo vite-plugin-pwa
 

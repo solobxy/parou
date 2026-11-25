@@ -127,12 +127,41 @@ function hmrSilencer(): Plugin {
   };
 }
 
+/**
+ * O CSS principal deixa de travar o primeiro ecrã: em vez de um <link rel="stylesheet"> (o browser não pinta nada até ele
+ * chegar), vai como "preload" e passa a folha de estilos quando chega. O esqueleto da app (index.html) tem os estilos dentro
+ * dele, por isso aparece logo; o main.tsx só monta a app quando o CSS já está aplicado (sem ecrã sem estilos).
+ * Medido (Lighthouse, telemóvel em 4G lenta): o primeiro ecrã esperava ~0,3 s pelo CSS e pelo que competia com ele.
+ */
+export function cssSemBloquear(): Plugin {
+  return {
+    name: 'parou-css-sem-bloquear',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html: string) {
+        let feito = false;
+        const novo = html.replace(/<link rel="stylesheet"( crossorigin)? href="(\/assets\/index-[^"]+\.css)">/, (_m, co: string | undefined, href: string) => {
+          feito = true;
+          const c = co || '';
+          return `<link rel="preload" as="style"${c} href="${href}" id="parou-css">`
+            + `<script>(function(){var l=document.getElementById('parou-css');if(!l)return;var f=function(){l.rel='stylesheet'};l.addEventListener('load',f);l.addEventListener('error',f)})()</script>`
+            + `<noscript><link rel="stylesheet"${c} href="${href}"></noscript>`;
+        });
+        if (!feito) throw new Error('[parou-css-sem-bloquear] não encontrei o CSS principal no index.html');
+        return novo;
+      },
+    },
+  };
+}
+
 export default defineConfig(async ({ command }) => {
   const plugins = [
     hmrSilencer(),
     react(),
     tailwindcss(),
     temasPlugin(),
+    cssSemBloquear(),
   ];
 
   if (command === 'build') {
@@ -140,6 +169,9 @@ export default defineConfig(async ({ command }) => {
     plugins.push(
       VitePWA({
         registerType: 'autoUpdate',
+        // O registo do service worker vai com "defer": como <script> normal no <head>, o browser parava de ler a página até
+        // ele chegar (numa ligação lenta, atrás de ~300 KB de JavaScript) e o esqueleto só aparecia ~2 s depois
+        injectRegister: 'script-defer',
         includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'badge-96.png', 'sw-push-handler.js'],
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
