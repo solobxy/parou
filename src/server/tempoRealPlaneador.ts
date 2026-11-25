@@ -27,6 +27,11 @@ export const NAO = 0x40000000;
 export const IDADE_MAXIMA_S = 180;
 /** Uma previsão a mais de 3 horas do horário é de outro dia (ou está errada): ignora-se a viagem */
 const DESVIO_MAXIMO_S = 3 * 3600;
+/**
+ * Um autocarro não anda 10 min adiantado: uma previsão assim é de um veículo posto na viagem errada (a TML chegou a dar 25 min de
+ * avanço). A viagem fica com o horário.
+ */
+export const ADIANTO_MAXIMO_S = 10 * 60;
 
 const TTL_MS = 20_000;
 const ESPERA_APOS_FALHA_MS = 60_000;
@@ -178,17 +183,26 @@ export function atrasosDaViagem(ix: Indice, p: number, t: number, v: ViagemTub, 
     else if (s.atrasoChegada !== undefined) d = s.atrasoChegada;
     else if (s.atrasoPartida !== undefined) d = s.atrasoPartida;
     if (d !== null && Math.abs(d) > DESVIO_MAXIMO_S) return null; // de outro dia
+    if (d !== null && d < -ADIANTO_MAXIMO_S) return null; // adiantado demais: previsão de outra viagem
     marcas.set(pos, { d, salta: s.saltada });
   }
   if (!marcas.size) return null;
   const primeira = Math.min(...marcas.keys());
   let atual: number | null = null;
   let conhecida = false;
+  // As horas previstas nunca andam para trás ao longo da viagem: a TML às vezes dá a uma paragem mais à frente uma hora antes da
+  // de uma paragem anterior, e o motor aproveitava isso para "viajar no tempo" (percursos com a viagem seguinte a sair antes de a
+  // anterior chegar). Cada paragem fica, no mínimo, com a hora prevista da anterior.
+  let horaAnterior = -Infinity;
   for (let j = primeira; j < nS; j++) {
     const m = marcas.get(j);
     if (m && m.d !== null) { atual = m.d; conhecida = true; }
     if (!conhecida) continue; // sem hora prevista ainda (só "salta"): fica NAO até haver uma
-    atrasos[j] = m?.salta ? NAO : (atual as number);
+    let d = atual as number;
+    const chega = pd.arr[o + j], parte = pd.dep[o + j];
+    if (chega + d < horaAnterior) d = horaAnterior - chega;
+    horaAnterior = Math.max(horaAnterior, chega + d, parte + d);
+    atrasos[j] = m?.salta ? NAO : d;
   }
   return atrasos;
 }
