@@ -197,7 +197,8 @@ export function useUserLocation() {
 
   // Request & activate location (with high accuracy priority + graceful standard fallback)
   // jaAutorizada: quem chama acabou de confirmar que o browser deixa (a localização do telemóvel foi ligada agora mesmo)
-  const activateLocation = useCallback((forceHighAccuracy: boolean = true, jaAutorizada: boolean = false) => {
+  // posInicial: posição que quem chama já recebeu do telemóvel (a sonda): entra logo, sem esperar por um pedido novo
+  const activateLocation = useCallback((forceHighAccuracy: boolean = true, jaAutorizada: boolean = false, posInicial?: GeolocationPosition) => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
       setStatus('unavailable');
       setErrorMessage('Geolocalização não é suportada pelo seu navegador.');
@@ -225,7 +226,9 @@ export function useUserLocation() {
         setCoordsEstado(guardada);
         setStatus('active');
       };
-      if (guardada && jaAutorizada) {
+      if (posInicial) {
+        // a posição verdadeira já chegou: não vale a pena mostrar a guardada (pode ser de outro sítio)
+      } else if (guardada && jaAutorizada) {
         // A localização do telemóvel acabou de ser ligada: nada de «A localizar…», aparece logo (como na Moovit)
         mostrarGuardada();
       } else {
@@ -298,6 +301,8 @@ export function useUserLocation() {
       setErrorMessage(null);
       try { localStorage.setItem(CHAVE_LOCALIZACAO_OK, '1'); } catch {}
     };
+
+    if (posInicial) handleSuccess(posInicial, 'gps_low');
 
     // 1. Posição rápida: a aproximada (rede/Wi-Fi ou a última do telemóvel) chega quase de
     //    imediato e já dá para mostrar as paragens; o GPS afina a seguir, sem a pessoa esperar.
@@ -607,7 +612,8 @@ export function useUserLocation() {
 
   // Localização do telemóvel desligada (o site tem autorização): assim que a pessoa a liga nas definições rápidas, a PAROU
   // mostra logo onde ela está, sem tocar em nada. Puxar a barra das definições não esconde a página (não há
-  // visibilitychange), por isso, com o ecrã visível, pergunta-se em silêncio a cada 1,5 s. Com a localização desligada
+  // visibilitychange), por isso, com o ecrã visível, pergunta-se em silêncio a cada 0,3 s (num Android real a recusa
+  // chega em ~3 ms: não liga o GPS nem gasta bateria; 26/11/2026, para ganhar à Moovit). Com a localização desligada
   // a resposta é um erro imediato (não liga o GPS nem gasta bateria). Só quando o site já está autorizado: nunca abre a
   // pergunta do browser sozinho, nem volta a ligar a quem a desligou na app.
   const sondaRef = useRef(false);
@@ -628,7 +634,7 @@ export function useUserLocation() {
     // sem perguntar nada. Aí pergunta-se mesmo ao GPS em silêncio. Se um dia o Chrome abrir a pergunta (a resposta demora),
     // fica-se por aí nesta visita: no máximo uma pergunta sem toque, e nunca a quem nunca deu a localização.
     let perguntaAberta = false;
-    // no registo de diagnóstico, só quando a resposta da sonda muda (com a localização desligada repete-se a cada 1,5 s)
+    // no registo de diagnóstico, só quando a resposta da sonda muda (com a localização desligada repete-se a cada 0,3 s)
     let ultimaRes = '';
     const notaRes = (r: string) => { if (r !== ultimaRes) { ultimaRes = r; notaGps(`sonda:${r}`); } };
     const podePerguntar = async (): Promise<boolean> => {
@@ -676,7 +682,7 @@ export function useUserLocation() {
             fim();
           }, 2500);
           // Ligar a localização (a sonda já não dá «recusado»): mesma regra para a posição e para o «ainda sem posição»
-          const ativarSeLigou = () => {
+          const ativarSeLigou = (pos?: GeolocationPosition) => {
             const agora = statusRef.current;
             if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting' && agora !== 'idle')) return;
             // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
@@ -689,11 +695,11 @@ export function useUserLocation() {
             sondaFalhouRef.current = false;
             ultimaAtivacaoSondaRef.current = t;
             notaGps('auto:sonda');
-            activateLocation(true, true);
+            activateLocation(true, true, pos);
           };
           try {
             navigator.geolocation.getCurrentPosition(
-              () => { fim(); notaRes(comPorPedir ? 'ok-por-pedir' : 'ok'); ativarSeLigou(); },
+              (pos) => { fim(); notaRes(comPorPedir ? 'ok-por-pedir' : 'ok'); ativarSeLigou(pos); },
               (err) => {
                 fim();
                 notaRes(`erro${err?.code ?? '?'}${comPorPedir ? '-por-pedir' : ''}`);
@@ -711,7 +717,7 @@ export function useUserLocation() {
       } finally {
         sondaRef.current = false;
       }
-    }, 1500);
+    }, 300);
     return () => { parado = true; clearInterval(id); };
   }, [activateLocation]);
 
