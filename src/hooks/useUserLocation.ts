@@ -555,6 +555,9 @@ export function useUserLocation() {
   // a resposta é um erro imediato (não liga o GPS nem gasta bateria). Só quando o site já está autorizado: nunca abre a
   // pergunta do browser sozinho, nem volta a ligar a quem a desligou na app.
   const sondaRef = useRef(false);
+  const sondaFalhouRef = useRef(false);
+  const tentativasSondaRef = useRef(0);
+  const ultimaAtivacaoSondaRef = useRef(0);
   useEffect(() => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
     let parado = false;
@@ -592,9 +595,19 @@ export function useUserLocation() {
               () => {
                 fim();
                 const agora = statusRef.current;
-                if (!parado && (agora === 'denied' || agora === 'unavailable')) activateLocation(true);
+                if (parado || (agora !== 'denied' && agora !== 'unavailable')) return;
+                // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
+                // a cada 30 s e, se a app volta logo ao mesmo estado duas vezes, desiste até a pessoa tocar ou voltar à app
+                const t = Date.now();
+                if (!sondaFalhouRef.current && tentativasSondaRef.current >= 1) return;
+                if (t - ultimaAtivacaoSondaRef.current < 30_000) return;
+                if (tentativasSondaRef.current >= 2) return;
+                tentativasSondaRef.current++;
+                sondaFalhouRef.current = false;
+                ultimaAtivacaoSondaRef.current = t;
+                activateLocation(true);
               },
-              () => fim(),
+              () => { sondaFalhouRef.current = true; tentativasSondaRef.current = 0; fim(); },
               { enableHighAccuracy: false, timeout: 5000, maximumAge: 60_000 },
             );
           } catch { fim(); }
