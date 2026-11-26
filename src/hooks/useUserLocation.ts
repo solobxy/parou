@@ -621,7 +621,16 @@ export function useUserLocation() {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
     let parado = false;
     let autorizado: boolean | null = null;
+    let porPedir = false;
     let ultimaConsulta = 0;
+    // A autorização diz «por pedir» mas a pessoa já deu a localização à PAROU: no telemóvel do Dinis (app da Play, 26/11/2026)
+    // o Chrome diz «por pedir» com a localização desligada e CONTINUA a dizê-lo depois de ligada, e mesmo assim dá a posição
+    // sem perguntar nada. Aí pergunta-se mesmo ao GPS em silêncio. Se um dia o Chrome abrir a pergunta (a resposta demora),
+    // fica-se por aí nesta visita: no máximo uma pergunta sem toque, e nunca a quem nunca deu a localização.
+    let perguntaAberta = false;
+    // no registo de diagnóstico, só quando a resposta da sonda muda (com a localização desligada repete-se a cada 1,5 s)
+    let ultimaRes = '';
+    const notaRes = (r: string) => { if (r !== ultimaRes) { ultimaRes = r; notaGps(`sonda:${r}`); } };
     const podePerguntar = async (): Promise<boolean> => {
       if (desligadaPelaPessoa() || memoriaPosicao?.isManual) return false;
       // a autorização do site lê-se no máximo a cada 10 s (pode mudar nas definições do browser)
@@ -631,6 +640,7 @@ export function useUserLocation() {
           if (navigator.permissions?.query) {
             const r = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
             autorizado = r.state === 'granted';
+            porPedir = r.state === 'prompt';
           } else {
             autorizado = jaDeuLocalizacao();
           }
@@ -638,7 +648,8 @@ export function useUserLocation() {
           autorizado = jaDeuLocalizacao();
         }
       }
-      return autorizado === true;
+      if (autorizado === true) return true;
+      return porPedir && jaDeuLocalizacao() && !perguntaAberta;
     };
     const id = setInterval(async () => {
       if (parado || sondaRef.current || document.visibilityState !== 'visible') return;
@@ -646,7 +657,9 @@ export function useUserLocation() {
       // Também quando o pedido está pendurado há mais de 8 s (com a localização do telemóvel desligada, o Chrome pode
       // nem responder): é quando a app já mostra «Liga a localização»
       const pendurado = st === 'requesting' && pedirDesdeRef.current > 0 && Date.now() - pedirDesdeRef.current > 8000;
-      const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable' || pendurado;
+      // ou no convite, para quem já deu a localização (o Chrome pode dizer «por pedir» só por a localização estar desligada)
+      const noConvite = st === 'idle' && jaDeuLocalizacao();
+      const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable' || pendurado || noConvite;
       if (!desligadaNoTelemovel) return;
       sondaRef.current = true;
       try {
@@ -655,11 +668,17 @@ export function useUserLocation() {
           // a sonda também acaba sozinha ao fim de 2,5 s (sem resposta conta como «desligada»)
           let acabou = false;
           const fim = () => { if (!acabou) { acabou = true; clearTimeout(limite); fimPromessa(); } };
-          const limite = setTimeout(() => { sondaFalhouRef.current = true; tentativasSondaRef.current = 0; fim(); }, 2500);
+          // pergunta ao GPS com a autorização «por pedir»: se não houver resposta, o Chrome pode ter aberto a pergunta
+          const comPorPedir = autorizado !== true;
+          const limite = setTimeout(() => {
+            sondaFalhouRef.current = true; tentativasSondaRef.current = 0;
+            if (comPorPedir) { perguntaAberta = true; notaRes('sem-resposta'); }
+            fim();
+          }, 2500);
           // Ligar a localização (a sonda já não dá «recusado»): mesma regra para a posição e para o «ainda sem posição»
           const ativarSeLigou = () => {
             const agora = statusRef.current;
-            if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting')) return;
+            if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting' && agora !== 'idle')) return;
             // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
             // a cada 30 s e, se a app volta logo ao mesmo estado duas vezes, desiste até a pessoa tocar ou voltar à app
             const t = Date.now();
@@ -674,13 +693,15 @@ export function useUserLocation() {
           };
           try {
             navigator.geolocation.getCurrentPosition(
-              () => { fim(); ativarSeLigou(); },
+              () => { fim(); notaRes(comPorPedir ? 'ok-por-pedir' : 'ok'); ativarSeLigou(); },
               (err) => {
                 fim();
+                notaRes(`erro${err?.code ?? '?'}${comPorPedir ? '-por-pedir' : ''}`);
                 // Com a localização desligada o Chrome responde «recusado» (código 1). «Tempo esgotado» (código 3) depois
                 // disso quer dizer que já está ligada mas o GPS ainda não tem posição (com «precisão baixa» demora ~20 s):
                 // ativa já, e a última posição conhecida aparece enquanto o GPS afina.
-                if (err && err.code === 3 && statusRef.current === 'denied' && motivoRef.current === 'sistema') { ativarSeLigou(); return; }
+                const parada = (statusRef.current === 'denied' && motivoRef.current === 'sistema') || statusRef.current === 'idle';
+                if (err && err.code === 3 && parada) { ativarSeLigou(); return; }
                 sondaFalhouRef.current = true; tentativasSondaRef.current = 0;
               },
               { enableHighAccuracy: false, timeout: 2000, maximumAge: 60_000 },
