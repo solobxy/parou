@@ -229,7 +229,8 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
     const dia = c.dias[0].toISODate()!;
     const resumo = (c.n.resumo || '').replace(/\s+/g, ' ').trim();
     const outras = [...c.fontes].filter((f) => f !== c.n.fonte);
-    const descricao = [resumo || c.n.titulo, `Fonte: notícia de ${c.n.fonte}${outras.length ? ` (também ${outras.join(', ')})` : ''}, ainda sem aviso no site do operador.`].join(' — ').slice(0, 1500);
+    // a fonte vai à frente (o resumo é cortado nos cartões): quem lê sabe logo que vem de uma notícia
+    const descricao = `Fonte: ${[c.n.fonte, ...outras].join(' e ')} (o operador ainda não publicou aviso no site). ${resumo || c.n.titulo}`.slice(0, 1500);
     // a greve começa no dia anunciado; a véspera (serviço a acabar mais cedo) fica à parte, como perturbação prevista
     const start = c.dias[0].toUTC().toISO()!;
     const end = c.fim.toUTC().toISO()!;

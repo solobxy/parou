@@ -1465,7 +1465,26 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       return false;
     };
 
+    // Greve de um operador que serve aqui (a decorrer ou nas próximas 24 h, véspera incluída): aparece mesmo sem linhas no
+    // aviso (a greve da CP ou da Metro do Porto vale para a rede toda). O nome compara-se por palavras ("cp" não é "stcp").
+    const agoraNearby = Date.now();
+    const operadorPorPalavras = (operador: unknown) => {
+      const n = normOperador(operador);
+      if (!n) return false;
+      for (const o of operadoresPerto) if (` ${o} `.includes(` ${n} `) || ` ${n} `.includes(` ${o} `)) return true;
+      return false;
+    };
+    const greveAqui = (alert: any) => {
+      if (alert?.tipo !== 'greve' || alert.status === 'Cancelado' || alert.status === 'Terminado' || !operadorPorPalavras(alert.operador)) return false;
+      const ini = Date.parse(String(alert.start_datetime || ''));
+      if (!Number.isFinite(ini)) return false;
+      const fim = alert.end_datetime ? Date.parse(String(alert.end_datetime)) : ini + 30 * 3600_000;
+      const vespera = alert.vespera_desde ? Date.parse(String(alert.vespera_desde)) : NaN;
+      const comeca = Number.isFinite(vespera) ? Math.min(ini, vespera) : ini;
+      return fim > agoraNearby && comeca - agoraNearby < 24 * 3600_000;
+    };
     const nearbyAlerts = allAlerts.filter((alert: any) => {
+      if (greveAqui(alert)) return true;
       if (Array.isArray(alert.paragens) && alert.paragens.length > 0 && operadorServeAqui(alert.operador)) {
         if (alert.paragens.some((p: string) => nearbyStopIdSet.has(p) || nearbyStopIdSet.has(`stop-${p}`))) {
           return true;
@@ -1489,7 +1508,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
       // Fins de linha (só chegadas) vão para o fim: não servem para apanhar transporte
       stops: [...mappedStops.filter((s: any) => !s.arrivalsOnly), ...mappedStops.filter((s: any) => s.arrivalsOnly)],
       vehicles: mappedVehicles,
-      alerts: nearbyAlerts,
+      // greves primeiro (é o que mais muda o dia de quem vai apanhar transporte)
+      alerts: [...nearbyAlerts.filter((a: any) => a.tipo === 'greve'), ...nearbyAlerts.filter((a: any) => a.tipo !== 'greve')],
       radiusMeters: raioUsado,
       timestamp: new Date().toISOString(),
     });

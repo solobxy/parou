@@ -46,7 +46,10 @@ function jaDeuLocalizacao(): boolean {
 // a app está aberta (trocar de separador não volta ao início) e a do GPS fica também no
 // telemóvel, para a app abrir logo no sítio certo enquanto o GPS afina a posição.
 const CHAVE_ULTIMA_POSICAO = 'parou_ultima_posicao';
-const VALIDADE_POSICAO_GUARDADA_MS = 12 * 60 * 60 * 1000;
+// Como o Google Maps e a Moovit: ao abrir, aparece logo a última posição conhecida (até 3 dias) enquanto o GPS afina.
+// Com mais de 30 min conta como aproximada (o ecrã diz «a afinar a posição…» e as paragens atualizam quando o GPS responde).
+const VALIDADE_POSICAO_GUARDADA_MS = 3 * 24 * 60 * 60 * 1000;
+const POSICAO_RECENTE_MS = 30 * 60 * 1000;
 let ultimaGravacao = 0;
 // Houve posição do GPS desde que a página abriu (o browser já deu autorização nesta visita)
 let gpsNestaSessao = false;
@@ -56,8 +59,10 @@ function lerPosicaoGuardada(): UserCoords | null {
     if (typeof window === 'undefined' || !jaDeuLocalizacao()) return null;
     const p = JSON.parse(localStorage.getItem(CHAVE_ULTIMA_POSICAO) || 'null');
     if (!p || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return null;
-    if (Date.now() - Number(p.timestamp || 0) > VALIDADE_POSICAO_GUARDADA_MS) return null;
-    return { ...p, heading: null, speed: null, isManual: false };
+    const idade = Date.now() - Number(p.timestamp || 0);
+    if (idade > VALIDADE_POSICAO_GUARDADA_MS) return null;
+    const accuracy = idade > POSICAO_RECENTE_MS ? Math.max(Number(p.accuracy) || 0, 500) : Number(p.accuracy) || 50;
+    return { ...p, accuracy, heading: null, speed: null, isManual: false };
   } catch {
     return null;
   }
@@ -87,6 +92,12 @@ export function lembrarPosicao(c: UserCoords | null) {
 function esquecerPosicao() {
   memoriaPosicao = null;
   try { localStorage.removeItem(CHAVE_ULTIMA_POSICAO); } catch {}
+}
+
+/** Deixa de mostrar a posição (localização desligada ou recusada), mas guarda-a no telemóvel: quando a localização volta,
+ *  aparece logo enquanto o GPS afina (antes apagava-se e a pessoa esperava ~20 s pelo GPS). Só "Desligar" na app a apaga. */
+function largarPosicao() {
+  memoriaPosicao = null;
 }
 
 // A posição do GPS passa por um filtro (utils/filtroGps.ts): pesa cada leitura pela sua precisão, usa a velocidade e o
@@ -186,7 +197,22 @@ export function useUserLocation() {
     pararMovimentoRef.current?.();
     pararMovimentoRef.current = ligarMovimento();
     // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
-    if (!previousCoordsRef.current) setStatus('requesting');
+    if (!previousCoordsRef.current) {
+      setStatus('requesting');
+      // Sem posição no ecrã: a última conhecida aparece já (se o browser não recusar logo, ex.: localização desligada),
+      // e o GPS substitui-a quando responder. Com «precisão baixa» o primeiro GPS demora 20 s; assim não se espera.
+      const guardada = lerPosicaoGuardada();
+      if (guardada) {
+        setTimeout(() => {
+          if (previousCoordsRef.current || statusAtualRef.current !== 'requesting') return;
+          previousCoordsRef.current = guardada;
+          memoriaPosicao = guardada;
+          emitidoRef.current = guardada;
+          setCoordsEstado(guardada);
+          setStatus('active');
+        }, 400);
+      }
+    }
     setErrorMessage(null);
 
     // Clear any previous watcher
@@ -328,7 +354,7 @@ export function useUserLocation() {
     if (error.code === error.PERMISSION_DENIED) {
       previousCoordsRef.current = null;
       setCoords(null);
-      esquecerPosicao();
+      largarPosicao();
       setStatus('denied');
       setErrorMessage('Permissão de localização recusada no navegador.');
       // Descobre a causa: bloqueio do site, localização do telemóvel desligada ou pedido fechado
@@ -490,7 +516,7 @@ export function useUserLocation() {
         if (!localEscolhido) {
           previousCoordsRef.current = null;
           setCoords(null);
-          esquecerPosicao();
+          largarPosicao();
           setStatus('denied');
           setMotivoBloqueio(jaDeuLocalizacao() ? 'sistema' : 'site');
           setErrorMessage('Permissão de localização recusada no navegador.');
@@ -504,7 +530,7 @@ export function useUserLocation() {
         // A autorização foi retirada entretanto: volta ao convite para ativar
         previousCoordsRef.current = null;
         setCoords(null);
-        esquecerPosicao();
+        largarPosicao();
         setStatus('idle');
       }
       result.onchange = () => {
@@ -604,25 +630,33 @@ export function useUserLocation() {
           let acabou = false;
           const fim = () => { if (!acabou) { acabou = true; clearTimeout(limite); fimPromessa(); } };
           const limite = setTimeout(() => { sondaFalhouRef.current = true; tentativasSondaRef.current = 0; fim(); }, 2500);
+          // Ligar a localização (a sonda já não dá «recusado»): mesma regra para a posição e para o «ainda sem posição»
+          const ativarSeLigou = () => {
+            const agora = statusRef.current;
+            if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting')) return;
+            // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
+            // a cada 30 s e, se a app volta logo ao mesmo estado duas vezes, desiste até a pessoa tocar ou voltar à app
+            const t = Date.now();
+            if (!sondaFalhouRef.current && tentativasSondaRef.current >= 1) return;
+            if (t - ultimaAtivacaoSondaRef.current < 30_000) return;
+            if (tentativasSondaRef.current >= 2) return;
+            tentativasSondaRef.current++;
+            sondaFalhouRef.current = false;
+            ultimaAtivacaoSondaRef.current = t;
+            activateLocation(true);
+          };
           try {
             navigator.geolocation.getCurrentPosition(
-              () => {
+              () => { fim(); ativarSeLigou(); },
+              (err) => {
                 fim();
-                const agora = statusRef.current;
-                if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting')) return;
-                // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
-                // a cada 30 s e, se a app volta logo ao mesmo estado duas vezes, desiste até a pessoa tocar ou voltar à app
-                const t = Date.now();
-                if (!sondaFalhouRef.current && tentativasSondaRef.current >= 1) return;
-                if (t - ultimaAtivacaoSondaRef.current < 30_000) return;
-                if (tentativasSondaRef.current >= 2) return;
-                tentativasSondaRef.current++;
-                sondaFalhouRef.current = false;
-                ultimaAtivacaoSondaRef.current = t;
-                activateLocation(true);
+                // Com a localização desligada o Chrome responde «recusado» (código 1). «Tempo esgotado» (código 3) depois
+                // disso quer dizer que já está ligada mas o GPS ainda não tem posição (com «precisão baixa» demora ~20 s):
+                // ativa já, e a última posição conhecida aparece enquanto o GPS afina.
+                if (err && err.code === 3 && statusRef.current === 'denied' && motivoRef.current === 'sistema') { ativarSeLigou(); return; }
+                sondaFalhouRef.current = true; tentativasSondaRef.current = 0;
               },
-              () => { sondaFalhouRef.current = true; tentativasSondaRef.current = 0; fim(); },
-              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60_000 },
+              { enableHighAccuracy: false, timeout: 2000, maximumAge: 60_000 },
             );
           } catch { fim(); }
         });
