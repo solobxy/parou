@@ -2982,7 +2982,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Mapa Leaflet. O desfoque fica num invólucro: a className do contentor do Leaflet não
             pode mudar depois de criado (o React apagaria as classes "leaflet-*" e os mosaicos
             ficavam com largura 0). */}
-        <div className={`absolute inset-0 z-0 transition-[filter] duration-500 ${localizacaoPronta ? '' : 'blur-[5px] scale-[1.04]'}`}>
+        <div className={`absolute inset-0 z-0 transition-[filter] ${localizacaoPronta ? 'duration-200' : 'duration-500 blur-[5px] scale-[1.04]'}`}>
           <div 
             ref={mapContainerRef} 
             className="absolute inset-0 w-full h-full"

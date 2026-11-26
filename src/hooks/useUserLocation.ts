@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { filtroGps, type LeituraGps } from '../utils/filtroGps';
 import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
 import { ligarMovimento, estadoAparelho } from '../utils/movimentoAparelho';
-import { estadoGps, vigiarGps, notaGps, ligouSozinhaGps } from '../utils/diagGps';
+import { estadoGps, vigiarGps, notaGps } from '../utils/diagGps';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -181,7 +181,8 @@ export function useUserLocation() {
   }, [setCoords]);
 
   // Request & activate location (with high accuracy priority + graceful standard fallback)
-  const activateLocation = useCallback((forceHighAccuracy: boolean = true) => {
+  // jaAutorizada: quem chama acabou de confirmar que o browser deixa (a localização do telemóvel foi ligada agora mesmo)
+  const activateLocation = useCallback((forceHighAccuracy: boolean = true, jaAutorizada: boolean = false) => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
       setStatus('unavailable');
       setErrorMessage('Geolocalização não é suportada pelo seu navegador.');
@@ -198,19 +199,29 @@ export function useUserLocation() {
     pararMovimentoRef.current = ligarMovimento();
     // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
     if (!previousCoordsRef.current) {
-      setStatus('requesting');
-      // Sem posição no ecrã: a última conhecida aparece já (se o browser não recusar logo, ex.: localização desligada),
-      // e o GPS substitui-a quando responder. Com «precisão baixa» o primeiro GPS demora 20 s; assim não se espera.
+      // Sem posição no ecrã: a última conhecida aparece já e o GPS substitui-a quando responder. Com «precisão baixa» o
+      // primeiro GPS demora 20 s; assim não se espera.
       const guardada = lerPosicaoGuardada();
-      if (guardada) {
-        setTimeout(() => {
-          if (previousCoordsRef.current || statusAtualRef.current !== 'requesting') return;
-          previousCoordsRef.current = guardada;
-          memoriaPosicao = guardada;
-          emitidoRef.current = guardada;
-          setCoordsEstado(guardada);
-          setStatus('active');
-        }, 400);
+      const mostrarGuardada = () => {
+        if (!guardada) return;
+        previousCoordsRef.current = guardada;
+        memoriaPosicao = guardada;
+        emitidoRef.current = guardada;
+        setCoordsEstado(guardada);
+        setStatus('active');
+      };
+      if (guardada && jaAutorizada) {
+        // A localização do telemóvel acabou de ser ligada: nada de «A localizar…», aparece logo (como na Moovit)
+        mostrarGuardada();
+      } else {
+        setStatus('requesting');
+        // Espera 0,4 s: se o browser recusar logo (ex.: localização desligada), a posição antiga não chega a aparecer
+        if (guardada) {
+          setTimeout(() => {
+            if (previousCoordsRef.current || statusAtualRef.current !== 'requesting') return;
+            mostrarGuardada();
+          }, 400);
+        }
       }
     }
     setErrorMessage(null);
@@ -643,7 +654,8 @@ export function useUserLocation() {
             tentativasSondaRef.current++;
             sondaFalhouRef.current = false;
             ultimaAtivacaoSondaRef.current = t;
-            activateLocation(true);
+            notaGps('auto:sonda');
+            activateLocation(true, true);
           };
           try {
             navigator.geolocation.getCurrentPosition(
@@ -673,9 +685,10 @@ export function useUserLocation() {
   // fechar o aviso «Ligar a localização?»), mesmo num site já autorizado, e só volta a «autorizado» quando a pessoa a liga
   // (Chromium: geolocation_permission_context_android.cc). Não avisa a página, e a app ficava no convite à espera de um
   // toque: a verificação de cima só corre com o site «autorizado». Por isso, com o ecrã visível e a localização parada,
-  // lê-se a autorização a cada 600 ms (não liga o GPS nem abre pergunta nenhuma) e, quando passa a «autorizado», a app liga
-  // a localização sozinha. Só para quem já a deu à PAROU e não a desligou na app. Nunca em ciclo: só na passagem para
-  // «autorizado» (ou no convite com tudo autorizado, de onde a app sai logo).
+  // lê-se a autorização a cada 250 ms (não liga o GPS nem abre pergunta nenhuma) e, quando passa a «autorizado», a app liga
+  // a localização sozinha e mostra no mesmo instante a última posição conhecida. Só para quem já a deu à PAROU e não a
+  // desligou na app. Nunca em ciclo: só na passagem para «autorizado» (ou no convite com tudo autorizado, de onde a app
+  // sai logo).
   useEffect(() => {
     if (typeof window === 'undefined' || !('geolocation' in navigator) || !navigator.permissions?.query) return;
     let parado = false;
@@ -704,15 +717,15 @@ export function useUserLocation() {
           ultimaVez = Date.now();
           vezes++;
           ultimaTentativaRef.current = Date.now();
-          ligouSozinhaGps();
-          activateLocation(true);
+          notaGps('auto:autorizacao');
+          activateLocation(true, true);
         }
       } catch {
         // browser sem autorizações para a localização: ficam as outras verificações
       } finally {
         aLer = false;
       }
-    }, 600);
+    }, 250);
     return () => { parado = true; clearInterval(id); };
   }, [activateLocation]);
 

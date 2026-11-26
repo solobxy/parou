@@ -48,24 +48,38 @@ export function notaGps(e: string): void {
   marca(e);
 }
 
-let avisouLigouSozinha = false;
-/** A localização ligou-se sozinha depois de a pessoa a ligar no telemóvel: 5 s depois manda o registo (uma vez por visita),
- *  para se confirmar em telemóveis reais o que a simulação não mostra. Só tempos e códigos, nunca a posição. */
-export function ligouSozinhaGps(): void {
-  if (avisouLigouSozinha) return;
-  avisouLigouSozinha = true;
-  setTimeout(() => {
-    const vis = typeof document !== 'undefined' ? document.visibilityState : '?';
-    reportarErro('gps', `ligou sozinha ao ligar a localização do telemóvel | ${vis}`, eventos.slice(-40).map((x) => `${x.t}:${x.e}`).join(' '));
-  }, 5000);
-}
-
 let desdePedir = 0;
 let mudancas: number[] = [];
+// Desde quando a localização está parada (convite, recusada ou sem sinal; 0 = não está) e quanto tempo esteve parada
+// até a app começar a pedi-la (a espera pelo GPS não conta como «parada»)
+let paradaDesde = 0;
+let paradaMs = 0;
+let avisouLigouSozinha = false;
 /** O estado da localização na app mudou: regista e vê se ficou presa a pedir */
 export function estadoGps(estado: string, motivo?: string | null): void {
   marca(`st:${estado}${motivo ? `/${motivo}` : ''}`);
   const agora = Date.now();
+  // A localização esteve parada mais de 2 s e passou a ativa sem um toque (a pessoa ligou-a no telemóvel): 5 s depois manda
+  // o registo, uma vez por visita, para se medir em telemóveis reais quanto demora cada passo (a simulação não o mostra).
+  if (estado === 'idle' || estado === 'denied' || estado === 'unavailable') {
+    if (!paradaDesde) paradaDesde = agora;
+    paradaMs = 0;
+  } else if (estado === 'requesting') {
+    if (paradaDesde && !paradaMs) paradaMs = agora - paradaDesde;
+  } else if (estado === 'active') {
+    const esteve = paradaDesde ? (paradaMs || agora - paradaDesde) : 0;
+    let toque = false;
+    try { toque = (navigator as any).userActivation?.isActive === true; } catch { /* browser sem userActivation */ }
+    if (esteve > 2000 && !toque && !avisouLigouSozinha) {
+      avisouLigouSozinha = true;
+      setTimeout(() => {
+        const vis = typeof document !== 'undefined' ? document.visibilityState : '?';
+        reportarErro('gps', `ligou sozinha depois de ${Math.round(esteve / 1000)} s parada | ${vis}`, eventos.slice(-45).map((x) => `${x.t}:${x.e}`).join(' '));
+      }, 5000);
+    }
+    paradaDesde = 0;
+    paradaMs = 0;
+  }
   mudancas = [...mudancas.filter((x) => agora - x < 30_000), agora];
   if (estado === 'requesting') { if (!desdePedir) desdePedir = agora; } else desdePedir = 0;
   if (mudancas.length >= 8) enviar('muitas mudanças de estado em 30 s');
