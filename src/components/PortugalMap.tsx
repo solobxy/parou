@@ -427,19 +427,21 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
 
     // 2. Marcadores Individuais de Ocorrências (em zoom aproximado ou modos concelhos/cidades)
     if ((!showDistricts || isZoomedIn) && !camadasOcultas.has('comunidade')) {
-      occurrences.forEach((occ, idx) => {
-        const occDistrictNorm = normalizeGeoString(occ.district || '');
-        const matchedLoc = Object.values(PORTUGAL_DISTRICT_LOCATIONS).find(
-          (loc) => normalizeGeoString(loc.name) === occDistrictNorm
-        ) || { lat: 39.5, lon: -8.0 };
-
-        // Deslocamento determinístico para espalhar os alertas dentro da área
-        const hash = (occ.id || `occ-${idx}`).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const angle = (hash % 360) * (Math.PI / 180);
-        const radius = 0.04 + ((hash % 100) / 100) * 0.12;
-
-        const occLat = matchedLoc.lat + Math.sin(angle) * radius;
-        const occLon = matchedLoc.lon + Math.cos(angle) * radius * 1.2;
+      // Cada ocorrência no sítio dela (coordenadas da fonte, de quem reportou, ou da localidade/concelho); sem posição fica só
+      // na lista e na contagem do distrito. Várias no mesmo ponto (mesma localidade) abrem-se um pouco em espiral (~80 m).
+      const noMesmoPonto = new Map<string, number>();
+      // a Proteção Civil já está no mapa pelos pontos oficiais (pc:<id>): a cópia nas ocorrências não se repete
+      const idsPontos = new Set(pontos.map((p) => p.id));
+      occurrences.forEach((occ) => {
+        if (!Number.isFinite(occ.latitude) || !Number.isFinite(occ.longitude)) return;
+        if (occ.externalId?.startsWith('anepc-') && idsPontos.has(`pc:${occ.externalId.slice(6)}`)) return;
+        const chave = `${occ.latitude!.toFixed(4)},${occ.longitude!.toFixed(4)}`;
+        const n = noMesmoPonto.get(chave) || 0;
+        noMesmoPonto.set(chave, n + 1);
+        const angulo = n * 2.4;
+        const raio = n === 0 ? 0 : 0.0007 * Math.sqrt(n);
+        const occLat = occ.latitude! + Math.sin(angulo) * raio;
+        const occLon = occ.longitude! + Math.cos(angulo) * raio * 1.3;
 
         const isGrave = occ.severity === 'Grave';
         const isMod = occ.severity === 'Moderada';
@@ -468,7 +470,7 @@ export const PortugalMap: React.FC<PortugalMapProps> = ({
         occurrenceMarkersRef.current.push(marker);
       });
     }
-  }, [occurrences, districtStats, zoomPerto, activeViewMode, selectedDistrict, camadasOcultas]);
+  }, [occurrences, districtStats, zoomPerto, activeViewMode, selectedDistrict, camadasOcultas, pontos]);
 
   // Pontos atuais (incêndios, avisos, perturbações) com símbolo e janela de detalhe
   useEffect(() => {

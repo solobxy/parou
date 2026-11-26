@@ -67,6 +67,7 @@ import {
   getCentralAlerts, 
   getCentralAlertsDiagnostic, 
   runCentralAlertsSync,
+  saudeDasFontes,
   incrementNotificationCounter 
 } from './src/server/centralAlertsEngine';
 import { RealtimeEngine } from './src/server/realtimeEngine';
@@ -1129,6 +1130,8 @@ app.get('/api/central-alerts', async (req: Request, res: Response) => {
       alerts,
       total: alerts.length,
       timestamp: new Date().toISOString(),
+      // fontes oficiais que não estão a responder (para a vigia e para quem quiser saber se está tudo em dia)
+      fontes_em_falha: saudeDasFontes(),
     });
   } catch (err: any) {
     console.error('[Central Alerts API] Erro ao obter alertas:', err);

@@ -337,6 +337,9 @@ export async function getTmlEtas(): Promise<TmlEtaRaw[]> {
 // 5. SERVICE ALERTS
 // -------------------------------------------------------------
 let falhasAlertasSeguidas = 0;
+/** A última leitura dos alertas da TML falhou (getTmlAlerts devolve [] nesse caso) */
+export const alertasTmlEmFalha = () => falhasAlertasSeguidas > 0;
+
 export async function getTmlAlerts(): Promise<TmlAlertRaw[]> {
   const cached = getCache<TmlAlertRaw[]>('tml_alerts');
   if (cached) return cached;

@@ -6,6 +6,7 @@ import { base, emTransacao } from './baseDados';
 import { Conta, ErroConta, darPontos } from './contas';
 import { calculateConfidence } from '../../utils/confidenceUtils';
 import { distritoDaDescricaoANEPC } from '../../utils/distritos';
+import { posicaoDaOcorrencia, dentroDePortugal } from './posicaoOcorrencia';
 
 /** Nas listas públicas ninguém vê quem votou: mostra-se só um resumo (SHA-256) de cada identificador.
  *  A app calcula o mesmo resumo do próprio id (src/utils/resumo.ts) para saber se já votaste. */
@@ -57,8 +58,11 @@ function paraOcorrencia(id: string, d: any) {
     reportsCount: d.reportsCount,
     updatedAt: d.updatedAt || d.sourceFetchedAt || d.timestamp,
   });
+  // posição real no mapa (da fonte, ou da localidade/concelho escritos); sem ela não vai para o mapa
+  const pos = posicaoDaOcorrencia(d);
   return {
     id,
+    ...(pos ? { latitude: pos.lat, longitude: pos.lon, ...(pos.aproximada ? { posicaoAproximada: true } : {}) } : {}),
     title: d.title || '',
     description: d.description || '',
     type: d.type || 'AVARIA',
@@ -169,6 +173,8 @@ export function criarOcorrencia(entrada: any, autor: Conta | null): string {
     isBreaking: false,
     imageUrl: '',
   };
+  // posição de quem reporta (se a app a mandar): o mapa põe a ocorrência onde ela está
+  if (dentroDePortugal(Number(entrada?.latitude), Number(entrada?.longitude))) { d.latitude = Number(entrada.latitude); d.longitude = Number(entrada.longitude); }
   if (autor) { d.authorId = autor.id; d.authorName = autor.nome; }
   const av = calculateConfidence({ ...d, authorId: d.authorId, authorName: d.authorName });
   d.verificationStatus = av.status; d.confidenceScore = av.score; d.confidenceLevel = av.level;
@@ -295,6 +301,7 @@ export function importarOcorrenciasPublicas(lista: any[]): { added: number; upda
           // O distrito e o concelho vêm da fonte oficial: corrige o que ficou guardado com um nome errado (Bragança como Braga)
           district: txt(occ?.district, 100) || d.district,
           concelho: txt(occ?.concelho, 100) || d.concelho,
+          ...(dentroDePortugal(Number(occ?.latitude), Number(occ?.longitude)) ? { latitude: Number(occ.latitude), longitude: Number(occ.longitude) } : {}),
           verificationStatus: 'Confirmado', confidenceScore: 95, confidenceLevel: 'Alta', updatedAt: agora,
         });
         base().prepare('UPDATE ocorrencias SET dados = ? WHERE id = ?').run(JSON.stringify(d), existente.id);
@@ -326,6 +333,8 @@ export function importarOcorrenciasPublicas(lista: any[]): { added: number; upda
           sourceUrl: txt(occ?.sourceUrl, 500),
           sourceFetchedAt: Number(occ?.sourceFetchedAt) || agora,
           externalId: extId,
+          // coordenadas da fonte (a Proteção Civil dá-as): o mapa põe a ocorrência no sítio certo
+          ...(dentroDePortugal(Number(occ?.latitude), Number(occ?.longitude)) ? { latitude: Number(occ.latitude), longitude: Number(occ.longitude) } : {}),
         };
         base().prepare('INSERT INTO ocorrencias (id, dados, momento, id_externo, autor_id) VALUES (?, ?, ?, ?, NULL)')
           .run(id, JSON.stringify(d), d.timestamp, extId || null);

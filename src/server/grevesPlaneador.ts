@@ -8,27 +8,74 @@
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { avisosEmMemoria } from './centralAlertsEngine';
+import { getDatabase } from './db/gtfsDatabase';
 import type { GreveTroco } from '../types/perto';
 
-/** Nomes com que cada operador aparece nos avisos oficiais (comparados sem acentos nem maiúsculas) */
+/** Nomes com que cada operador aparece nos avisos oficiais e nas notícias (comparados sem acentos nem maiúsculas). Todos
+ *  os operadores da app, do continente e das ilhas; um operador novo sem entrada aqui usa o nome com que está na base
+ *  (ver nomesDoOperador). */
 const OPERADORES: Record<string, string[]> = {
   cp: ['cp', 'cp - comboios de portugal', 'comboios de portugal'],
   metro_lisboa: ['metro de lisboa', 'metropolitano de lisboa'],
-  carris: ['carris'],
+  carris: ['carris', 'carris (lisboa)'],
   cm: ['carris metropolitana'],
   cmh: ['carris metropolitana'],
+  carris_metropolitana: ['carris metropolitana'],
   fertagus: ['fertagus'],
   transtejo_soflusa: ['transtejo soflusa', 'transtejo', 'soflusa'],
   mts: ['metro sul do tejo', 'metro transportes do sul', 'mts'],
   tcb_barreiro: ['tcb barreiro', 'tcb'],
-  stcp: ['stcp'],
+  stcp: ['stcp', 'stcp (porto)'],
   metro_porto: ['metro do porto'],
   unir: ['unir'],
   unirh: ['unir'],
-  tub_braga: ['tub', 'transportes urbanos de braga'],
-  smtuc: ['smtuc'],
-  metro_mondego: ['metro mondego'],
+  tub_braga: ['tub', 'tub braga', 'transportes urbanos de braga'],
+  guimabus: ['guimabus', 'guimabus (guimaraes)'],
+  tuba_barcelos: ['tuba barcelos', 'tuba'],
+  mobiave: ['mobiave', 'mobiave (famalicao)'],
+  mobiave_famalicao: ['mobiave', 'mobiave famalicao'],
+  smtuc: ['smtuc', 'smtuc (coimbra)'],
+  smtuc_coimbra: ['smtuc', 'smtuc coimbra'],
+  metro_mondego: ['metro mondego', 'metro mondego (coimbra)'],
+  vamus: ['vamus algarve', 'vamus'],
+  vamus_algarve: ['vamus algarve', 'vamus'],
+  proximo_faro: ['proximo', 'proximo (faro)'],
+  giro: ['giro', 'giro albufeira'],
+  giro_albufeira: ['giro', 'giro albufeira'],
+  sobe_desce_tavira: ['sobe e desce', 'sobe e desce (tavira)'],
+  sobe_e_desce_tavira: ['sobe e desce', 'sobe e desce tavira'],
+  horarios_funchal: ['horarios do funchal'],
+  siga_rodoeste: ['rodoeste', 'siga rodoeste'],
+  cam_madeira: ['cam', 'companhia de autocarros da madeira', 'cam - companhia de autocarros da madeira'],
+  barraqueiro_oeste: ['tut torres vedras', 'barraqueiro oeste', 'barraqueiro oeste (tut torres vedras)'],
+  tut_torres_vedras: ['tut torres vedras', 'tut - transportes urbanos de torres vedras'],
+  'mdb-1272': ['mobicascais', 'cascais proxima'],
+  mobicascais: ['mobicascais', 'cascais proxima'],
+  mobilis_leiria: ['mobilis', 'mobilis (leiria)'],
+  aveirobus: ['aveirobus'],
 };
+
+/** Nomes de um operador: os da lista acima ou, para um operador que ainda não está nela, o nome com que está na base
+ *  (com e sem o que vem entre parênteses) */
+const nomesDaBase = new Map<string, string[]>();
+export function nomesDoOperador(feed: string): string[] {
+  const fixos = OPERADORES[feed];
+  if (fixos) return fixos;
+  let l = nomesDaBase.get(feed);
+  if (!l) {
+    l = [];
+    try {
+      const n = String((getDatabase().prepare('SELECT operator_name AS n FROM feeds WHERE id = ?').get(feed) as any)?.n || '');
+      if (n) {
+        const base = norm(n);
+        l = [...new Set([base, norm(n.replace(/\(.*?\)/g, ' ')), ...n.split(/\s+[-–—]\s+/).map(norm)].filter((x) => x.length >= 3))];
+      }
+    } catch { /* sem base */ }
+    // só fica guardado quando a base respondeu (no arranque ainda pode não estar pronta)
+    if (l.length) nomesDaBase.set(feed, l);
+  }
+  return l;
+}
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -49,7 +96,7 @@ export interface AvisoGreve {
   /** Véspera: a partir desta hora já não há serviço (o operador diz «o serviço termina por volta das 23h») */
   vesperaFimMs?: number;
   /** O que continua a funcionar (linhas pela cor e troços entre duas estações) e a que horas (minutos desde a meia-noite) */
-  servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number] };
+  servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number]; janelas?: Array<[number, number]> };
 }
 
 /** Troço de um trajeto, para saber se fica na parte que funciona durante a greve */
@@ -61,14 +108,16 @@ export interface TrocoParaGreve {
   dentroDe?: (a: string, b: string) => { dentro: boolean; passa: boolean };
 }
 
-/** Cor de cada linha do Metro do Porto pelo código */
+/** Cor de cada linha pelo código (Metro do Porto: letras; Metro de Lisboa: Az, Am, Vd, Vm) */
 const COR_METRO_PORTO: Record<string, string> = { A: 'azul', B: 'vermelha', C: 'verde', D: 'amarela', E: 'violeta', F: 'laranja', G: 'rosa', H: 'rubi' };
+const COR_METRO_LISBOA: Record<string, string> = { AZ: 'azul', AM: 'amarela', VD: 'verde', VM: 'vermelha' };
 
 function funcionaNaGreve(feed: string, g: AvisoGreve, troco?: TrocoParaGreve): boolean {
   const s = g.servico;
   if (!s || !troco) return false;
   const linha = norm(String(troco.linha || ''));
-  const cor = feed === 'metro_porto' ? COR_METRO_PORTO[String(troco.linha || '').toUpperCase()] : linha;
+  const codigo = String(troco.linha || '').toUpperCase();
+  const cor = feed === 'metro_porto' ? COR_METRO_PORTO[codigo] : feed === 'metro_lisboa' ? (COR_METRO_LISBOA[codigo] || linha) : linha;
   // um troço anunciado nessa viagem manda (a linha pode funcionar só em parte); sem troço nela, a linha inteira
   const onde = s.trocos.map(([a, b]) => (troco.dentroDe ? troco.dentroDe(a, b) : { dentro: false, passa: false }));
   if (onde.some((o) => o.dentro)) return true;
@@ -96,8 +145,8 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
 
 /** Greve que afeta um troço (operador da app e hora de partida), ou undefined */
 export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve[], troco?: TrocoParaGreve): GreveTroco | undefined {
-  const nomes = OPERADORES[feed];
-  if (!nomes || !Number.isFinite(partidaMs)) return undefined;
+  const nomes = nomesDoOperador(feed);
+  if (!nomes.length || !Number.isFinite(partidaMs)) return undefined;
   const dia = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' }).toISODate();
   let previsto: GreveTroco | undefined;
   for (const g of greves) {
@@ -112,10 +161,12 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
       if (!funcionaNaGreve(feed, g, troco)) return g.servico ? { ...base, semServico: true } : base;
       // fora das horas anunciadas («de 30 em 30 minutos entre as 6h00 e as 7h00 … e as 00h00») não há viagens
       const h = g.servico?.horas;
-      if (h) {
+      const janelas = g.servico?.janelas;
+      if (h || janelas?.length) {
         const l = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' });
         const min = l.hour * 60 + l.minute;
-        if (!(min >= h[0] && min < h[1]) && !(min + 1440 >= h[0] && min + 1440 < h[1])) return { ...base, semServico: true };
+        const dentro = (j: [number, number]) => (min >= j[0] && min < j[1]) || (min + 1440 >= j[0] && min + 1440 < j[1]);
+        if (h ? !dentro(h) : !janelas!.some(dentro)) return { ...base, semServico: true };
       }
       return { ...base, reduzido: true, ...(g.servico?.frequencia ? { frequencia: g.servico.frequencia } : {}) };
     }

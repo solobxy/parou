@@ -60,6 +60,11 @@ export interface Occurrence {
   sourceUrl?: string; // Link to official source or portal
   sourceFetchedAt?: number; // Exact fetch/sync timestamp
   externalId?: string; // Unique external source identifier to prevent duplicates
+  /** Posição no mapa (da fonte, de quem reporta, ou da localidade/concelho escritos); sem ela não vai para o mapa */
+  latitude?: number;
+  longitude?: number;
+  /** A posição é a da localidade ou do concelho (não o ponto exato) */
+  posicaoAproximada?: boolean;
 }
 
 export interface UserProfile {

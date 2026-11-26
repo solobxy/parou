@@ -4,11 +4,12 @@ import {
   CentralAlertStatus, 
   AlertCenterDiagnostic 
 } from '../types/alerts';
-import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
+import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw, alertasTmlEmFalha } from './tmlGoHubService';
 import { DateTime } from 'luxon';
 import { arquivarAvisos } from './historico';
 import { grevesDasNoticias, noticiasDeGreves, avisoGreveOficial } from './grevesNoticias';
 import { podarMapa } from './cacheLimitada';
+import { lerAvisosDosOperadores, FONTE_AVISOS_OPERADORES } from './avisosOperadores';
 
 // In-memory central alert repository with deduplication and state tracking
 interface CentralAlertsState {
@@ -173,6 +174,14 @@ export function extractGeoEntities(text: string, operator: string): {
   };
 }
 
+/** A fonte respondeu sem avisos nenhuns: os que havia dela deixam de contar */
+function retirarTodos(fonte: string): void {
+  const prefixo = `${fonte}:`;
+  for (const [chave, alerta] of centralState.alerts) {
+    if (chave.startsWith(prefixo) && alerta.status !== 'Terminado' && alerta.status !== 'Cancelado') { alerta.status = 'Cancelado'; alerta.last_update = new Date().toISOString(); }
+  }
+}
+
 // Alerta que a fonte deixou de publicar (retirado antes do fim previsto): deixa de contar como ativo.
 // Só se aplica quando a fonte respondeu com avisos (uma resposta vazia pode ser uma falha).
 function retirarDesaparecidos(fonte: string, vistos: Set<string>): void {
@@ -239,7 +248,10 @@ async function ingestTmlAlerts(): Promise<number> {
   const sourceUrl = 'https://go.tmlmobilidade.pt';
 
   try {
-    const rawAlerts = juntarRepetidosTml(await getTmlAlerts());
+    const brutos = await getTmlAlerts();
+    // a TML devolve [] quando falha: conta como falha da fonte (para os avisos sem fim não ficarem para sempre)
+    if (alertasTmlEmFalha()) throw new Error('API de alertas da TML sem resposta');
+    const rawAlerts = juntarRepetidosTml(brutos);
     const agencias = new Map((await getTmlAgencies().catch(() => [])).map((ag) => [ag._id, String(ag.name || '')]));
     let imported = 0;
     const vistos = new Set<string>();
@@ -735,6 +747,22 @@ export function greveSoDeServicosABordo(texto: string): boolean {
 }
 
 /** Um aviso da CP no formato dos alertas centrais (null se não tiver data de início) */
+const MESES_TEXTO = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+/** Fim escrito num aviso sem data de fim: «até 31 de dezembro», «até ao dia 15 de janeiro de 2027» (o último que aparecer,
+ *  depois do início); null se não houver */
+export function fimNoTexto(texto: string, inicio: DateTime): DateTime | null {
+  const t = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let fim: DateTime | null = null;
+  for (const m of t.matchAll(new RegExp(`\\b(?:ate|termina\\w*|terminam?|vigora\\w* ate|prolonga\\w* ate)(?: ao| a| o)?(?: dia)? (\\d{1,2}) de (${MESES_TEXTO.join('|')})(?: de (\\d{4}))?`, 'g'))) {
+    const mes = MESES_TEXTO.indexOf(m[2]) + 1;
+    let d = DateTime.fromObject({ year: m[3] ? Number(m[3]) : inicio.year, month: mes, day: Number(m[1]) }, { zone: 'Europe/Lisbon' });
+    if (!d.isValid) continue;
+    if (!m[3] && d < inicio.startOf('day')) d = d.plus({ years: 1 });
+    if (d >= inicio.startOf('day') && d <= inicio.plus({ years: 2 }) && (!fim || d > fim)) fim = d.endOf('day');
+  }
+  return fim;
+}
+
 export function avisoDaCp(item: any, agoraIso = new Date().toISOString()): CentralAlert | null {
   const campos: any[] = item?.contentFields?.['pt-PT'] || (Array.isArray(item?.contentFields) ? item.contentFields : []);
   const titulo = textoDeHtml(campoCp(campos, 'Text48691729', /^t[ií]tulo/i) || String(item?.title?.['pt-PT'] || '').replace(/\s*\|.*$/, ''));
@@ -743,7 +771,8 @@ export function avisoDaCp(item: any, agoraIso = new Date().toISOString()): Centr
   const inicio = diaCp(campoCp(campos, 'Date35268359', /in[ií]cio/i));
   const fimDia = diaCp(campoCp(campos, 'Field40441023', /\bfim\b/i));
   if (!titulo || !inicio) return null;
-  const fim = fimDia ? fimDia.endOf('day') : null;
+  // sem «Data de fim»: o fim escrito no texto («até 31 de dezembro», «até ao dia 15 de janeiro de 2027»)
+  const fim = fimDia ? fimDia.endOf('day') : fimNoTexto(`${titulo}. ${lead}. ${corpo}`, inicio);
   const extId = String(item?.friendlyUrlPath || item?.id || titulo);
   const descricao = [lead, corpo].filter(Boolean).join(' — ').slice(0, 1500);
   let tipo = classifyAlertType(titulo, `${lead} ${corpo}`);
@@ -789,12 +818,15 @@ async function ingestCpAlerts(): Promise<number> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data: any = await res.json();
-    const itens: any[] = Array.isArray(data?.item) ? data.item : [];
+    if (!Array.isArray(data?.item)) throw new Error('Resposta da CP sem lista de avisos (o formato mudou?)');
+    const itens: any[] = data.item;
     let imported = 0;
     const vistos = new Set<string>();
+    let reconhecidos = 0;
     for (const item of itens) {
       const a = avisoDaCp(item);
       if (!a) continue;
+      reconhecidos++;
       const key = `${sourceName}:${a.external_id}`;
       vistos.add(key);
       const existing = centralState.alerts.get(key);
@@ -802,6 +834,10 @@ async function ingestCpAlerts(): Promise<number> {
       centralState.alerts.set(key, a);
       if (!existing) imported++;
     }
+    // avisos na resposta mas nenhum reconhecido: o formato mudou (nada é dado como terminado)
+    if (itens.length > 0 && reconhecidos === 0) throw new Error('Avisos da CP sem título ou data reconhecidos (o formato mudou?)');
+    // a CP sem avisos nenhuns: os que havia acabaram
+    if (itens.length === 0) retirarTodos(sourceName);
     retirarDesaparecidos(sourceName, vistos);
     return imported;
   } catch (err: any) {
@@ -956,6 +992,70 @@ async function ingestMetroPortoAlerts(): Promise<number> {
   }
 }
 
+// Avisos de greve nos sites dos operadores do país todo e das ilhas (avisosOperadores.ts), de 10 em 10 minutos
+async function ingestAvisosOperadores(): Promise<number> {
+  const r = await lerAvisosDosOperadores();
+  if (!r) return 0;
+  const agora = new Date().toISOString();
+  for (const op of r.falhas) centralState.sourcesErrorList.push({ source: `${FONTE_AVISOS_OPERADORES} (${op})`, error: 'Site sem resposta', last_attempt: agora });
+  let imported = 0;
+  for (const a of r.avisos) {
+    const key = `${FONTE_AVISOS_OPERADORES}:${a.external_id}`;
+    const existing = centralState.alerts.get(key);
+    if (existing?.status === 'Cancelado') continue;
+    a.content_hash = generateContentHash(a.título, a.descrição, a.start_datetime, a.end_datetime);
+    if (existing && existing.content_hash === a.content_hash) { existing.status = a.status; continue; }
+    centralState.alerts.set(key, a);
+    if (!existing) imported++;
+  }
+  // greve desconvocada no site do operador: a desse dia deixa de contar (de qualquer fonte)
+  for (const an of r.anuladas) {
+    for (const a of centralState.alerts.values()) {
+      if (a.tipo === 'greve' && normOperador(a.operador) === normOperador(an.operador) && an.dias.includes(DateTime.fromISO(a.start_datetime).setZone('Europe/Lisbon').toISODate() || '')) {
+        a.status = 'Cancelado'; a.last_update = agora;
+      }
+    }
+  }
+  return imported;
+}
+const normOperador = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+// ---------------------------------------------------------------------------------
+// Fontes em falha: um aviso sem data de fim (ex.: «Linha D interrompida» no estado das linhas) só vale enquanto a fonte o
+// mostra. Normalmente termina logo que a fonte volta ao normal; mas se a página deixar de responder (ou mudar de formato), não
+// se sabe se ainda é verdade: ao fim de 30 min sem confirmação deixa de aparecer. Volta sozinho se a fonte o mostrar outra vez.
+// Avisos com data de fim (greves, obras) ficam até essa data.
+// ---------------------------------------------------------------------------------
+export const LIMITE_SEM_CONFIRMACAO_MS = 30 * 60_000;
+const falhaDesde = new Map<string, number>();
+/** Atualiza as fontes em falha a partir dos erros desta leitura */
+export function atualizarFalhas(falhas: Map<string, number>, comErro: Set<string>, todas: Iterable<string>, agoraMs: number): void {
+  for (const f of todas) {
+    if (comErro.has(f)) { if (!falhas.has(f)) falhas.set(f, agoraMs); } else falhas.delete(f);
+  }
+}
+/** Tira os avisos sem data de fim de fontes em falha há mais do que o limite (devolve quantos) */
+export function retirarSemConfirmacao(alertas: Iterable<CentralAlert>, falhas: Map<string, number>, agoraMs: number, limiteMs = LIMITE_SEM_CONFIRMACAO_MS): number {
+  let n = 0;
+  for (const a of alertas) {
+    if (a.end_datetime || (a.status !== 'Ativo' && a.status !== 'Futuro')) continue;
+    const desde = falhas.get(a.source);
+    if (desde === undefined || agoraMs - desde < limiteMs) continue;
+    a.status = 'Terminado';
+    a.end_datetime = new Date(agoraMs).toISOString();
+    a.sem_confirmacao = true;
+    // na próxima leitura boa da fonte o aviso é substituído (volta se ainda lá estiver)
+    a.content_hash = 'sem-confirmacao';
+    a.last_update = new Date(agoraMs).toISOString();
+    n++;
+  }
+  return n;
+}
+/** Estado das fontes (para a página de estado e a vigia) */
+export function saudeDasFontes(): Array<{ fonte: string; emFalhaDesde: string }> {
+  return [...falhaDesde.entries()].map(([fonte, t]) => ({ fonte, emFalhaDesde: new Date(t).toISOString() }));
+}
+
 // Greves anunciadas nas notícias (comunicados dos operadores que não aparecem em nenhum site que se leia, como a Metro do
 // Porto a 25/11/2026). Corre depois das fontes oficiais: se o operador já tem aviso oficial para esse dia, fica o oficial.
 const FONTE_NOTICIAS = 'Notícias — greves';
@@ -1013,10 +1113,16 @@ export async function runCentralAlertsSync(): Promise<{
     ingestIpmaAlerts(),
     ingestCpAlerts(),
     ingestMetroPortoAlerts(),
+    ingestAvisosOperadores(),
   ]);
   await ingestGrevesNoticias();
 
   reevaluateAllAlertStatuses();
+  // fontes que falharam nesta leitura (só se conta a fonte de cada aviso: as que têm avisos ou erros)
+  const comErro = new Set(centralState.sourcesErrorList.map((e: any) => String(e.source)));
+  const fontes = new Set<string>([...comErro, ...[...centralState.alerts.values()].map((a) => a.source)]);
+  atualizarFalhas(falhaDesde, comErro, fontes, Date.now());
+  retirarSemConfirmacao(centralState.alerts.values(), falhaDesde, Date.now());
   centralState.lastSync = Date.now();
   // Arquivo permanente: cada aviso e cada mudança (para relatórios e notícias); uma falha aqui não estraga a sincronização
   try { arquivarAvisos([...centralState.alerts.values()]); } catch (e: any) { console.warn('[Histórico] avisos:', e?.message || e); }

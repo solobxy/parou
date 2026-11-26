@@ -28,6 +28,12 @@ export const FONTES_RSS_GREVES = [
   { nome: 'Diário de Notícias', url: 'https://www.dn.pt/feed' },
   { nome: 'Correio da Manhã', url: 'https://www.cmjornal.pt/rss' },
   { nome: 'ECO', url: 'https://eco.sapo.pt/feed/' },
+  // regionais (comunicados de operadores locais saem primeiro aqui): Coimbra, Minho, Algarve, Leiria, Aveiro
+  { nome: 'Notícias de Coimbra', url: 'https://www.noticiasdecoimbra.pt/feed/' },
+  { nome: 'O Minho', url: 'https://ominho.pt/feed/' },
+  { nome: 'Postal do Algarve', url: 'https://postal.pt/feed/' },
+  { nome: 'Região de Leiria', url: 'https://www.regiaodeleiria.pt/feed/' },
+  { nome: 'Diário de Aveiro', url: 'https://www.diarioaveiro.pt/feed/' },
 ];
 
 export interface NoticiaBruta {
@@ -54,6 +60,25 @@ const OPERADORES: Array<{ re: RegExp; nome: string; regiao: string; municipios: 
   { re: /\bsmtuc\b/, nome: 'SMTUC', regiao: 'Coimbra', municipios: ['Coimbra'] },
   { re: /\btub\b|\btransportes urbanos de braga\b/, nome: 'TUB', regiao: 'Braga', municipios: ['Braga'] },
   { re: /\bUNIR\b/, nome: 'UNIR', regiao: 'Área Metropolitana do Porto', municipios: ['Porto'], soMaiusculas: true },
+  // resto do país e ilhas (os mesmos nomes que grevesPlaneador.ts liga aos operadores da app)
+  { re: /\bguimabus\b/, nome: 'Guimabus', regiao: 'Guimarães', municipios: ['Guimarães'] },
+  { re: /\btuba\b.*\bbarcelos\b|\bbarcelos\b.*\btuba\b|transportes urbanos de barcelos/, nome: 'TUBA Barcelos', regiao: 'Barcelos', municipios: ['Barcelos'] },
+  { re: /\bmobiave\b/, nome: 'Mobiave', regiao: 'Vila Nova de Famalicão', municipios: ['Vila Nova de Famalicão'] },
+  { re: /\bvamus\b/, nome: 'Vamus Algarve', regiao: 'Algarve', municipios: ['Faro', 'Loulé', 'Albufeira', 'Portimão'] },
+  { re: /transportes urbanos de faro|\bproximo\b.*\bfaro\b/, nome: 'Próximo', regiao: 'Faro', municipios: ['Faro'] },
+  { re: /\bgiro\b.*\balbufeira\b|\balbufeira\b.*\bgiro\b/, nome: 'GIRO', regiao: 'Albufeira', municipios: ['Albufeira'] },
+  { re: /\bsobe e desce\b/, nome: 'Sobe e Desce', regiao: 'Tavira', municipios: ['Tavira'] },
+  { re: /\bhorarios do funchal\b/, nome: 'Horários do Funchal', regiao: 'Madeira', municipios: ['Funchal'] },
+  { re: /\brodoeste\b/, nome: 'Rodoeste', regiao: 'Madeira', municipios: ['Funchal', 'Câmara de Lobos', 'Ribeira Brava', 'Calheta'] },
+  { re: /companhia de autocarros da madeira/, nome: 'CAM', regiao: 'Madeira', municipios: ['Funchal', 'Machico', 'Santa Cruz'] },
+  { re: /\batlanticoline\b/, nome: 'Atlânticoline', regiao: 'Açores', municipios: ['Ponta Delgada', 'Horta', 'Angra do Heroísmo'] },
+  { re: /\bmobicascais\b/, nome: 'MobiCascais', regiao: 'Área Metropolitana de Lisboa', municipios: ['Cascais'] },
+  { re: /\btcb\b|transportes colectivos do barreiro|transportes coletivos do barreiro/, nome: 'TCB Barreiro', regiao: 'Área Metropolitana de Lisboa', municipios: ['Barreiro'] },
+  { re: /\btut\b.*torres vedras|barraqueiro oeste/, nome: 'TUT Torres Vedras', regiao: 'Oeste', municipios: ['Torres Vedras'] },
+  { re: /\bmobilis\b/, nome: 'Mobilis', regiao: 'Leiria', municipios: ['Leiria'] },
+  { re: /\baveirobus\b/, nome: 'AveiroBus', regiao: 'Aveiro', municipios: ['Aveiro'] },
+  // greve na Infraestruturas de Portugal (sinalização, circulação): pára os comboios da CP
+  { re: /\binfraestruturas de portugal\b/, nome: 'CP', regiao: 'Nacional', municipios: ['Portugal'] },
   // A CP tem avisos oficiais lidos diretamente (cp.pt/avisos): a notícia só entra se o aviso oficial ainda não existir
   { re: /\bcp\b|\bcomboios de portugal\b/, nome: 'CP', regiao: 'Nacional', municipios: ['Portugal'] },
 ];
@@ -185,6 +210,8 @@ export interface ServicoNaGreve {
   frequencia?: string;
   /** Horas com serviço, em minutos desde a meia-noite [início, fim] (fim 1440 = meia-noite): fora delas não há viagens */
   horas?: [number, number];
+  /** Serviços mínimos só em algumas horas («entre as 07h00 e as 09h00 e entre as 17h00 e as 19h00»): fora delas não há */
+  janelas?: Array<[number, number]>;
 }
 
 const limparEstacao = (s: string) => s.replace(/\bsra\.?\s/g, 'senhora ').replace(/\bsr\.?\s/g, 'senhor ').replace(/\(.*?\)/g, ' ').replace(/\s+/g, ' ').trim();
@@ -223,15 +250,32 @@ export function servicoNaGreve(texto: string): ServicoNaGreve | undefined {
     if (!a || !b || /\d/.test(a) || /\d/.test(b)) return;
     if (!trocos.some(([p, q]) => p === a && q === b)) trocos.push([a, b]);
   };
+  const janelas: Array<[number, number]> = [];
   for (const frase of t.split(/(?<=[.;!?])\s+|:\s+/)) {
-    if (!/\b(apenas|so|exclusivamente|unicamente)\b/.test(frase) || !/\b(opera\w*|funciona\w*|circula\w*|servico|ligac\w*|percurso|viage\w*|realiza\w*)\b/.test(frase)) continue;
+    // «só funciona…», ou serviços mínimos «será assegurada a circulação na Linha 3 … entre as 07h00 e as 09h00»
+    const minimos = /\bservicos minimos\b/.test(frase) && /\b(assegurad\w*|garantid\w*|realizad\w*|efetuad\w*)\b/.test(frase);
+    if (!minimos && (!/\b(apenas|so|exclusivamente|unicamente)\b/.test(frase) || !/\b(opera\w*|funciona\w*|circula\w*|servico|ligac\w*|percurso|viage\w*|realiza\w*)\b/.test(frase))) continue;
     for (const m of frase.matchAll(new RegExp(`\\blinhas? (${CORES.join('|')})\\b(?:\\s*\\([a-z]\\))?`, 'g'))) linhas.add(m[1]);
+    // linhas por número ou código («linhas 1, 5 e 7», «na Linha 3», «carreiras 201 e 205»)
+    for (const m of frase.matchAll(/\b(?:linhas?|carreiras?)\s+((?:n\.?o?\s*)?[0-9]{1,4}[a-z]?(?:\s*(?:,|e)\s*[0-9]{1,4}[a-z]?)*)\b/g)) {
+      for (const c of m[1].replace(/n\.?o?\s*/g, '').split(/\s*(?:,|e)\s*/)) if (c) linhas.add(c.trim());
+    }
+    if (minimos) {
+      for (const h of frase.matchAll(/\bentre (?:as|a) (\d{1,2})h(\d{2})? e (?:as|a) (\d{1,2})h(\d{2})?/g)) {
+        const a = Number(h[1]) * 60 + Number(h[2] || 0);
+        let b = Number(h[3]) * 60 + Number(h[4] || 0);
+        if (b <= a) b += 1440;
+        if (a < 1440) janelas.push([a, b]);
+      }
+    }
     for (const m of frase.matchAll(/\bentre (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?) e (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?)(?=[,;.)]|\s+(?:devido|com|na|no|nas|nos|e (?:na|no|entre)|durante|a partir|ate|das|entre as)\b|$)/g)) juntarTroco(m[1], m[2]);
     // "no eixo Hospital São João-Santo Ovídio, da Linha Amarela (D)" (aviso da Metro do Porto de 25/11/2026)
     for (const m of frase.matchAll(/\beixo (?:entre )?(?:o |a )?([a-z][a-z .']{2,40}?)\s*[-–—]\s*([a-z][a-z .']{2,40}?)(?=[,;.)]|\s+(?:da|na|do|e)\b|$)/g)) juntarTroco(m[1], m[2]);
   }
   if (!linhas.size && !trocos.length) return undefined;
-  return { linhas: [...linhas], trocos, ...frequenciasNaGreve(t) };
+  const f = frequenciasNaGreve(t);
+  // com frequências anunciadas, as horas vêm delas; sem elas, as janelas dos serviços mínimos dizem quando há viagens
+  return { linhas: [...linhas], trocos, ...f, ...(!f.horas && janelas.length ? { janelas } : {}) };
 }
 
 function idDe(operador: string, dia: string) {
@@ -283,8 +327,9 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
   const out: CentralAlert[] = [];
   for (const [chave, c] of candidatos) {
     if (anuladas.has(chave)) continue;
-    // aviso oficial do mesmo operador que cobre o mesmo dia: fica o oficial
-    const coberto = oficiais.some((a) => a.tipo === 'greve' && semAcentos(a.operador) === semAcentos(c.operador.nome) && a.status !== 'Cancelado'
+    // aviso oficial do mesmo operador que cobre o mesmo dia: fica o oficial (e se o operador o cancelou, a notícia também não
+    // volta a pôr a greve)
+    const coberto = oficiais.some((a) => a.tipo === 'greve' && semAcentos(a.operador) === semAcentos(c.operador.nome)
       && Date.parse(a.start_datetime) <= c.fim.toMillis() && (a.end_datetime ? Date.parse(a.end_datetime) : Date.parse(a.start_datetime) + 86_400_000) >= c.dias[0].toMillis());
     if (coberto) continue;
     const dia = c.dias[0].toISODate()!;
@@ -332,13 +377,15 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
  * Mesmas regras de leitura das notícias (dias, véspera, o que funciona); devolve null se não anuncia uma greve com dia,
  * e `{ anulada }` se o aviso diz que a greve foi desconvocada.
  */
-export function avisoGreveOficial(o: { operador: string; regiao: string; municipios: string[]; titulo: string; texto: string; publicada: string; url: string; fonte: string }, agora: Date = new Date()):
+export function avisoGreveOficial(o: { operador: string; regiao: string; municipios: string[]; titulo: string; texto: string; publicada: string; url: string; fonte: string; semData?: boolean }, agora: Date = new Date()):
   CentralAlert | { anulada: string[] } | null {
   const publicada = DateTime.fromISO(o.publicada, { zone: 'utc' });
   if (!publicada.isValid) return null;
   const titulo = o.titulo.replace(/\s+/g, ' ').trim();
   const texto = `${titulo}. ${o.texto}`.replace(/\s+/g, ' ').trim();
   if (!RE_GREVE.test(semAcentos(texto))) return null;
+  // sem data de publicação na página, só valem datas com o mês («2 de dezembro»): «sexta-feira» podia ser qualquer uma
+  if (o.semData && !new RegExp(`\\b\\d{1,2}\\s+de\\s+(?:${MESES.join('|')})\\b`).test(semAcentos(texto))) return null;
   let dias = diasDaGreve(titulo, publicada);
   if (!dias.length) dias = diasDaGreve(texto, publicada);
   if (!dias.length) return null;
