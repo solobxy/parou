@@ -21,7 +21,7 @@ import { janelaTalvez } from './atrasosMedidos';
 import { tarifaDaViagem } from './tarifaAndante';
 import { grevesParaPlaneador, greveDoTroco } from './grevesPlaneador';
 import type { TransitRouteOption, RouteLeg, CandidatoUnir, HibridaUnir, PonteUnir, DuplaUnir, CadeiaUnir, LigacaoUnir } from '../types/perto';
-import { autocarrosDe, ordemDasOpcoes, maisRapidaDe } from '../utils/escolhaOpcoes';
+import { autocarrosDe, ordemDasOpcoes, maisRapidaDe, greveNaOpcao } from '../utils/escolhaOpcoes';
 import { indicePronto, esperarIndice, procurar, procurarComUnir, paragensProximas, classeDeTransporte, MODO_RODOVIARIO, MODO_METRO, MODO_COMBOIO, MODO_BARCO, BIT_METRO, BIT_COMBOIO, BIT_BARCO, type Indice, type Jornada } from './planeadorIndice';
 
 export type { CandidatoUnir };
@@ -991,7 +991,9 @@ export async function planearViagem(
   // Nascente → Parque Maia ao domingo, "metro F + C" desaparecia por "autocarro 205 + metro C" chegar 16 min antes.
   const poupaAutocarro = (o: typeof opcoes[0], e: typeof opcoes[0]) => autocarrosDe(o) < autocarrosDe(e)
     && o.walkingMinutes <= e.walkingMinutes + 6 && o.transfersCount <= e.transfersCount + 1;
-  const domina = (e: typeof opcoes[0], o: typeof opcoes[0]) => e.id !== 'a-pe' && e !== o && e._chegada <= o._chegada && (
+  // Uma opção com greve à hora da viagem (pode não circular) não esconde outra sem greve
+  const comGreve = (x: typeof opcoes[0]) => x.id !== 'a-pe' && greveNaOpcao(x) === 2;
+  const domina = (e: typeof opcoes[0], o: typeof opcoes[0]) => e.id !== 'a-pe' && e !== o && !(comGreve(e) && !comGreve(o)) && e._chegada <= o._chegada && (
     (e.transfersCount <= o.transfersCount && e.walkingMinutes <= o.walkingMinutes + 2) || esforco(e) <= esforco(o) - 3)
     && !poupaAutocarro(o, e);
   // O mesmo transbordo apanhado de um autocarro ou do metro são opções diferentes
@@ -1048,6 +1050,19 @@ export async function planearViagem(
       vistas.add(chave(extra));
       escolhidas.push(extra);
       garantidas.add(extra.id);
+    }
+    // Todas com greve (ex.: metro E para o Aeroporto na greve da Metro do Porto): junta a melhor sem greve, mesmo que chegue
+    // bem mais tarde (até 2 h depois), porque as outras podem não circular
+    const emTransito = escolhidas.filter((e) => e.id !== 'a-pe');
+    if (emTransito.length && emTransito.every(comGreve)) {
+      const semGreve = opcoes
+        .filter((x) => x.id !== 'a-pe' && !x._talvez && !comGreve(x) && !vistas.has(chave(x)) && x._chegada - melhorChegada <= 2 * 3600)
+        .sort((a, b) => (a._chegada + esforco(a) * 60) - (b._chegada + esforco(b) * 60))[0];
+      if (semGreve) {
+        vistas.add(chave(semGreve));
+        escolhidas.push(semGreve);
+        garantidas.add(semGreve.id);
+      }
     }
     // Uma que anda pouco (até 6 min mais do que a que anda menos), a melhor delas
     if (!escolhidas.some((e) => e.id !== 'a-pe' && e.walkingMinutes <= menosAPeTodas + 6)) {

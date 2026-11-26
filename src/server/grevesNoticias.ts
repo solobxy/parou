@@ -27,7 +27,6 @@ export const FONTES_RSS_GREVES = [
   { nome: 'Público', url: 'https://feeds.feedburner.com/PublicoLocal' },
   { nome: 'Diário de Notícias', url: 'https://www.dn.pt/feed' },
   { nome: 'Correio da Manhã', url: 'https://www.cmjornal.pt/rss' },
-  { nome: 'Jornal de Notícias', url: 'https://www.jn.pt/rss' },
   { nome: 'ECO', url: 'https://eco.sapo.pt/feed/' },
 ];
 

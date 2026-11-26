@@ -72,8 +72,9 @@ export const ordemDasOpcoes = (a: ParaCusto, b: ParaCusto): number =>
 /** A que chega primeiro (sem contar ir a pé); com a mesma chegada, a com menos transbordos e menos a pé */
 export function maisRapidaDe<T extends ParaCusto>(lista: T[]): T | undefined {
   let m: T | undefined;
-  // Com greve oficial num troço, só é a «mais rápida» se todas as outras também tiverem greve
-  const semGreve = lista.filter((o) => o.id !== 'a-pe' && greveNaOpcao(o) === 0);
+  // Com greve à hora da viagem num troço, só é a «mais rápida» se todas as outras também tiverem greve
+  // (perturbações previstas ou serviço reduzido não contam: circula)
+  const semGreve = lista.filter((o) => o.id !== 'a-pe' && greveNaOpcao(o) < 2);
   for (const o of semGreve.length ? semGreve : lista) {
     if (o.id === 'a-pe') continue;
     if (!m || o.totalDurationMinutes < m.totalDurationMinutes
