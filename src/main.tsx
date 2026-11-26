@@ -131,9 +131,30 @@ if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     } catch {}
     window.location.reload();
   };
+  // Procurar versão nova também com a página já aberta (26/11/2026: o Chrome e a app da Play mantêm a página viva horas e a
+  // versão nova só entrava ao abrir de raiz; correções publicadas não chegavam). Ao voltar à app e de 15 em 15 min com ela
+  // à vista, pergunta-se ao servidor se o service worker mudou (no máximo 1 vez por minuto).
+  let ultimaProcura = 0;
+  let voltouEm = 0;
+  let tocouDesdeQueVoltou = false;
+  const procurarVersao = () => {
+    if (Date.now() - ultimaProcura < 60_000) return;
+    ultimaProcura = Date.now();
+    navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {});
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    voltouEm = Date.now();
+    tocouDesdeQueVoltou = false;
+    procurarVersao();
+  });
+  window.addEventListener('pointerdown', () => { tocouDesdeQueVoltou = true; }, true);
+  setInterval(() => { if (document.visibilityState === 'visible') procurarVersao(); }, 15 * 60_000);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!tinhaControlador) return; // primeira instalação: a página já é a versão atual
-    if (performance.now() < 20_000 || document.visibilityState === 'hidden') {
+    // logo ao abrir, com a página escondida, ou acabada de voltar à app sem a pessoa ter tocado em nada: recarrega já
+    const acabouDeVoltar = voltouEm > 0 && Date.now() - voltouEm < 10_000 && !tocouDesdeQueVoltou;
+    if (performance.now() < 20_000 || document.visibilityState === 'hidden' || acabouDeVoltar) {
       recarregar();
       return;
     }
