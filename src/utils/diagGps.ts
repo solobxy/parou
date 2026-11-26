@@ -43,6 +43,23 @@ export function ligarDiagnosticoGps(): void {
   } catch { /* sem diagnóstico */ }
 }
 
+/** Junta ao registo um acontecimento da app (ex.: a autorização que o browser diz ter: «perm:prompt») */
+export function notaGps(e: string): void {
+  marca(e);
+}
+
+let avisouLigouSozinha = false;
+/** A localização ligou-se sozinha depois de a pessoa a ligar no telemóvel: 5 s depois manda o registo (uma vez por visita),
+ *  para se confirmar em telemóveis reais o que a simulação não mostra. Só tempos e códigos, nunca a posição. */
+export function ligouSozinhaGps(): void {
+  if (avisouLigouSozinha) return;
+  avisouLigouSozinha = true;
+  setTimeout(() => {
+    const vis = typeof document !== 'undefined' ? document.visibilityState : '?';
+    reportarErro('gps', `ligou sozinha ao ligar a localização do telemóvel | ${vis}`, eventos.slice(-40).map((x) => `${x.t}:${x.e}`).join(' '));
+  }, 5000);
+}
+
 let desdePedir = 0;
 let mudancas: number[] = [];
 /** O estado da localização na app mudou: regista e vê se ficou presa a pedir */

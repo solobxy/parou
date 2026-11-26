@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { filtroGps, type LeituraGps } from '../utils/filtroGps';
 import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
 import { ligarMovimento, estadoAparelho } from '../utils/movimentoAparelho';
-import { estadoGps, vigiarGps } from '../utils/diagGps';
+import { estadoGps, vigiarGps, notaGps, ligouSozinhaGps } from '../utils/diagGps';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -664,6 +664,55 @@ export function useUserLocation() {
         sondaRef.current = false;
       }
     }, 1500);
+    return () => { parado = true; clearInterval(id); };
+  }, [activateLocation]);
+
+  // Localização do telemóvel desligada, como o Chrome no Android a mostra de verdade (26/11/2026: no telemóvel era preciso
+  // tocar em «Ativar localização» depois de a ligar; na Moovit aparece em 1 s). Enquanto a localização do telemóvel está
+  // desligada, o Chrome diz que a autorização do site está «por pedir» (ou «recusada», na pausa que faz depois de alguém
+  // fechar o aviso «Ligar a localização?»), mesmo num site já autorizado, e só volta a «autorizado» quando a pessoa a liga
+  // (Chromium: geolocation_permission_context_android.cc). Não avisa a página, e a app ficava no convite à espera de um
+  // toque: a verificação de cima só corre com o site «autorizado». Por isso, com o ecrã visível e a localização parada,
+  // lê-se a autorização a cada 600 ms (não liga o GPS nem abre pergunta nenhuma) e, quando passa a «autorizado», a app liga
+  // a localização sozinha. Só para quem já a deu à PAROU e não a desligou na app. Nunca em ciclo: só na passagem para
+  // «autorizado» (ou no convite com tudo autorizado, de onde a app sai logo).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator) || !navigator.permissions?.query) return;
+    let parado = false;
+    let aLer = false;
+    let anterior: PermissionState | null = null;
+    // travão para um browser que mude de resposta sem parar: no máximo uma vez a cada 5 s e 8 vezes por visita
+    let ultimaVez = 0;
+    let vezes = 0;
+    const id = setInterval(async () => {
+      if (parado || aLer || document.visibilityState !== 'visible') return;
+      const parada = (st: LocationPermissionStatus) => st === 'idle' || st === 'denied' || st === 'unavailable';
+      if (!parada(statusRef.current)) return;
+      if (desligadaPelaPessoa() || memoriaPosicao?.isManual || !jaDeuLocalizacao()) return;
+      aLer = true;
+      try {
+        const r = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+        if (parado) return;
+        const antes = anterior;
+        anterior = r.state;
+        if (r.state !== antes) notaGps(`perm:${r.state}`);
+        const st = statusRef.current;
+        if (r.state !== 'granted' || !parada(st) || desligadaPelaPessoa()) return;
+        if (antes !== null ? antes !== 'granted' : st === 'idle') {
+          // travado: a passagem fica por tratar e volta a ver-se na leitura seguinte
+          if (Date.now() - ultimaVez < 5000 || vezes >= 8) { anterior = antes; return; }
+          ultimaVez = Date.now();
+          vezes++;
+          ultimaTentativaRef.current = Date.now();
+          ligouSozinhaGps();
+          activateLocation(true);
+        }
+      } catch {
+        // browser sem autorizações para a localização: ficam as outras verificações
+      } finally {
+        aLer = false;
+      }
+    }, 600);
     return () => { parado = true; clearInterval(id); };
   }, [activateLocation]);
 
