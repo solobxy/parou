@@ -2536,6 +2536,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
         </div>
         )}
 
+        {/* «Sair agora»: num sítio fixo por cima das opções (a calcular, sem resultados ou com opções), para o campo da hora
+            não ser recriado quando a lista volta a calcular (perdia a confirmação da hora) */}
+        {emRota && !emViagem && selectedDestination && (
+          <div className="shrink-0 px-4 pt-2 lg:hidden">{seletorPartidaRota}</div>
+        )}
+
         {/* Percursos: a calcular / sem resultados */}
         {emRota && !emViagem && selectedDestination && calculatedRoutes.length === 0 && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-2 pb-6">
@@ -2545,7 +2551,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
               <span className="font-semibold text-[15px] text-[#111111] truncate">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
             </div>
-            <div className="pb-2">{seletorPartidaRota}</div>
+            {/* no computador, por baixo do título (no telemóvel está num sítio fixo, acima) */}
+            <div className="hidden lg:block pb-2">{seletorPartidaRota}</div>
             {isCalculatingRoutes ? (
               <div className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-center gap-3 text-[14px] text-[#6B6B6B]">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2] shrink-0" />
@@ -2615,7 +2622,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
             </div>
 
-            <div className="px-1">{seletorPartidaRota}</div>
+            <div className="hidden lg:block px-1">{seletorPartidaRota}</div>
             <div className="space-y-2">
               {calculatedRoutes.map((route) => (
                 <OpcaoRota
