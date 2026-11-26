@@ -163,6 +163,8 @@ export function useUserLocation() {
   const watchIdRef = useRef<number | null>(null);
   // Última vez que o browser deu uma leitura (mesmo que o filtro a tenha posto de parte): se o GPS "adormece", recomeça-se
   const ultimaLeituraRef = useRef(0);
+  // Quando começou o pedido atual de localização (para não dizer «sem sinal» nos primeiros 20 s)
+  const inicioPedidoRef = useRef(0);
   const reiniciarGpsRef = useRef<(() => void) | null>(null);
   const ultimoReinicioRef = useRef(0);
   const reiniciosSeguidosRef = useRef(0);
@@ -184,8 +186,13 @@ export function useUserLocation() {
     const i = setInterval(() => {
       caducarRef.current();
       // sem sinal: continua a tentar sozinha de 20 em 20 s (no metro ou num túnel a posição volta ao sair)
-      if (statusAtualRef.current === 'unavailable' && semSinalRef.current && Date.now() - ultimaLeituraRef.current > 20_000) activarRef.current(true, true);
-    }, 15_000);
+      // à espera da 1.ª posição há mais de 20 s: passa a dizer «Sem sinal de GPS» (o seguimento continua a correr)
+      // (verificado de 5 em 5 s, ver o intervalo)
+      if (statusAtualRef.current === 'requesting' && watchIdRef.current !== null && !previousCoordsRef.current && Date.now() - inicioPedidoRef.current > 20_000) {
+        setSemSinalGps(true);
+        setStatus('unavailable');
+      }
+    }, 5_000);
     const aoVoltar = () => { if (document.visibilityState === 'visible') caducarRef.current(); };
     document.addEventListener('visibilitychange', aoVoltar);
     return () => { clearInterval(i); document.removeEventListener('visibilitychange', aoVoltar); };
@@ -236,6 +243,11 @@ export function useUserLocation() {
     // Acelerómetro: com o telemóvel quieto o filtro não deixa o ponto andar sozinho dentro de casa
     pararMovimentoRef.current?.();
     pararMovimentoRef.current = ligarMovimento();
+    // À espera da primeira posição (GPS a arrancar, sem sinal): o seguimento que já está a correr continua. Recomeçá-lo a cada
+    // toque ou tentativa fazia o telemóvel voltar ao início e nunca chegar a dar a posição (26/11/2026: no telemóvel do Dinis o
+    // GPS demorava ~1 min a dar a 1.ª posição e a app recomeçava-o de segundo a segundo).
+    const manterSeguimento = watchIdRef.current !== null && !previousCoordsRef.current
+      && (statusAtualRef.current === 'requesting' || (statusAtualRef.current === 'unavailable' && semSinalRef.current));
     // Com uma posição já conhecida o ecrã continua a mostrá-la enquanto o GPS atualiza
     if (!previousCoordsRef.current) {
       // Sem posição no ecrã: a última conhecida aparece já e o GPS substitui-a quando responder. Com «precisão baixa» o
@@ -254,7 +266,7 @@ export function useUserLocation() {
       } else if (guardada && jaAutorizada) {
         // A localização do telemóvel acabou de ser ligada: nada de «A localizar…», aparece logo (como na Moovit)
         mostrarGuardada();
-      } else {
+      } else if (!(manterSeguimento && statusAtualRef.current === 'unavailable')) {
         setStatus('requesting');
         // Espera 0,4 s: se o browser recusar logo (ex.: localização desligada), a posição antiga não chega a aparecer
         if (guardada) {
@@ -267,8 +279,8 @@ export function useUserLocation() {
     }
     setErrorMessage(null);
 
-    // Clear any previous watcher
-    if (watchIdRef.current !== null) {
+    if (!manterSeguimento) inicioPedidoRef.current = Date.now();
+    if (watchIdRef.current !== null && !manterSeguimento) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
@@ -328,12 +340,17 @@ export function useUserLocation() {
 
     if (posInicial) handleSuccess(posInicial, 'gps_low');
 
+    // À espera da 1.ª posição com o seguimento a correr: não se junta nenhum pedido (cada um recomeça o GPS no Android)
+    if (manterSeguimento) { setFollowMode(true); return; }
+
     // 1. Posição rápida: a aproximada (rede/Wi-Fi ou a última do telemóvel) chega quase de
     //    imediato e já dá para mostrar as paragens; o GPS afina a seguir, sem a pessoa esperar.
     navigator.geolocation.getCurrentPosition(
       (pos) => handleSuccess(pos, 'gps_low'),
       (err) => {
         if (err.code === err.PERMISSION_DENIED) handlePositionError(err);
+        // sem posição aproximada em 6 s: a localização responde mas ainda não há sinal (não é «desligada»)
+        else if (err.code === err.TIMEOUT && !previousCoordsRef.current) setSemSinalGps(true);
       },
       { enableHighAccuracy: false, timeout: 6000, maximumAge: 10 * 60_000 }
     );
@@ -341,7 +358,7 @@ export function useUserLocation() {
     // 2. Posição precisa (GPS)
     const primaryOptions: PositionOptions = {
       enableHighAccuracy: forceHighAccuracy,
-      timeout: 15000,
+      timeout: 30000,
       maximumAge: forceHighAccuracy ? 0 : 5000,
     };
 
@@ -373,16 +390,23 @@ export function useUserLocation() {
         watchIdRef.current = null;
       }
       try {
+        // Sem prazo: o seguimento espera o tempo que o GPS precisar para a 1.ª posição (dentro de casa pode ser 1 min ou mais)
         const id = navigator.geolocation.watchPosition(
           (pos) => handleSuccess(pos, 'gps_high'),
           (err) => {
             console.warn('[PAROU GPS watchPosition error]:', err.code, err.message);
+            if (err.code === err.TIMEOUT) return;
+            // localização recusada ou desligada: este seguimento acabou (a sonda passa a vigiar quando ela é ligada)
+            if (err.code === err.PERMISSION_DENIED && watchIdRef.current === id) {
+              try { navigator.geolocation.clearWatch(id); } catch {}
+              watchIdRef.current = null;
+            }
             // If already got a position from getCurrentPosition, keep active
             if (!previousCoordsRef.current || err.code === err.PERMISSION_DENIED) {
               handlePositionError(err);
             }
           },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          { enableHighAccuracy: true, maximumAge: 0 }
         );
         watchIdRef.current = id;
       } catch (err) {
@@ -400,7 +424,7 @@ export function useUserLocation() {
         );
       } catch {}
     };
-    iniciarSeguimento();
+    if (!manterSeguimento) iniciarSeguimento();
     setFollowMode(true);
   }, [setCoords]);
 
@@ -425,6 +449,9 @@ export function useUserLocation() {
   const handlePositionError = (error: GeolocationPositionError) => {
     console.warn('[PAROU GPS] Erro de geolocalização:', error.code, error.message);
     setSemSinalGps(error.code !== error.PERMISSION_DENIED);
+    // tempo esgotado num pedido avulso com o seguimento à espera da 1.ª posição: continua «A localizar…» durante 20 s (o GPS
+    // pode só estar a arrancar); depois diz «Sem sinal de GPS», mas o seguimento continua e a posição entra quando chegar
+    if (error.code === error.TIMEOUT && !previousCoordsRef.current && watchIdRef.current !== null && Date.now() - inicioPedidoRef.current < 20_000) return;
     if (error.code === error.PERMISSION_DENIED) {
       previousCoordsRef.current = null;
       setCoords(null);
@@ -677,6 +704,7 @@ export function useUserLocation() {
     // sem perguntar nada. Aí pergunta-se mesmo ao GPS em silêncio. Se um dia o Chrome abrir a pergunta (a resposta demora),
     // fica-se por aí nesta visita: no máximo uma pergunta sem toque, e nunca a quem nunca deu a localização.
     let perguntaAberta = false;
+    let ultimaSondaComSeguimento = 0;
     // no registo de diagnóstico, só quando a resposta da sonda muda (com a localização desligada repete-se a cada 0,3 s)
     let ultimaRes = '';
     const notaRes = (r: string) => { if (r !== ultimaRes) { ultimaRes = r; notaGps(`sonda:${r}`); } };
@@ -710,6 +738,13 @@ export function useUserLocation() {
       const noConvite = st === 'idle' && jaDeuLocalizacao();
       const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable' || pendurado || noConvite;
       if (!desligadaNoTelemovel) return;
+      // Com o seguimento a correr à espera da 1.ª posição, poucos pedidos avulsos: no Android cada pedido que começa faz o
+      // Chrome refazer o pedido ao GPS, e com a sonda a perguntar sem parar o GPS não chegava a dar a posição (26/11/2026,
+      // telemóveis do Dinis e de um amigo: só «tempo esgotado»). O seguimento dá a posição quando o GPS a tiver.
+      // Pouco, mas não nada: no máximo uma pergunta a cada 5 s (com a localização desligada há telemóveis em que o seguimento
+      // fica pendurado e só um pedido novo dá pela localização ligada)
+      if (watchIdRef.current !== null && st !== 'denied' && st !== 'idle' && Date.now() - ultimaSondaComSeguimento < 5000) return;
+      if (watchIdRef.current !== null && st !== 'denied' && st !== 'idle') ultimaSondaComSeguimento = Date.now();
       sondaRef.current = true;
       try {
         if (!(await podePerguntar()) || parado) return;
