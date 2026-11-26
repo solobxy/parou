@@ -430,7 +430,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   onAbrirPrivacidade,
   onAbrirAlertas,
 }) => {
-  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio, semAvisoSistema, afinarPosicao } = useUserLocation();
+  const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio, semAvisoSistema, semSinalGps, afinarPosicao } = useUserLocation();
   // Janela "A tua localização" (o que se faz com ela e como a apagar)
   const [dialogoLocalizacao, setDialogoLocalizacao] = useState<boolean>(false);
   const botaoFavoritos = onAbrirFavoritos ? (
@@ -2234,16 +2234,22 @@ export const PertoView: React.FC<PertoViewProps> = ({
     // Sem localização: três opções — pedir outra vez, tentar outra vez (depois de ligar a
     // localização ou mudar as definições) e escolher um local à mão
     if (bloqueada || semSinal) {
-      const desligada = telemovelDesligado || semSinal;
-      const titulo = desligada ? 'Liga a localização' : recusou ? 'Localização não autorizada' : 'Localização bloqueada';
-      const texto = semAvisoAndroid
+      // ligada e autorizada, mas sem posição do telemóvel (no metro, num túnel, dentro de um edifício): não é «desligada»
+      const gpsSemSinal = semSinal && semSinalGps && !bloqueada;
+      const desligada = !gpsSemSinal && (telemovelDesligado || semSinal);
+      const titulo = gpsSemSinal ? 'Sem sinal de GPS' : desligada ? 'Liga a localização' : recusou ? 'Localização não autorizada' : 'Localização bloqueada';
+      const texto = gpsSemSinal
+        ? 'O telemóvel não está a dar a posição (no metro, num túnel ou dentro de um edifício). A PAROU continua a tentar sozinha.'
+        : semAvisoAndroid
         ? 'O Chrome não mostrou o aviso do Android para a ligar: faz uma pausa depois de alguém o recusar.'
         : desligada
         ? 'A localização do telemóvel parece estar desligada. Liga-a e a PAROU continua sozinha.'
         : recusou
           ? 'Toca em Ativar localização e escolhe Permitir quando o telemóvel perguntar.'
           : 'O browser não está a deixar a PAROU usar a localização.';
-      const passos: string[] = semAvisoAndroid
+      const passos: string[] = gpsSemSinal
+        ? ['Chega-te a uma janela ou sai do túnel: a posição volta sozinha.', 'Ou escolhe um local para ver o que passa perto.']
+        : semAvisoAndroid
         ? ['Desliza o dedo de cima para baixo e liga a Localização.', 'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.']
         : desligada
         ? (eIphone
@@ -2264,6 +2270,17 @@ export const PertoView: React.FC<PertoViewProps> = ({
             </div>
           </div>
 
+          {gpsSemSinal ? (
+            // a localização já está ligada: a ação é só tentar outra vez (a app também tenta sozinha de 20 em 20 s)
+            <button
+              onClick={() => activateLocation(true)}
+              data-teste="tentar-localizacao"
+              className="mt-3.5 w-full h-11 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform cursor-pointer"
+            >
+              <RefreshCw className="w-[18px] h-[18px] stroke-[2.25]" />
+              {t('Tentar outra vez')}
+            </button>
+          ) : (<>
           <button
             onClick={() => {
               activateLocation(true);
@@ -2284,6 +2301,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             <RefreshCw className="w-4 h-4 stroke-[2.25]" />
             {t('Tentar outra vez')}
           </button>
+          </>)}
 
           {(ajudaLocalizacao || semAvisoAndroid) && (
             <ol data-teste={semAvisoAndroid ? 'sem-aviso-android' : undefined} className="mt-2.5 text-left text-[12.5px] text-[#111111] leading-snug space-y-1 bg-[#F4F4F2] rounded-[12px] p-3 list-decimal pl-7">

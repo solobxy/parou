@@ -48,8 +48,12 @@ function jaDeuLocalizacao(): boolean {
 const CHAVE_ULTIMA_POSICAO = 'parou_ultima_posicao';
 // Como o Google Maps e a Moovit: ao abrir, aparece logo a última posição conhecida (até 3 dias) enquanto o GPS afina.
 // Com mais de 30 min conta como aproximada (o ecrã diz «a afinar a posição…» e as paragens atualizam quando o GPS responde).
-const VALIDADE_POSICAO_GUARDADA_MS = 3 * 24 * 60 * 60 * 1000;
-const POSICAO_RECENTE_MS = 30 * 60 * 1000;
+// A última posição só se mostra como «onde estás» se for recente: uma de horas atrás é de outro sítio (26/11/2026: o Dinis já
+// tinha saído de Campanhã e a app mostrava-o lá, com a posição guardada às 13h30 e o GPS sem sinal no caminho para casa)
+const VALIDADE_POSICAO_GUARDADA_MS = 10 * 60 * 1000;
+const POSICAO_RECENTE_MS = 2 * 60 * 1000;
+/** Sem nenhuma leitura do telemóvel há tanto tempo, a posição no ecrã deixa de valer (não fica «presa» no último sítio) */
+const POSICAO_CADUCA_MS = 10 * 60 * 1000;
 let ultimaGravacao = 0;
 // Houve posição do GPS desde que a página abriu (o browser já deu autorização nesta visita)
 let gpsNestaSessao = false;
@@ -61,7 +65,7 @@ function lerPosicaoGuardada(): UserCoords | null {
     if (!p || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return null;
     const idade = Date.now() - Number(p.timestamp || 0);
     if (idade > VALIDADE_POSICAO_GUARDADA_MS) return null;
-    const accuracy = idade > POSICAO_RECENTE_MS ? Math.max(Number(p.accuracy) || 0, 500) : Number(p.accuracy) || 50;
+    const accuracy = idade > POSICAO_RECENTE_MS ? Math.max(Number(p.accuracy) || 0, 200) : Number(p.accuracy) || 50;
     return { ...p, accuracy, heading: null, speed: null, isManual: false };
   } catch {
     return null;
@@ -151,6 +155,10 @@ export function useUserLocation() {
   const toqueRef = useRef<number>(0);
   const [followMode, setFollowMode] = useState<boolean>(true);
   const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
+  // A localização está ligada e autorizada, mas o telemóvel não dá a posição (interior, metro, túnel): não é «desligada»
+  const [semSinalGps, setSemSinalGps] = useState<boolean>(false);
+  const semSinalRef = useRef(false);
+  semSinalRef.current = semSinalGps;
 
   const watchIdRef = useRef<number | null>(null);
   // Última vez que o browser deu uma leitura (mesmo que o filtro a tenha posto de parte): se o GPS "adormece", recomeça-se
@@ -167,6 +175,21 @@ export function useUserLocation() {
   // Diagnóstico: cada mudança de estado e, de 5 em 5 s, se está presa a pedir
   useEffect(() => { estadoGps(status, motivoBloqueio); }, [status, motivoBloqueio]);
   useEffect(() => { const i = setInterval(vigiarGps, 5000); return () => clearInterval(i); }, []);
+  // Posição caduca: o telemóvel não dá nenhuma leitura há mais de 10 min (sem sinal, GPS parado) e a que está no ecrã é dessa
+  // altura. Deixa de a mostrar como «onde estás» e volta a procurar (a app aberta em segundo plano durante a viagem para casa
+  // ficava com a posição do trabalho).
+  const caducarRef = useRef<() => void>(() => {});
+  const activarRef = useRef<(a: boolean, b: boolean) => void>(() => {});
+  useEffect(() => {
+    const i = setInterval(() => {
+      caducarRef.current();
+      // sem sinal: continua a tentar sozinha de 20 em 20 s (no metro ou num túnel a posição volta ao sair)
+      if (statusAtualRef.current === 'unavailable' && semSinalRef.current && Date.now() - ultimaLeituraRef.current > 20_000) activarRef.current(true, true);
+    }, 15_000);
+    const aoVoltar = () => { if (document.visibilityState === 'visible') caducarRef.current(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { clearInterval(i); document.removeEventListener('visibilitychange', aoVoltar); };
+  }, []);
   const setCoords = useCallback((c: UserCoords | null) => {
     emitidoRef.current = c;
     if (!c || c.isManual) reiniciarPosicaoSuave(); // posição nova à mão ou perdida: o filtro recomeça
@@ -296,6 +319,7 @@ export function useUserLocation() {
       }
       setMotivoBloqueio(null);
       setSemAvisoSistema(false);
+      setSemSinalGps(false);
       setCoords(newCoords);
       setStatus('active');
       setErrorMessage(null);
@@ -380,8 +404,27 @@ export function useUserLocation() {
     setFollowMode(true);
   }, [setCoords]);
 
+  caducarRef.current = () => {
+    const c = previousCoordsRef.current || emitidoRef.current;
+    if (statusAtualRef.current !== 'active' || !c || c.isManual) return;
+    const agora = Date.now();
+    if (agora - (Number(c.timestamp) || 0) < POSICAO_CADUCA_MS || agora - ultimaLeituraRef.current < POSICAO_CADUCA_MS) return;
+    notaGps('caducou');
+    setSemSinalGps(true);
+    previousCoordsRef.current = null;
+    filtroGps.reiniciar();
+    setCoords(null);
+    setStatus('requesting');
+    ultimaLeituraRef.current = agora;
+    if (watchIdRef.current !== null && reiniciarGpsRef.current) reiniciarGpsRef.current();
+    else activateLocation(true, true);
+  };
+
+  activarRef.current = activateLocation;
+
   const handlePositionError = (error: GeolocationPositionError) => {
     console.warn('[PAROU GPS] Erro de geolocalização:', error.code, error.message);
+    setSemSinalGps(error.code !== error.PERMISSION_DENIED);
     if (error.code === error.PERMISSION_DENIED) {
       previousCoordsRef.current = null;
       setCoords(null);
@@ -810,6 +853,7 @@ export function useUserLocation() {
     errorMessage,
     motivoBloqueio,
     semAvisoSistema,
+    semSinalGps,
     followMode,
     isRefreshingGps,
     setFollowMode,

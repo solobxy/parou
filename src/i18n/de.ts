@@ -1397,4 +1397,8 @@ export const DE: Record<string, string> = {
   'Serviço reduzido': 'Eingeschränkter Betrieb',
   'pode não se realizar': 'könnte ausfallen',
   'Na parte que funciona, as horas são as do horário normal: conta a frequência da greve.': 'Auf dem fahrenden Abschnitt sind die Zeiten aus dem normalen Fahrplan: Es gilt der Streiktakt.',
+  // Localização sem sinal de GPS
+  'O telemóvel não está a dar a posição (no metro, num túnel ou dentro de um edifício). A PAROU continua a tentar sozinha.': 'Das Handy liefert keine Position (in der U-Bahn, im Tunnel oder in einem Gebäude). PAROU versucht es weiter von selbst.',
+  'Chega-te a uma janela ou sai do túnel: a posição volta sozinha.': 'Geh an ein Fenster oder aus dem Tunnel: Die Position kommt von selbst zurück.',
+  'Ou escolhe um local para ver o que passa perto.': 'Oder wähle einen Ort, um zu sehen, was in der Nähe fährt.',
 };
