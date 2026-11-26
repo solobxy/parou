@@ -121,6 +121,12 @@ export interface GreveTroco {
   operador: string;
   /** Não é dia de greve, mas o operador avisa que ainda há perturbações nesse dia */
   previsto?: boolean;
+  /** A greve vem de uma notícia (comunicado do operador publicado pela imprensa), não de um aviso no site do operador */
+  noticia?: boolean;
+  /** O troço está na parte que continua a funcionar durante a greve, com serviço reduzido */
+  reduzido?: boolean;
+  /** Frequência anunciada para o serviço reduzido ("15 min (7h–20h)") */
+  frequencia?: string;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }

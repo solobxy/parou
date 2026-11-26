@@ -7,6 +7,7 @@ import {
 import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
 import { DateTime } from 'luxon';
 import { arquivarAvisos } from './historico';
+import { grevesDasNoticias, noticiasDeGreves } from './grevesNoticias';
 
 // In-memory central alert repository with deduplication and state tracking
 interface CentralAlertsState {
@@ -808,6 +809,38 @@ async function ingestCpAlerts(): Promise<number> {
   }
 }
 
+// Greves anunciadas nas notícias (comunicados dos operadores que não aparecem em nenhum site que se leia, como a Metro do
+// Porto a 25/11/2026). Corre depois das fontes oficiais: se o operador já tem aviso oficial para esse dia, fica o oficial.
+const FONTE_NOTICIAS = 'Notícias — greves';
+async function ingestGrevesNoticias(): Promise<number> {
+  try {
+    const noticias = await noticiasDeGreves();
+    const oficiais = [...centralState.alerts.entries()].filter(([k]) => !k.startsWith(`${FONTE_NOTICIAS}:`)).map(([, a]) => a);
+    const avisos = grevesDasNoticias(noticias, new Date(), oficiais);
+    let imported = 0;
+    const vistos = new Set<string>();
+    for (const a of avisos) {
+      const key = `${FONTE_NOTICIAS}:${a.external_id}`;
+      vistos.add(key);
+      a.content_hash = generateContentHash(a.título, a.descrição, a.start_datetime, a.end_datetime);
+      const existing = centralState.alerts.get(key);
+      if (existing && existing.content_hash === a.content_hash && existing.status !== 'Cancelado') { existing.status = a.status; continue; }
+      centralState.alerts.set(key, a);
+      if (!existing) imported++;
+    }
+    // Lidas as notícias, o que deixou de aparecer (greve desconvocada, ou o aviso oficial já chegou) deixa de contar
+    if (noticias.length) {
+      for (const chave of [...centralState.alerts.keys()]) {
+        if (chave.startsWith(`${FONTE_NOTICIAS}:`) && !vistos.has(chave)) centralState.alerts.delete(chave);
+      }
+    }
+    return imported;
+  } catch (err: any) {
+    centralState.sourcesErrorList.push({ source: FONTE_NOTICIAS, error: err?.message || 'Falha ao ler as notícias', last_attempt: new Date().toISOString() });
+    return 0;
+  }
+}
+
 // Re-evaluate statuses dynamically on every access
 function reevaluateAllAlertStatuses(): void {
   for (const [, alert] of centralState.alerts) {
@@ -833,6 +866,7 @@ export async function runCentralAlertsSync(): Promise<{
     ingestIpmaAlerts(),
     ingestCpAlerts(),
   ]);
+  await ingestGrevesNoticias();
 
   reevaluateAllAlertStatuses();
   centralState.lastSync = Date.now();

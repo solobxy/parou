@@ -38,6 +38,8 @@ export interface CentralAlert {
   severity?: 'Grave' | 'Moderada' | 'Informativo';
   /** Greves: outros dias com perturbações previstas que o operador refere (AAAA-MM-DD), fora do período da greve */
   dias_perturbacao?: string[];
+  /** Greves: o que continua a funcionar (linhas inteiras e troços entre duas estações), quando o operador o diz */
+  servico_na_greve?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string };
 }
 
 export interface AlertCenterDiagnostic {

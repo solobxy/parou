@@ -35,13 +35,14 @@ const A_PE_SEM_CASTIGO = 15;
 
 /**
  * Greve oficial num dos troços (o operador avisa que pode não circular): 2 = greve à hora da viagem, 1 = perturbações
- * previstas pelo operador nesse dia, 0 = nada.
+ * previstas pelo operador nesse dia ou troço na parte que funciona com serviço reduzido, 0 = nada.
  */
 export function greveNaOpcao(o: Pick<TransitRouteOption, 'legs'>): 0 | 1 | 2 {
   let g: 0 | 1 | 2 = 0;
   for (const l of o.legs) {
     if (l.mode !== 'TRANSIT' || !l.greve) continue;
-    if (!l.greve.previsto) return 2;
+    // serviço reduzido na parte que funciona durante a greve conta como perturbação, não como «pode não circular»
+    if (!l.greve.previsto && !l.greve.reduzido) return 2;
     g = 1;
   }
   return g;

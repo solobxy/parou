@@ -49,6 +49,54 @@ type Modo = NonNullable<RouteLeg['transportMode']>;
 
 interface Paragem { id: string; feed: string; nome: string; lat: number; lon: number; dist: number; minutos: number }
 interface Linha { short: string; long: string; tipo: number; cor: string; feed: string }
+// ------------------------------------------------------------------ troços que funcionam durante uma greve
+const semAcGreve = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(de|do|da|dos|das|o|a)\b/g, ' ').replace(/\s+/g, ' ').trim();
+/** A estação tem todas as palavras procuradas ("estadio dragao" em "Estádio do Dragão") */
+function mesmaEstacao(nome: string, procurado: string): boolean {
+  const n = ` ${semAcGreve(nome)} `, q = semAcGreve(procurado).split(' ').filter(Boolean);
+  return q.length > 0 && q.every((w) => n.includes(` ${w} `));
+}
+const chaveEstacao = (nome: string) => semAcGreve(nome);
+const memoViagem = new Map<string, Array<{ id: string; nome: string }>>();
+function viagemNomes(db: any, trip: string): Array<{ id: string; nome: string }> {
+  let l = memoViagem.get(trip);
+  if (!l) {
+    try {
+      l = (db.prepare('SELECT st.stop_id AS id, s.stop_name AS nome FROM stop_times st JOIN stops s ON s.stop_id = st.stop_id WHERE st.trip_id = ? ORDER BY st.stop_sequence').all(trip) as any[])
+        .map((r) => ({ id: String(r.id), nome: String(r.nome || '') }));
+    } catch { l = []; }
+    memoViagem.set(trip, l);
+    podarMapa(memoViagem, 400);
+  }
+  return l;
+}
+const memoTroco = new Map<string, { quando: number; estacoes: Set<string> | null }>();
+/** Estações entre a e b (nomes normalizados), numa viagem do operador que passa pelas duas; null se nenhuma passa */
+function estacoesEntre(db: any, feed: string, a: string, b: string): Set<string> | null {
+  const chave = `${feed}|${a}|${b}`;
+  const m = memoTroco.get(chave);
+  if (m && Date.now() - m.quando < 6 * 3600_000) return m.estacoes;
+  let estacoes: Set<string> | null = null;
+  try {
+    const paragens = db.prepare('SELECT stop_id AS id, stop_name AS nome FROM stops WHERE feed_id = ?').all(feed) as Array<{ id: string; nome: string }>;
+    const idsA = paragens.filter((p) => mesmaEstacao(p.nome, a)).map((p) => p.id).slice(0, 20);
+    const idsB = paragens.filter((p) => mesmaEstacao(p.nome, b)).map((p) => p.id).slice(0, 20);
+    if (idsA.length && idsB.length) {
+      const q = (n: number) => Array(n).fill('?').join(',');
+      const r = db.prepare(`SELECT x.trip_id AS trip FROM stop_times x JOIN stop_times y ON y.trip_id = x.trip_id
+        WHERE x.stop_id IN (${q(idsA.length)}) AND y.stop_id IN (${q(idsB.length)}) LIMIT 1`).get(...idsA, ...idsB) as any;
+      if (r?.trip) {
+        const nomes = viagemNomes(db, String(r.trip));
+        const ia = nomes.findIndex((x) => mesmaEstacao(x.nome, a)), ib = nomes.findIndex((x) => mesmaEstacao(x.nome, b));
+        if (ia >= 0 && ib >= 0) estacoes = new Set(nomes.slice(Math.min(ia, ib), Math.max(ia, ib) + 1).map((x) => chaveEstacao(x.nome)));
+      }
+    }
+  } catch { estacoes = null; }
+  memoTroco.set(chave, { quando: Date.now(), estacoes });
+  podarMapa(memoTroco, 50);
+  return estacoes;
+}
+
 interface Perna {
   trip: string; route: string; feed: string; destinoViagem: string;
   de: string; para: string; parte: number; chega: number; paragens: number; sa?: number; sb?: number;
@@ -520,6 +568,19 @@ export async function planearViagem(
     return nomeParagem.get(id)!;
   };
 
+  // Troço dentro da parte que funciona durante uma greve ("entre Senhora da Hora e Estádio do Dragão"): as estações entre as
+  // duas pontas (numa viagem do operador que passa pelas duas) e o troço vai de uma delas a outra. Só se consulta quando há
+  // uma greve com serviço anunciado. Ex.: linha C de Trindade a 24 de Agosto funciona (é o tronco comum), mesmo sem a linha C
+  // ir ao Dragão; a linha E de Trindade ao Aeroporto não.
+  const trocoNaGreve = (p: Perna, a: string, b: string): { dentro: boolean; passa: boolean } => {
+    const estacoes = estacoesEntre(db, p.feed, a, b);
+    const nomes = viagemNomes(db, p.trip);
+    const nomeDe = nomes.find((x) => x.id === p.de)?.nome, nomePara = nomes.find((x) => x.id === p.para)?.nome;
+    const dentro = !!estacoes && !!nomeDe && !!nomePara && estacoes.has(chaveEstacao(nomeDe)) && estacoes.has(chaveEstacao(nomePara));
+    const passa = nomes.some((x) => mesmaEstacao(x.nome, a)) && nomes.some((x) => mesmaEstacao(x.nome, b));
+    return { dentro, passa };
+  };
+
   const pernaTransito = (p: Perna, desvio: number): RouteLeg => {
     const l = linha(p.route);
     const modo = modoDaLinha(l, feeds.get(p.feed)?.mode);
@@ -544,7 +605,7 @@ export async function planearViagem(
       departureTime: hm(p.parte - desvio),
       arrivalTime: hm(p.chega - desvio),
       // Greve confirmada pelo operador no dia e hora deste troço (sem greve fica undefined e não vai na resposta)
-      greve: greveDoTroco(p.feed, (epocaMeiaNoite + p.parte - desvio) * 1000, greves),
+      greve: greveDoTroco(p.feed, (epocaMeiaNoite + p.parte - desvio) * 1000, greves, { linha: codigo, dentroDe: (a, b) => trocoNaGreve(p, a, b) }),
       // Para o «Avisar-me» acompanhar o transporte em direto
       tripId: p.trip,
       fromStopId: p.de,

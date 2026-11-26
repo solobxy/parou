@@ -166,7 +166,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
               <TriangleAlert className="w-3.5 h-3.5 mt-[2px] shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
               <span>
                 <span className="font-semibold">{greve.previsto ? t('Perturbações previstas na {o}', { o: greve.operador }) : t('Greve na {o}', { o: greve.operador })}</span>
-                {` · ${t('pode não circular')}`}
+                {` · ${greve.reduzido ? t('menos viagens') : t('pode não circular')}`}
               </span>
             </p>
           )}
@@ -233,11 +233,15 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
                             <span>
                               {leg.greve.previsto
                                 ? t('A {o} prevê perturbações neste dia por causa da greve.', { o: leg.greve.operador })
-                                : t('Greve na {o} à hora desta viagem: pode não circular.', { o: leg.greve.operador })}
+                                : leg.greve.reduzido
+                                  ? (leg.greve.frequencia
+                                    ? t('Greve na {o}: este troço funciona, com uma viagem a cada {f}.', { o: leg.greve.operador, f: leg.greve.frequencia })
+                                    : t('Greve na {o}: este troço funciona, com menos viagens.', { o: leg.greve.operador }))
+                                  : t('Greve na {o} à hora desta viagem: pode não circular.', { o: leg.greve.operador })}
                             </span>
                             {leg.greve.url && (
                               <a href={leg.greve.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 min-h-[40px] -mb-2 font-semibold underline underline-offset-2 decoration-[#6B6B6B] hover:decoration-[#111111] rounded-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]">
-                                {t('Aviso oficial')}
+                                {leg.greve.noticia ? t('Ver notícia') : t('Aviso oficial')}
                                 <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.25]" aria-hidden="true" />
                               </a>
                             )}
