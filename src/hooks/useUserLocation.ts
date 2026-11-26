@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { filtroGps, type LeituraGps } from '../utils/filtroGps';
 import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
 import { ligarMovimento, estadoAparelho } from '../utils/movimentoAparelho';
-import { estadoGps, vigiarGps, notaGps } from '../utils/diagGps';
+import { estadoGps, vigiarGps, notaGps, contextoGps } from '../utils/diagGps';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -69,6 +69,21 @@ function lerPosicaoGuardada(): UserCoords | null {
 }
 
 let memoriaPosicao: UserCoords | null = lerPosicaoGuardada();
+
+// Para os registos de diagnóstico: o que está guardado no telemóvel (sem a posição) e como a app foi aberta
+contextoGps(() => {
+  let guardada = '-';
+  try {
+    const p = JSON.parse(localStorage.getItem(CHAVE_ULTIMA_POSICAO) || 'null');
+    if (p && Number.isFinite(Number(p.timestamp))) guardada = `${Math.round((Date.now() - Number(p.timestamp)) / 60_000)}min`;
+  } catch { /* sem posição guardada */ }
+  let app = 'browser';
+  try {
+    if (document.referrer.startsWith('android-app://')) app = 'android';
+    else if (window.matchMedia('(display-mode: standalone)').matches) app = 'instalada';
+  } catch { /* sem matchMedia */ }
+  return `já deu ${jaDeuLocalizacao() ? 1 : 0} | desligada na app ${desligadaPelaPessoa() ? 1 : 0} | local à mão ${memoriaPosicao?.isManual ? 1 : 0} | guardada ${guardada} | ${app}`;
+});
 
 /** Última posição conhecida (GPS ou local escolhido), ou null. */
 export function ultimaPosicaoConhecida(): UserCoords | null {
@@ -686,9 +701,10 @@ export function useUserLocation() {
   // (Chromium: geolocation_permission_context_android.cc). Não avisa a página, e a app ficava no convite à espera de um
   // toque: a verificação de cima só corre com o site «autorizado». Por isso, com o ecrã visível e a localização parada,
   // lê-se a autorização a cada 250 ms (não liga o GPS nem abre pergunta nenhuma) e, quando passa a «autorizado», a app liga
-  // a localização sozinha e mostra no mesmo instante a última posição conhecida. Só para quem já a deu à PAROU e não a
-  // desligou na app. Nunca em ciclo: só na passagem para «autorizado» (ou no convite com tudo autorizado, de onde a app
-  // sai logo).
+  // a localização sozinha e mostra no mesmo instante a última posição conhecida. Não corre para quem a desligou na app.
+  // Não depende da marca «já deu a localização» guardada no telemóvel (pode ter sido apagada com os dados do site): passar
+  // a «autorizado» já prova que o site está autorizado; sem a marca lê-se só uma vez por segundo. Nunca em ciclo: só na
+  // passagem para «autorizado» (ou no convite com tudo autorizado, de onde a app sai logo).
   useEffect(() => {
     if (typeof window === 'undefined' || !('geolocation' in navigator) || !navigator.permissions?.query) return;
     let parado = false;
@@ -697,11 +713,13 @@ export function useUserLocation() {
     // travão para um browser que mude de resposta sem parar: no máximo uma vez a cada 5 s e 8 vezes por visita
     let ultimaVez = 0;
     let vezes = 0;
+    let volta = 0;
     const id = setInterval(async () => {
       if (parado || aLer || document.visibilityState !== 'visible') return;
       const parada = (st: LocationPermissionStatus) => st === 'idle' || st === 'denied' || st === 'unavailable';
       if (!parada(statusRef.current)) return;
-      if (desligadaPelaPessoa() || memoriaPosicao?.isManual || !jaDeuLocalizacao()) return;
+      if (desligadaPelaPessoa() || memoriaPosicao?.isManual) return;
+      if (!jaDeuLocalizacao() && volta++ % 4 !== 0) return;
       aLer = true;
       try {
         const r = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
