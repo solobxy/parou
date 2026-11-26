@@ -1,3 +1,4 @@
+import React from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ProtecaoErros, apanharErrosGlobais } from './components/ProtecaoErros';
@@ -99,10 +100,18 @@ function cssPronto(): Promise<void> {
   });
 }
 
+// Viagem partilhada (parou.pt/v/<id>): página própria, leve, sem o resto da app
+const viagemPartilhada = typeof window !== 'undefined' ? /^\/v\/([a-z0-9]{12})\/?$/.exec(window.location.pathname) : null;
+const ViagemPartilhada = React.lazy(() => import('./components/ViagemPartilhada').then((m) => ({ default: m.ViagemPartilhada })));
+
 void cssPronto().then(() => {
   createRoot(document.getElementById('root')!).render(
     <ProtecaoErros>
-      <App />
+      {viagemPartilhada ? (
+        <React.Suspense fallback={null}><ViagemPartilhada id={viagemPartilhada[1]} /></React.Suspense>
+      ) : (
+        <App />
+      )}
     </ProtecaoErros>,
   );
 });

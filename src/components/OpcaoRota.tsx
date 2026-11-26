@@ -4,6 +4,9 @@ import { textoMetros } from '../utils/distancia';
 import { LineChip } from './LineChip';
 import { AvisoPartida } from './AvisoPartida';
 import { BilheteRota, PrecoRota } from './BilheteRota';
+import { BotaoPartilharViagem } from './PartilhaViagem';
+import type { UserCoords } from '../hooks/useUserLocation';
+import type { PartilhaAtiva } from '../services/partilhaViagem';
 import { formatTransitName } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import type { TransitRouteOption } from '../types/perto';
@@ -24,6 +27,8 @@ interface Props {
   /** Mostra o "Avisar-me" para sair a horas (só faz sentido na viagem que começa agora) */
   avisar?: boolean;
   onSelecionar: () => void;
+  /** Para «Partilhar a viagem»: destino com coordenadas, a posição atual e a partilha em curso (se houver) */
+  partilha?: { destino: { nome: string; lat: number; lon: number }; posicao: UserCoords | null; ativa: PartilhaAtiva | null };
 }
 
 /** "em direto", "em direto, 4 min de atraso", "em direto, 2 min adiantado" */
@@ -52,7 +57,7 @@ function partesDuracao(minutos: number): { grande: string; pequena: string } {
  * Uma opção de viagem, no modo calmo: duração, horas de saída e chegada, a cadeia de linhas e uma única linha de apoio.
  * O passo a passo e o "Avisar-me" só aparecem quando se toca na opção (detalhes).
  */
-export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, avisar = true, onSelecionar }: Props) {
+export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, avisar = true, onSelecionar, partilha }: Props) {
   const aPe = route.id === 'a-pe';
   const podeAbrir = !aPe;
   const mostrarDetalhes = detalhes && podeAbrir;
@@ -178,6 +183,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
           )}
           {avisar && !route.possivelAtraso && <AvisoPartida route={route} />}
           {route.tarifa && <BilheteRota tarifa={route.tarifa} />}
+          {partilha && <BotaoPartilharViagem route={route} destino={partilha.destino} posicao={partilha.posicao} ativa={partilha.ativa} />}
           {/* Linha do tempo (como no Google Maps e no Citymapper): horas à esquerda, a cor da linha ao meio, as paragens à
               direita; os troços a pé a tracejado. O que importa (onde entrar, onde sair, a que horas) lê-se de relance. */}
           <ol className="mt-3 pt-3 border-t border-[#E6E6E3]" data-teste="passo-a-passo">

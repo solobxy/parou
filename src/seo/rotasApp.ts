@@ -42,6 +42,7 @@ export const CONVERSA_DA_COMUNIDADE: Meta = { titulo: 'Conversa na comunidade | 
 export function metaDaRota(caminho: string): { meta: Meta; existe: boolean } {
   const limpo = (String(caminho || '/').toLowerCase().replace(/\/+$/, '') || '/');
   if (CONVERSA.test(limpo)) return { meta: CONVERSA_DA_COMUNIDADE, existe: true };
+  if (VIAGEM.test(limpo)) return { meta: VIAGEM_PARTILHADA, existe: true };
   const meta = ROTAS[limpo];
   return { meta: meta || NAO_ENCONTRADA, existe: Boolean(meta) };
 }
@@ -62,3 +63,7 @@ export function aplicarMetaRota(caminho: string): void {
   definir('meta[property="og:title"]', 'content', meta.titulo);
   definir('meta[property="og:description"]', 'content', meta.descricao);
 }
+
+// Viagem partilhada (/v/…): existe enquanto a partilha dura; nunca vai para os motores de busca
+const VIAGEM = /^\/v\/[a-z0-9]{12}$/;
+export const VIAGEM_PARTILHADA: Meta = { titulo: 'Viagem partilhada | PAROU', descricao: 'Acompanha esta viagem de transportes públicos em direto na PAROU.', canonico: '/', indexar: false };

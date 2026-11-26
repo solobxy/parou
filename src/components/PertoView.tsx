@@ -59,6 +59,7 @@ import { AvisoMesmaHora } from './AvisoMesmaHora';
 import { InputPesquisa } from './InputPesquisa';
 import { ConteudoSugestao } from './SugestaoDestino';
 import { OpcaoRota } from './OpcaoRota';
+import { usePartilha, usePartilhaPosicao, PartilhaEmCurso } from './PartilhaViagem';
 import type { MapaViagem } from './RotaVariosDestinos';
 import { linhaVazia, type LinhaEditor } from '../services/rotaVarios';
 // Vários destinos e o editor de paragens só carregam quando se abrem (não fazem falta ao abrir o Perto)
@@ -400,6 +401,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
   useEffect(() => { if (gpsStatus === 'active') setAjudaLocalizacao(false); }, [gpsStatus]);
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
+  // Partilhar a viagem: a partilha em curso e o envio da posição (só enquanto a app está aberta)
+  const partilhaViagem = usePartilha();
+  usePartilhaPosicao(userCoords, partilhaViagem);
   // «A bordo»: deteta (ou a pessoa diz) que vai num autocarro e acompanha-o. Só com GPS real (não com um local escolhido à mão)
   const aBordo = useABordo(userCoords, localizacaoPronta && !userCoords?.isManual);
   const [busTocado, setBusTocado] = useState<{ v: VeiculoLeve; agora: number } | null>(null);
@@ -2331,6 +2335,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
           /></React.Suspense>
         )}
 
+        {partilhaViagem && <PartilhaEmCurso partilha={partilhaViagem} />}
+
         {/* Route Planning Result Panel (if destination active) */}
         {emRota && !emViagem && selectedDestination && calculatedRoutes.length > 0 && (
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-6 space-y-3">
@@ -2358,6 +2364,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                   selecionada={selectedRoute?.id === route.id}
                   detalhes={rotaAbertaId === route.id}
                   destinoNome={selectedDestination.title}
+                  partilha={{ destino: { nome: selectedDestination.title, lat: selectedDestination.latitude, lon: selectedDestination.longitude }, posicao: userCoords, ativa: partilhaViagem }}
                   onSelecionar={() => { setSelectedRoute(route); setRotaAbertaId((aberta) => (aberta === route.id ? null : route.id)); }}
                 />
               ))}

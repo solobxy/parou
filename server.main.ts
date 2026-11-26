@@ -32,6 +32,7 @@ import { registarCspScripts } from './src/server/cspScripts';
 import { registarTravaoRaspagem } from './src/server/travaoRaspagem';
 import { registarRotasEstatisticas } from './src/server/estatisticas';
 import { registarRotasPush } from './src/server/avisosPush';
+import { registarRotasPartilha } from './src/server/partilhaViagem';
 import { planearViagem } from './src/server/planeador';
 import { registarPaginasSeo, registarPrefixosIdioma } from './src/server/seo/paginas';
 import { paginaDaApp } from './src/server/seo/spa';
@@ -208,6 +209,7 @@ registarRotasComunidade(app, {
 registarRotasEstatisticas(app, { eAdmin: pedidoDeAdmin });
 // Notificações push (greves, avisos de mau tempo, perturbações graves), mesmo com a app fechada
 registarRotasPush(app);
+registarRotasPartilha(app);
 // Páginas públicas para os motores de pesquisa: linhas, paragens, operadores, greves e sitemaps
 registarPaginasSeo(app);
 // App Android (Trusted Web Activity): prova ao Android que a app pt.parou.app é do parou.pt,
