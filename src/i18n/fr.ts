@@ -1379,4 +1379,6 @@ export const FR: Record<string, string> = {
   'Sair às': 'Partir à',
   'Hora de partida': 'Heure de départ',
   'A calcular percursos para sair {dia} às {hora}…': 'Calcul des trajets au départ {dia} à {hora}…',
+  'Horário do dia nesta paragem': 'Horaire du jour à cet arrêt',
+  'Ver o percurso': 'Voir le trajet',
 };

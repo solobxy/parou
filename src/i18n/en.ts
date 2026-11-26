@@ -1379,4 +1379,6 @@ export const EN: Record<string, string> = {
   'Sair às': 'Leave at',
   'Hora de partida': 'Departure time',
   'A calcular percursos para sair {dia} às {hora}…': 'Finding routes leaving {dia} at {hora}…',
+  'Horário do dia nesta paragem': 'Timetable for the day at this stop',
+  'Ver o percurso': 'Show the route',
 };

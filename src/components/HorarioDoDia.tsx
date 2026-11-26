@@ -45,8 +45,8 @@ export const SeletorDias: React.FC<{ dias: DiaEscolhivel[]; escolhido: number; o
 
 const LETRAS = 'abcdefghij';
 
-export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sentido: number; data: string; nomeLinha?: string }> = ({
-  lineId, stopId, sentido, data, nomeLinha,
+export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sentido: number; data: string; nomeLinha?: string; viagem?: string }> = ({
+  lineId, stopId, sentido, data, nomeLinha, viagem,
 }) => {
   const [estado, setEstado] = useState<'a-carregar' | 'pronto' | 'erro'>('a-carregar');
   const [horario, setHorario] = useState<HorarioDoDia | null>(null);
@@ -55,11 +55,11 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
   useEffect(() => {
     const ac = new AbortController();
     setEstado('a-carregar');
-    fetchHorarioDoDia(lineId, stopId, sentido, data, ac.signal)
+    fetchHorarioDoDia(lineId, stopId, sentido, data, ac.signal, viagem)
       .then((r) => { setHorario(r); setEstado('pronto'); })
       .catch(() => { if (!ac.signal.aborted) setEstado('erro'); });
     return () => ac.abort();
-  }, [lineId, stopId, sentido, data, tentativa]);
+  }, [lineId, stopId, sentido, data, tentativa, viagem]);
 
   // Horas com os minutos de cada partida; os destinos que não são o principal levam uma letra
   const { grupos, legenda } = useMemo(() => {

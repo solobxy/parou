@@ -898,8 +898,10 @@ app.get('/api/lines/:id/dia', (req: Request, res: Response) => {
     if (!data || !paragem) {
       return res.status(400).json({ error: 'Pedido inválido: falta a paragem ou a data (de ontem até 14 dias à frente).' });
     }
+    // ?viagem=<trip_id> (Perto, percurso aberto): o sentido dessa viagem e todas as linhas com o mesmo nome
+    const viagem = typeof req.query.viagem === 'string' ? req.query.viagem.slice(0, 200) : undefined;
     res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.json(horarioDoDia(String(req.params.id).slice(0, 200), paragem, sentido, data));
+    return res.json(horarioDoDia(String(req.params.id).slice(0, 200), paragem, sentido, data, viagem));
   } catch (err: any) {
     console.error('[API /api/lines/:id/dia] Erro:', err);
     return res.status(500).json({ error: 'Erro ao obter o horário do dia.' });

@@ -768,8 +768,9 @@ export interface HorarioDoDia {
   partidas: Array<{ s: number; hora: string; destino: string }>;
 }
 
-export async function fetchHorarioDoDia(lineId: string, stopId: string, sentido: number, data: string, signal?: AbortSignal): Promise<HorarioDoDia> {
+export async function fetchHorarioDoDia(lineId: string, stopId: string, sentido: number, data: string, signal?: AbortSignal, viagem?: string): Promise<HorarioDoDia> {
   const qs = new URLSearchParams({ paragem: stopId, sentido: String(sentido), data });
+  if (viagem) qs.set('viagem', viagem);
   const res = await fetch(`/api/lines/${encodeURIComponent(lineId)}/dia?${qs}`, { signal: signal || AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`Falha ao obter o horário do dia (${res.status})`);
   return await res.json();

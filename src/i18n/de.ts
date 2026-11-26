@@ -1379,4 +1379,6 @@ export const DE: Record<string, string> = {
   'Sair às': 'Abfahrt um',
   'Hora de partida': 'Abfahrtszeit',
   'A calcular percursos para sair {dia} às {hora}…': 'Verbindungen für die Abfahrt {dia} um {hora} werden berechnet…',
+  'Horário do dia nesta paragem': 'Tagesfahrplan an dieser Haltestelle',
+  'Ver o percurso': 'Strecke anzeigen',
 };

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
-import { SeletorDias, proximosDias } from './HorarioDoDia';
+import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
@@ -560,6 +560,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [horaVer, setHoraVer] = useState<{ modo: 'hora'; data: string; hora: string } | { modo: 'ultimas'; data: string } | null>(null);
   const [seletorHora, setSeletorHora] = useState(false);
   const [tentativaHora, setTentativaHora] = useState(0);
+  // Percurso aberto: «Horário do dia nesta paragem» (índice do dia; null = fechado)
+  const [horarioLinhaDia, setHorarioLinhaDia] = useState<number | null>(null);
   // Rotas a outra hora: «sair às» (null = agora)
   const [partidaRota, setPartidaRota] = useState<{ data: string; hora: string } | null>(null);
   const [seletorPartida, setSeletorPartida] = useState(false);
@@ -630,6 +632,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
     linha: string; cor?: string; destino: string; estado: 'a-carregar' | 'ok' | 'erro';
     /** Identificador da linha (o da lista de linhas) e dados para a guardar nos favoritos */
     id?: string; dados?: DadosLinhaFavorita;
+    /** Viagem e paragem de onde se abriu (para o horário do dia nesta paragem) */
+    viagem?: string; paragemId?: string;
     percurso?: { paragens: Array<{ id: string; nome: string; lat: number; lon: number; hora?: string }>; indice: number; caminho?: string; cortes?: Array<number | null> };
   } | null>(null);
   // O percurso (de uma linha aberta ou do autocarro em que vais) ocupa o mapa: as outras paragens saem
@@ -1487,6 +1491,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       destino: destinoLegivel(dep.destination || dep.headsign, dep.lineName || dep.route_long_name),
       id: idLinha,
       dados: { name: nomeDaLinha, code: linha, color: dep.lineColor, operatorId: dep.operatorId, operatorName: eUnir ? 'UNIR' : dep.operatorName } as DadosLinhaFavorita,
+      viagem: dep.tripId ? String(dep.tripId) : undefined,
+      paragemId: dep.stopId ? String(dep.stopId) : undefined,
     };
     let url = '';
     if (dep.tripId) {
@@ -1511,6 +1517,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
           // Se a partida não trazia o identificador da linha, vem com o percurso
           id: base.id || (p.rota ? String(p.rota) : undefined),
           dados: { ...base.dados, name: base.dados.name || (p.nome ? String(p.nome) : undefined) },
+          viagem: base.viagem,
+          paragemId: base.paragemId,
           estado: 'ok',
           percurso: {
             paragens: p.paragens,
@@ -1521,6 +1529,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
       })
       .catch(() => { if (pedido === pedidoLinhaRef.current) setLinhaAberta({ ...base, estado: 'erro' }); });
   };
+  // Outra linha (ou nenhuma): o horário do dia fecha
+  useEffect(() => { setHorarioLinhaDia(null); }, [linhaAberta?.viagem, linhaAberta?.id]);
   const fecharLinha = () => {
     pedidoLinhaRef.current++;
     setLinhaAberta(null);
@@ -3085,6 +3095,38 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     {mapaExpandido ? <ChevronUp className="w-5 h-5 stroke-[2.25]" /> : <ChevronDown className="w-5 h-5 stroke-[2.25]" />}
                   </button>
                 </div>
+                {/* Horário do dia nesta paragem: todas as partidas desta linha (e sentido) até à última, noutro dia também */}
+                {linhaAberta.id && linhaAberta.paragemId && (
+                  <div className="shrink-0 px-4 pt-2 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setHorarioLinhaDia((v) => (v === null ? 0 : null))}
+                      aria-expanded={horarioLinhaDia !== null}
+                      data-teste="horario-linha-paragem"
+                      className={`h-10 pl-3 pr-2.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer ${
+                        horarioLinhaDia !== null ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] active:bg-[#E6E6E3]'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4 stroke-[2.25] shrink-0" aria-hidden="true" />
+                      {horarioLinhaDia !== null ? t('Ver o percurso') : t('Horário do dia nesta paragem')}
+                    </button>
+                  </div>
+                )}
+                {horarioLinhaDia !== null && linhaAberta.id && linhaAberta.paragemId ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-1 space-y-3" data-teste="horario-linha-dia">
+                    <div className="[mask-image:linear-gradient(to_right,#000_85%,transparent)] lg:[mask-image:none] lg:[&>div]:flex-wrap">
+                      <SeletorDias dias={proximosDias(7)} escolhido={horarioLinhaDia} onEscolher={setHorarioLinhaDia} />
+                    </div>
+                    <HorarioDoDiaPainel
+                      lineId={linhaAberta.id}
+                      stopId={linhaAberta.paragemId}
+                      sentido={0}
+                      viagem={linhaAberta.viagem}
+                      data={proximosDias(7)[horarioLinhaDia]?.data || proximosDias(7)[0].data}
+                      nomeLinha={linhaAberta.dados?.name || linhaAberta.linha}
+                    />
+                  </div>
+                ) : (
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">
                   {linhaAberta.estado === 'a-carregar' && (
                     <div className="py-4 text-sm text-[#6B6B6B]">{t('A carregar percurso…')}</div>
@@ -3142,6 +3184,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     <p className="pb-2 text-[11px] text-[#6B6B6B]">{t('Mostra as paragens por ordem; as horas de passagem não estão disponíveis para esta linha.')}</p>
                   )}
                 </div>
+                )}
               </div>
             )}
 

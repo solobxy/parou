@@ -43,16 +43,35 @@ const horaDe = (s: number) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
-export function horarioDoDia(routeId: string, stopId: string, sentido: number, dia: DateTime): HorarioDoDia {
+/**
+ * `viagem` (opcional): a viagem aberta no Perto. O horário fica com o sentido dela e com todas as linhas do mesmo nome no
+ * mesmo operador (a CP tem uma linha por cada par de estações: só pela linha da viagem o horário vinha incompleto).
+ */
+export function horarioDoDia(routeId: string, stopId: string, sentido: number, dia: DateTime, viagem?: string): HorarioDoDia {
   const db = getDatabase();
   const data = dia.setZone(ZONA).startOf('day');
   const base: HorarioDoDia = { data: data.toISODate() || '', estado: 'sem-dados', previsto: false, partidas: [] };
-  const linhas = db.prepare(`
-    SELECT st.departure_secs AS s, t.service_id AS sv, t.feed_id AS f, t.trip_headsign AS h, COALESCE(st.pickup_type, 0) AS pk,
-           st.stop_sequence AS seq, (SELECT MAX(x.stop_sequence) FROM stop_times x WHERE x.trip_id = st.trip_id) AS ultima
-    FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
-    WHERE st.stop_id = ? AND t.route_id = ? AND COALESCE(t.direction_id, 0) = ?
-  `).all(stopId, routeId, sentido) as Array<{ s: number; sv: string; f: string; h: string | null; pk: number; seq: number; ultima: number }>;
+  let linhas: Array<{ s: number; sv: string; f: string; h: string | null; pk: number; seq: number; ultima: number }>;
+  const daViagem = viagem
+    ? db.prepare('SELECT t.route_id AS r, COALESCE(t.direction_id, 0) AS d, t.feed_id AS f FROM trips t WHERE t.trip_id = ?').get(viagem) as { r: string; d: number; f: string } | undefined
+    : undefined;
+  if (daViagem) {
+    linhas = db.prepare(`
+      SELECT st.departure_secs AS s, t.service_id AS sv, t.feed_id AS f, t.trip_headsign AS h, COALESCE(st.pickup_type, 0) AS pk,
+             st.stop_sequence AS seq, (SELECT MAX(x.stop_sequence) FROM stop_times x WHERE x.trip_id = st.trip_id) AS ultima
+      FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
+      WHERE st.stop_id = ? AND COALESCE(t.direction_id, 0) = ?
+        AND t.route_id IN (SELECT r2.route_id FROM routes r2 WHERE r2.feed_id = ?
+          AND COALESCE(r2.route_short_name, r2.route_id) = (SELECT COALESCE(r1.route_short_name, r1.route_id) FROM routes r1 WHERE r1.route_id = ?))
+    `).all(stopId, daViagem.d, daViagem.f, daViagem.r) as typeof linhas;
+  } else {
+    linhas = db.prepare(`
+      SELECT st.departure_secs AS s, t.service_id AS sv, t.feed_id AS f, t.trip_headsign AS h, COALESCE(st.pickup_type, 0) AS pk,
+             st.stop_sequence AS seq, (SELECT MAX(x.stop_sequence) FROM stop_times x WHERE x.trip_id = st.trip_id) AS ultima
+      FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
+      WHERE st.stop_id = ? AND t.route_id = ? AND COALESCE(t.direction_id, 0) = ?
+    `).all(stopId, routeId, sentido) as typeof linhas;
+  }
   if (linhas.length === 0) return base;
   const saidas = linhas.filter((l) => Number.isFinite(l.s) && l.pk !== 1 && l.seq < l.ultima);
   if (saidas.length === 0) return { ...base, estado: 'ultima-paragem' };
