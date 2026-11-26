@@ -107,11 +107,12 @@ export function diasDaGreve(texto: string, publicada: DateTime): DateTime[] {
   }
   if (dias.size) return [...dias.values()].sort((a, b) => a.toMillis() - b.toMillis());
   // dia da semana: só o primeiro citado (os outros costumam ser "impactos já na quinta-feira", tratados à parte)
-  const ds = /\b(?:(esta|nesta|na|proxima|este|neste|no|proximo)\s+)?(segunda|terca|quarta|quinta|sexta)(?:-feira)?\b|\b(?:(este|neste|no|proximo)\s+)?(sabado|domingo)\b/.exec(t);
+  // «desta quinta-feira» / «deste sábado» também são o próprio dia (sem «desta», a RTP de 26/11 virava uma greve falsa a 3/12)
+  const ds = /\b(?:(esta|nesta|desta|na|proxima|este|neste|deste|no|proximo)\s+)?(segunda|terca|quarta|quinta|sexta)(?:-feira)?\b|\b(?:(este|neste|deste|no|proximo)\s+)?(sabado|domingo)\b/.exec(t);
   if (ds) {
     const nome = ds[2] || ds[4];
     const pref = ds[1] || ds[3] || '';
-    juntar(proximoDiaSemana(base, DIAS_SEMANA[nome], /^(esta|nesta|este|neste)$/.test(pref) || /\bhoje\b/.test(t)));
+    juntar(proximoDiaSemana(base, DIAS_SEMANA[nome], /^(esta|nesta|desta|este|neste|deste)$/.test(pref) || /\bhoje\b/.test(t)));
     return [...dias.values()];
   }
   if (/\bamanha\b/.test(t)) return [base.plus({ days: 1 }).startOf('day')];
