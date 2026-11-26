@@ -809,6 +809,79 @@ async function ingestCpAlerts(): Promise<number> {
   }
 }
 
+// ---------------------------------------------------------------------------------
+// Metro do Porto — "Estado das Linhas" da página inicial (https://www.metrodoporto.pt/): uma entrada por linha com "Ok" ou o
+// texto da perturbação. Não há API; lê-se a página (no máximo de 2 em 2 min).
+// ---------------------------------------------------------------------------------
+export interface EstadoLinhaMetroPorto { letra: string; nome: string; estado: string }
+
+/** Linhas e estado lidos do HTML da página inicial da Metro do Porto (lista "Estado das Linhas") */
+export function estadoLinhasMetroPorto(html: string): EstadoLinhaMetroPorto[] {
+  const i = html.search(/Estado das Linhas/i);
+  if (i < 0) return [];
+  const fim = html.indexOf('</ul>', i);
+  const bloco = html.slice(i, fim > i ? fim : i + 20000);
+  const out: EstadoLinhaMetroPorto[] = [];
+  for (const m of bloco.matchAll(/<li[\s>]([\s\S]*?)<\/li>/gi)) {
+    const li = m[1];
+    const img = /<img[^>]*src="[^"]*\/(?:lina|linha)_([a-z])[-_][^"]*"/i.exec(li)?.[1];
+    const nome = textoDeHtml(/<h4[^>]*>([\s\S]*?)<\/h4>/i.exec(li)?.[1] || '');
+    const estado = textoDeHtml(/class="text widget_field[^"]*"[^>]*>([\s\S]*)$/i.exec(li)?.[1] || '');
+    if (!nome) continue;
+    out.push({ letra: (img || '').toUpperCase(), nome, estado });
+  }
+  return out;
+}
+
+const NOMES_LINHA_METRO_PORTO: Record<string, string> = { A: 'Azul', B: 'Vermelha', C: 'Verde', D: 'Amarela', E: 'Violeta', F: 'Laranja', G: 'Rosa', H: 'Rubi' };
+let ultimaLeituraMetroPorto = 0;
+async function ingestMetroPortoAlerts(): Promise<number> {
+  const sourceName = 'Metro do Porto — estado das linhas';
+  const sourceUrl = 'https://www.metrodoporto.pt/';
+  if (Date.now() - ultimaLeituraMetroPorto < 2 * 60_000) return 0;
+  ultimaLeituraMetroPorto = Date.now();
+  try {
+    const res = await fetch(sourceUrl, { headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (https://parou.pt)' }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const linhas = estadoLinhasMetroPorto(await res.text());
+    // a página mudou de formato: regista-se a falha e nada é dado como terminado
+    if (linhas.length < 3) throw new Error('Estado das linhas da Metro do Porto sem linhas reconhecidas');
+    const agoraIso = new Date().toISOString();
+    let imported = 0;
+    for (const l of linhas) {
+      const extId = `mp-${(l.letra || l.nome).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      const key = `${sourceName}:${extId}`;
+      const existing = centralState.alerts.get(key);
+      const normal = !l.estado || /^(ok|normal|circula[cç][aã]o normal|servi[cç]o normal)\.?$/i.test(l.estado.trim());
+      if (normal) {
+        if (existing && existing.status === 'Ativo') { existing.end_datetime = agoraIso; existing.status = 'Terminado'; existing.last_update = agoraIso; }
+        continue;
+      }
+      const cor = NOMES_LINHA_METRO_PORTO[l.letra];
+      const linhaTxt = l.letra ? `Linha ${l.letra}${cor ? ` (${cor})` : ''}` : l.nome;
+      const tipo = classifyAlertType(`${linhaTxt} ${l.estado}`, l.estado);
+      const interrompida = /interromp|suspens|sem circula|n[aã]o circula|encerrad/i.test(l.estado);
+      const titulo = `${linhaTxt} do Metro do Porto: ${l.estado.length > 90 ? `${l.estado.slice(0, 87).trimEnd()}…` : l.estado}`;
+      const desc = `${l.nome} — ${l.estado}`.slice(0, 800);
+      const start = existing && existing.status === 'Ativo' ? existing.start_datetime : agoraIso;
+      const contentHash = generateContentHash(titulo, desc, start);
+      if (existing && existing.content_hash === contentHash && existing.status === 'Ativo') { centralState.duplicatesAvoidedCount++; continue; }
+      centralState.alerts.set(key, {
+        id: `alert-${extId}`, external_id: extId, tipo: tipo === 'outros alertas oficiais' ? (interrompida ? 'interrupção' : 'atraso significativo') : tipo,
+        título: titulo, descrição: desc, operador: 'Metro do Porto', linhas: l.letra ? [l.letra] : [], paragens: [],
+        região: 'Área Metropolitana do Porto', municípios: ['Porto', 'Matosinhos', 'Vila Nova de Gaia', 'Maia', 'Gondomar'],
+        start_datetime: start, end_datetime: null, published_datetime: start, source: sourceName, source_url: sourceUrl,
+        last_update: agoraIso, status: 'Ativo', content_hash: contentHash, severity: interrompida || tipo === 'greve' ? 'Grave' : 'Moderada',
+      });
+      if (!existing) imported++;
+    }
+    return imported;
+  } catch (err: any) {
+    centralState.sourcesErrorList.push({ source: sourceName, error: err?.message || 'Falha ao ler o estado das linhas', last_attempt: new Date().toISOString() });
+    return 0;
+  }
+}
+
 // Greves anunciadas nas notícias (comunicados dos operadores que não aparecem em nenhum site que se leia, como a Metro do
 // Porto a 25/11/2026). Corre depois das fontes oficiais: se o operador já tem aviso oficial para esse dia, fica o oficial.
 const FONTE_NOTICIAS = 'Notícias — greves';
@@ -865,6 +938,7 @@ export async function runCentralAlertsSync(): Promise<{
     ingestMetroLisboaAlerts(),
     ingestIpmaAlerts(),
     ingestCpAlerts(),
+    ingestMetroPortoAlerts(),
   ]);
   await ingestGrevesNoticias();
 
