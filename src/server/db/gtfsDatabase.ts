@@ -1393,6 +1393,60 @@ export function queryNextByLineForStop(
   }
 }
 
+/**
+ * A última partida de CADA linha e destino numa paragem, num dia de serviço (escolher a hora no Perto, 26/11/2026:
+ * «quando é a última partida?»). Inclui as viagens depois da meia-noite que ainda são do dia (ex.: 25:30 = 01:30).
+ */
+export function queryLastByLineForStop(
+  feedId: string,
+  stopId: string,
+  activeServiceIds: string[]
+): RawDepartureRow[] {
+  if (activeServiceIds.length === 0) return [];
+  try {
+    const db = getDatabase();
+    const rawStopId = stopId.includes(':') ? stopId.split(':')[1] : stopId;
+    const placeholders = activeServiceIds.map(() => '?').join(',');
+    const query = `
+      SELECT
+        st.stop_id,
+        st.trip_id,
+        st.feed_id,
+        st.arrival_secs,
+        MAX(st.departure_secs) AS departure_secs,
+        st.stop_sequence,
+        st.pickup_type,
+        t.route_id,
+        t.service_id,
+        t.trip_headsign,
+        t.direction_id,
+        r.route_short_name,
+        r.route_long_name,
+        r.route_type,
+        r.route_color
+      FROM stop_times st INDEXED BY idx_stop_times_stop
+      CROSS JOIN trips t ON st.trip_id = t.trip_id
+      CROSS JOIN routes r ON t.route_id = r.route_id
+      WHERE st.stop_id IN (
+          SELECT ? UNION SELECT s2.stop_id FROM stops s2 WHERE s2.parent_station IN (?, ?)
+        )
+        AND st.departure_secs >= 0
+        AND st.departure_secs <= 172800
+        AND st.feed_id = ?
+        AND st.pickup_type != 1
+        AND t.service_id IN (${placeholders})
+        AND EXISTS (SELECT 1 FROM stop_times st2 WHERE st2.trip_id = st.trip_id AND st2.stop_sequence > st.stop_sequence)
+      GROUP BY t.route_id, COALESCE(t.trip_headsign, ''), st.stop_id
+      ORDER BY departure_secs ASC
+      LIMIT 200
+    `;
+    return db.prepare(query).all(stopId, stopId, rawStopId, feedId, ...activeServiceIds) as unknown as RawDepartureRow[];
+  } catch (err: any) {
+    if (err?.message?.includes('malformed')) reloadDatabaseConnection();
+    return [];
+  }
+}
+
 export function getMaxStopSequence(feedId: string, tripId?: string): number {
   const actualTripId = tripId || feedId;
   try {

@@ -29,10 +29,12 @@ import {
   Navigation,
   ArrowLeft,
   ChevronRight,
-  Plus
+  Plus,
+  RotateCcw
 } from 'lucide-react';
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
+import { SeletorDias, proximosDias } from './HorarioDoDia';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
@@ -507,7 +509,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>(ultimoFiltro);
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
-  const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean } | null>(null);
+  const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean; modo?: string } | null>(null);
+  // Ver as partidas a outra hora (26/11/2026: «saio do trabalho às 22:00, como vejo as partidas dessa hora ou a última?»).
+  // null = agora (em direto); 'hora' = a partir de um dia e hora; 'ultimas' = a última partida de cada linha nesse dia.
+  const [horaVer, setHoraVer] = useState<{ modo: 'hora'; data: string; hora: string } | { modo: 'ultimas'; data: string } | null>(null);
+  const [seletorHora, setSeletorHora] = useState(false);
+  const [tentativaHora, setTentativaHora] = useState(0);
+  const chaveHoraVer = horaVer ? (horaVer.modo === 'hora' ? `h|${horaVer.data}|${horaVer.hora}` : `u|${horaVer.data}`) : 'agora';
   // Ver as partidas de uma paragem é um momento de valor (o convite para instalar pode aparecer a seguir)
   const paragemComPartidas = partidasExtra && !partidasExtra.aCarregar && partidasExtra.deps.length > 0 ? partidasExtra.id : null;
   useEffect(() => { if (paragemComPartidas) momentoDeValor('paragem'); }, [paragemComPartidas]);
@@ -984,12 +992,56 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   // Paragem aberta: pede ao servidor a próxima partida de CADA linha (a lista "perto" só traz 5
   // partidas por paragem e as linhas menos frequentes ficavam de fora) e atualiza de 30 em 30 s
+  // Fechar a paragem volta a «agora»
+  useEffect(() => { if (!selectedStop) { setHoraVer(null); setSeletorHora(false); } }, [selectedStop]);
   useEffect(() => {
-    if (!selectedStop) return;
+    if (!selectedStop || !horaVer) return;
+    const id = selectedStop.id;
+    const modo = chaveHoraVer;
+    let cancelado = false;
+    const carregar = () => {
+      setPartidasExtra({ id, deps: [], aCarregar: true, modo });
+      const url = horaVer.modo === 'hora'
+        ? `/api/transit/stop/${encodeURIComponent(id)}?linhas=1&time=${encodeURIComponent(`${horaVer.data}T${horaVer.hora}`)}`
+        : `/api/transit/stop/${encodeURIComponent(id)}?ultimas=1&data=${encodeURIComponent(horaVer.data)}`;
+      fetch(url, { signal: AbortSignal.timeout(15000) })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => {
+          if (cancelado) return;
+          const lista: any[] = horaVer.modo === 'hora' ? (data?.departures || []) : (data?.partidas || []);
+          const agoraS = Date.now() / 1000;
+          const deps = lista.map((d: any) => ({
+            lineCode: d.route_short_name || d.route_id,
+            lineName: d.route_long_name || d.route_short_name || '',
+            lineColor: d.route_color ? (String(d.route_color).startsWith('#') ? d.route_color : `#${d.route_color}`) : undefined,
+            destination: d.headsign || 'Terminal',
+            operatorName: d.operator_name,
+            operatorId: d.feed_id,
+            tripId: d.trip_id,
+            routeId: d.route_id,
+            stopId: d.stop_id,
+            scheduledTime: d.scheduled_time,
+            // hora fixa: mostra-se a hora do horário (nada de «daqui a X min»)
+            horaFixa: true,
+            epoch: Number(d.dep_epoch_secs) || 0,
+            jaPassou: (Number(d.dep_epoch_secs) || 0) < agoraS,
+          }));
+          // a partir de uma hora: por hora; últimas: o servidor já manda as que faltam primeiro e as que já partiram no fim
+          if (horaVer.modo === 'hora') deps.sort((x: any, y: any) => x.epoch - y.epoch);
+          setPartidasExtra({ id, deps, aCarregar: false, modo });
+        })
+        .catch(() => { if (!cancelado) setPartidasExtra({ id, deps: [], aCarregar: false, modo: `erro|${modo}` }); });
+    };
+    carregar();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStop?.id, chaveHoraVer, tentativaHora]);
+  useEffect(() => {
+    if (!selectedStop || horaVer) return;
     const id = selectedStop.id;
     let cancelado = false;
     const carregar = (silencioso: boolean) => {
-      if (!silencioso) setPartidasExtra((atual) => ({ id, deps: atual?.id === id ? atual.deps : [], aCarregar: true }));
+      if (!silencioso) setPartidasExtra((atual) => ({ id, deps: atual?.id === id && !atual.modo ? atual.deps : [], aCarregar: true }));
       fetch(`/api/transit/stop/${encodeURIComponent(id)}?linhas=1`, { signal: AbortSignal.timeout(15000) })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
@@ -1026,7 +1078,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     const t = setInterval(() => carregar(true), 30_000);
     return () => { cancelado = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStop?.id]);
+  }, [selectedStop?.id, Boolean(horaVer)]);
 
   // A paragem aberta ocupa o lugar da lista. O "voltar" do telemóvel (gesto ou botão)
   // fecha-a em vez de sair da app: abre-se com uma entrada no histórico.
@@ -2751,6 +2803,118 @@ export const PertoView: React.FC<PertoViewProps> = ({
               })()}
             </div>
 
+            {/* Ver a outra hora: botão discreto no cabeçalho; ao tocar abre por baixo os dias e dois modos («A partir das» uma
+                hora, ou a última de cada linha). Fecha sozinho depois de escolher. */}
+            {!linhaAberta && !selectedStop.arrivalsOnly && (() => {
+              const dias = proximosDias(7);
+              const idxDia = horaVer ? Math.max(0, dias.findIndex((d) => d.data === horaVer.data)) : 0;
+              const rotuloDia = dias[idxDia]?.rotulo || '';
+              const rotulo = seletorHora ? t('Escolher dia e hora')
+                : !horaVer ? t('Agora')
+                : horaVer.modo === 'hora' ? `${rotuloDia}, ${horaVer.hora}`
+                : `${t('Últimas')} · ${rotuloDia}`;
+              const horaAgora = () => {
+                const d = new Date(Date.now() + 5 * 60_000);
+                const [h, m] = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Lisbon', hour: '2-digit', minute: '2-digit', hour12: false }).split(':').map(Number);
+                const arred = Math.floor(m / 5) * 5;
+                return `${String(h).padStart(2, '0')}:${String(arred).padStart(2, '0')}`;
+              };
+              const horaAtual = horaVer?.modo === 'hora' ? horaVer.hora : horaAgora();
+              const modoUltimas = horaVer?.modo === 'ultimas';
+              const cheio = Boolean(horaVer) && !seletorHora;
+              return (
+                <div className="shrink-0 px-3 py-2 border-b border-[#E6E6E3]" data-teste="escolher-hora">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSeletorHora((v) => !v)}
+                      aria-expanded={seletorHora}
+                      aria-label={horaVer && !seletorHora ? `${t('Escolher dia e hora')}: ${rotulo}` : t('Escolher dia e hora')}
+                      data-teste="botao-hora"
+                      className={`h-10 pl-3 pr-2.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer min-w-0 ${
+                        cheio ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] active:bg-[#E6E6E3]'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4 stroke-[2.25] shrink-0" aria-hidden="true" />
+                      <span className="truncate">{rotulo}</span>
+                      <ChevronDown className={`w-4 h-4 stroke-[2.25] shrink-0 transition-transform duration-200 motion-reduce:transition-none ${seletorHora ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+                    {horaVer && (
+                      <button
+                        type="button"
+                        onClick={() => { setHoraVer(null); setSeletorHora(false); }}
+                        aria-label={t('Voltar a agora')}
+                        data-teste="voltar-agora"
+                        className="h-10 px-2.5 rounded-full text-[13px] font-semibold text-[#111111] flex items-center gap-1.5 cursor-pointer active:bg-[#F4F4F2] shrink-0 underline underline-offset-4 decoration-[#E6E6E3]"
+                      >
+                        <RotateCcw className="w-4 h-4 stroke-[2.25]" aria-hidden="true" />
+                        {t('Agora')}
+                      </button>
+                    )}
+                  </div>
+                  {seletorHora && (
+                    <div className="mt-2 space-y-2" data-teste="seletor-hora">
+                      {/* dias: esbatido na ponta direita (há mais para o lado); no computador passam para a linha de baixo */}
+                      <div className="[mask-image:linear-gradient(to_right,#000_85%,transparent)] lg:[mask-image:none] lg:[&>div]:flex-wrap">
+                        <SeletorDias
+                          dias={dias}
+                          escolhido={idxDia}
+                          onEscolher={(i) => setHoraVer((h) => (h?.modo === 'ultimas'
+                            ? { modo: 'ultimas', data: dias[i].data }
+                            : { modo: 'hora', data: dias[i].data, hora: h?.modo === 'hora' ? h.hora : horaAgora() }))}
+                        />
+                      </div>
+                      {/* dois modos lado a lado: a partir de uma hora, ou a última de cada linha */}
+                      <div role="group" aria-label={t('O que ver')} className="flex items-stretch gap-1.5">
+                        {modoUltimas ? (
+                          <button
+                            type="button"
+                            onClick={() => setHoraVer((h) => ({ modo: 'hora', data: h?.data || dias[0].data, hora: horaAgora() }))}
+                            aria-pressed={false}
+                            data-teste="modo-a-partir"
+                            className="h-10 px-3 rounded-[10px] border border-[#E6E6E3] bg-[#FFFFFF] text-[13px] font-semibold text-[#111111] whitespace-nowrap cursor-pointer active:bg-[#F4F4F2]"
+                          >
+                            {t('A partir das')}…
+                          </button>
+                        ) : (
+                          <label className="h-10 pl-3 pr-2 rounded-[10px] border border-[#E6E6E3] bg-[#FFFFFF] flex items-center gap-2 min-w-0 cursor-pointer">
+                            {/* em ecrãs estreitos fica só a hora (o rótulo continua para o leitor de ecrã) */}
+                            <span className="text-[13px] font-medium text-[#6B6B6B] whitespace-nowrap max-[359px]:sr-only">{t('A partir das')}</span>
+                            <input
+                              type="time"
+                              step={300}
+                              value={horaAtual}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (!/^\d{2}:\d{2}$/.test(v)) return;
+                                setHoraVer((h) => ({ modo: 'hora', data: h?.data || dias[0].data, hora: v }));
+                              }}
+                              // depois de escolher a hora no seletor do telemóvel, o painel fecha e fica a lista à vista
+                              onBlur={() => { if (horaVer?.modo === 'hora') setSeletorHora(false); }}
+                              aria-label={t('Hora')}
+                              data-teste="hora-escolhida"
+                              className="font-condensada text-[18px] font-bold tabular-nums text-[#111111] bg-transparent outline-none min-w-[4.5rem] w-[7.25rem] cursor-pointer"
+                            />
+                          </label>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setHoraVer((h) => ({ modo: 'ultimas', data: h?.data || dias[0].data })); setSeletorHora(false); }}
+                          aria-pressed={modoUltimas}
+                          data-teste="ultima-partida"
+                          className={`h-10 px-3 rounded-[10px] border text-[13px] font-semibold whitespace-nowrap cursor-pointer ${
+                            modoUltimas ? 'bg-[#111111] border-[#111111] text-[#FFFFFF]' : 'bg-[#FFFFFF] border-[#E6E6E3] text-[#111111] active:bg-[#F4F4F2]'
+                          }`}
+                        >
+                          {t('Última de cada linha')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Percurso da linha escolhida (também desenhado no mapa) */}
             {linhaAberta && (
               <div className="flex-1 min-h-0 flex flex-col" data-teste="percurso-linha">
@@ -2857,8 +3021,100 @@ export const PertoView: React.FC<PertoViewProps> = ({
             {/* Partidas da paragem */}
             <div className={`flex-1 min-h-0 px-4 pb-4 divide-y divide-[#E6E6E3] overflow-y-auto overscroll-contain ${linhaAberta ? 'hidden' : ''}`}>
               {(() => {
+                if (horaVer) {
+                  const ex = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
+                  const falhou = ex?.modo === `erro|${chaveHoraVer}`;
+                  const aCarregar = !falhou && (!ex || ex.modo !== chaveHoraVer || ex.aCarregar);
+                  if (aCarregar) {
+                    return (
+                      <div role="status" aria-live="polite" className="divide-y divide-[#E6E6E3]" data-teste="partidas-a-carregar">
+                        <span className="sr-only">{t('A carregar partidas…')}</span>
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} className="py-3 flex items-center justify-between gap-3" aria-hidden="true">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className="parou-esqueleto w-8 h-7 shrink-0" />
+                              <span className="parou-esqueleto h-4 flex-1 max-w-[190px]" />
+                            </div>
+                            <span className="parou-esqueleto h-6 w-12 shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (falhou) {
+                    return (
+                      <div className="py-4 text-sm text-[#6B6B6B]" data-teste="partidas-hora-erro">
+                        <p>{t('Não foi possível obter as partidas.')}</p>
+                        <button
+                          type="button"
+                          onClick={() => setTentativaHora((n) => n + 1)}
+                          className="mt-2 h-10 px-3 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[13px] font-semibold text-[#111111] inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <RefreshCw className="w-4 h-4 stroke-[2.25]" aria-hidden="true" />
+                          {t('Tentar outra vez')}
+                        </button>
+                      </div>
+                    );
+                  }
+                  const lista = horaVer.modo === 'hora' ? escolherPartidas(ex!.deps) : ex!.deps;
+                  if (lista.length === 0) {
+                    return (
+                      <div className="py-4 text-sm text-[#6B6B6B]" data-teste="partidas-hora-vazio">
+                        {t(horaVer.modo === 'hora' ? 'Sem partidas a essa hora.' : 'Sem partidas nesse dia.')}
+                      </div>
+                    );
+                  }
+                  const diaEscolhido = horaVer.data;
+                  const diaDe = (epoch: number) => new Date(epoch * 1000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Lisbon' });
+                  return (
+                    <>
+                      <p className="pt-2.5 pb-1 text-xs text-[#6B6B6B]" data-teste="contexto-hora">
+                        {horaVer.modo === 'ultimas'
+                          ? t('Última partida de cada linha, pelo horário oficial.')
+                          : t('Horário oficial · {dia}, a partir das {hora}', { dia: proximosDias(7).find((d) => d.data === horaVer.data)?.rotulo || horaVer.data, hora: horaVer.hora })}
+                      </p>
+                      {lista.map((dep: any, dIdx: number) => {
+                        const destination = destinoLegivel(dep.destination, dep.lineName) || 'Destino';
+                        const podeAbrir = podeAbrirLinha(dep);
+                        const outroDia = diaDe(dep.epoch) !== diaEscolhido;
+                        return (
+                          <div
+                            key={`${dep.tripId}-${dIdx}`}
+                            role={podeAbrir ? 'button' : undefined}
+                            tabIndex={podeAbrir ? 0 : undefined}
+                            onClick={podeAbrir ? () => abrirLinha(dep) : undefined}
+                            onKeyDown={podeAbrir ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirLinha(dep); } } : undefined}
+                            aria-label={podeAbrir ? `Ver o percurso da linha ${dep.lineCode || ''} para ${destination}` : undefined}
+                            data-teste="partida-hora"
+                            className={`py-2.5 flex items-center justify-between gap-2 ${podeAbrir ? 'cursor-pointer active:bg-[#F4F4F2]' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <LineChip number={dep.lineCode || '—'} color={dep.lineColor} />
+                              <div className="min-w-0">
+                                <div className="text-[15px] font-medium text-[#111111] truncate">{destination}</div>
+                                {dep.operatorName && <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>}
+                              </div>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1">
+                              <div className="flex flex-col items-end text-right">
+                                <span className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.jaPassou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
+                                  {dep.scheduledTime}
+                                </span>
+                                {(outroDia || dep.jaPassou) && (
+                                  <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
+                                )}
+                              </div>
+                              {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <FonteOperador ids={[selectedStop.operatorId, ...lista.map((d: any) => d.operatorId)]} className="pt-2.5" />
+                    </>
+                  );
+                }
                 const proprias = selectedStop.nextDepartures || [];
-                const extra = partidasExtra?.id === selectedStop.id ? partidasExtra : null;
+                const extra = partidasExtra?.id === selectedStop.id && !partidasExtra.modo ? partidasExtra : null;
                 const unir = codigosUnir(selectedStop as any).length ? unirPorParagem[selectedStop.id] : undefined;
                 const deps = [...((extra && extra.deps.length > 0) ? extra.deps : proprias), ...partidasUnirDe(selectedStop, true)];
                 const sorted = escolherPartidas(sortDepartures(deps));

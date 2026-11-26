@@ -1932,7 +1932,21 @@ import { DebugEngine } from './src/server/debugEngine';
 app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
   try {
     const stopId = req.params.id;
-    const timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
+    // ?ultimas=1[&data=AAAA-MM-DD]: a última partida de cada linha nesse dia (escolher a hora no Perto)
+    if (req.query.ultimas === '1') {
+      const dia = req.query.data === undefined ? undefined : lerDataPedida(req.query.data);
+      if (dia === null) return res.status(400).json({ error: 'Data inválida (de ontem até daqui a uma semana, AAAA-MM-DD).' });
+      return res.json(await DepartureEngine.ultimasPorLinha(stopId, dia));
+    }
+    // ?time=<ISO com fuso>: partidas a partir dessa hora (de ontem até daqui a 7 dias)
+    let timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
+    if (timeParam) {
+      const pedida = DateTime.fromISO(timeParam, { zone: 'Europe/Lisbon' });
+      if (!pedida.isValid || pedida.toMillis() < Date.now() - 86_400_000 || pedida.toMillis() > Date.now() + 7 * 86_400_000) {
+        return res.status(400).json({ error: 'Hora inválida (de ontem até daqui a 7 dias).' });
+      }
+      timeParam = pedida.toISO() || undefined;
+    }
     // ?linhas=1 (paragem aberta na app): a próxima partida de cada linha + as seguintes
     const umaPorLinha = req.query.linhas === '1';
     const data = await DepartureEngine.nextDepartures(stopId, timeParam || new Date(), 15, { umaPorLinha });

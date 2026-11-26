@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 import { 
   queryDeparturesForStop, 
   queryNextByLineForStop,
+  queryLastByLineForStop,
   getActiveServiceIds, 
   getMaxStopSequence, 
   getFrequenciesForTrip,
@@ -206,6 +207,69 @@ export class DepartureEngine {
    * trips past 24:00, frequencies.txt, skip last stop / pickup_type=1,
    * and merges with RealtimeEngine.
    */
+  /**
+   * A última partida de cada linha e destino numa paragem, no dia de serviço pedido (hoje por omissão). Só horário
+   * oficial. As viagens com frequência («a cada X min») contam pela última passagem.
+   */
+  public static async ultimasPorLinha(stopId: string, dia?: DateTime): Promise<{
+    stop_id: string; stop_name: string; data: string;
+    partidas: Array<{ trip_id: string; route_id: string; route_short_name: string; route_long_name: string; route_color: string; headsign: string;
+      operator_name: string; feed_id: string; stop_id: string; scheduled_time: string; scheduled_seconds: number; dep_epoch_secs: number; depois_da_meia_noite: boolean }>;
+  }> {
+    const stop = await StopsEngine.getUnifiedStopById(stopId);
+    const diaLx = (dia || DateTime.now().setZone(LISBON_ZONE)).setZone(LISBON_ZONE).startOf('day');
+    if (!stop) return { stop_id: stopId, stop_name: '', data: diaLx.toISODate() || '', partidas: [] };
+    const feedsMap = new Map<string, any>(getAllFeeds().map((f: any) => [f.id, f]));
+    const porLinha = new Map<string, any>();
+    for (const memberStopId of stop.member_stop_ids) {
+      const feedId = memberStopId.includes(':') ? memberStopId.slice(0, memberStopId.indexOf(':')) : memberStopId;
+      const feed = feedsMap.get(feedId);
+      if (isFeedExcluded(feed)) continue;
+      const zona = getFeedTimezone(feedId);
+      const diaFeed = DateTime.fromObject({ year: diaLx.year, month: diaLx.month, day: diaLx.day, hour: 12 }, { zone: zona });
+      const inicioDia = Math.floor(diaFeed.minus({ hours: 12 }).toSeconds());
+      const ativos = getActiveServiceIds(feedId, diaFeed.toFormat('yyyyLLdd'), diaFeed.toFormat('cccc').toLowerCase());
+      if (ativos.size === 0) continue;
+      for (const row of queryLastByLineForStop(feedId, memberStopId, Array.from(ativos))) {
+        let secs = row.departure_secs;
+        const freqs = getFrequenciesForTrip(feedId, row.trip_id);
+        if (freqs.length > 0) {
+          const db = getDatabase();
+          const primeira = (db.prepare('SELECT MIN(departure_secs) as min_dep FROM stop_times WHERE trip_id = ?').get(row.trip_id) as { min_dep: number } | undefined)?.min_dep ?? row.departure_secs;
+          const viagem = Math.max(0, row.departure_secs - primeira);
+          for (const f of freqs) {
+            if (f.end_time_secs <= f.start_time_secs || f.headway_secs <= 0) continue;
+            const ultimaSaida = f.start_time_secs + Math.floor((f.end_time_secs - 1 - f.start_time_secs) / f.headway_secs) * f.headway_secs;
+            secs = Math.max(secs, ultimaSaida + viagem);
+          }
+        }
+        // pelo nome da linha e destino: a CP tem uma linha por cada par de estações (178 para 14 nomes) e o sentido sempre 0
+        const chave = `${row.feed_id}|${row.route_short_name || row.route_id}|${String(row.trip_headsign || '').toLowerCase()}`;
+        const atual = porLinha.get(chave);
+        if (atual && atual.scheduled_seconds >= secs) continue;
+        porLinha.set(chave, {
+          trip_id: row.trip_id,
+          route_id: row.route_id,
+          route_short_name: row.route_short_name || row.route_id,
+          route_long_name: row.route_long_name || '',
+          route_color: row.route_color || '#2563eb',
+          headsign: row.trip_headsign || 'Destino terminal',
+          operator_name: feed?.operator_name || feedId.toUpperCase(),
+          feed_id: row.feed_id,
+          stop_id: row.stop_id,
+          scheduled_time: secondsToTimeString(secs % 86400),
+          scheduled_seconds: secs,
+          dep_epoch_secs: inicioDia + secs,
+          depois_da_meia_noite: secs >= 86400,
+        });
+      }
+    }
+    // as que ainda vão partir primeiro (por hora); as que já partiram hoje no fim
+    const agoraS = Date.now() / 1000;
+    const partidas = [...porLinha.values()].sort((a, b) => Number(a.dep_epoch_secs < agoraS) - Number(b.dep_epoch_secs < agoraS) || a.dep_epoch_secs - b.dep_epoch_secs);
+    return { stop_id: stop.id, stop_name: stop.name, data: diaLx.toISODate() || '', partidas };
+  }
+
   public static async nextDepartures(
     stopParam: UnifiedStop | string,
     nowInput: Date | string = new Date(),
@@ -214,7 +278,12 @@ export class DepartureEngine {
   ): Promise<DepartureResult> {
     const umaPorLinha = Boolean(opcoes.umaPorLinha);
     const stopIdKey = typeof stopParam === 'string' ? stopParam : stopParam?.id;
-    const cacheKey = `${stopIdKey}_${maxResults}${umaPorLinha ? '_linhas' : ''}`;
+    // Hora escolhida (não «agora»): a memória leva a hora (antes «às 22:00» e «agora» partilhavam a mesma entrada) e, longe
+    // de agora, não se juntam dados em direto (o tempo real é das viagens de hoje, à hora de agora)
+    const pedidaMs = (typeof nowInput === 'string' ? DateTime.fromISO(nowInput) : DateTime.fromJSDate(nowInput)).toMillis();
+    const horaEscolhida = Number.isFinite(pedidaMs) && Math.abs(pedidaMs - Date.now()) > 120_000;
+    const longeDeAgora = horaEscolhida && Math.abs(pedidaMs - Date.now()) > 30 * 60_000;
+    const cacheKey = `${stopIdKey}_${maxResults}${umaPorLinha ? '_linhas' : ''}${horaEscolhida ? `_${Math.floor(pedidaMs / 60_000)}` : ''}`;
     if (stopIdKey) {
       const cached = nextDeparturesCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -405,7 +474,7 @@ export class DepartureEngine {
     // Direct Carris Metropolitana integration if stop is CM or has CM member stops
     const cmMemberStops = stop.member_stop_ids.filter((id) => id.startsWith('cm:') || stop!.feed_ids.includes('carris_metropolitana'));
     let cmDirectDepartures: LiveDeparture[] = [];
-    if (cmMemberStops.length > 0) {
+    if (cmMemberStops.length > 0 && !longeDeAgora) {
       for (const cmId of cmMemberStops) {
         const directList = await comPrazo(RealtimeEngine.getCarrisMetropolitanaDirectDepartures(cmId, nowEpochSecs), 2000, []);
         cmDirectDepartures.push(...directList);
@@ -415,7 +484,7 @@ export class DepartureEngine {
     // Direct UNIR integration if stop is UNIR or has UNIR member stops
     const unirMemberStops = stop.member_stop_ids.filter((id) => id.startsWith('unir:') || stop!.feed_ids.includes('unir'));
     let unirDirectDepartures: LiveDeparture[] = [];
-    if (unirMemberStops.length > 0) {
+    if (unirMemberStops.length > 0 && !longeDeAgora) {
       const uniqueUnirCodes = [...new Set(unirMemberStops.map((id) => id.replace(/^unir:/, '').trim()))].slice(0, 2);
       for (const unirCode of uniqueUnirCodes) {
         const directList = await comPrazo(getUnirStopDepartures(unirCode), 2000, []);
@@ -510,7 +579,7 @@ export class DepartureEngine {
       : initialDeparturesTodas.slice(0, maxResults);
 
     // 4. Enrich with Real-time merge (Carris Metropolitana, GTFS-RT, Metro de Lisboa, CP flag)
-    const enrichedDepartures = await comPrazo(
+    const enrichedDepartures = longeDeAgora ? initialDepartures : await comPrazo(
       RealtimeEngine.mergeRealtimeData(
         initialDepartures,
         stop,
