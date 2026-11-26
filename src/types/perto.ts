@@ -127,6 +127,8 @@ export interface GreveTroco {
   reduzido?: boolean;
   /** Frequência anunciada para o serviço reduzido ("15 min (7h–20h)") */
   frequencia?: string;
+  /** O operador disse o que funciona e isto fica de fora (ou fora das horas, ou depois do fim do serviço na véspera) */
+  semServico?: boolean;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }

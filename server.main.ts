@@ -901,7 +901,7 @@ app.get('/api/lines/:id/dia', (req: Request, res: Response) => {
     // ?viagem=<trip_id> (Perto, percurso aberto): o sentido dessa viagem e todas as linhas com o mesmo nome
     const viagem = typeof req.query.viagem === 'string' ? req.query.viagem.slice(0, 200) : undefined;
     res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.json(horarioDoDia(String(req.params.id).slice(0, 200), paragem, sentido, data, viagem));
+    return res.json(horarioDoDia(String(req.params.id).slice(0, 200), paragem, sentido, data, viagem, grevesAgora()));
   } catch (err: any) {
     console.error('[API /api/lines/:id/dia] Erro:', err);
     return res.status(500).json({ error: 'Erro ao obter o horário do dia.' });
@@ -1926,6 +1926,27 @@ import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/p
 import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
 import { calcularABordo } from './src/server/aBordo';
 import { horarioDoDia, lerDataPedida } from './src/server/horarioDoDia';
+import { grevesAgora } from './src/server/grevesPlaneador';
+import { marcarGrevesNasPartidas } from './src/server/grevesPartidas';
+
+/** Partidas de uma paragem com a greve de cada uma (aviso do operador) e o resumo dos avisos por cima */
+function comGreves<T extends { departures?: any[]; partidas?: any[] }>(r: T): T & { greves?: any[] } {
+  try {
+    const db = getDatabase();
+    const nomes = new Map<string, string | undefined>();
+    const nome = (id: string) => {
+      if (!nomes.has(id)) nomes.set(id, (db.prepare('SELECT stop_name AS n FROM stops WHERE stop_id = ?').get(id) as any)?.n);
+      return nomes.get(id);
+    };
+    const greves = marcarGrevesNasPartidas(db, (r.departures || r.partidas || []) as any[], grevesAgora(), nome);
+    // cópia por fora (a resposta pode vir da cache): só o resumo muda
+    const { greves: _antigas, ...resto } = r as any;
+    return (greves.length ? { ...resto, greves } : resto) as T & { greves?: any[] };
+  } catch (e) {
+    console.error('[greves nas partidas]', e);
+    return r;
+  }
+}
 import { cidadesValidas, linhasDasCidades } from './src/server/linhasDasCidades';
 import { CIDADES } from './src/data/cidades';
 import { DebugEngine } from './src/server/debugEngine';
@@ -1938,7 +1959,7 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
     if (req.query.ultimas === '1') {
       const dia = req.query.data === undefined ? undefined : lerDataPedida(req.query.data);
       if (dia === null) return res.status(400).json({ error: 'Data inválida (de ontem até daqui a uma semana, AAAA-MM-DD).' });
-      return res.json(await DepartureEngine.ultimasPorLinha(stopId, dia));
+      return res.json(comGreves(await DepartureEngine.ultimasPorLinha(stopId, dia)));
     }
     // ?time=<ISO com fuso>: partidas a partir dessa hora (de ontem até daqui a 7 dias)
     let timeParam = typeof req.query.time === 'string' ? req.query.time : undefined;
@@ -1952,7 +1973,7 @@ app.get('/api/transit/stop/:id', async (req: Request, res: Response) => {
     // ?linhas=1 (paragem aberta na app): a próxima partida de cada linha + as seguintes
     const umaPorLinha = req.query.linhas === '1';
     const data = await DepartureEngine.nextDepartures(stopId, timeParam || new Date(), 15, { umaPorLinha });
-    return res.json(data);
+    return res.json(comGreves(data));
   } catch (err: any) {
     console.error('[API /transit/stop/:id] Erro:', err);
     return res.status(500).json({ error: 'Erro ao obter partidas da paragem', details: err?.message });

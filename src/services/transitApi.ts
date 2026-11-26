@@ -765,7 +765,9 @@ export interface HorarioDoDia {
   estado: 'ok' | 'sem-partidas' | 'ultima-paragem' | 'sem-dados';
   previsto: boolean;
   dataReferencia?: string;
-  partidas: Array<{ s: number; hora: string; destino: string }>;
+  partidas: Array<{ s: number; hora: string; destino: string; greve?: 'sem-servico' | 'incerta' | 'reduzido' }>;
+  /** Avisos de greve que mudam este dia (lidos dos operadores pelo servidor) */
+  greves?: import('../components/GreveNoHorario').ResumoGreve[];
 }
 
 export async function fetchHorarioDoDia(lineId: string, stopId: string, sentido: number, data: string, signal?: AbortSignal, viagem?: string): Promise<HorarioDoDia> {

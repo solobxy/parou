@@ -7,7 +7,8 @@ import {
 import { getTmlAlerts, getTmlAgencies, getTmlLines, TmlAlertRaw } from './tmlGoHubService';
 import { DateTime } from 'luxon';
 import { arquivarAvisos } from './historico';
-import { grevesDasNoticias, noticiasDeGreves } from './grevesNoticias';
+import { grevesDasNoticias, noticiasDeGreves, avisoGreveOficial } from './grevesNoticias';
+import { podarMapa } from './cacheLimitada';
 
 // In-memory central alert repository with deduplication and state tracking
 interface CentralAlertsState {
@@ -833,6 +834,74 @@ export function estadoLinhasMetroPorto(html: string): EstadoLinhaMetroPorto[] {
   return out;
 }
 
+// Avisos da Metro do Porto (https://www.metrodoporto.pt/pages/630?news_id=N): a página inicial liga às notícias do
+// momento (a greve de 27/11/2026 estava lá: «só na Linha Amarela e entre a Senhora da Hora e o Dragão», com as frequências
+// e a véspera a acabar às 23h). As que anunciam uma greve viram aviso oficial, com o que continua a funcionar.
+const FONTE_AVISOS_METRO_PORTO = 'Metro do Porto — avisos';
+const URL_NOTICIA_METRO_PORTO = 'https://www.metrodoporto.pt/pages/630?news_id=';
+
+/** Números das notícias ligadas na página inicial da Metro do Porto (sem repetidos, pela ordem da página) */
+export function noticiasNaPaginaMetroPorto(html: string): string[] {
+  const ids: string[] = [];
+  for (const m of html.matchAll(/pages\/630\?news_id=(\d{1,7})/g)) if (!ids.includes(m[1])) ids.push(m[1]);
+  return ids.slice(0, 8);
+}
+
+/** Título, data de publicação e texto de uma notícia da Metro do Porto (null se a página não tem a notícia) */
+export function noticiaMetroPorto(html: string): { titulo: string; publicada: string; texto: string } | null {
+  const titulo = textoDeHtml(/<h1[^>]*class="pageTitle"[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1] || /<meta property="og:title" content="([^"]*)"/i.exec(html)?.[1] || '');
+  const publicada = /<meta name="published_at" content="([^"]+)"/i.exec(html)?.[1] || '';
+  const i = html.search(/class="text widget_field/i);
+  if (!titulo || !publicada || i < 0) return null;
+  const fim0 = html.indexOf('writer_text_clear', i);
+  const fim = fim0 > i ? html.lastIndexOf('<', fim0) : -1;
+  const corpo = html.slice(i, fim > i ? fim : i + 20000).replace(/<\/(p|h\d|li|div)>/gi, '. ');
+  const texto = textoDeHtml(corpo.replace(/^[^>]*>/, '')).replace(/(\.\s*){2,}/g, '. ').replace(/\s+\./g, '.').trim();
+  return { titulo, publicada, texto };
+}
+
+const cacheNoticiasMetroPorto = new Map<string, { quando: number; html: string | null }>();
+async function ingestMetroPortoAvisos(inicio: string): Promise<void> {
+  const ids = noticiasNaPaginaMetroPorto(inicio);
+  if (!ids.length) return;
+  const agora = new Date();
+  for (const id of ids) {
+    const url = URL_NOTICIA_METRO_PORTO + id;
+    let c = cacheNoticiasMetroPorto.get(id);
+    if (!c || Date.now() - c.quando > 15 * 60_000) {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (https://parou.pt)' }, signal: AbortSignal.timeout(8000) });
+        c = { quando: Date.now(), html: r.ok ? await r.text() : (c?.html ?? null) };
+      } catch {
+        c = { quando: Date.now() - 10 * 60_000, html: c?.html ?? null };
+      }
+      cacheNoticiasMetroPorto.set(id, c);
+      podarMapa(cacheNoticiasMetroPorto, 30);
+    }
+    const n = c.html ? noticiaMetroPorto(c.html) : null;
+    if (!n) continue;
+    const aviso = avisoGreveOficial({ operador: 'Metro do Porto', regiao: 'Área Metropolitana do Porto',
+      municipios: ['Porto', 'Matosinhos', 'Vila Nova de Gaia', 'Maia', 'Gondomar', 'Vila do Conde', 'Póvoa de Varzim'],
+      titulo: n.titulo, texto: n.texto, publicada: n.publicada, url, fonte: FONTE_AVISOS_METRO_PORTO }, agora);
+    if (!aviso) continue;
+    if ('anulada' in aviso) {
+      // greve desconvocada num aviso novo: a desse dia deixa de contar
+      for (const [k, a] of centralState.alerts) {
+        if (k.startsWith(`${FONTE_AVISOS_METRO_PORTO}:`) && aviso.anulada.some((d) => a.start_datetime && DateTime.fromISO(a.start_datetime).setZone('Europe/Lisbon').toISODate() === d)) {
+          a.status = 'Cancelado'; a.last_update = agora.toISOString();
+        }
+      }
+      continue;
+    }
+    const key = `${FONTE_AVISOS_METRO_PORTO}:${aviso.external_id}`;
+    const existing = centralState.alerts.get(key);
+    if (existing?.status === 'Cancelado') continue;
+    aviso.content_hash = generateContentHash(aviso.título, aviso.descrição, aviso.start_datetime, aviso.end_datetime);
+    if (existing && existing.content_hash === aviso.content_hash) { existing.status = aviso.status; continue; }
+    centralState.alerts.set(key, aviso);
+  }
+}
+
 const NOMES_LINHA_METRO_PORTO: Record<string, string> = { A: 'Azul', B: 'Vermelha', C: 'Verde', D: 'Amarela', E: 'Violeta', F: 'Laranja', G: 'Rosa', H: 'Rubi' };
 let ultimaLeituraMetroPorto = 0;
 async function ingestMetroPortoAlerts(): Promise<number> {
@@ -843,7 +912,12 @@ async function ingestMetroPortoAlerts(): Promise<number> {
   try {
     const res = await fetch(sourceUrl, { headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (https://parou.pt)' }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const linhas = estadoLinhasMetroPorto(await res.text());
+    const html = await res.text();
+    // avisos da página (greves com o serviço que funciona e a véspera): à parte, para uma falha não estragar o estado das linhas
+    await ingestMetroPortoAvisos(html).catch((e: any) => {
+      centralState.sourcesErrorList.push({ source: FONTE_AVISOS_METRO_PORTO, error: e?.message || 'Falha ao ler os avisos', last_attempt: new Date().toISOString() });
+    });
+    const linhas = estadoLinhasMetroPorto(html);
     // a página mudou de formato: regista-se a falha e nada é dado como terminado
     if (linhas.length < 3) throw new Error('Estado das linhas da Metro do Porto sem linhas reconhecidas');
     const agoraIso = new Date().toISOString();

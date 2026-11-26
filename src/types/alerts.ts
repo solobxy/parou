@@ -39,9 +39,11 @@ export interface CentralAlert {
   /** Greves: outros dias com perturbações previstas que o operador refere (AAAA-MM-DD), fora do período da greve */
   dias_perturbacao?: string[];
   /** Greves: o que continua a funcionar (linhas inteiras e troços entre duas estações), quando o operador o diz */
-  servico_na_greve?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string };
+  servico_na_greve?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number] };
   /** Greves: a partir desta hora da véspera o serviço já acaba mais cedo ("últimas partidas por volta das 23h") */
   vespera_desde?: string;
+  /** Véspera: hora (ISO) a que o operador diz que o serviço acaba */
+  vespera_fim?: string;
 }
 
 export interface AlertCenterDiagnostic {

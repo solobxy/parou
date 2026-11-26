@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { fetchHorarioDoDia, HorarioDoDia } from '../services/transitApi';
 import { destinoLegivel } from '../utils/transitFormatter';
 import { t, LOCALE } from '../i18n';
+import { AvisosGreve, textoGreve, type EstadoGreve } from './GreveNoHorario';
 
 export interface DiaEscolhivel { data: string; rotulo: string }
 
@@ -62,7 +63,7 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
   }, [lineId, stopId, sentido, data, tentativa, viagem]);
 
   // Horas com os minutos de cada partida; os destinos que não são o principal levam uma letra
-  const { grupos, legenda } = useMemo(() => {
+  const { grupos, legenda, marcas } = useMemo(() => {
     const partidas = horario?.partidas || [];
     const contagem = new Map<string, number>();
     for (const p of partidas) contagem.set(p.destino, (contagem.get(p.destino) || 0) + 1);
@@ -71,16 +72,19 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
     for (const [d] of [...contagem.entries()].filter(([d]) => d !== principal && d)) {
       if (letra.size < LETRAS.length) letra.set(d, LETRAS[letra.size]);
     }
-    const porHora = new Map<number, Array<{ min: string; letra?: string; s: number }>>();
+    const porHora = new Map<number, Array<{ min: string; letra?: string; s: number; greve?: EstadoGreve }>>();
+    const marcas = new Set<EstadoGreve>();
     for (const p of partidas) {
       const h = Math.floor(p.s / 3600);
       const lista = porHora.get(h) || [];
-      lista.push({ min: p.hora.slice(3), letra: letra.get(p.destino), s: p.s });
+      lista.push({ min: p.hora.slice(3), letra: letra.get(p.destino), s: p.s, greve: p.greve });
+      if (p.greve) marcas.add(p.greve);
       porHora.set(h, lista);
     }
     return {
       grupos: [...porHora.entries()].sort((x, y) => x[0] - y[0]),
       legenda: [...letra.entries()].map(([d, l]) => [l, d] as const),
+      marcas,
     };
   }, [horario]);
 
@@ -115,15 +119,40 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
       {horario.previsto && (
         <p className="text-[11px] text-[#6B6B6B]">{t('Horário previsto: o operador ainda não publicou este dia.')}</p>
       )}
+      <AvisosGreve greves={horario.greves} className="pb-1" />
+      {marcas.size > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#6B6B6B]" data-teste="legenda-greve">
+          {marcas.has('sem-servico') && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="font-condensada text-[13px] font-semibold tabular-nums line-through decoration-[1.5px]" aria-hidden="true">10</span>
+              {t('sem serviço')}
+            </span>
+          )}
+          {marcas.has('incerta') && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="font-condensada text-[13px] font-semibold tabular-nums text-[#111111] underline decoration-dotted decoration-[1.5px] underline-offset-[3px]" aria-hidden="true">10</span>
+              {t('pode não se realizar')}
+            </span>
+          )}
+          {marcas.has('reduzido') && <span>{t('Na parte que funciona, as horas são as do horário normal: conta a frequência da greve.')}</span>}
+        </div>
+      )}
       <div className="space-y-1">
         {grupos.map(([h, mins]) => (
           <div key={h} className="flex items-baseline gap-3">
             <span className="font-condensada text-[15px] text-[#6B6B6B] tabular-nums w-6 shrink-0">{String(h % 24).padStart(2, '0')}</span>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-condensada text-[15px] font-semibold text-[#111111] tabular-nums">
               {mins.map((m) => (
-                <span key={`${m.s}-${m.letra || ''}`}>
+                <span
+                  key={`${m.s}-${m.letra || ''}`}
+                  data-greve={m.greve || undefined}
+                  className={m.greve === 'sem-servico'
+                    ? 'text-[#6B6B6B] font-medium line-through decoration-[1.5px]'
+                    : m.greve === 'incerta' ? 'underline decoration-dotted decoration-[1.5px] underline-offset-[3px]' : undefined}
+                >
                   {m.min}
                   {m.letra && <sup className="ml-px text-[10px] font-semibold text-[#6B6B6B]">{m.letra}</sup>}
+                  {m.greve && <span className="sr-only"> ({textoGreve(m.greve)})</span>}
                 </span>
               ))}
             </div>

@@ -5,6 +5,8 @@
 import { DateTime } from 'luxon';
 import { getDatabase } from './db/gtfsDatabase';
 import { getActiveServices, isServiceActive } from './dadosProntos';
+import type { AvisoGreve } from './grevesPlaneador';
+import { greveDaPartida, estadoDaGreve, grevesDoIntervalo, juntarResumo, type EstadoGreve, type ResumoGreve } from './grevesPartidas';
 
 const ZONA = 'Europe/Lisbon';
 /** Até quantos dias à frente se pode pedir (a app mostra 7: hoje e os 6 seguintes) */
@@ -15,6 +17,8 @@ export interface PartidaDoDia {
   s: number;
   hora: string;
   destino: string;
+  /** Greve nesse dia (aviso do operador): sem serviço, pode não se realizar, ou serviço reduzido com outras frequências */
+  greve?: EstadoGreve;
 }
 
 export interface HorarioDoDia {
@@ -26,6 +30,8 @@ export interface HorarioDoDia {
   /** Dia publicado que serviu de base quando o pedido ainda não estava publicado */
   dataReferencia?: string;
   partidas: PartidaDoDia[];
+  /** Avisos de greve que mudam este dia (o que funciona, frequências, véspera a acabar mais cedo) */
+  greves?: ResumoGreve[];
 }
 
 /** Data pedida (AAAA-MM-DD), só de ontem até MAX_DIAS_A_FRENTE dias à frente; senão null */
@@ -47,17 +53,18 @@ const horaDe = (s: number) => {
  * `viagem` (opcional): a viagem aberta no Perto. O horário fica com o sentido dela e com todas as linhas do mesmo nome no
  * mesmo operador (a CP tem uma linha por cada par de estações: só pela linha da viagem o horário vinha incompleto).
  */
-export function horarioDoDia(routeId: string, stopId: string, sentido: number, dia: DateTime, viagem?: string): HorarioDoDia {
+export function horarioDoDia(routeId: string, stopId: string, sentido: number, dia: DateTime, viagem?: string, greves: AvisoGreve[] = []): HorarioDoDia {
   const db = getDatabase();
   const data = dia.setZone(ZONA).startOf('day');
   const base: HorarioDoDia = { data: data.toISODate() || '', estado: 'sem-dados', previsto: false, partidas: [] };
-  let linhas: Array<{ s: number; sv: string; f: string; h: string | null; pk: number; seq: number; ultima: number }>;
+  let linhas: Array<{ s: number; sv: string; f: string; h: string | null; pk: number; seq: number; ultima: number; t: string; rs: string | null }>;
   const daViagem = viagem
     ? db.prepare('SELECT t.route_id AS r, COALESCE(t.direction_id, 0) AS d, t.feed_id AS f FROM trips t WHERE t.trip_id = ?').get(viagem) as { r: string; d: number; f: string } | undefined
     : undefined;
   if (daViagem) {
     linhas = db.prepare(`
       SELECT st.departure_secs AS s, t.service_id AS sv, t.feed_id AS f, t.trip_headsign AS h, COALESCE(st.pickup_type, 0) AS pk,
+             st.trip_id AS t, (SELECT rr.route_short_name FROM routes rr WHERE rr.route_id = t.route_id) AS rs,
              st.stop_sequence AS seq, (SELECT MAX(x.stop_sequence) FROM stop_times x WHERE x.trip_id = st.trip_id) AS ultima
       FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
       WHERE st.stop_id = ? AND COALESCE(t.direction_id, 0) = ?
@@ -67,6 +74,7 @@ export function horarioDoDia(routeId: string, stopId: string, sentido: number, d
   } else {
     linhas = db.prepare(`
       SELECT st.departure_secs AS s, t.service_id AS sv, t.feed_id AS f, t.trip_headsign AS h, COALESCE(st.pickup_type, 0) AS pk,
+             st.trip_id AS t, (SELECT rr.route_short_name FROM routes rr WHERE rr.route_id = t.route_id) AS rs,
              st.stop_sequence AS seq, (SELECT MAX(x.stop_sequence) FROM stop_times x WHERE x.trip_id = st.trip_id) AS ultima
       FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id
       WHERE st.stop_id = ? AND t.route_id = ? AND COALESCE(t.direction_id, 0) = ?
@@ -87,6 +95,10 @@ export function horarioDoDia(routeId: string, stopId: string, sentido: number, d
     const ymd = d.toFormat('yyyyMMdd');
     return Boolean(limites?.ini && limites?.fim && ymd >= limites.ini && ymd <= limites.fim);
   };
+  // Greves: as horas são as do dia pedido (o dia de referência só dá o horário)
+  const relevantes = grevesDoIntervalo(greves, data.toMillis(), data.plus({ hours: 30 }).toMillis());
+  const nomeParagem = relevantes.length ? String((db.prepare('SELECT stop_name AS n FROM stops WHERE stop_id = ?').get(stopId) as any)?.n || '') : '';
+  const resumos = new Map<string, ResumoGreve>();
   const doDia = (d: DateTime) => {
     const ativos = getActiveServices(d.toJSDate(), ZONA);
     const vistas = new Set<string>();
@@ -96,21 +108,35 @@ export function horarioDoDia(routeId: string, stopId: string, sentido: number, d
       const chave = `${l.s}|${destino}`;
       if (vistas.has(chave)) continue;
       vistas.add(chave);
-      out.push({ s: l.s, hora: horaDe(l.s), destino });
+      const p: PartidaDoDia = { s: l.s, hora: horaDe(l.s), destino };
+      if (relevantes.length) {
+        const ms = data.plus({ seconds: l.s }).toMillis();
+        const g = greveDaPartida(db, { feed: l.f, partidaMs: ms, trip: l.t, paragem: nomeParagem || undefined, linha: l.rs || undefined }, relevantes);
+        const e = estadoDaGreve(g);
+        if (e && g) { p.greve = e.estado; juntarResumo(resumos, db, l.f, relevantes, g, ms); }
+      }
+      out.push(p);
     }
     return out;
+  };
+  const comGreves = (h: HorarioDoDia): HorarioDoDia => {
+    if (!resumos.size) return h;
+    // na véspera, o dia da greve só aparece pelas viagens depois da meia-noite: fica só o aviso da véspera
+    const lista = [...resumos.values()];
+    const vesperas = new Set(lista.filter((r) => r.vespera).map((r) => `${r.operador}|${r.titulo}`));
+    return { ...h, greves: lista.filter((r) => r.vespera || !vesperas.has(`${r.operador}|${r.titulo}`)) };
   };
 
   if (publicado(data) || !limites?.fim) {
     const partidas = doDia(data);
-    return { ...base, estado: partidas.length ? 'ok' : 'sem-partidas', partidas };
+    return comGreves({ ...base, estado: partidas.length ? 'ok' : 'sem-partidas', partidas });
   }
   // Ainda não publicado (ou já acabou): o mesmo dia da semana mais perto que esteja publicado
   for (const delta of [-7, -14, -21, -28, 7, 14, 21, 28]) {
     const ref = data.plus({ days: delta });
     if (!publicado(ref)) continue;
     const partidas = doDia(ref);
-    return { ...base, estado: partidas.length ? 'ok' : 'sem-partidas', previsto: true, dataReferencia: ref.toISODate() || undefined, partidas };
+    return comGreves({ ...base, estado: partidas.length ? 'ok' : 'sem-partidas', previsto: true, dataReferencia: ref.toISODate() || undefined, partidas });
   }
   return base;
 }

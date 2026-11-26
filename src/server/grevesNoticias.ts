@@ -149,54 +149,89 @@ export function diasDaGreve(texto: string, publicada: DateTime): DateTime[] {
  * Véspera com serviço a acabar mais cedo ("os efeitos começam já na quinta-feira, com o serviço a terminar por volta das
  * 23h00"): devolve a hora (Lisboa) a partir da qual a véspera já conta, ou null.
  */
-export function inicioNaVespera(texto: string, primeiro: DateTime): DateTime | null {
+export function inicioNaVespera(texto: string, primeiro: DateTime, publicada?: DateTime): DateTime | null {
+  const hora = horaFimVespera(texto, primeiro, publicada);
+  if (hora === null) return null;
+  // uma hora antes da última partida anunciada (as últimas viagens já não chegam ao fim da linha)
+  return primeiro.minus({ days: 1 }).set({ hour: Math.max(12, hora - 1), minute: 0 });
+}
+
+/** Hora (0–23) a que o serviço acaba na véspera, ou null se a véspera não é citada */
+export function horaFimVespera(texto: string, primeiro: DateTime, publicada?: DateTime): number | null {
   const t = semAcentos(texto);
   const vespera = primeiro.minus({ days: 1 });
   const nomes = Object.keys(DIAS_SEMANA).filter((k) => DIAS_SEMANA[k] === vespera.weekday);
-  const citaVespera = /\bvespera\b/.test(t) || nomes.some((n) => new RegExp(`\\bja (?:na |no |n[ae]sta |n[ae]ste )?${n}`).test(t));
+  // «já amanhã» numa notícia publicada dois dias antes da greve (aviso da Metro do Porto de 25/11 para 27/11)
+  const amanhaEVespera = !!publicada && publicada.setZone(ZONA).plus({ days: 1 }).hasSame(vespera, 'day') && /\bja amanha\b/.test(t);
+  const citaVespera = amanhaEVespera || /\bvespera\b/.test(t) || nomes.some((n) => new RegExp(`\\bja (?:na |no |n[ae]sta |n[ae]ste )?${n}`).test(t));
   if (!citaVespera) return null;
   const h = /(?:terminar|termina|acabar|acaba|ultimas? (?:partidas|viagens|composicoes))[^.]{0,40}?\b(\d{1,2})h(\d{2})?\b/.exec(t);
   // sem hora no texto: o mais habitual nestes comunicados (últimas partidas por volta das 23h)
   const hora = h ? Number(h[1]) : 23;
-  if (!(hora >= 12 && hora <= 23)) return null;
-  // uma hora antes da última partida anunciada (as últimas viagens já não chegam ao fim da linha)
-  return vespera.set({ hour: Math.max(12, hora - 1), minute: 0 });
+  return hora >= 12 && hora <= 23 ? hora : null;
 }
 
 /** Linhas pelo nome da cor (Metro do Porto e Metro de Lisboa) */
 const CORES = ['amarela', 'azul', 'vermelha', 'verde', 'violeta', 'laranja', 'rosa', 'rubi'];
 
-/** O que continua a funcionar durante a greve, quando a notícia o diz ("operando apenas na linha Amarela e entre Senhora
- *  da Hora e Estádio do Dragão", "frequências de 15 minutos entre as 07h00 e as 20h00") */
+/** O que continua a funcionar durante a greve, quando a notícia ou o aviso o diz ("operando apenas na linha Amarela e entre
+ *  Senhora da Hora e Estádio do Dragão", "frequências de 15 minutos entre as 07h00 e as 20h00") */
 export interface ServicoNaGreve {
   /** linhas inteiras a funcionar (cor, sem acentos: "amarela") */
   linhas: string[];
   /** troços a funcionar, pelos nomes das estações das pontas (sem acentos) */
   trocos: Array<[string, string]>;
-  /** "15 min (7h–20h)" */
+  /** "15 min (7h–20h) · 30 min (6h–7h, 20h–0h)" */
   frequencia?: string;
+  /** Horas com serviço, em minutos desde a meia-noite [início, fim] (fim 1440 = meia-noite): fora delas não há viagens */
+  horas?: [number, number];
 }
 
 const limparEstacao = (s: string) => s.replace(/\bsra\.?\s/g, 'senhora ').replace(/\bsr\.?\s/g, 'senhor ').replace(/\(.*?\)/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Frequências e horas com serviço: "de 15 minutos entre as 7h00 e as 20h00 e de 30 minutos entre as 6h00 e as 7h00, assim
+ *  como entre as 20h00 e as 00h00" */
+function frequenciasNaGreve(t: string): { frequencia?: string; horas?: [number, number] } {
+  const partes: string[] = [];
+  let ini = Infinity, fim = -Infinity;
+  const blocos = [...t.matchAll(/\b(\d{1,2}) minutos\b/g)];
+  blocos.forEach((m, i) => {
+    const depois = t.slice((m.index ?? 0) + m[0].length, i + 1 < blocos.length ? blocos[i + 1].index : undefined).slice(0, 200);
+    const intervalos: string[] = [];
+    for (const h of depois.matchAll(/\bentre (?:as|a) (\d{1,2})h(\d{2})? e (?:as|a) (\d{1,2})h(\d{2})?/g)) {
+      const a = Number(h[1]) * 60 + Number(h[2] || 0);
+      let b = Number(h[3]) * 60 + Number(h[4] || 0);
+      if (b <= a) b += 1440;
+      if (a >= 1440 || b > 1440 + 360) continue;
+      ini = Math.min(ini, a); fim = Math.max(fim, b);
+      intervalos.push(`${Number(h[1])}h–${Number(h[3])}h`);
+    }
+    if (intervalos.length) partes.push(`${m[1]} min (${intervalos.join(', ')})`);
+  });
+  if (!partes.length) return {};
+  return { frequencia: partes.join(' · '), ...(Number.isFinite(ini) && Number.isFinite(fim) ? { horas: [ini, Math.min(fim, 1440 + 360)] as [number, number] } : {}) };
+}
 
 export function servicoNaGreve(texto: string): ServicoNaGreve | undefined {
   // abreviaturas com ponto ("Sra. da Hora", "S. João") partiam a frase em duas
   const t = semAcentos(texto).replace(/\bsra\.\s/g, 'senhora ').replace(/\bsr\.\s/g, 'senhor ').replace(/\bs\.\s(?=[a-z])/g, 'sao ').replace(/\bsto\.\s/g, 'santo ');
   const linhas = new Set<string>();
   const trocos: Array<[string, string]> = [];
+  const juntarTroco = (x: string, y: string) => {
+    const a = limparEstacao(x), b = limparEstacao(y);
+    // "entre as 07h00 e as 20h00" é uma hora, não um troço
+    if (!a || !b || /\d/.test(a) || /\d/.test(b)) return;
+    if (!trocos.some(([p, q]) => p === a && q === b)) trocos.push([a, b]);
+  };
   for (const frase of t.split(/(?<=[.;!?])\s+|:\s+/)) {
-    if (!/\b(apenas|so|exclusivamente|unicamente)\b/.test(frase) || !/\b(opera\w*|funciona\w*|circula\w*|servico|ligac\w*|percurso)\b/.test(frase)) continue;
+    if (!/\b(apenas|so|exclusivamente|unicamente)\b/.test(frase) || !/\b(opera\w*|funciona\w*|circula\w*|servico|ligac\w*|percurso|viage\w*|realiza\w*)\b/.test(frase)) continue;
     for (const m of frase.matchAll(new RegExp(`\\blinhas? (${CORES.join('|')})\\b(?:\\s*\\([a-z]\\))?`, 'g'))) linhas.add(m[1]);
-    for (const m of frase.matchAll(/\bentre (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?) e (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?)(?=[,;.]|\s+(?:devido|com|na|no|nas|nos|e (?:na|no|entre)|durante|a partir|ate|das|entre as)\b|$)/g)) {
-      const a = limparEstacao(m[1]), b = limparEstacao(m[2]);
-      // "entre as 07h00 e as 20h00" é uma hora, não um troço
-      if (/\d/.test(a) || /\d/.test(b)) continue;
-      trocos.push([a, b]);
-    }
+    for (const m of frase.matchAll(/\bentre (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?) e (?:a |o |as |os )?([a-z0-9 .'-]{3,40}?)(?=[,;.)]|\s+(?:devido|com|na|no|nas|nos|e (?:na|no|entre)|durante|a partir|ate|das|entre as)\b|$)/g)) juntarTroco(m[1], m[2]);
+    // "no eixo Hospital São João-Santo Ovídio, da Linha Amarela (D)" (aviso da Metro do Porto de 25/11/2026)
+    for (const m of frase.matchAll(/\beixo (?:entre )?(?:o |a )?([a-z][a-z .']{2,40}?)\s*[-–—]\s*([a-z][a-z .']{2,40}?)(?=[,;.)]|\s+(?:da|na|do|e)\b|$)/g)) juntarTroco(m[1], m[2]);
   }
-  const f = /\b(\d{1,2}) minutos entre as (\d{1,2})h\d{0,2} e as (\d{1,2})h/.exec(t);
   if (!linhas.size && !trocos.length) return undefined;
-  return { linhas: [...linhas], trocos, ...(f ? { frequencia: `${f[1]} min (${Number(f[2])}h–${Number(f[3])}h)` } : {}) };
+  return { linhas: [...linhas], trocos, ...frequenciasNaGreve(t) };
 }
 
 function idDe(operador: string, dia: string) {
@@ -242,7 +277,7 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
     const chave = `${operador.nome}|${primeiro.toISODate()}`;
     const atual = candidatos.get(chave);
     if (atual) { atual.fontes.add(n.fonte); continue; }
-    const inicio = inicioNaVespera(texto, primeiro) || primeiro;
+    const inicio = inicioNaVespera(texto, primeiro, publicada) || primeiro;
     candidatos.set(chave, { n, operador, dias, inicio, fim, fontes: new Set([n.fonte]) });
   }
   const out: CentralAlert[] = [];
@@ -264,7 +299,9 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
     const end = c.fim.toUTC().toISO()!;
     const vespera = c.inicio < c.dias[0] ? c.inicio.toUTC().toISO()! : undefined;
     const servico = servicoNaGreve(`${c.n.titulo}. ${c.n.resumo || ''}`);
+    const horaFim = vespera ? horaFimVespera(`${c.n.titulo}. ${c.n.resumo || ''}`, c.dias[0], DateTime.fromISO(c.n.data, { zone: 'utc' })) : null;
     out.push({
+      ...(horaFim !== null ? { vespera_fim: c.dias[0].minus({ days: 1 }).set({ hour: horaFim, minute: 0 }).toUTC().toISO()! } : {}),
       ...(servico ? { servico_na_greve: servico } : {}),
       ...(vespera ? { vespera_desde: vespera } : {}),
       id: idDe(c.operador.nome, dia),
@@ -288,6 +325,42 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
     });
   }
   return out;
+}
+
+/**
+ * Aviso de greve tirado de um aviso oficial do operador (página de notícias do próprio operador, como a Metro do Porto).
+ * Mesmas regras de leitura das notícias (dias, véspera, o que funciona); devolve null se não anuncia uma greve com dia,
+ * e `{ anulada }` se o aviso diz que a greve foi desconvocada.
+ */
+export function avisoGreveOficial(o: { operador: string; regiao: string; municipios: string[]; titulo: string; texto: string; publicada: string; url: string; fonte: string }, agora: Date = new Date()):
+  CentralAlert | { anulada: string[] } | null {
+  const publicada = DateTime.fromISO(o.publicada, { zone: 'utc' });
+  if (!publicada.isValid) return null;
+  const titulo = o.titulo.replace(/\s+/g, ' ').trim();
+  const texto = `${titulo}. ${o.texto}`.replace(/\s+/g, ' ').trim();
+  if (!RE_GREVE.test(semAcentos(texto))) return null;
+  let dias = diasDaGreve(titulo, publicada);
+  if (!dias.length) dias = diasDaGreve(texto, publicada);
+  if (!dias.length) return null;
+  if (RE_ANULADA.test(semAcentos(texto))) return { anulada: dias.map((d) => d.toISODate()!) };
+  const primeiro = dias[0], fim = dias[dias.length - 1].endOf('day');
+  if (fim.toMillis() < agora.getTime()) return null;
+  const desde = inicioNaVespera(texto, primeiro, publicada);
+  const horaFim = desde ? horaFimVespera(texto, primeiro, publicada) : null;
+  const servico = servicoNaGreve(texto);
+  const id = `oficial-greve-${semAcentos(o.operador).replace(/[^a-z0-9]+/g, '-')}-${primeiro.toISODate()}`;
+  const start = primeiro.toUTC().toISO()!, end = fim.toUTC().toISO()!;
+  return {
+    ...(servico ? { servico_na_greve: servico } : {}),
+    ...(desde ? { vespera_desde: desde.toUTC().toISO()! } : {}),
+    ...(horaFim !== null ? { vespera_fim: primeiro.minus({ days: 1 }).set({ hour: horaFim, minute: 0 }).toUTC().toISO()! } : {}),
+    id, external_id: id, tipo: 'greve', título: titulo, descrição: o.texto.replace(/\s+/g, ' ').trim().slice(0, 1500),
+    operador: o.operador, linhas: [], paragens: [], região: o.regiao, municípios: o.municipios,
+    start_datetime: start, end_datetime: end, published_datetime: publicada.toUTC().toISO() || start,
+    source: o.fonte, source_url: o.url, last_update: agora.toISOString(),
+    status: Date.parse(start) > agora.getTime() ? 'Futuro' : Date.parse(end) <= agora.getTime() ? 'Terminado' : 'Ativo',
+    severity: 'Grave',
+  };
 }
 
 // ---------------------------------------------------------------------------------- leitura dos RSS

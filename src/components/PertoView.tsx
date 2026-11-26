@@ -35,6 +35,7 @@ import {
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
 import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
+import { AvisosGreve, textoGreve, type ResumoGreve } from './GreveNoHorario';
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
@@ -554,7 +555,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [activeFilterTab, setActiveFilterTab] = useState<'todos' | 'autocarro' | 'metro' | 'comboio' | 'barco' | 'favoritos'>(ultimoFiltro);
   const [selectedStop, setSelectedStop] = useState<NearbyStopItem | null>(null);
   // Partidas pedidas à parte quando a paragem escolhida não as trouxe na lista do "Perto"
-  const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean; modo?: string } | null>(null);
+  const [partidasExtra, setPartidasExtra] = useState<{ id: string; deps: any[]; aCarregar: boolean; modo?: string; greves?: ResumoGreve[] } | null>(null);
   // Ver as partidas a outra hora (26/11/2026: «saio do trabalho às 22:00, como vejo as partidas dessa hora ou a última?»).
   // null = agora (em direto); 'hora' = a partir de um dia e hora; 'ultimas' = a última partida de cada linha nesse dia.
   const [horaVer, setHoraVer] = useState<{ modo: 'hora'; data: string; hora: string } | { modo: 'ultimas'; data: string } | null>(null);
@@ -1160,10 +1161,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
             horaFixa: true,
             epoch: Number(d.dep_epoch_secs) || 0,
             jaPassou: (Number(d.dep_epoch_secs) || 0) < agoraS,
+            ...(d.greve?.estado ? { greve: d.greve.estado } : {}),
           }));
           // a partir de uma hora: por hora; últimas: o servidor já manda as que faltam primeiro e as que já partiram no fim
           if (horaVer.modo === 'hora') deps.sort((x: any, y: any) => x.epoch - y.epoch);
-          setPartidasExtra({ id, deps, aCarregar: false, modo });
+          setPartidasExtra({ id, deps, aCarregar: false, modo, greves: Array.isArray(data?.greves) ? data.greves : undefined });
         })
         .catch(() => { if (!cancelado) setPartidasExtra({ id, deps: [], aCarregar: false, modo: `erro|${modo}` }); });
     };
@@ -1204,8 +1206,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
             statusDescription: d.state_reason || d.state,
             ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
             ...(d.mesma_hora_que ? { mesmaHoraQue: d.mesma_hora_que } : {}),
+            ...(d.greve?.estado ? { greve: d.greve.estado } : {}),
           }));
-          setPartidasExtra({ id, deps, aCarregar: false });
+          setPartidasExtra({ id, deps, aCarregar: false, greves: Array.isArray(data?.greves) ? data.greves : undefined });
         })
         .catch(() => { if (!cancelado) setPartidasExtra((atual) => ({ id, deps: atual?.id === id ? atual.deps : [], aCarregar: false })); });
     };
@@ -3250,6 +3253,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                           ? t('Última partida de cada linha, pelo horário oficial.')
                           : t('Horário oficial · {dia}, a partir das {hora}', { dia: proximosDias(7).find((d) => d.data === horaVer.data)?.rotulo || horaVer.data, hora: horaVer.hora })}
                       </p>
+                      <AvisosGreve greves={ex!.greves} className="pt-1 pb-2.5" />
                       {lista.map((dep: any, dIdx: number) => {
                         const destination = destinoLegivel(dep.destination, dep.lineName) || 'Destino';
                         const podeAbrir = podeAbrirLinha(dep);
@@ -3274,10 +3278,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
                             </div>
                             <div className="shrink-0 flex items-center gap-1">
                               <div className="flex flex-col items-end text-right">
-                                <span className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.jaPassou ? 'text-[#6B6B6B]' : 'text-[#111111]'}`}>
+                                <span className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.jaPassou || dep.greve === 'sem-servico' ? 'text-[#6B6B6B]' : 'text-[#111111]'} ${dep.greve === 'sem-servico' ? 'line-through decoration-2' : ''}`}>
                                   {dep.scheduledTime}
                                 </span>
-                                {(outroDia || dep.jaPassou) && (
+                                {dep.greve ? (
+                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                                ) : (outroDia || dep.jaPassou) && (
                                   <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
                                 )}
                               </div>
@@ -3334,6 +3340,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
                 return (
                   <>
+                    <AvisosGreve greves={extra?.greves} className="pt-3 pb-2.5" />
                     {outdatedNotice && (
                       <div className="py-1 px-1 mt-2 bg-[#F4F4F2] rounded-[6px] text-[11px] text-[#6B6B6B] flex items-center gap-1.5">
                         <AlertTriangle className="w-3 h-3 text-[#6B6B6B] stroke-[2] shrink-0" />
@@ -3378,12 +3385,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   />
                                 )}
                                 <span
-                                  className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                                  className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.greve === 'sem-servico' ? 'text-[#6B6B6B] line-through decoration-2' : parsed.textColorClass}`}
                                 >
                                   {parsed.bigText}
                                 </span>
                               </div>
-                              {parsed.subText && (
+                              {dep.greve ? (
+                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                              ) : parsed.subText && (
                                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}
                                 </span>

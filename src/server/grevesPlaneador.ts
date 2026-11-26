@@ -46,8 +46,10 @@ export interface AvisoGreve {
   noticia?: boolean;
   /** Véspera: a partir desta hora o serviço já acaba mais cedo (perturbação prevista, não greve) */
   vesperaMs?: number;
-  /** O que continua a funcionar (linhas pela cor e troços entre duas estações) */
-  servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string };
+  /** Véspera: a partir desta hora já não há serviço (o operador diz «o serviço termina por volta das 23h») */
+  vesperaFimMs?: number;
+  /** O que continua a funcionar (linhas pela cor e troços entre duas estações) e a que horas (minutos desde a meia-noite) */
+  servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number] };
 }
 
 /** Troço de um trajeto, para saber se fica na parte que funciona durante a greve */
@@ -86,9 +88,10 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
     const ultimoDia = dias.length ? DateTime.fromISO(dias.slice().sort().pop()!, { zone: 'Europe/Lisbon' }).endOf('day').toMillis() : NaN;
     const acaba = Math.max(Number.isFinite(fimMs) ? fimMs : inicioMs + 30 * 3600_000, Number.isFinite(ultimoDia) ? ultimoDia : 0);
     if (acaba < agoraMs) continue;
-    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}) });
+    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}) });
   }
-  return out;
+  // avisos que dizem o que funciona primeiro (o «Estado das Linhas» pode dizer só «greve» na mesma altura)
+  return out.sort((x, y) => Number(!!y.servico) - Number(!!x.servico));
 }
 
 /** Greve que afeta um troço (operador da app e hora de partida), ou undefined */
@@ -100,15 +103,38 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
   for (const g of greves) {
     if (!nomes.includes(norm(g.operador))) continue;
     // sem fim indicado: vale até ao fim do dia em que começa (como na página das greves)
-    const fim = Number.isFinite(g.fimMs) ? g.fimMs : DateTime.fromMillis(g.inicioMs, { zone: 'Europe/Lisbon' }).endOf('day').toMillis();
+    let fim = Number.isFinite(g.fimMs) ? g.fimMs : DateTime.fromMillis(g.inicioMs, { zone: 'Europe/Lisbon' }).endOf('day').toMillis();
+    // greve até ao fim do dia: as viagens depois da meia-noite (até às 3h) ainda são do serviço desse dia
+    const fimL = DateTime.fromMillis(fim, { zone: 'Europe/Lisbon' });
+    if (fimL.hour === 23 && fimL.minute === 59) fim = fimL.plus({ hours: 3 }).toMillis();
     if (partidaMs >= g.inicioMs && partidaMs <= fim) {
       const base: GreveTroco = { titulo: g.titulo, url: g.url, operador: g.operador, ...(g.noticia ? { noticia: true } : {}) };
-      return funcionaNaGreve(feed, g, troco) ? { ...base, reduzido: true, ...(g.servico?.frequencia ? { frequencia: g.servico.frequencia } : {}) } : base;
+      if (!funcionaNaGreve(feed, g, troco)) return g.servico ? { ...base, semServico: true } : base;
+      // fora das horas anunciadas («de 30 em 30 minutos entre as 6h00 e as 7h00 … e as 00h00») não há viagens
+      const h = g.servico?.horas;
+      if (h) {
+        const l = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' });
+        const min = l.hour * 60 + l.minute;
+        if (!(min >= h[0] && min < h[1]) && !(min + 1440 >= h[0] && min + 1440 < h[1])) return { ...base, semServico: true };
+      }
+      return { ...base, reduzido: true, ...(g.servico?.frequencia ? { frequencia: g.servico.frequencia } : {}) };
     }
-    if (g.vesperaMs !== undefined && partidaMs >= g.vesperaMs && partidaMs < g.inicioMs) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true, ...(g.noticia ? { noticia: true } : {}) };
+    const doAviso = { titulo: g.titulo, url: g.url, operador: g.operador, ...(g.noticia ? { noticia: true } : {}) };
+    // véspera: depois da hora a que o operador diz que o serviço acaba, já não há viagens
+    if (g.vesperaFimMs !== undefined && partidaMs >= g.vesperaFimMs && partidaMs < g.inicioMs) return { ...doAviso, previsto: true, semServico: true };
+    if (g.vesperaMs !== undefined && partidaMs >= g.vesperaMs && partidaMs < g.inicioMs) previsto = previsto || { ...doAviso, previsto: true };
     if (dia && g.dias.includes(dia)) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true };
   }
   return previsto;
+}
+
+/** Avisos de greve em memória, já lidos (síncrono: partidas e horário do dia) */
+export function grevesAgora(): AvisoGreve[] {
+  try {
+    return grevesDosAvisos(avisosEmMemoria());
+  } catch {
+    return [];
+  }
 }
 
 /** Avisos de greve para o planeador: os que já estão em memória (nunca espera pela rede) */
