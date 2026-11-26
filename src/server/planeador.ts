@@ -37,6 +37,11 @@ const MARGEM_TRANSBORDO = 2 * 60;
 const M_POR_MIN = 75; // ~4,5 km/h
 const DESVIO_RUAS = 1.3; // a pé não se anda em linha reta
 const RAIO_LONGE = 1500; // alcance a pé, só quando não há nada mais perto
+/** Com 15+ min de espera pela 1.ª partida, procura-se também nas linhas que só param mais longe (até ~1,5 km e 20 min a pé) */
+const ESPERA_PARA_ALARGAR = 15 * 60;
+const RAIO_ANEL = 1500;
+const MAX_ANEL = 16;
+const MAX_MIN_ANEL = 20;
 const RAIO_TRANSBORDO_UNIR = 330; // metros a pé entre a paragem onde se sai e a paragem da UNIR onde se entra
 const MIN_ESPERA_UNIR = 10; // espera média (min) por uma UNIR, só para escolher entre candidatas
 
@@ -132,7 +137,7 @@ const REDE_VALIDADE_MS = 30 * 60_000;
  * Sem rede na zona, ou paragem longe das vias, fica a estimativa de antes.
  */
 function paragensPelaRede(lat: number, lon: number, lista: Paragem[]): Paragem[] {
-  const alvos = lista.filter((p) => p.dist >= 40 && p.dist <= 1300);
+  const alvos = lista.filter((p) => p.dist >= 40 && p.dist <= 1600);
   if (!alvos.length) return lista;
   const chave = `${lat.toFixed(5)},${lon.toFixed(5)}`;
   let memo = redeDoPonto.get(chave);
@@ -855,6 +860,38 @@ export async function planearViagem(
   }
   };
   executar();
+  // Espera longa pela 1.ª partida (15+ min): uma linha que passa mais vezes um pouco mais longe (até ~20 min a pé) pode chegar
+  // bem antes. Ex.: Rua das Cangostas (S. Pedro da Cova) → Campanhã às 11:20: o 8006 só passa às 12:12 e chega às 12:57; a pé
+  // até à paragem do 801 em S. Pedro da Cova apanha-se o das 12:00 e o metro no Dragão, e chega-se ~20 min antes. Entra a
+  // paragem mais perto de cada linha (e sentido) que as de até 900 m não servem; quem ordena continua a pesar o andar a pé.
+  if (padroesDe && indicePronto()) {
+    const emTr = opcoes.filter((o) => o.id !== 'a-pe' && !o._talvez && o._saida !== undefined);
+    const espera = emTr.length ? Math.min(...emTr.map((o) => o._saida as number)) - agoraSegs : Infinity;
+    if (espera >= ESPERA_PARA_ALARGAR) {
+      const anel = (lat: number, lon: number, atuais: Paragem[]): Paragem[] => {
+        const servidos = new Set<number>();
+        for (const p of atuais) for (const x of padroesDe(p.id)) servidos.add(x);
+        const ids = new Set(atuais.map((p) => p.id));
+        const novas: Paragem[] = [];
+        for (const p of paragensPerto(lat, lon, RAIO_ANEL, 600, semViagens)) {
+          if (novas.length >= MAX_ANEL) break;
+          if (ids.has(p.id) || p.dist <= RAIO_A_PE) continue;
+          const novos = padroesDe(p.id).filter((x) => !servidos.has(x));
+          if (!novos.length) continue;
+          novas.push(p);
+          for (const x of novos) servidos.add(x);
+        }
+        return paragensPelaRede(lat, lon, novas).filter((p) => p.minutos <= MAX_MIN_ANEL);
+      };
+      const maisO = anel(oLat, oLon, O), maisD = anel(dLat, dLon, D);
+      if (maisO.length || maisD.length) {
+        O = [...O, ...maisO];
+        D = [...D, ...maisD];
+        registarParagens();
+        executar();
+      }
+    }
+  }
   // Sem nada em transporte a menos de ~900 m a pé de cada lado: tenta com mais caminhada (até ~1,5 km),
   // como faz o Google Maps ("801 e depois 19 min a pé"). As paragens e os minutos a pé ficam à vista.
   if (!opcoes.some((o) => o.id !== 'a-pe')) {
@@ -898,6 +935,13 @@ export async function planearViagem(
     && !poupaAutocarro(o, e);
   // O mesmo transbordo apanhado de um autocarro ou do metro são opções diferentes
   const chave = (o: typeof opcoes[0]) => (autocarrosDe(o) ? o._assinatura : `${o._assinatura}|sem-autocarro`);
+  // As que andam muito mais do que a que anda menos (paragens mais longe, ver ESPERA_PARA_ALARGAR) entram no máximo 2 vezes,
+  // e há sempre uma das que andam pouco: "8006 + 8017, 8 min a pé" não pode sumir por haver três com 25+ min a pé que chegam antes.
+  // (a que anda pouco pode chegar até ao dobro da tolerância depois da melhor: ir mais longe a pé não a pode esconder)
+  const comparaveis = opcoes.filter((x) => x.id !== 'a-pe' && !x._talvez && !x._seguinte && Number.isFinite(melhorChegada) && x._chegada - melhorChegada <= 2 * tolerancia);
+  const menosAPeTodas = comparaveis.length ? Math.min(...comparaveis.map((x) => x.walkingMinutes)) : Infinity;
+  const andaMuito = (x: typeof opcoes[0]) => x.id !== 'a-pe' && x.walkingMinutes > menosAPeTodas + 12;
+  const longasAdmitidas = new Set(comparaveis.filter((x) => andaMuito(x) && x._chegada - melhorChegada <= tolerancia).sort(ordemDasOpcoes).slice(0, 2));
   for (const o of opcoes) {
     if (o._seguinte) continue; // as que saem mais tarde só entram no fim, se houver poucas
     if (o._talvez) continue; // "pode ainda não ter passado" entra à parte, no fim
@@ -910,6 +954,7 @@ export async function planearViagem(
     // Pior em tudo do que uma já escolhida (chega mais tarde, com mais ou os mesmos transbordos e sem andar menos): não acrescenta nada.
     // Ex.: Almada → Cais do Sodré, "3 autocarros, 44 min" ao lado de "metro + barco, 25 min".
     if (o.id !== 'a-pe' && escolhidas.some((e) => domina(e, o))) continue;
+    if (andaMuito(o) && !longasAdmitidas.has(o)) continue;
     vistas.add(chave(o));
     escolhidas.push(o);
     if (escolhidas.length >= 4) break;
@@ -943,6 +988,17 @@ export async function planearViagem(
       escolhidas.push(extra);
       garantidas.add(extra.id);
     }
+    // Uma que anda pouco (até 6 min mais do que a que anda menos), a melhor delas
+    if (!escolhidas.some((e) => e.id !== 'a-pe' && e.walkingMinutes <= menosAPeTodas + 6)) {
+      const poucoAPe = comparaveis
+        .filter((x) => !vistas.has(chave(x)) && x.walkingMinutes <= menosAPeTodas + 6)
+        .sort((a, b) => (a._chegada + esforco(a) * 60) - (b._chegada + esforco(b) * 60))[0];
+      if (poucoAPe) {
+        vistas.add(chave(poucoAPe));
+        escolhidas.push(poucoAPe);
+        garantidas.add(poucoAPe.id);
+      }
+    }
     // Poucas opções (uma ou duas): junta as que saem mais tarde, para quem perde a primeira
     const emTr = () => escolhidas.filter((e) => e.id !== 'a-pe').length;
     if (emTr() && emTr() < 3) {
@@ -957,7 +1013,8 @@ export async function planearViagem(
         const k = `${x._assinatura}@${x._saida}`;
         if (ja.has(k)) continue;
         // uma que sai à mesma hora ou depois e é melhor em tudo já lá está
-        if (escolhidas.some((e) => e._seguinte && domina(e, x) && (e._saida ?? 0) >= (x._saida ?? 0))) continue;
+        // (ou qualquer uma das escolhidas: sai à mesma hora ou depois, chega antes e anda menos, como o 8006 + 8017 ao lado do 801 seguinte)
+        if (escolhidas.some((e) => domina(e, x) && (e._saida ?? 0) >= (x._saida ?? 0))) continue;
         ja.add(k);
         escolhidas.push(x);
       }

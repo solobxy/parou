@@ -1051,6 +1051,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
       try { window.history.back(); } catch {}
     }
   };
+  // Escolher um destino (pesquisa, viagem, ligação) com uma paragem aberta: a paragem fecha e aparecem as opções de viagem
+  useEffect(() => {
+    if (selectedDestination && selectedStop) fecharParagem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDestination]);
 
   const handleRecenterClick = () => {
     setFollowMode(true);

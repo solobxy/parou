@@ -10,6 +10,7 @@ import type { PartilhaAtiva } from '../services/partilhaViagem';
 import { formatTransitName } from '../utils/transitFormatter';
 import { t, tn, LOCALE } from '../i18n';
 import type { TransitRouteOption } from '../types/perto';
+import { minutosDaViagem } from '../utils/escolhaOpcoes';
 
 /** "450 metros", "1,3 km" */
 function textoDistancia(metros: number): string {
@@ -61,7 +62,8 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
   const aPe = route.id === 'a-pe';
   const podeAbrir = !aPe;
   const mostrarDetalhes = detalhes && podeAbrir;
-  const { grande, pequena } = partesDuracao(route.totalDurationMinutes);
+  // A duração da viagem em si (de sair de casa até chegar), não a espera até à hora de sair
+  const { grande, pequena } = partesDuracao(minutosDaViagem(route));
 
   // Cadeia: a pé > linha > linha > a pé. Os troços a pé de 1-2 min entre duas linhas ficam só nos detalhes (ruído)
   const cadeia = route.legs.filter((leg, i, todas) => {
