@@ -8,6 +8,7 @@
 // para continuar a funcionar quando um site muda de aspeto; se uma página deixar de responder, os avisos com data de fim
 // mantêm-se até essa data e as notícias dos jornais continuam a cobrir o operador.
 // =====================================================================================
+import { DateTime } from 'luxon';
 import { avisoGreveOficial } from './grevesNoticias';
 import type { CentralAlert } from '../types/alerts';
 
@@ -84,9 +85,17 @@ const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho
 /** Título, data de publicação (ISO, ou null se a página não a diz) e texto de um aviso, em qualquer site */
 export function artigoGenerico(html: string): { titulo: string; publicada: string | null; texto: string } | null {
   const meta = (re: RegExp) => re.exec(html)?.[1];
-  const titulo = textoLimpo(meta(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-    || meta(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || meta(/<title>([\s\S]*?)<\/title>/i) || '')
-    .replace(/\s+[-|–]\s+[^-|–]{2,60}$/, '').replace(/\.$/, '').trim();
+  // título: og:title, o título dentro do artigo, o <title> da página (sem o nome do site) e só depois o primeiro <h1>
+  // (na SMTUC o primeiro <h1> é «Blog», o cabeçalho da secção)
+  const doArtigo = /<article\b[\s\S]*?<\/article>/i.exec(html)?.[0] || '';
+  const limparTitulo = (t: string) => textoLimpo(t).replace(/\s+[-|–]\s+[^-|–]{2,60}$/, '').replace(/\.$/, '').trim();
+  const candidatos = [
+    meta(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i),
+    /<h[12][^>]*>([\s\S]*?)<\/h[12]>/i.exec(doArtigo)?.[1],
+    meta(/<title>([\s\S]*?)<\/title>/i),
+    meta(/<h1[^>]*>([\s\S]*?)<\/h1>/i),
+  ].map((t) => limparTitulo(t || '')).filter((t) => t.length >= 8 && !/^(blog|not[ií]cias?|avisos?|comunicados?|home|in[ií]cio)$/i.test(t));
+  const titulo = candidatos[0] || '';
   // data: metadados (artigo, JSON-LD), depois «13 de Novembro de 2026» / «25 de Novembro, 2026» / 25/11/2026 no topo
   let publicada: string | null = meta(/<meta[^>]+(?:property|name)=["'](?:article:published_time|published_at|og:published_time|date|dc\.date)["'][^>]+content=["']([^"']+)["']/i)
     || meta(/"datePublished"\s*:\s*"([^"]+)"/i) || meta(/<time[^>]+datetime=["']([^"']+)["']/i) || null;
@@ -112,11 +121,21 @@ export function avisoDoSite(site: SiteOperador, url: string, html: string, agora
   // o texto do aviso começa no título (os menus e rodapés já saíram); o título conta para os dias
   const i = a.texto.indexOf(a.titulo);
   let texto = (i >= 0 ? a.texto.slice(i + a.titulo.length) : a.texto).trim();
-  // a data de publicação no topo («Dia 13 de Novembro de 2026 às 12:13», «25 de Novembro, 2026 em Avisos») não é o dia da greve
-  const topo = texto.slice(0, 140);
-  const dataTopo = new RegExp(`(?:\\bdia\\s+)?\\b\\d{1,2}\\s+de\\s+[a-zç]+,?\\s+(?:de\\s+)?20\\d{2}(?:\\s+(?:às|as)\\s+\\d{1,2}[:h]\\d{2})?`, 'i').exec(topo);
-  if (dataTopo) texto = (texto.slice(0, dataTopo.index) + ' ' + texto.slice(dataTopo.index + dataTopo[0].length)).trim();
-  texto = texto.replace(/\b\d{1,2}[/.-]\d{1,2}[/.-]20\d{2}\b/, (m, off: number) => (off < 140 ? ' ' : m));
+  // carimbos de data das páginas («25 de Novembro, 2026 em Avisos», a data de alteração no fim do artigo, «Dia 13 de Novembro
+  // de 2026 às 12:13») não são dias de greve: saem do texto (um aviso escreve «dia 2 de dezembro», sem vírgula nem hora)
+  texto = texto.normalize('NFC')
+    .replace(/(?:\bdia\s+)?\b\d{1,2}\s+de\s+[A-Za-zçÇ]+,\s*20\d{2}\b/g, ' ')
+    .replace(/(?:\bdia\s+)?\b\d{1,2}\s+de\s+[A-Za-zçÇ]+\s+de\s+20\d{2}\s+(?:às|as)\s+\d{1,2}[:h]\d{2}/gi, ' ');
+  // a data de publicação também sai, sempre que aparece com o ano
+  if (a.publicada) {
+    const p = DateTime.fromISO(a.publicada, { zone: 'Europe/Lisbon' });
+    if (p.isValid) {
+      const mes = MESES[p.month - 1];
+      const reData = new RegExp(`(?:\\bdia\\s+)?\\b0?${p.day}\\s+de\\s+${mes.replace('c', '[cç]')},?\\s+(?:de\\s+)?${p.year}(?:\\s+(?:às|as)\\s+\\d{1,2}[:h]\\d{2})?`, 'gi');
+      texto = texto.normalize('NFC').replace(reData, ' ');
+      texto = texto.replace(new RegExp(`\\b0?${p.day}[/.-]0?${p.month}[/.-]${p.year}\\b`, 'g'), ' ');
+    }
+  }
   return avisoGreveOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada || agora.toISOString(),
     semData: !a.publicada, url, fonte: FONTE_AVISOS_OPERADORES }, agora);
 }

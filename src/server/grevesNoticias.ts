@@ -121,7 +121,8 @@ const RE_DIA_JA_PASSOU_DEPOIS = /^\s+(?:passad[ao]|teve|tiveram|registou|cancelo
  * "dias 27 e 28 de novembro"), depois o dia da semana ("sexta-feira"), "amanhã" e "hoje" contados a partir da notícia.
  */
 export function diasDaGreve(texto: string, publicada: DateTime): DateTime[] {
-  const t = semAcentos(texto);
+  // «6ª feira» / «4.ª feira» = sexta-feira / quarta-feira
+  const t = semAcentos(texto).replace(/\b([2-6])\s*\.?\s*[ªºa]\s*-?\s*feira\b/g, (_m, n) => `${['segunda', 'terca', 'quarta', 'quinta', 'sexta'][Number(n) - 2]}-feira`);
   const base = publicada.setZone(ZONA);
   const dias = new Map<string, DateTime>();
   const juntar = (d: DateTime) => { if (d.isValid) dias.set(d.toISODate()!, d.startOf('day')); };
@@ -162,8 +163,15 @@ export function diasDaGreve(texto: string, publicada: DateTime): DateTime[] {
     }
     // «até sexta-feira» ou «termina na sexta-feira» escrito numa sexta-feira é o próprio dia, não a sexta seguinte
     const ateEsseDia = /\b(?:ate(?: a| ao| o)?|termina|terminam|acaba|acabam)\s*$/.test(antes);
-    juntar(proximoDiaSemana(base, DIAS_SEMANA[nome], ateEsseDia || esteDia || /\bhoje\b/.test(t)));
-    return [...dias.values()];
+    const primeiro = proximoDiaSemana(base, DIAS_SEMANA[nome], ateEsseDia || esteDia || /\bhoje\b/.test(t));
+    juntar(primeiro);
+    // «sexta-feira e sábado»: o dia a seguir também
+    const outro = /^\s*(?:-feira)?\s*e\s+(?:no\s+|na\s+|o\s+|a\s+)?(segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/.exec(depois.replace(/^-feira/, ''));
+    if (outro) {
+      const d2 = proximoDiaSemana(primeiro, DIAS_SEMANA[outro[1]], false);
+      if (d2.diff(primeiro, 'days').days <= 6) juntar(d2);
+    }
+    return [...dias.values()].sort((a, b) => a.toMillis() - b.toMillis());
   }
   if (/\bamanha\b/.test(t)) return [base.plus({ days: 1 }).startOf('day')];
   if (/\bhoje\b/.test(t)) return [base.startOf('day')];
