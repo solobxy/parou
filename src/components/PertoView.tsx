@@ -1713,8 +1713,47 @@ export const PertoView: React.FC<PertoViewProps> = ({
     return () => clearTimeout(timer);
   }, [mapaExpandido, Boolean(linhaAberta)]);
 
-  // Primary short alert
-  const topAlert = contextualAlerts[0] || null;
+  // Avisos no topo: até dois, os mais próximos no tempo (26/11/2026: com a greve da CP a decorrer, a do Metro do Porto do dia
+  // seguinte, com o serviço a acabar mais cedo nessa noite, ficava escondida porque só se mostrava o primeiro da lista).
+  // Conta o que está a decorrer e o que começa nas próximas 36 h (a véspera com serviço reduzido também conta).
+  const avisosTopo = useMemo(() => {
+    const agora = Date.now();
+    const inicioEfetivo = (a: CentralAlert) => {
+      const ini = Date.parse(a.start_datetime);
+      const vesp = a.vespera_desde ? Date.parse(a.vespera_desde) : NaN;
+      return Number.isFinite(vesp) && vesp < ini ? vesp : ini;
+    };
+    return contextualAlerts
+      .filter((a) => {
+        if (a.status === 'Cancelado' || a.status === 'Terminado') return false;
+        if (a.status === 'Ativo') return true;
+        const ini = inicioEfetivo(a);
+        return Number.isFinite(ini) && ini - agora < 36 * 3600_000;
+      })
+      // primeiro o que mudou há menos tempo ou muda mais cedo (a véspera que começou agora antes da greve que já vai no 4.º dia)
+      .map((a, i) => ({ a, i, dist: Math.abs((inicioEfetivo(a) || 0) - agora) }))
+      .sort((x, y) => x.dist - y.dist || x.i - y.i)
+      .slice(0, 2)
+      .map((x) => x.a);
+  }, [contextualAlerts]);
+  /** O que se diz à direita de cada aviso: «Greve» a decorrer, ou quando começa («Hoje 22h», «Amanhã», «Sex») */
+  const quandoAviso = (a: CentralAlert): string => {
+    const agora = Date.now();
+    const dia = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Lisbon' });
+    const hora = (ms: number) => Number(new Date(ms).toLocaleString('en-GB', { timeZone: 'Europe/Lisbon', hour: '2-digit', hour12: false }));
+    const ini = Date.parse(a.start_datetime);
+    const vesp = a.vespera_desde ? Date.parse(a.vespera_desde) : NaN;
+    const tipo = a.tipo === 'greve' ? t('Greve') : (a.severity || '');
+    if (a.status === 'Ativo' || !Number.isFinite(ini) || ini <= agora) return tipo;
+    // véspera com serviço reduzido (ex.: o metro acaba mais cedo na noite antes da greve)
+    if (Number.isFinite(vesp) && vesp < ini) {
+      if (vesp <= agora) return t('Hoje');
+      if (dia(vesp) === dia(agora)) return `${t('Hoje')} ${hora(vesp)}h`;
+    }
+    if (dia(ini) === dia(agora)) return `${t('Hoje')} ${hora(ini)}h`;
+    if (dia(ini) === dia(agora + 86_400_000)) return t('Amanhã');
+    return new Date(ini).toLocaleDateString(LOCALE, { timeZone: 'Europe/Lisbon', weekday: 'short' }).replace('.', '');
+  };
 
   const raio = raioUsado || selectedRadius;
   const raioTexto = raio >= 1000 ? `${(raio / 1000).toLocaleString(LOCALE)} km` : textoMetros(raio);
@@ -2255,22 +2294,33 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         </div>
 
-        {/* Contextual Alert Banner */}
-        {!emRota && topAlert && localizacaoPronta && (
-          <button
-            type="button"
-            onClick={() => onAbrirAlertas?.()}
-            data-teste="aviso-perto"
-            className="mx-3 mb-2 lg:mx-0 lg:mb-0 min-h-[40px] px-3 py-2 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none flex items-center justify-between text-left text-xs text-[#9A3412] shrink-0 cursor-pointer active:bg-[#FFEDD5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9A3412]"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" aria-hidden="true" />
-              <span className="font-semibold truncate">{topAlert.título || (topAlert as any).title}</span>
-            </span>
-            <span className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
-              {topAlert.tipo === 'greve' ? t('Greve') : topAlert.severity}
-            </span>
-          </button>
+        {/* Avisos no topo (greves e perturbações graves à volta): até dois, cada um abre os Alertas */}
+        {!emRota && avisosTopo.length > 0 && localizacaoPronta && (
+          <div className="mx-3 mb-2 lg:mx-0 lg:mb-0 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none overflow-hidden divide-y divide-[#FFEDD5]">
+            {avisosTopo.map((aviso) => (
+              <button
+                key={aviso.id}
+                type="button"
+                onClick={() => onAbrirAlertas?.()}
+                data-teste="aviso-perto"
+                className="w-full min-h-[40px] px-3 py-2 flex items-center justify-between text-left text-xs text-[#9A3412] cursor-pointer"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" aria-hidden="true" />
+                  {/* o operador à frente: em 320 px o título corta-se e era o nome do operador que desaparecia */}
+                  <span className="truncate">
+                    {aviso.operador && !new RegExp(`^\\W*${aviso.operador.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(aviso.título || '') && (
+                      <span className="font-bold">{aviso.operador} · </span>
+                    )}
+                    <span className="font-semibold">{aviso.título || (aviso as any).title}</span>
+                  </span>
+                </span>
+                <span data-teste="aviso-perto-quando" className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
+                  {quandoAviso(aviso)}
+                </span>
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Filtros por modo */}
