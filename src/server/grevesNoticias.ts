@@ -79,6 +79,18 @@ function proximoDiaSemana(base: DateTime, dia: number, incluiHoje: boolean): Dat
   return d;
 }
 
+/** O último dia da semana pedido que já passou, a contar do dia da notícia (o próprio dia incluído) */
+function ultimoDiaSemana(base: DateTime, dia: number): DateTime {
+  let d = base.startOf('day');
+  for (let i = 0; i < 7 && d.weekday !== dia; i++) d = d.minus({ days: 1 });
+  return d;
+}
+
+/** Antes do dia da semana, sinais de que ele já passou: «que começou na», «em greve desde», «na passada», «arrancou às 00h00 de» */
+const RE_DIA_JA_PASSOU_ANTES = /\b(?:desde|comecou|comecaram|iniciou(?:-se)?|iniciaram(?:-se)?|iniciad[ao]s?|arrancou|arrancaram|(?:teve|tiveram) inicio|decorreu|decorreram|realizou-se|realizad[ao]s?|aconteceu|ocorreu|passad[ao]|ultim[ao])(?: ja| logo| ainda)?(?: as \d{1,2}(?:h\d{0,2}|:\d{2})(?: horas)?)?(?: de| a| o)?\s*$/;
+/** Depois do dia da semana: «segunda-feira passada», ou o balanço de um dia que já foi («a greve de terça-feira suprimiu…») */
+const RE_DIA_JA_PASSOU_DEPOIS = /^\s+(?:passad[ao]|teve|tiveram|registou|cancelou|suprimiu|afetou|paralisou|parou|deixou|provocou|causou)\b/;
+
 /**
  * Dias da greve citados no texto. Ordem de confiança: datas com o mês ("27 de novembro", "de 23 a 27 de novembro",
  * "dias 27 e 28 de novembro"), depois o dia da semana ("sexta-feira"), "amanhã" e "hoje" contados a partir da notícia.
@@ -106,13 +118,26 @@ export function diasDaGreve(texto: string, publicada: DateTime): DateTime[] {
     for (const n of m[1].split(/\s*(?:,|e)\s*/).map(Number)) if (n >= 1 && n <= 31) juntar(comAno(n, mes));
   }
   if (dias.size) return [...dias.values()].sort((a, b) => a.toMillis() - b.toMillis());
-  // dia da semana: só o primeiro citado (os outros costumam ser "impactos já na quinta-feira", tratados à parte)
+  // dia da semana: só o primeiro que anuncia a greve (os outros costumam ser "impactos já na quinta-feira", tratados à parte)
   // «desta quinta-feira» / «deste sábado» também são o próprio dia (sem «desta», a RTP de 26/11 virava uma greve falsa a 3/12)
-  const ds = /\b(?:(esta|nesta|desta|na|proxima|este|neste|deste|no|proximo)\s+)?(segunda|terca|quarta|quinta|sexta)(?:-feira)?\b|\b(?:(este|neste|deste|no|proximo)\s+)?(sabado|domingo)\b/.exec(t);
-  if (ds) {
+  for (const ds of t.matchAll(/\b(?:(esta|nesta|desta|na|proxima|este|neste|deste|no|proximo)\s+)?(segunda|terca|quarta|quinta|sexta)(?:-feira)?\b|\b(?:(este|neste|deste|no|proximo)\s+)?(sabado|domingo)\b/g)) {
     const nome = ds[2] || ds[4];
     const pref = ds[1] || ds[3] || '';
-    juntar(proximoDiaSemana(base, DIAS_SEMANA[nome], /^(esta|nesta|desta|este|neste|deste)$/.test(pref) || /\bhoje\b/.test(t)));
+    const pos = ds.index ?? 0;
+    const antes = t.slice(0, pos), depois = t.slice(pos + ds[0].length);
+    const esteDia = /^(esta|nesta|desta|este|neste|deste)$/.test(pref);
+    // «desta quinta-feira» numa notícia publicada já na sexta (logo a seguir à meia-noite, por exemplo) é a véspera
+    const foiOntem = esteDia && base.minus({ days: 1 }).weekday === DIAS_SEMANA[nome];
+    // dia que já passou («que começou na segunda-feira», «em greve desde segunda-feira», «a greve de terça-feira suprimiu…»):
+    // não anuncia uma greve na semana seguinte. Só conta se for o próprio dia da notícia («começou esta segunda-feira»).
+    if (foiOntem || RE_DIA_JA_PASSOU_ANTES.test(antes) || RE_DIA_JA_PASSOU_DEPOIS.test(depois)) {
+      const foi = ultimoDiaSemana(base, DIAS_SEMANA[nome]);
+      if (foi.hasSame(base, 'day')) return [foi];
+      continue;
+    }
+    // «até sexta-feira» ou «termina na sexta-feira» escrito numa sexta-feira é o próprio dia, não a sexta seguinte
+    const ateEsseDia = /\b(?:ate(?: a| ao| o)?|termina|terminam|acaba|acabam)\s*$/.test(antes);
+    juntar(proximoDiaSemana(base, DIAS_SEMANA[nome], ateEsseDia || esteDia || /\bhoje\b/.test(t)));
     return [...dias.values()];
   }
   if (/\bamanha\b/.test(t)) return [base.plus({ days: 1 }).startOf('day')];
