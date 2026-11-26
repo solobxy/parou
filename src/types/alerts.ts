@@ -40,6 +40,8 @@ export interface CentralAlert {
   dias_perturbacao?: string[];
   /** Greves: o que continua a funcionar (linhas inteiras e troços entre duas estações), quando o operador o diz */
   servico_na_greve?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string };
+  /** Greves: a partir desta hora da véspera o serviço já acaba mais cedo ("últimas partidas por volta das 23h") */
+  vespera_desde?: string;
 }
 
 export interface AlertCenterDiagnostic {

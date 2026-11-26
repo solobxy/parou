@@ -44,6 +44,8 @@ export interface AvisoGreve {
   dias: string[];
   /** Vem de uma notícia (ver grevesNoticias.ts) */
   noticia?: boolean;
+  /** Véspera: a partir desta hora o serviço já acaba mais cedo (perturbação prevista, não greve) */
+  vesperaMs?: number;
   /** O que continua a funcionar (linhas pela cor e troços entre duas estações) */
   servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string };
 }
@@ -84,7 +86,7 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
     const ultimoDia = dias.length ? DateTime.fromISO(dias.slice().sort().pop()!, { zone: 'Europe/Lisbon' }).endOf('day').toMillis() : NaN;
     const acaba = Math.max(Number.isFinite(fimMs) ? fimMs : inicioMs + 30 * 3600_000, Number.isFinite(ultimoDia) ? ultimoDia : 0);
     if (acaba < agoraMs) continue;
-    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}) });
+    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}) });
   }
   return out;
 }
@@ -103,6 +105,7 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
       const base: GreveTroco = { titulo: g.titulo, url: g.url, operador: g.operador, ...(g.noticia ? { noticia: true } : {}) };
       return funcionaNaGreve(feed, g, troco) ? { ...base, reduzido: true, ...(g.servico?.frequencia ? { frequencia: g.servico.frequencia } : {}) } : base;
     }
+    if (g.vesperaMs !== undefined && partidaMs >= g.vesperaMs && partidaMs < g.inicioMs) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true, ...(g.noticia ? { noticia: true } : {}) };
     if (dia && g.dias.includes(dia)) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true };
   }
   return previsto;

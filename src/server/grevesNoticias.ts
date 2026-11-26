@@ -130,7 +130,8 @@ export function inicioNaVespera(texto: string, primeiro: DateTime): DateTime | n
   const citaVespera = /\bvespera\b/.test(t) || nomes.some((n) => new RegExp(`\\bja (?:na |no |n[ae]sta |n[ae]ste )?${n}`).test(t));
   if (!citaVespera) return null;
   const h = /(?:terminar|termina|acabar|acaba|ultimas? (?:partidas|viagens|composicoes))[^.]{0,40}?\b(\d{1,2})h(\d{2})?\b/.exec(t);
-  const hora = h ? Number(h[1]) : 21;
+  // sem hora no texto: o mais habitual nestes comunicados (últimas partidas por volta das 23h)
+  const hora = h ? Number(h[1]) : 23;
   if (!(hora >= 12 && hora <= 23)) return null;
   // uma hora antes da última partida anunciada (as últimas viagens já não chegam ao fim da linha)
   return vespera.set({ hour: Math.max(12, hora - 1), minute: 0 });
@@ -229,11 +230,14 @@ export function grevesDasNoticias(noticias: NoticiaBruta[], agora: Date = new Da
     const resumo = (c.n.resumo || '').replace(/\s+/g, ' ').trim();
     const outras = [...c.fontes].filter((f) => f !== c.n.fonte);
     const descricao = [resumo || c.n.titulo, `Fonte: notícia de ${c.n.fonte}${outras.length ? ` (também ${outras.join(', ')})` : ''}, ainda sem aviso no site do operador.`].join(' — ').slice(0, 1500);
-    const start = c.inicio.toUTC().toISO()!;
+    // a greve começa no dia anunciado; a véspera (serviço a acabar mais cedo) fica à parte, como perturbação prevista
+    const start = c.dias[0].toUTC().toISO()!;
     const end = c.fim.toUTC().toISO()!;
+    const vespera = c.inicio < c.dias[0] ? c.inicio.toUTC().toISO()! : undefined;
     const servico = servicoNaGreve(`${c.n.titulo}. ${c.n.resumo || ''}`);
     out.push({
       ...(servico ? { servico_na_greve: servico } : {}),
+      ...(vespera ? { vespera_desde: vespera } : {}),
       id: idDe(c.operador.nome, dia),
       external_id: idDe(c.operador.nome, dia),
       tipo: 'greve',
