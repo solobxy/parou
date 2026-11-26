@@ -1,6 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ProtecaoErros, apanharErrosGlobais } from './components/ProtecaoErros';
+import { ligarDiagnosticoGps } from './utils/diagGps';
 import './index.css';
 import { iniciarTema } from './utils/tema';
 import { iniciarSegurancaZoom } from './utils/zoomIos';
@@ -81,6 +82,7 @@ if (typeof window !== 'undefined') {
 }
 
 apanharErrosGlobais();
+ligarDiagnosticoGps();
 // O CSS principal chega sem travar o primeiro ecrã (vite.config.ts, cssSemBloquear): o esqueleto do index.html aparece logo e a
 // app só substitui o esqueleto quando o CSS já está aplicado (nunca um ecrã sem estilos). No máximo 4 s à espera.
 function cssPronto(): Promise<void> {

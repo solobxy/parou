@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { filtroGps, type LeituraGps } from '../utils/filtroGps';
 import { reiniciarPosicaoSuave } from '../utils/posicaoSuave';
 import { ligarMovimento, estadoAparelho } from '../utils/movimentoAparelho';
+import { estadoGps, vigiarGps } from '../utils/diagGps';
 
 export type LocationPermissionStatus = 
   | 'idle'           // Location turned off (Localização desligada)
@@ -137,6 +138,9 @@ export function useUserLocation() {
   const emitidoRef = useRef<UserCoords | null>(memoriaPosicao);
   const statusAtualRef = useRef<LocationPermissionStatus>(status);
   statusAtualRef.current = status;
+  // Diagnóstico: cada mudança de estado e, de 5 em 5 s, se está presa a pedir
+  useEffect(() => { estadoGps(status, motivoBloqueio); }, [status, motivoBloqueio]);
+  useEffect(() => { const i = setInterval(vigiarGps, 5000); return () => clearInterval(i); }, []);
   const setCoords = useCallback((c: UserCoords | null) => {
     emitidoRef.current = c;
     if (!c || c.isManual) reiniciarPosicaoSuave(); // posição nova à mão ou perdida: o filtro recomeça
