@@ -254,7 +254,7 @@ export function useUserLocation() {
       (err) => {
         if (err.code === err.PERMISSION_DENIED) handlePositionError(err);
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 2 * 60_000 }
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 10 * 60_000 }
     );
 
     // 2. Posição precisa (GPS)
@@ -559,6 +559,9 @@ export function useUserLocation() {
   // a resposta é um erro imediato (não liga o GPS nem gasta bateria). Só quando o site já está autorizado: nunca abre a
   // pergunta do browser sozinho, nem volta a ligar a quem a desligou na app.
   const sondaRef = useRef(false);
+  // Desde quando a app está a pedir a localização (0 = não está)
+  const pedirDesdeRef = useRef(0);
+  useEffect(() => { pedirDesdeRef.current = status === 'requesting' ? Date.now() : 0; }, [status]);
   const sondaFalhouRef = useRef(false);
   const tentativasSondaRef = useRef(0);
   const ultimaAtivacaoSondaRef = useRef(0);
@@ -588,18 +591,25 @@ export function useUserLocation() {
     const id = setInterval(async () => {
       if (parado || sondaRef.current || document.visibilityState !== 'visible') return;
       const st = statusRef.current;
-      const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable';
+      // Também quando o pedido está pendurado há mais de 8 s (com a localização do telemóvel desligada, o Chrome pode
+      // nem responder): é quando a app já mostra «Liga a localização»
+      const pendurado = st === 'requesting' && pedirDesdeRef.current > 0 && Date.now() - pedirDesdeRef.current > 8000;
+      const desligadaNoTelemovel = (st === 'denied' && motivoRef.current === 'sistema') || st === 'unavailable' || pendurado;
       if (!desligadaNoTelemovel) return;
       sondaRef.current = true;
       try {
         if (!(await podePerguntar()) || parado) return;
-        await new Promise<void>((fim) => {
+        await new Promise<void>((fimPromessa) => {
+          // a sonda também acaba sozinha ao fim de 2,5 s (sem resposta conta como «desligada»)
+          let acabou = false;
+          const fim = () => { if (!acabou) { acabou = true; clearTimeout(limite); fimPromessa(); } };
+          const limite = setTimeout(() => { sondaFalhouRef.current = true; tentativasSondaRef.current = 0; fim(); }, 2500);
           try {
             navigator.geolocation.getCurrentPosition(
               () => {
                 fim();
                 const agora = statusRef.current;
-                if (parado || (agora !== 'denied' && agora !== 'unavailable')) return;
+                if (parado || (agora !== 'denied' && agora !== 'unavailable' && agora !== 'requesting')) return;
                 // Nunca em ciclo: só se a localização estava mesmo desligada (a sonda anterior falhou), no máximo uma vez
                 // a cada 30 s e, se a app volta logo ao mesmo estado duas vezes, desiste até a pessoa tocar ou voltar à app
                 const t = Date.now();
