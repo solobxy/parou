@@ -72,11 +72,11 @@ export function AvisoPartida({ route }: { route: TransitRouteOption }) {
   if (ativo) {
     return (
       <div className="mt-2.5 flex items-center justify-between gap-2 rounded-[10px] bg-[#F4F4F2] px-3 py-2" onClick={(e) => e.stopPropagation()}>
-        <span className="flex items-center gap-2 text-[12.5px] font-semibold text-[#111111]">
+        <span className="min-w-0 flex items-center gap-2 text-[12.5px] font-semibold text-[#111111] leading-snug">
           <BellRing className="w-4 h-4 text-[#C2410C] shrink-0" aria-hidden="true" />
           {ativo.direto ? t('Aviso por volta das {h}, com o transporte em direto', { h: hora(ativo.quando) }) : t('Aviso às {h}', { h: hora(ativo.quando) })}
         </span>
-        <button onClick={cancelar} className="inline-flex items-center gap-1 h-8 px-2 text-[12px] font-semibold text-[#6B6B6B] cursor-pointer" aria-label={t('Cancelar aviso')}>
+        <button onClick={cancelar} className="shrink-0 inline-flex items-center gap-1 h-10 px-2 text-[12px] font-semibold text-[#6B6B6B] cursor-pointer" aria-label={t('Cancelar aviso')}>
           <X className="w-3.5 h-3.5" aria-hidden="true" /> {t('Cancelar')}
         </button>
       </div>
