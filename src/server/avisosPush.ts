@@ -18,6 +18,7 @@ import path from 'path';
 import { DateTime } from 'luxon';
 import { candidatosPush, candidatosLinhas, chaveLinha, type CandidatoPush } from './alertasEngine';
 import { ipDe } from './limites';
+import { escolherPartida, momentoDoAviso, textoDoAviso, idNormal } from './lembreteDireto';
 
 const PASTA = process.env.PAROU_DATA_DIR || '/tmp/parou-dados';
 const FICH_VAPID = path.join(PASTA, 'vapid.json');
@@ -150,6 +151,11 @@ function base(): DatabaseSync {
     enviado INTEGER NOT NULL DEFAULT 0
   )`);
   db.exec('CREATE INDEX IF NOT EXISTS idx_lembretes_quando ON lembretes (enviado, quando)');
+  // Lembretes em direto (a hora acompanha o transporte): paragem, viagem e linha do 1.º transporte, hora dele na paragem
+  // pelo horário (ms) e antecedência pedida (ms: a pé + minutos); em_direto = texto «em direto» na língua da pessoa
+  for (const c of ['paragem TEXT', 'viagem TEXT', 'linha TEXT', 'hora INTEGER', 'antes INTEGER', 'em_direto TEXT']) {
+    try { db.exec(`ALTER TABLE lembretes ADD COLUMN ${c}`); } catch { /* já existe */ }
+  }
   return db;
 }
 
@@ -274,6 +280,7 @@ export function _testes() {
     definirFonte: (f: () => Promise<CandidatoPush[]>) => { fonteCandidatos = f; },
     definirEnvio: (f: typeof enviarFn) => { enviarFn = f; },
     definirSilencio: (f: () => boolean) => { silencioFn = f; },
+    definirPrevisao: (f: typeof previsaoFn) => { previsaoFn = f; },
     ciclo, interessa, base, enviarLembretes, linhasSeguidas, tituloDaLinha,
   };
 }
@@ -402,12 +409,31 @@ export async function enviarLembretes(): Promise<number> {
     const devidos = b.prepare(
       `SELECT l.id, l.quando, l.titulo, l.corpo, l.url, l.tag, s.endpoint, s.p256dh, s.auth, s.distritos, s.dia, s.enviados_dia, s.falhas
        FROM lembretes l JOIN subscricoes s ON s.endpoint = l.endpoint
-       WHERE l.enviado = 0 AND l.quando <= ? ORDER BY l.quando LIMIT 200`,
+       WHERE l.enviado = 0 AND l.quando <= ? AND (l.paragem IS NULL OR l.paragem = '') ORDER BY l.quando LIMIT 200`,
     ).all(agora + 15_000) as unknown as Array<Subscricao & { id: number; quando: number; titulo: string; corpo: string; url: string; tag: string }>;
     for (const l of devidos) {
       b.prepare('UPDATE lembretes SET enviado = 1 WHERE id = ?').run(l.id); // marca antes: nunca se envia duas vezes
       if (agora - l.quando > 10 * 60_000) continue; // já passou demasiado tempo (servidor parado): já não serve
       const ok = await enviarA(l, { title: l.titulo, body: l.corpo, url: l.url, tag: l.tag || `lembrete-${l.id}` }, true, 600);
+      if (ok) enviados++;
+    }
+    // Em direto: só se olha para os que estão a menos de 40 min da hora do horário (com atraso, o aviso pode vir depois)
+    const diretos = b.prepare(
+      `SELECT l.id, l.quando, l.titulo, l.corpo, l.url, l.tag, l.paragem, l.viagem, l.linha, l.hora, l.antes, l.em_direto,
+              s.endpoint, s.p256dh, s.auth, s.distritos, s.dia, s.enviados_dia, s.falhas
+       FROM lembretes l JOIN subscricoes s ON s.endpoint = l.endpoint
+       WHERE l.enviado = 0 AND l.paragem IS NOT NULL AND l.paragem != '' AND l.quando <= ? ORDER BY l.quando LIMIT 40`,
+    ).all(agora + 40 * 60_000) as unknown as Array<Subscricao & { id: number; quando: number; titulo: string; corpo: string; url: string; tag: string;
+      paragem: string; viagem: string; linha: string; hora: number; antes: number; em_direto: string }>;
+    for (const l of diretos) {
+      const prevista = await previsaoFn(l.paragem, l.viagem, l.linha, l.hora);
+      const alvo = momentoDoAviso(l, prevista);
+      if (Date.now() < alvo - 15_000) continue; // ainda não
+      b.prepare('UPDATE lembretes SET enviado = 1 WHERE id = ?').run(l.id);
+      if (Date.now() - alvo > 10 * 60_000) continue;
+      const horaTransporte = prevista && Math.abs(prevista.ms - l.hora) <= 3600_000 ? prevista : undefined;
+      const corpo = textoDoAviso(l.corpo, horaTransporte ? horaTransporte.ms : l.hora, !!horaTransporte?.direto, l.em_direto || '');
+      const ok = await enviarA(l, { title: l.titulo, body: corpo, url: l.url, tag: l.tag || `lembrete-${l.id}` }, true, 600);
       if (ok) enviados++;
     }
     b.prepare('DELETE FROM lembretes WHERE quando < ?').run(agora - 24 * 3600_000);
@@ -420,6 +446,18 @@ export async function enviarLembretes(): Promise<number> {
     emLembretes = false;
   }
   return enviados;
+}
+
+/** Hora do transporte na paragem: prevista em direto pelo operador, ou a do horário (no máximo 3 s; sem resposta, undefined) */
+let previsaoFn: (paragem: string, viagem: string, linha: string, hora: number) => Promise<{ ms: number; direto: boolean } | undefined> = partidaPrevista;
+async function partidaPrevista(paragem: string, viagem: string, linha: string, hora: number): Promise<{ ms: number; direto: boolean } | undefined> {
+  try {
+    const { DepartureEngine, comPrazo } = await import('./departureEngine');
+    const r = await comPrazo(DepartureEngine.nextDepartures(idNormal(paragem), new Date(), 30), 3000, null as any);
+    return r?.departures ? escolherPartida(r.departures as any, viagem, linha, hora) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function limpeza() {
@@ -577,7 +615,20 @@ export function registarRotasPush(app: Express) {
       if (pendentes >= 10) return res.status(429).json({ erro: 'demasiados lembretes ativos' });
       const feitosHoje = (b.prepare('SELECT COUNT(*) AS n FROM lembretes WHERE endpoint = ? AND criado > ?').get(endpoint, agora - 24 * 3600_000) as { n: number }).n;
       if (feitosHoje >= 60) return res.status(429).json({ erro: 'limite diário' });
-      const r = b.prepare('INSERT INTO lembretes (endpoint, quando, titulo, corpo, url, tag, criado) VALUES (?, ?, ?, ?, ?, ?, ?)').run(endpoint, Math.round(quando), titulo, texto, url, tag, agora);
+      // Em direto (opcional): paragem, viagem e linha do 1.º transporte e a hora dele na paragem pelo horário
+      const d = corpo?.direto;
+      let direto: { paragem: string; viagem: string; linha: string; hora: number; antes: number; emDireto: string } | null = null;
+      if (d && typeof d === 'object') {
+        const hora = Number(d.hora);
+        const paragem = String(d.paragem || '').slice(0, 120);
+        if (paragem && /^[\w.:-]+$/.test(paragem) && Number.isFinite(hora) && hora >= quando && hora - quando <= 3 * 3600_000) {
+          direto = { paragem, viagem: String(d.viagem || '').slice(0, 200), linha: String(d.linha || '').slice(0, 20), hora: Math.round(hora), antes: Math.round(hora - quando), emDireto: String(d.emDireto || '').slice(0, 30) };
+        }
+      }
+      const r = direto
+        ? b.prepare('INSERT INTO lembretes (endpoint, quando, titulo, corpo, url, tag, criado, paragem, viagem, linha, hora, antes, em_direto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(endpoint, Math.round(quando), titulo, texto, url, tag, agora, direto.paragem, direto.viagem, direto.linha, direto.hora, direto.antes, direto.emDireto)
+        : b.prepare('INSERT INTO lembretes (endpoint, quando, titulo, corpo, url, tag, criado) VALUES (?, ?, ?, ?, ?, ?, ?)').run(endpoint, Math.round(quando), titulo, texto, url, tag, agora);
       res.json({ ok: true, id: Number(r.lastInsertRowid) });
     } catch (err: any) {
       console.warn('[Push] Lembrete:', err?.message || err);

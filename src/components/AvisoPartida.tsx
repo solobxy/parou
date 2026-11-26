@@ -43,12 +43,19 @@ export function AvisoPartida({ route }: { route: TransitRouteOption }) {
     const quando = saida - min * 60_000;
     const linha = primeira.lineCode ? `${t('linha')} ${primeira.lineCode}` : t('o transporte');
     const de = formatTransitName(primeira.fromStopName || '');
+    // Em direto: o servidor acompanha o transporte e o aviso chega mais cedo ou mais tarde, conforme ele venha adiantado ou
+    // atrasado (o texto leva a hora prevista no lugar de {h}). Sem paragem ou hora conhecidas, fica o aviso à hora fixa.
+    const horaParagem = primeira.departureTime ? instanteDe(primeira.departureTime, agora) : null;
+    const comDireto = !!primeira.fromStopId && horaParagem != null && horaParagem >= quando;
     const r = await criarLembrete({
       tag,
       quando,
       titulo: t('Sai de casa daqui a {n} min', { n: min }),
-      corpo: `${t('Apanha {l} às {h} em {p}', { l: linha, h: primeira.departureTime || route.departureTime, p: de })} · ${t('chegas às {h}', { h: route.arrivalTime })}`,
+      corpo: comDireto
+        ? t('Apanha {l} às {h} em {p}', { l: linha, h: '{h}', p: de })
+        : `${t('Apanha {l} às {h} em {p}', { l: linha, h: primeira.departureTime || route.departureTime, p: de })} · ${t('chegas às {h}', { h: route.arrivalTime })}`,
       url: '/',
+      ...(comDireto ? { direto: { paragem: primeira.fromStopId as string, viagem: primeira.tripId, linha: primeira.lineCode, hora: horaParagem as number, emDireto: t('em direto') } } : {}),
     });
     setAPedir(null);
     if (r === 'ok') setAtivo(lembreteAtivo(tag));
@@ -67,7 +74,7 @@ export function AvisoPartida({ route }: { route: TransitRouteOption }) {
       <div className="mt-2.5 flex items-center justify-between gap-2 rounded-[10px] bg-[#F4F4F2] px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <span className="flex items-center gap-2 text-[12.5px] font-semibold text-[#111111]">
           <BellRing className="w-4 h-4 text-[#C2410C] shrink-0" aria-hidden="true" />
-          {t('Aviso às {h}', { h: hora(ativo.quando) })}
+          {ativo.direto ? t('Aviso por volta das {h}, com o transporte em direto', { h: hora(ativo.quando) }) : t('Aviso às {h}', { h: hora(ativo.quando) })}
         </span>
         <button onClick={cancelar} className="inline-flex items-center gap-1 h-8 px-2 text-[12px] font-semibold text-[#6B6B6B] cursor-pointer" aria-label={t('Cancelar aviso')}>
           <X className="w-3.5 h-3.5" aria-hidden="true" /> {t('Cancelar')}

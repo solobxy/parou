@@ -107,6 +107,9 @@ export interface RouteLeg {
   talvezJaPassou?: boolean;
   /** Greve confirmada pelo operador (aviso oficial) no dia e hora deste troço */
   greve?: GreveTroco;
+  /** Viagem e paragem de entrada (ids da base), para o aviso de saída acompanhar o transporte em direto */
+  tripId?: string;
+  fromStopId?: string;
 }
 
 /** Greve oficial que afeta um troço */

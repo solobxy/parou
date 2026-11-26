@@ -1327,5 +1327,6 @@ export const DE: Record<string, string> = {
   'A {o} prevê perturbações neste dia por causa da greve.': '{o} erwartet an diesem Tag Störungen wegen des Streiks.',
   'Greve na {o} à hora desta viagem: pode não circular.': 'Streik bei {o} zur Zeit dieser Fahrt: fährt eventuell nicht.',
   'Aviso oficial': 'Offizielle Meldung',
+  'Aviso por volta das {h}, com o transporte em direto': 'Hinweis gegen {h}, folgt dem Fahrzeug live',
   'Mesma hora que a {l} no horário oficial; só passa um dos dois': 'Laut offiziellem Fahrplan zur gleichen Zeit wie Linie {l}; es fährt nur eine der beiden',
 };

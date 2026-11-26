@@ -540,6 +540,9 @@ export async function planearViagem(
       arrivalTime: hm(p.chega - desvio),
       // Greve confirmada pelo operador no dia e hora deste troço (sem greve fica undefined e não vai na resposta)
       greve: greveDoTroco(p.feed, (epocaMeiaNoite + p.parte - desvio) * 1000, greves),
+      // Para o «Avisar-me» acompanhar o transporte em direto
+      tripId: p.trip,
+      fromStopId: p.de,
     } as RouteLeg;
   };
 

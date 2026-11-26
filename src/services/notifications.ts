@@ -490,7 +490,7 @@ export async function triggerTestNotification(
 // mesmo com a app fechada. Ficam registados neste telemóvel para a app mostrar o estado.
 // ---------------------------------------------------------------------------------
 const CHAVE_LEMBRETES = 'parou_lembretes_v1';
-export interface LembreteLocal { tag: string; quando: number; texto: string }
+export interface LembreteLocal { tag: string; quando: number; texto: string; /** a hora acompanha o transporte em direto */ direto?: boolean }
 
 function lerLembretes(): LembreteLocal[] {
   try {
@@ -536,7 +536,10 @@ async function subscreverParaLembretes(reg: ServiceWorkerRegistration): Promise<
 export type ResultadoLembrete = 'ok' | 'sem-suporte' | 'sem-permissao' | 'erro';
 
 /** Pede ao servidor um aviso à hora "quando" (ms). Tem de ser chamada num toque (pede a permissão). */
-export async function criarLembrete(p: { tag: string; quando: number; titulo: string; corpo: string; url?: string }): Promise<ResultadoLembrete> {
+/** Lembrete em direto: o servidor acompanha o 1.º transporte (paragem, viagem, linha, hora dele na paragem pelo horário) */
+export interface LembreteDireto { paragem: string; viagem?: string; linha?: string; hora: number; emDireto: string }
+
+export async function criarLembrete(p: { tag: string; quando: number; titulo: string; corpo: string; url?: string; direto?: LembreteDireto }): Promise<ResultadoLembrete> {
   if (!pushSuportado()) return 'sem-suporte';
   try {
     if (Notification.permission === 'default') await Notification.requestPermission();
@@ -546,7 +549,7 @@ export async function criarLembrete(p: { tag: string; quando: number; titulo: st
     const enviar = async (sub: PushSubscription) => fetch('/api/push/lembrete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: sub.endpoint, quando: p.quando, titulo: p.titulo, corpo: p.corpo, url: p.url || '/', tag: p.tag }),
+      body: JSON.stringify({ endpoint: sub.endpoint, quando: p.quando, titulo: p.titulo, corpo: p.corpo, url: p.url || '/', tag: p.tag, ...(p.direto ? { direto: p.direto } : {}) }),
     });
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await subscreverParaLembretes(reg);
@@ -559,7 +562,7 @@ export async function criarLembrete(p: { tag: string; quando: number; titulo: st
       r = await enviar(nova);
     }
     if (!r.ok) return 'erro';
-    gravarLembretes([...lerLembretes().filter((x) => x.tag !== p.tag), { tag: p.tag, quando: p.quando, texto: p.titulo }]);
+    gravarLembretes([...lerLembretes().filter((x) => x.tag !== p.tag), { tag: p.tag, quando: p.quando, texto: p.titulo, ...(p.direto ? { direto: true } : {}) }]);
     return 'ok';
   } catch (err) {
     console.warn('[Lembrete] Falhou:', err);
