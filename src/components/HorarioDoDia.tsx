@@ -74,11 +74,15 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
     }
     const porHora = new Map<number, Array<{ min: string; letra?: string; s: number; greve?: EstadoGreve }>>();
     const marcas = new Set<EstadoGreve>();
+    // o dia inteiro «pode não se realizar» (greve sem o operador dizer o que funciona): o aviso por cima chega, sem marcar
+    // cada minuto
+    const todasIncertas = partidas.length > 0 && partidas.every((p) => p.greve === 'incerta');
     for (const p of partidas) {
       const h = Math.floor(p.s / 3600);
       const lista = porHora.get(h) || [];
-      lista.push({ min: p.hora.slice(3), letra: letra.get(p.destino), s: p.s, greve: p.greve });
-      if (p.greve) marcas.add(p.greve);
+      const greve = todasIncertas ? undefined : p.greve;
+      lista.push({ min: p.hora.slice(3), letra: letra.get(p.destino), s: p.s, greve });
+      if (greve) marcas.add(greve);
       porHora.set(h, lista);
     }
     return {
