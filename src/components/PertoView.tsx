@@ -104,6 +104,8 @@ interface PertoViewProps {
   totalFavoritos?: number;
   /** Abre a página de privacidade */
   onAbrirPrivacidade?: () => void;
+  /** Abre os Alertas (o aviso no topo do Perto leva lá) */
+  onAbrirAlertas?: () => void;
 }
 
 // Normalize transport mode
@@ -378,6 +380,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
   onAbrirFavoritos,
   totalFavoritos = 0,
   onAbrirPrivacidade,
+  onAbrirAlertas,
 }) => {
   const { coords: userCoords, status: gpsStatus, activateLocation, setManualLocation, stopLocation, motivoBloqueio, semAvisoSistema, afinarPosicao } = useUserLocation();
   // Janela "A tua localização" (o que se faz com ela e como a apagar)
@@ -2254,15 +2257,20 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
         {/* Contextual Alert Banner */}
         {!emRota && topAlert && localizacaoPronta && (
-          <div className="mx-3 mb-2 lg:mx-0 lg:mb-0 px-3 py-2 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none flex items-center justify-between text-xs text-[#9A3412] shrink-0">
-            <div className="flex items-center gap-2 truncate">
-              <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" />
+          <button
+            type="button"
+            onClick={() => onAbrirAlertas?.()}
+            data-teste="aviso-perto"
+            className="mx-3 mb-2 lg:mx-0 lg:mb-0 min-h-[40px] px-3 py-2 bg-[#FFF7ED] border border-[#FFEDD5] lg:border-x-0 lg:border-t-0 rounded-[10px] lg:rounded-none flex items-center justify-between text-left text-xs text-[#9A3412] shrink-0 cursor-pointer active:bg-[#FFEDD5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9A3412]"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-[#C2410C] shrink-0 stroke-[2]" aria-hidden="true" />
               <span className="font-semibold truncate">{topAlert.título || (topAlert as any).title}</span>
-            </div>
-            <span className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
-              {topAlert.severity}
             </span>
-          </div>
+            <span className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">
+              {topAlert.tipo === 'greve' ? t('Greve') : topAlert.severity}
+            </span>
+          </button>
         )}
 
         {/* Filtros por modo */}
