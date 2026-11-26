@@ -1374,4 +1374,9 @@ export const EN: Record<string, string> = {
   'Última de cada linha': 'Last of each line',
   'O que ver': 'What to show',
   'Horário oficial · {dia}, a partir das {hora}': 'Official timetable · {dia}, from {hora}',
+  'Sair agora': 'Leave now',
+  'Sair {dia}, {hora}': 'Leave {dia}, {hora}',
+  'Sair às': 'Leave at',
+  'Hora de partida': 'Departure time',
+  'A calcular percursos para sair {dia} às {hora}…': 'Finding routes leaving {dia} at {hora}…',
 };

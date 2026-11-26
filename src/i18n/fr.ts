@@ -1374,4 +1374,9 @@ export const FR: Record<string, string> = {
   'Última de cada linha': 'Dernier de chaque ligne',
   'O que ver': 'Que montrer',
   'Horário oficial · {dia}, a partir das {hora}': 'Horaire officiel · {dia}, à partir de {hora}',
+  'Sair agora': 'Partir maintenant',
+  'Sair {dia}, {hora}': 'Partir {dia}, {hora}',
+  'Sair às': 'Partir à',
+  'Hora de partida': 'Heure de départ',
+  'A calcular percursos para sair {dia} às {hora}…': 'Calcul des trajets au départ {dia} à {hora}…',
 };

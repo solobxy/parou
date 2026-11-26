@@ -340,6 +340,51 @@ function safeFlyTo(map: L.Map | null, lat: number, lon: number, zoom?: number) {
  * Partidas a mostrar na paragem: a próxima de cada linha (e sentido) — senão as linhas pouco
  * frequentes, como as da UNIR, nunca apareciam — mais as partidas seguintes até um limite.
  */
+/** Campo da hora (24 h). `aoConfirmar` corre quando a hora é confirmada no seletor do telemóvel (evento «change» nativo:
+ *  no Android ao tocar em «Definir», no iPhone em «Concluído»); serve para fechar o painel e deixar a lista à vista. No
+ *  computador não corre (escrever a hora dá um «change» a cada número). */
+const CampoHora: React.FC<{ valor: string; aoMudar: (v: string) => void; aoConfirmar?: () => void; rotulo: string; teste: string }> = ({ valor, aoMudar, aoConfirmar, rotulo, teste }) => {
+  const ref = useRef<HTMLInputElement | null>(null);
+  const confirmarRef = useRef(aoConfirmar);
+  confirmarRef.current = aoConfirmar;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const tatil = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+    if (!tatil) return;
+    const confirmar = () => { if (/^\d{2}:\d{2}$/.test(el.value)) confirmarRef.current?.(); };
+    el.addEventListener('change', confirmar);
+    return () => el.removeEventListener('change', confirmar);
+  }, []);
+  return (
+    <input
+      ref={ref}
+      type="time"
+      step={300}
+      value={valor}
+      onChange={(e) => { if (/^\d{2}:\d{2}$/.test(e.target.value)) aoMudar(e.target.value); }}
+      aria-label={rotulo}
+      data-teste={teste}
+      className="font-condensada text-[18px] font-bold tabular-nums text-[#111111] bg-transparent outline-none min-w-[4.5rem] w-[7.25rem] cursor-pointer"
+    />
+  );
+};
+
+/** Dia e hora de Lisboa ("2026-11-27", "22:00") como instante (o browser pode estar noutro fuso) */
+function instanteLisboa(data: string, hora: string): Date {
+  const comoUtc = Date.parse(`${data}T${hora}:00Z`);
+  const lx = new Date(comoUtc).toLocaleString('sv-SE', { timeZone: 'Europe/Lisbon' }).replace(' ', 'T');
+  const desvio = Date.parse(`${lx}Z`) - comoUtc;
+  return new Date(comoUtc - desvio);
+}
+
+/** Hora de agora + 5 min, arredondada aos 5 min ("19:25"), em Lisboa */
+function horaDaquiA5Min(): string {
+  const d = new Date(Date.now() + 5 * 60_000);
+  const [h, m] = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Lisbon', hour: '2-digit', minute: '2-digit', hour12: false }).split(':').map(Number);
+  return `${String(h).padStart(2, '0')}:${String(Math.floor(m / 5) * 5).padStart(2, '0')}`;
+}
+
 function escolherPartidas(ordenadas: any[], seguintes = 12): any[] {
   const vistas = new Set<string>();
   let extra = 0;
@@ -515,6 +560,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const [horaVer, setHoraVer] = useState<{ modo: 'hora'; data: string; hora: string } | { modo: 'ultimas'; data: string } | null>(null);
   const [seletorHora, setSeletorHora] = useState(false);
   const [tentativaHora, setTentativaHora] = useState(0);
+  // Rotas a outra hora: «sair às» (null = agora)
+  const [partidaRota, setPartidaRota] = useState<{ data: string; hora: string } | null>(null);
+  const [seletorPartida, setSeletorPartida] = useState(false);
+  const partidaRotaRef = useRef(partidaRota);
+  partidaRotaRef.current = partidaRota;
   const chaveHoraVer = horaVer ? (horaVer.modo === 'hora' ? `h|${horaVer.data}|${horaVer.hora}` : `u|${horaVer.data}`) : 'agora';
   // Ver as partidas de uma paragem é um momento de valor (o convite para instalar pode aparecer a seguir)
   const paragemComPartidas = partidasExtra && !partidasExtra.aCarregar && partidasExtra.deps.length > 0 ? partidasExtra.id : null;
@@ -841,7 +891,11 @@ export const PertoView: React.FC<PertoViewProps> = ({
     setLongeRota(undefined);
     setDestinosViagem([]);
     setMapaViagem(null);
-    partidaRotasRef.current = Date.now();
+    const escolhida = partidaRotaRef.current;
+    const quando = escolhida ? instanteLisboa(escolhida.data, escolhida.hora) : undefined;
+    // longe de agora não há dados em direto (UNIR pela AMP): só o horário oficial
+    const longeDeAgora = Boolean(quando && Math.abs(quando.getTime() - Date.now()) > 30 * 60_000);
+    partidaRotasRef.current = quando ? Math.max(quando.getTime(), Date.now()) : Date.now();
     const pedido = ++pedidoRotasRef.current;
 
     const ordenar = ordenarOpcoes;
@@ -850,7 +904,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
     let falhou = false;
 
     try {
-      const res = await planTransitRoute(lat, lon, destLat, destLon, destName, undefined, { nivel: 0 });
+      const res = await planTransitRoute(lat, lon, destLat, destLon, destName, quando, { nivel: 0 });
       if (pedido !== pedidoRotasRef.current) return;
       let routes = ordenar(res.routes || []);
       setLongeRota(res.longe);
@@ -858,7 +912,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       comOpcoes = routes.length > 0;
       if (routes.length > 0) setSelectedRoute(routes[0]);
       // UNIR: o telemóvel pede à AMP a hora de cada ligação direta encontrada, e junta a rede normal com a UNIR
-      const candidatos = (res.unir || []).slice(0, 4);
+      const candidatos = longeDeAgora ? [] : (res.unir || []).slice(0, 4);
       const partidaMs = partidaRotasRef.current;
       const temCombinacoes = !!(res.hibridas?.length || res.pontes?.length || res.duplas?.length || res.cadeias?.length || res.ligacoes?.length);
       if (candidatos.length || temCombinacoes) {
@@ -897,6 +951,81 @@ export const PertoView: React.FC<PertoViewProps> = ({
       if (pedido === pedidoRotasRef.current) setEstadoRotas(falhou ? 'erro' : 'pronto');
     }
   };
+
+  // Mudou a hora de partida com um destino escolhido: volta a calcular
+  const chavePartida = partidaRota ? `${partidaRota.data}|${partidaRota.hora}` : 'agora';
+  const chavePartidaAnteriorRef = useRef(chavePartida);
+  useEffect(() => {
+    if (chavePartidaAnteriorRef.current === chavePartida) return;
+    chavePartidaAnteriorRef.current = chavePartida;
+    if (selectedDestination && destinosViagem.length === 0) {
+      calculateRoutesToDestination(selectedDestination.latitude, selectedDestination.longitude, selectedDestination.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chavePartida]);
+
+  // «Sair agora» / «Sair amanhã às 22:00»: botão por cima das opções; ao tocar abre os dias e a hora
+  const seletorPartidaRota = (() => {
+    const dias = proximosDias(7);
+    const idxDia = partidaRota ? Math.max(0, dias.findIndex((d) => d.data === partidaRota.data)) : 0;
+    const rotulo = seletorPartida ? t('Escolher dia e hora')
+      : partidaRota ? t('Sair {dia}, {hora}', { dia: (dias[idxDia]?.rotulo || '').toLowerCase(), hora: partidaRota.hora })
+      : t('Sair agora');
+    const cheio = Boolean(partidaRota) && !seletorPartida;
+    return (
+      <div className="pb-1" data-teste="partida-rota">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSeletorPartida((v) => !v)}
+            aria-expanded={seletorPartida}
+            aria-label={partidaRota && !seletorPartida ? `${t('Escolher dia e hora')}: ${rotulo}` : t('Escolher dia e hora')}
+            data-teste="botao-partida"
+            className={`h-10 pl-3 pr-2.5 rounded-full text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer min-w-0 ${
+              cheio ? 'bg-[#111111] text-[#FFFFFF]' : 'bg-[#F4F4F2] text-[#111111] active:bg-[#E6E6E3]'
+            }`}
+          >
+            <Clock className="w-4 h-4 stroke-[2.25] shrink-0" aria-hidden="true" />
+            <span className="truncate">{rotulo}</span>
+            <ChevronDown className={`w-4 h-4 stroke-[2.25] shrink-0 transition-transform duration-200 motion-reduce:transition-none ${seletorPartida ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+          {partidaRota && (
+            <button
+              type="button"
+              onClick={() => { setPartidaRota(null); setSeletorPartida(false); }}
+              aria-label={t('Voltar a agora')}
+              data-teste="partida-agora"
+              className="h-10 px-2.5 rounded-full text-[13px] font-semibold text-[#111111] flex items-center gap-1.5 cursor-pointer active:bg-[#F4F4F2] shrink-0 underline underline-offset-4 decoration-[#E6E6E3]"
+            >
+              <RotateCcw className="w-4 h-4 stroke-[2.25]" aria-hidden="true" />
+              {t('Agora')}
+            </button>
+          )}
+        </div>
+        {seletorPartida && (
+          <div className="mt-2 space-y-2" data-teste="seletor-partida">
+            <div className="[mask-image:linear-gradient(to_right,#000_85%,transparent)] lg:[mask-image:none] lg:[&>div]:flex-wrap">
+              <SeletorDias
+                dias={dias}
+                escolhido={idxDia}
+                onEscolher={(i) => setPartidaRota((h) => ({ data: dias[i].data, hora: h?.hora || horaDaquiA5Min() }))}
+              />
+            </div>
+            <label className="h-10 w-fit pl-3 pr-2 rounded-[10px] border border-[#E6E6E3] bg-[#FFFFFF] flex items-center gap-2 cursor-pointer">
+              <span className="text-[13px] font-medium text-[#6B6B6B] whitespace-nowrap">{t('Sair às')}</span>
+              <CampoHora
+                valor={partidaRota?.hora || horaDaquiA5Min()}
+                aoMudar={(v) => setPartidaRota((h) => ({ data: h?.data || dias[0].data, hora: v }))}
+                aoConfirmar={() => setSeletorPartida(false)}
+                rotulo={t('Hora de partida')}
+                teste="hora-partida"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+    );
+  })();
 
   const handleSelectDestination = (sug: DestinationSuggestion) => {
     // Sem GPS (ou a escolher um local): o local escolhido passa a ser o ponto de partida
@@ -977,6 +1106,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
   const handleClearDestination = () => {
     pedidoRotasRef.current++;
+    setPartidaRota(null);
+    setSeletorPartida(false);
     tituloEscolhidoRef.current = '';
     setEditor(null);
     setDestinosViagem([]);
@@ -2404,10 +2535,13 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
               <span className="font-semibold text-[15px] text-[#111111] truncate">{t('Como chegar')} {t('a {d}', { d: selectedDestination.title })}</span>
             </div>
+            <div className="pb-2">{seletorPartidaRota}</div>
             {isCalculatingRoutes ? (
               <div className="rounded-[14px] border border-[#E6E6E3] p-4 flex items-center gap-3 text-[14px] text-[#6B6B6B]">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#111111] stroke-[2] shrink-0" />
-                <span>{t('A calcular percursos com os horários de hoje…')}</span>
+                <span>{partidaRota
+                  ? t('A calcular percursos para sair {dia} às {hora}…', { dia: (proximosDias(7).find((d) => d.data === partidaRota.data)?.rotulo || partidaRota.data).toLowerCase(), hora: partidaRota.hora })
+                  : t('A calcular percursos com os horários de hoje…')}</span>
               </div>
             ) : estadoRotas === 'erro' ? (
               <div className="rounded-[14px] bg-[#F4F4F2] p-4" data-teste="rotas-erro" role="alert">
@@ -2471,6 +2605,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
               </button>
             </div>
 
+            <div className="px-1">{seletorPartidaRota}</div>
             <div className="space-y-2">
               {calculatedRoutes.map((route) => (
                 <OpcaoRota
@@ -2880,20 +3015,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
                           <label className="h-10 pl-3 pr-2 rounded-[10px] border border-[#E6E6E3] bg-[#FFFFFF] flex items-center gap-2 min-w-0 cursor-pointer">
                             {/* em ecrãs estreitos fica só a hora (o rótulo continua para o leitor de ecrã) */}
                             <span className="text-[13px] font-medium text-[#6B6B6B] whitespace-nowrap max-[359px]:sr-only">{t('A partir das')}</span>
-                            <input
-                              type="time"
-                              step={300}
-                              value={horaAtual}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                if (!/^\d{2}:\d{2}$/.test(v)) return;
-                                setHoraVer((h) => ({ modo: 'hora', data: h?.data || dias[0].data, hora: v }));
-                              }}
-                              // depois de escolher a hora no seletor do telemóvel, o painel fecha e fica a lista à vista
-                              onBlur={() => { if (horaVer?.modo === 'hora') setSeletorHora(false); }}
-                              aria-label={t('Hora')}
-                              data-teste="hora-escolhida"
-                              className="font-condensada text-[18px] font-bold tabular-nums text-[#111111] bg-transparent outline-none min-w-[4.5rem] w-[7.25rem] cursor-pointer"
+                            <CampoHora
+                              valor={horaAtual}
+                              aoMudar={(v) => setHoraVer((h) => ({ modo: 'hora', data: h?.data || dias[0].data, hora: v }))}
+                              aoConfirmar={() => setSeletorHora(false)}
+                              rotulo={t('Hora')}
+                              teste="hora-escolhida"
                             />
                           </label>
                         )}
