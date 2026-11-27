@@ -62,6 +62,8 @@ const OPERADORES: Record<string, string[]> = {
   flaviamobil: ['flaviamobil'],
   cim_ttm: ['terras de tras-os-montes'],
   tamega_sousa: ['transdev', 'transdev tamega e sousa'],
+  rodoviaria_lis: ['rodoviaria do lis', 'rdl'],
+  pombus: ['pombus'],
 };
 
 /** Nomes de um operador: os da lista acima ou, para um operador que ainda não está nela, o nome com que está na base
