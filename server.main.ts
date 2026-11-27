@@ -1935,6 +1935,7 @@ import { StopsEngine } from './src/server/stopsEngine';
 import { DepartureEngine, comPrazo } from './src/server/departureEngine';
 import { percursoDeViagem, percursoUnir, percursoPorLinha } from './src/server/percursoLinha';
 import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
+import { desenhosDaLinha } from './src/server/caminhos';
 import { calcularABordo } from './src/server/aBordo';
 import { horarioDoDia, lerDataPedida } from './src/server/horarioDoDia';
 import { grevesAgora } from './src/server/grevesPlaneador';
@@ -2081,6 +2082,20 @@ app.get('/api/transit/vehicles', async (_req: Request, res: Response) => {
 // Autocarros em direto (STCP e Carris Metropolitana) para o mapa: só os das linhas pedidas e/ou dentro de uma caixa.
 //   ?linhas=stcp:803,cm:4436   ?caixa=sul,oeste,norte,leste   (pelo menos um dos dois)
 // A posição fica só em memória no pedido; a lista vem da mesma cache de 15 s dos veículos.
+// Desenhos (pela estrada) de uma linha com autocarros em direto, para o mapa os pôr a andar pelas ruas
+app.get('/api/transit/desenhos-linha', (req: Request, res: Response) => {
+  try {
+    const op = typeof req.query.op === 'string' ? req.query.op.slice(0, 8) : '';
+    const linha = typeof req.query.linha === 'string' ? req.query.linha.slice(0, 20) : '';
+    const desenhos = desenhosDaLinha(op, linha);
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.json({ desenhos });
+  } catch (err: any) {
+    console.error('[API /transit/desenhos-linha] Erro:', err);
+    return res.status(500).json({ desenhos: [] });
+  }
+});
+
 app.get('/api/transit/veiculos', async (req: Request, res: Response) => {
   try {
     const linhas = lerLinhas(req.query.linhas);

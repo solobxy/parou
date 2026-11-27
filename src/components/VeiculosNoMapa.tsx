@@ -4,16 +4,63 @@ import { fetchVeiculos } from '../services/veiculosApi';
 import { caixaDoEcra, type Caixa } from '../utils/caixaVeiculos';
 import type { VeiculoLeve } from '../types/aBordo';
 import { t } from '../i18n';
-import { MovimentoVeiculo, agoraDoServidor, atualizarRelogio, distanciaM, pessoaPodeIrABordo, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
+import { agoraDoServidor, atualizarRelogio, distanciaM, pessoaPodeIrABordo, rodarPeloCaminhoMaisCurto, type Relogio } from '../utils/trajetoVeiculo';
 import { guardarPosicaoMeuAutocarro } from '../utils/seguirMapa';
 import { observarPosicaoSuave, type QuadroPosicao } from '../utils/posicaoSuave';
+import { MovimentoNoCaminho, prepararCaminho, type Caminho } from '../utils/trajetoNoCaminho';
+import { descodificarPolilinha } from '../utils/caminho';
+
+// Desenhos (pela estrada) de cada linha, para os autocarros andarem pelas ruas e não em linha reta por cima dos prédios.
+// Pedem-se só para os autocarros à vista com o mapa aproximado, no máximo 4 de cada vez, e ficam guardados enquanto a app está aberta.
+const desenhos = new Map<string, Caminho[] | 'a-pedir'>();
+const aEsperar = new Map<string, Array<(c: Caminho[]) => void>>();
+let pedidosAbertos = 0;
+const filaDesenhos: string[] = [];
+const MAX_PEDIDOS_DESENHOS = 4;
+/** A partir deste zoom os autocarros andam pela estrada (mais afastado mal se nota e poupa pedidos) */
+const ZOOM_DESENHOS = 13;
+
+function pedirSeguinte(): void {
+  while (pedidosAbertos < MAX_PEDIDOS_DESENHOS && filaDesenhos.length) {
+    const chave = filaDesenhos.shift() as string;
+    const [op, linha] = chave.split('|');
+    pedidosAbertos++;
+    fetch(`/api/transit/desenhos-linha?op=${encodeURIComponent(op)}&linha=${encodeURIComponent(linha)}`, { signal: AbortSignal.timeout(8000) })
+      .then((r) => (r.ok ? r.json() : { desenhos: [] }))
+      .catch(() => ({ desenhos: [] }))
+      .then((j: { desenhos?: unknown }) => {
+        const lista = (Array.isArray(j.desenhos) ? j.desenhos : [])
+          .filter((x): x is string => typeof x === 'string')
+          .map((x) => prepararCaminho(descodificarPolilinha(x)))
+          .filter((c): c is Caminho => !!c);
+        if (desenhos.size > 400) desenhos.clear();
+        desenhos.set(chave, lista);
+        (aEsperar.get(chave) || []).forEach((f) => f(lista));
+        aEsperar.delete(chave);
+      })
+      .finally(() => { pedidosAbertos--; pedirSeguinte(); });
+  }
+}
+
+/** Dá os desenhos da linha a quem os pediu (logo, se já cá estão) */
+function comDesenhos(op: string, linha: string, f: (c: Caminho[]) => void): void {
+  const chave = `${op}|${linha}`;
+  const ja = desenhos.get(chave);
+  if (Array.isArray(ja)) { f(ja); return; }
+  aEsperar.set(chave, [...(aEsperar.get(chave) || []), f]);
+  if (ja === 'a-pedir') return;
+  desenhos.set(chave, 'a-pedir');
+  filaDesenhos.push(chave);
+  pedirSeguinte();
+}
 
 // Autocarros em direto no mapa (STCP, Carris Metropolitana e TUB). Por defeito (`todos`) mostra TODOS os que estão no ecrã do mapa,
 // de qualquer operador e linha, e acompanha o mapa quando a pessoa o arrasta ou afasta (até um raio de ~30 km; mais longe pede para aproximar).
 // Só quando há uma linha escolhida (percurso aberto) ou a pessoa vai a bordo é que mostra só os autocarros dessa linha.
 // Os operadores só enviam uma posição de 15 em 15 s (STCP de 30 em 30) e ela chega com 10 a 30 s de idade. Para o autocarro não
 // «teleportar» de uma posição para a seguinte, o marcador não vai direto para a última posição: segue-a com um movimento suave
-// (src/utils/trajetoVeiculo.ts), desenhado 30 vezes por segundo só para o que está à vista.
+// (src/utils/trajetoVeiculo.ts), desenhado 30 vezes por segundo só para o que está à vista. Com o desenho da linha (o percurso pela
+// estrada), anda SOBRE as ruas e mais perto do presente (src/utils/trajetoNoCaminho.ts), em vez de cortar esquinas por cima dos prédios.
 // Quando a pessoa está a bordo, a bola do autocarro dela segue o ponto da sua localização (a posição suave do GPS), e não a posição atrasada do operador.
 // Tocar num autocarro avisa a PertoView, que mostra o cartão «Estou a bordo» (um cartão da app, não uma janela do mapa, para não ficar tapado pelos botões do mapa).
 
@@ -62,7 +109,9 @@ function iconeAutocarro(v: VeiculoLeve): L.DivIcon {
 interface Entrada {
   marker: L.Marker;
   v: VeiculoLeve;
-  mov: MovimentoVeiculo;
+  mov: MovimentoNoCaminho;
+  /** Já se pediram os desenhos da linha deste autocarro */
+  pediuDesenhos: boolean;
   /** Linha e operador com que o ícone foi feito (se mudarem, refaz-se) */
   chaveIcone: string;
   pino: HTMLElement | null;
@@ -287,7 +336,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
           atual.mov.receber(fix, agoraS);
           continue;
         }
-        const mov = new MovimentoVeiculo(v.op);
+        const mov = new MovimentoNoCaminho(v.op);
         if (v.ant && v.ant.t < v.t) {
           // O servidor já traz a posição anterior: o autocarro aparece em movimento em vez de parado até chegar a seguinte
           mov.receber({ t: v.ant.t, lat: v.ant.lat, lon: v.ant.lon }, agoraS, Math.max(0, agoraS - v.t));
@@ -303,7 +352,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
           keyboard: true,
           title: t('Linha {l}', { l: v.linha }),
         });
-        const entrada: Entrada = { marker, v, mov, chaveIcone: chave, pino: null, seta: null, rumoCss: null, esbatido: false, meu: false, aSeguir: false, fx: 0, fy: 0 };
+        const entrada: Entrada = { marker, v, mov, pediuDesenhos: false, chaveIcone: chave, pino: null, seta: null, rumoCss: null, esbatido: false, meu: false, aSeguir: false, fx: 0, fy: 0 };
         marker.on('click', () => aoTocarRef.current?.(entrada.v, Math.floor(agoraServidor())));
         marker.addTo(grupo);
         ligarElementos(entrada);
@@ -311,7 +360,20 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
         atualizarEstado(entrada, agoraS);
         atualizarSeta(entrada, p0.rumo);
       }
+      pedirDesenhosVisiveis();
     };
+
+    // Autocarros à vista com o mapa aproximado: passam a andar pela estrada quando chegam os desenhos da linha
+    const pedirDesenhosVisiveis = () => {
+      if (mapa.getZoom() < ZOOM_DESENHOS) return;
+      const visivel = mapa.getBounds().pad(0.3);
+      entradas.forEach((e) => {
+        if (e.pediuDesenhos || !visivel.contains([e.v.lat, e.v.lon])) return;
+        e.pediuDesenhos = true;
+        comDesenhos(e.v.op, e.v.linha, (lista) => { if (lista.length) e.mov.definirCaminhos(lista); });
+      });
+    };
+    mapa.on('moveend', pedirDesenhosVisiveis);
 
     // O mapa a meio de um voo (da posição antiga até à pessoa), de um arrasto ou de um zoom com os dedos tem limites que não são os do ecrã final:
     // só se pede quando duas leituras seguidas, com 250 ms de intervalo, dão o mesmo zoom e quase o mesmo centro (no máximo espera-se ~5 s).
@@ -381,6 +443,7 @@ export function VeiculosNoMapa({ mapa, linhas, caixa, todos, meu, aoTocar }: Pro
       mapa.off('zoomanim', aoComecarZoom);
       mapa.off('zoomend', aoAcabarZoom);
       mapa.off('zoomend', ajustarPontos);
+      mapa.off('moveend', pedirDesenhosVisiveis);
       mapa.off('moveend', aoMexerMapa);
       mapa.off('resize', aoMexerMapa);
       contentor.classList.remove('mapa-bus-ponto', 'mapa-bus-longe', CLASSE_EU_NO_BUS);

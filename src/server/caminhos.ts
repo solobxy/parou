@@ -191,3 +191,34 @@ export function caminhoDaLinhaUnir(rota: string, sentido: number, paragens: Pont
 export function caminhoDoTrocoUnir(rota: string, sentido: number, paragens: Ponto[]): string | undefined {
   return trocoComPares(formaDaLinha(rota, sentido), paragens);
 }
+
+
+// ------------------------------------------------------------------------------------------------
+// Desenhos de uma linha com autocarros em direto (STCP, Carris Metropolitana, TUB): para o mapa pôr os autocarros a andar
+// pela estrada em vez de em linha reta entre as posições do operador. Até 8 desenhos (sentidos e variantes), os mais usados primeiro.
+// ------------------------------------------------------------------------------------------------
+const FEEDS_DO_OPERADOR: Record<string, string[]> = { stcp: ['stcp'], cm: ['cmh', 'carris_metropolitana'], tub: ['tub_braga'] };
+const desenhosDeLinha = new Map<string, string[]>();
+registerCacheClearCallback(() => desenhosDeLinha.clear());
+
+export function desenhosDaLinha(op: string, linha: string): string[] {
+  const feeds = FEEDS_DO_OPERADOR[op];
+  const codigo = String(linha || '').replace(/\[[^\]]*\]/g, '').trim().toUpperCase();
+  if (!feeds || !codigo || codigo.length > 12 || !baseTemDesenhos()) return [];
+  const chave = `${op}|${codigo}`;
+  const guardado = desenhosDeLinha.get(chave);
+  if (guardado) return guardado;
+  let saida: string[] = [];
+  try {
+    const ids = getDatabase().prepare(`
+      SELECT t.shape_id AS id, COUNT(*) AS n FROM trips t JOIN routes r ON r.route_id = t.route_id
+      WHERE r.feed_id IN (${feeds.map(() => '?').join(',')}) AND UPPER(r.route_short_name) = ? AND t.shape_id IS NOT NULL
+      GROUP BY t.shape_id ORDER BY n DESC LIMIT 8`).all(...feeds, codigo) as Array<{ id: string }>;
+    saida = ids.map((x) => formaPorId(x.id)?.forma.texto).filter((t): t is string => !!t);
+  } catch {
+    saida = [];
+  }
+  if (desenhosDeLinha.size >= 1500) desenhosDeLinha.clear();
+  desenhosDeLinha.set(chave, saida);
+  return saida;
+}
