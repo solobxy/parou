@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { ligacoesServicosMinimos, comboiosDosServicosMinimos } from './cpServicosMinimos';
 import { 
   CentralAlert, 
@@ -28,6 +30,46 @@ const centralState: CentralAlertsState = {
   notificationsSentCount: 0,
   duplicatesAvoidedCount: 0,
 };
+
+// Cópia dos avisos em disco: ao reiniciar (cada publicação), as greves voltam logo, em vez de ficarem de fora dos
+// horários até cada fonte voltar a ser lida (a 27/11/2026, durante ~2 min depois de publicar, o Metro do Porto em greve
+// aparecia como num dia normal). Os repostos ficam como se nunca tivessem saído da memória: cada fonte retira os que
+// desaparecem, e os que acabam passam a «Terminado» pela hora.
+const FICHEIRO_AVISOS = path.join(process.env.PAROU_DATA_DIR || '/tmp/parou-dados', 'avisos-em-memoria.json');
+const VALIDADE_COPIA_MS = 6 * 3600_000;
+let ultimaCopia = 0;
+function guardarCopiaDosAvisos(): void {
+  if (Date.now() - ultimaCopia < 30_000) return;
+  ultimaCopia = Date.now();
+  try {
+    const lista = [...centralState.alerts.values()].filter((a: any) => a && (a.status === 'Ativo' || a.status === 'Futuro'));
+    fs.mkdirSync(path.dirname(FICHEIRO_AVISOS), { recursive: true });
+    const tmp = `${FICHEIRO_AVISOS}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ em: Date.now(), avisos: lista }));
+    fs.renameSync(tmp, FICHEIRO_AVISOS);
+  } catch (e: any) {
+    console.warn('[Central Alerts] cópia dos avisos:', e?.message || e);
+  }
+}
+export function reporCopiaDosAvisos(agora = Date.now()): number {
+  try {
+    const j = JSON.parse(fs.readFileSync(FICHEIRO_AVISOS, 'utf8'));
+    if (!j || !Array.isArray(j.avisos) || !(agora - Number(j.em) < VALIDADE_COPIA_MS)) return 0;
+    let n = 0;
+    for (const a of j.avisos) {
+      if (!a || !a.id || centralState.alerts.has(a.id)) continue;
+      centralState.alerts.set(a.id, a);
+      n++;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
+}
+{
+  const n = reporCopiaDosAvisos();
+  if (n) console.log(`[Central Alerts] ${n} avisos repostos da cópia em disco (greves e avisos logo ao arrancar)`);
+}
 
 // Compute dynamic status based on current time
 export function computeAlertStatus(
@@ -1221,6 +1263,7 @@ export async function runCentralAlertsSync(): Promise<{
   atualizarFalhas(falhaDesde, comErro, fontes, Date.now());
   retirarSemConfirmacao(centralState.alerts.values(), falhaDesde, Date.now());
   centralState.lastSync = Date.now();
+  guardarCopiaDosAvisos();
   // Arquivo permanente: cada aviso e cada mudança (para relatórios e notícias); uma falha aqui não estraga a sincronização
   try { arquivarAvisos([...centralState.alerts.values()]); } catch (e: any) { console.warn('[Histórico] avisos:', e?.message || e); }
 
