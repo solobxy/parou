@@ -40,6 +40,8 @@ export interface ResumoGreve {
   frequencia?: string;
   /** CP: o aviso tem a lista dos comboios dos serviços mínimos (marcados nas partidas); os outros podem não se realizar */
   minimos?: boolean;
+  /** Plenário de trabalhadores: constrangimentos entre estas horas («13:15», «18:15») */
+  plenario?: { das: string; as: string };
 }
 
 const COR_LINHA: Record<string, string> = { amarela: 'Amarela', azul: 'Azul', vermelha: 'Vermelha', verde: 'Verde', violeta: 'Violeta', laranja: 'Laranja', rosa: 'Rosa', rubi: 'Rubi' };
@@ -126,6 +128,7 @@ export function resumoDaGreve(db: any, feed: string, g: AvisoGreve, vespera: boo
     ...(!vespera && funciona.length ? { funciona } : {}),
     ...(!vespera && s?.frequencia ? { frequencia: s.frequencia } : {}),
     ...(!vespera && g.comboiosMinimos ? { minimos: true } : {}),
+    ...(g.plenario ? { plenario: { das: DateTime.fromMillis(g.inicioMs, { zone: 'Europe/Lisbon' }).toFormat('HH:mm'), as: DateTime.fromMillis(g.fimMs, { zone: 'Europe/Lisbon' }).toFormat('HH:mm') } } : {}),
   };
 }
 

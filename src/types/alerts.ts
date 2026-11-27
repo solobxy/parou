@@ -46,6 +46,8 @@ export interface CentralAlert {
   vespera_fim?: string;
   /** Greves da CP: comboios dos serviços mínimos de cada dia (AAAA-MM-DD → números dos comboios), lidos dos PDFs do aviso */
   comboios_minimos?: Record<string, string[]>;
+  /** Plenário de trabalhadores (não é greve): entre start e end preveem-se constrangimentos */
+  plenario?: boolean;
   /** Tirado porque a fonte deixou de responder e o aviso não tinha data de fim */
   sem_confirmacao?: boolean;
 }

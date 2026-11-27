@@ -20,6 +20,7 @@ export interface ResumoGreve {
   frequencia?: string;
   /** CP: há lista dos comboios dos serviços mínimos */
   minimos?: boolean;
+  plenario?: { das: string; as: string };
 }
 
 /** «Hoje», «Amanhã», «Sex 27» ou a data */
@@ -34,10 +35,14 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
   return (
     <div className={`space-y-2 ${className}`} data-teste="greve-horario">
       {greves.map((g) => {
-        const titulo = g.vespera
+        const titulo = g.plenario
+          ? `${t('Plenário na {o}', { o: g.operador })} · ${rotuloDia(g.dia)}`
+          : g.vespera
           ? t('Véspera da greve na {o}', { o: g.operador })
           : `${t('Greve na {o}', { o: g.operador })} · ${rotuloDia(g.dia)}`;
-        const texto = g.vespera
+        const texto = g.plenario
+          ? t('Preveem-se constrangimentos entre as {a} e as {b}: algumas viagens podem não se realizar.', { a: g.plenario.das, b: g.plenario.as })
+          : g.vespera
           ? (g.fimVespera ? t('O serviço acaba por volta das {h}: depois disso já não há viagens.', { h: g.fimVespera }) : t('O serviço acaba mais cedo.'))
           : g.funciona?.length
             ? `${t('Só funciona: {t}', { t: juntarComE(g.funciona) })}${g.frequencia ? `, ${t('com uma viagem a cada {f}', { f: g.frequencia })}` : ''}. ${t('Fora disso não há viagens.')}`

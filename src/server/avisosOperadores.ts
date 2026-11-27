@@ -38,6 +38,49 @@ export const SITES_OPERADORES: SiteOperador[] = [
 
 export const FONTE_AVISOS_OPERADORES = 'Operadores — avisos oficiais';
 
+const semAcentosP = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const RE_PLENARIO = /\bplenario/;
+const MESES_P = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/**
+ * Plenário de trabalhadores anunciado no site do operador (TTSL «Plenário TTSL | 7 mai.», MTS «Plenário de operadores de
+ * condução – 24 de Setembro»). Não é greve: «preveem-se constrangimentos» nas horas indicadas, e as partidas nessas horas
+ * ficam «pode não se realizar». Dia pelo título (ou pelo texto); ano pela publicação. Desconvocado → Cancelado.
+ */
+export function avisoPlenarioOficial(o: { operador: string; regiao: string; municipios: string[]; titulo: string; texto: string; publicada: string | null; url: string; fonte: string }, agora: Date = new Date()): CentralAlert | null {
+  const pub = o.publicada ? DateTime.fromISO(o.publicada, { zone: 'Europe/Lisbon' }) : null;
+  if (!pub?.isValid) return null; // sem data de publicação não se sabe o ano
+  const titulo = o.titulo.replace(/\s+/g, ' ').trim();
+  const texto = o.texto.replace(/\s+/g, ' ').trim();
+  const meses = MESES_P.join('|');
+  const achar = (s: string) => new RegExp(`\\b(\\d{1,2})\\s*(?:de\\s+)?(${meses})[a-z]*\\.?(?:\\s+de\\s+(20\\d{2}))?`).exec(semAcentosP(s));
+  const m = achar(titulo) || achar(texto);
+  if (!m) return null;
+  let dia = DateTime.fromObject({ year: m[3] ? Number(m[3]) : pub.year, month: MESES_P.indexOf(m[2]) + 1, day: Number(m[1]) }, { zone: 'Europe/Lisbon' });
+  if (!dia.isValid) return null;
+  if (!m[3] && dia < pub.startOf('day').minus({ days: 7 })) dia = dia.plus({ years: 1 });
+  // horas: «entre as 13h15 e as 18h15», «das 14h00 às 17h30»
+  const t = semAcentosP(texto);
+  const h = /\b(?:entre\s+as|das)\s+(\d{1,2})(?:[h:](\d{2})?)?\s*(?:h(?:oras)?)?\s+(?:e\s+as|as)\s+(\d{1,2})(?:[h:](\d{2})?)?/.exec(t);
+  let inicio = dia.startOf('day'), fim = dia.endOf('day');
+  if (h) {
+    const a = dia.set({ hour: Number(h[1]), minute: Number(h[2] || 0) }), b = dia.set({ hour: Number(h[3]), minute: Number(h[4] || 0) });
+    if (a.isValid && b.isValid && b > a) { inicio = a; fim = b; }
+  }
+  if (fim.toMillis() < agora.getTime()) return null;
+  const cancelado = /desconvoca|foi cancelad|sem efeito|realizado na devida normalidade/.test(t);
+  const id = `oficial-plenario-${semAcentosP(o.operador).replace(/[^a-z0-9]+/g, '-')}-${dia.toISODate()}`;
+  const start = inicio.toUTC().toISO()!, end = fim.toUTC().toISO()!;
+  return {
+    id, external_id: id, tipo: 'atraso significativo', plenario: true, título: titulo, descrição: texto.slice(0, 1500),
+    operador: o.operador, linhas: [], paragens: [], região: o.regiao, municípios: o.municipios,
+    start_datetime: start, end_datetime: end, published_datetime: pub.toUTC().toISO() || start,
+    source: o.fonte, source_url: o.url, last_update: agora.toISOString(),
+    status: cancelado ? 'Cancelado' : Date.parse(start) > agora.getTime() ? 'Futuro' : 'Ativo',
+    severity: 'Moderada',
+  };
+}
+
 const ENT: Record<string, string> = {
   aacute: 'á', agrave: 'à', acirc: 'â', atilde: 'ã', eacute: 'é', ecirc: 'ê', iacute: 'í', oacute: 'ó', ocirc: 'ô', otilde: 'õ', uacute: 'ú', ccedil: 'ç',
   Aacute: 'Á', Agrave: 'À', Acirc: 'Â', Atilde: 'Ã', Eacute: 'É', Ecirc: 'Ê', Iacute: 'Í', Oacute: 'Ó', Ocirc: 'Ô', Otilde: 'Õ', Uacute: 'Ú', Ccedil: 'Ç',
@@ -88,10 +131,16 @@ export function artigoGenerico(html: string): { titulo: string; publicada: strin
   // título: og:title, o título dentro do artigo, o <title> da página (sem o nome do site) e só depois o primeiro <h1>
   // (na SMTUC o primeiro <h1> é «Blog», o cabeçalho da secção)
   const doArtigo = /<article\b[\s\S]*?<\/article>/i.exec(html)?.[0] || '';
-  const limparTitulo = (t: string) => textoLimpo(t).replace(/\s+[-|–]\s+[^-|–]{2,60}$/, '').replace(/\.$/, '').trim();
+  const limparTitulo = (t: string) => (t === h1NoTitle ? t : textoLimpo(t).replace(/\s+[-|–]\s+[^-|–]{2,60}$/, '').replace(/\.$/, '').trim());
+  // um <h1> que está dentro do <title> é o título inteiro («Transtejo Soflusa | Plenário TTSL | 7 mai.»: cortar o fim do
+  // <title> como se fosse o nome do site levava o dia)
+  const h1 = textoLimpo(meta(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || '').replace(/\.$/, '').trim();
+  const doTitle = textoLimpo(meta(/<title>([\s\S]*?)<\/title>/i) || '');
+  const h1NoTitle = h1.length >= 8 && doTitle.includes(h1) ? h1 : undefined;
   const candidatos = [
     meta(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i),
     /<h[12][^>]*>([\s\S]*?)<\/h[12]>/i.exec(doArtigo)?.[1],
+    h1NoTitle,
     meta(/<title>([\s\S]*?)<\/title>/i),
     meta(/<h1[^>]*>([\s\S]*?)<\/h1>/i),
   ].map((t) => limparTitulo(t || '')).filter((t) => t.length >= 8 && !/^(blog|not[ií]cias?|avisos?|comunicados?|home|in[ií]cio)$/i.test(t));
@@ -101,11 +150,13 @@ export function artigoGenerico(html: string): { titulo: string; publicada: strin
     || meta(/"datePublished"\s*:\s*"([^"]+)"/i) || meta(/<time[^>]+datetime=["']([^"']+)["']/i) || null;
   // corpo: <article>, <main> ou o bloco do texto (WordPress e afins); senão a página toda
   const bloco = /<article\b[\s\S]*?<\/article>/i.exec(html)?.[0] || /<main\b[\s\S]*?<\/main>/i.exec(html)?.[0]
-    || /class=["'][^"']*(?:entry-content|post-content|article-body|news_detail|conteudo)[^"']*["'][\s\S]{0,30000}/i.exec(html)?.[0] || html;
+    || /class=["'][^"']*(?:entry-content|post-content|article-body|news_detail|conteudo|the_content)[^"']*["'][\s\S]{0,30000}/i.exec(html)?.[0] || html;
   const texto = textoLimpo(bloco).slice(0, 6000);
   if (!publicada) {
-    const topo = semAc(texto.slice(0, 1500));
-    const d = new RegExp(`\\b(\\d{1,2}) de (${MESES.join('|')}),? (?:de )?(20\\d{2})\\b`).exec(topo);
+    // perto do título (o topo da página pode ser só o menu)
+    const iT = titulo ? texto.indexOf(titulo) : -1;
+    const topo = semAc(texto.slice(Math.max(0, iT), Math.max(0, iT) + 1500));
+    const d = new RegExp(`\\b(\\d{1,2}) (?:de )?(${MESES.join('|')}),? (?:de )?(20\\d{2})\\b`).exec(topo);
     const n = /\b(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})\b/.exec(topo);
     const iso = (a: number, m: number, dd: number) => (m >= 1 && m <= 12 && dd >= 1 && dd <= 31 ? `${a}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}T12:00:00Z` : null);
     publicada = d ? iso(Number(d[3]), MESES.indexOf(d[2]) + 1, Number(d[1])) : n ? iso(Number(n[3]), Number(n[2]), Number(n[1])) : null;
@@ -135,6 +186,10 @@ export function avisoDoSite(site: SiteOperador, url: string, html: string, agora
       texto = texto.normalize('NFC').replace(reData, ' ');
       texto = texto.replace(new RegExp(`\\b0?${p.day}[/.-]0?${p.month}[/.-]${p.year}\\b`, 'g'), ' ');
     }
+  }
+  // plenário de trabalhadores (não é greve): «preveem-se constrangimentos … entre as 13h15 e as 18h15»
+  if (RE_PLENARIO.test(semAcentosP(a.titulo)) && !/\bgreve/i.test(a.titulo)) {
+    return avisoPlenarioOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada, url, fonte: FONTE_AVISOS_OPERADORES }, agora);
   }
   return avisoGreveOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada || agora.toISOString(),
     semData: !a.publicada, url, fonte: FONTE_AVISOS_OPERADORES }, agora);

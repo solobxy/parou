@@ -100,6 +100,8 @@ export interface AvisoGreve {
   servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number]; janelas?: Array<[number, number]> };
   /** CP: comboios dos serviços mínimos por dia (AAAA-MM-DD → números); os outros podem não se realizar */
   comboiosMinimos?: Record<string, string[]>;
+  /** Plenário de trabalhadores: entre inicioMs e fimMs preveem-se constrangimentos (não é greve) */
+  plenario?: boolean;
 }
 
 /** Troço de um trajeto, para saber se fica na parte que funciona durante a greve */
@@ -134,7 +136,7 @@ function funcionaNaGreve(feed: string, g: AvisoGreve, troco?: TrocoParaGreve): b
 export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGreve[] {
   const out: AvisoGreve[] = [];
   for (const a of alertas || []) {
-    if (!a || a.tipo !== 'greve' || (a.status !== 'Ativo' && a.status !== 'Futuro')) continue;
+    if (!a || (a.tipo !== 'greve' && !a.plenario) || (a.status !== 'Ativo' && a.status !== 'Futuro')) continue;
     const inicioMs = Date.parse(String(a.start_datetime || ''));
     const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
     if (!Number.isFinite(inicioMs)) continue;
@@ -142,7 +144,7 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
     const ultimoDia = dias.length ? DateTime.fromISO(dias.slice().sort().pop()!, { zone: 'Europe/Lisbon' }).endOf('day').toMillis() : NaN;
     const acaba = Math.max(Number.isFinite(fimMs) ? fimMs : inicioMs + 30 * 3600_000, Number.isFinite(ultimoDia) ? ultimoDia : 0);
     if (acaba < agoraMs) continue;
-    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}), ...(a.comboios_minimos && typeof a.comboios_minimos === 'object' && Object.keys(a.comboios_minimos).length ? { comboiosMinimos: a.comboios_minimos } : {}) });
+    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}), ...(a.plenario && a.tipo !== 'greve' ? { plenario: true } : {}), ...(a.comboios_minimos && typeof a.comboios_minimos === 'object' && Object.keys(a.comboios_minimos).length ? { comboiosMinimos: a.comboios_minimos } : {}) });
   }
   // avisos que dizem o que funciona primeiro (o «Estado das Linhas» pode dizer só «greve» na mesma altura)
   return out.sort((x, y) => Number(!!y.servico) - Number(!!x.servico));
@@ -167,6 +169,11 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
   let previsto: GreveTroco | undefined;
   for (const g of greves) {
     if (!nomes.includes(norm(g.operador))) continue;
+    // plenário: só nas horas anunciadas, como perturbação prevista (pode não se realizar)
+    if (g.plenario) {
+      if (partidaMs >= g.inicioMs && partidaMs < g.fimMs) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true, plenario: true };
+      continue;
+    }
     // sem fim indicado: vale até ao fim do dia em que começa (como na página das greves)
     let fim = Number.isFinite(g.fimMs) ? g.fimMs : DateTime.fromMillis(g.inicioMs, { zone: 'Europe/Lisbon' }).endOf('day').toMillis();
     // greve até ao fim do dia: as viagens depois da meia-noite (até às 3h) ainda são do serviço desse dia
