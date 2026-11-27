@@ -449,7 +449,18 @@ export const PertoView: React.FC<PertoViewProps> = ({
   // Passos para desbloquear (aparecem quando "Ativar localização" não chega)
   const [ajudaLocalizacao, setAjudaLocalizacao] = useState<boolean>(false);
   const eIphone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '');
+  // App da Play (TWA): as versões sem «delegação da localização» nunca mostram o pedido de autorização e o GPS fica sem
+  // resposta (registos de 26–27/11/2026: «android | permissão prompt», só erros de tempo). No Chrome a mesma página funciona.
+  const naAppPlay = typeof document !== 'undefined' && String(document.referrer || '').startsWith('android-app://');
+  const [permGeo, setPermGeo] = useState<string>('');
   useEffect(() => { if (gpsStatus === 'active') setAjudaLocalizacao(false); }, [gpsStatus]);
+  // Só na app da Play: que autorização o Chrome diz ter (para mostrar «Abrir no Chrome» quando a app não recebe a posição)
+  useEffect(() => {
+    if (!naAppPlay || gpsStatus === 'active' || typeof navigator === 'undefined' || !navigator.permissions?.query) return;
+    let vivo = true;
+    navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((r) => { if (vivo) setPermGeo(r.state); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [naAppPlay, gpsStatus]);
   // O Perto só mostra paragens quando há uma posição (GPS ou local escolhido)
   const localizacaoPronta = Boolean(userCoords) && gpsStatus === 'active';
   // Partilhar a viagem: a partilha em curso e o envio da posição (só enquanto a app está aberta)
@@ -2233,6 +2244,39 @@ export const PertoView: React.FC<PertoViewProps> = ({
 
     // Sem localização: três opções — pedir outra vez, tentar outra vez (depois de ligar a
     // localização ou mudar as definições) e escolher um local à mão
+    if ((bloqueada || semSinal) && naAppPlay && permGeo === 'prompt') {
+      return (
+        <div className="w-full max-w-[340px] rounded-[18px] bg-[#FFFFFF] border border-[#E6E6E3] shadow-[0_16px_40px_rgba(17,17,17,0.18)] px-4 pt-4 pb-2 text-center" data-teste="app-play-sem-localizacao">
+          <div className="flex items-center gap-3 text-left">
+            <span className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center bg-[#F4F4F2] text-[#111111]">
+              <MapPinOff className="w-5 h-5 stroke-[2.25]" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[16.5px] font-bold text-[#111111] leading-tight">{t('Esta versão da app não recebe a localização')}</h2>
+              <p className="mt-0.5 text-[12.5px] text-[#6B6B6B] leading-snug">{t('Abre a PAROU no Chrome: lá a localização funciona. A versão nova da app na Play Store já resolve isto.')}</p>
+            </div>
+          </div>
+          <a
+            href="intent://parou.pt/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fparou.pt%2F;end"
+            data-teste="abrir-no-chrome"
+            className="mt-3.5 w-full h-11 rounded-[12px] brand-chamfer bg-[#FF6B1A] text-[#111111] font-bold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
+            <Navigation className="w-[18px] h-[18px] stroke-[2.25]" />
+            {t('Abrir no Chrome')}
+          </a>
+          <a
+            href="https://play.google.com/store/apps/details?id=pt.parou.app"
+            className="mt-2 w-full h-10 rounded-[12px] border border-[#E6E6E3] bg-[#FFFFFF] text-[#111111] font-semibold text-[14px] flex items-center justify-center gap-2 active:bg-[#F4F4F2] transition-colors"
+          >
+            {t('Atualizar na Play Store')}
+          </a>
+          <div className="mt-1 flex items-center justify-center divide-x divide-[#E6E6E3]">
+            <button onClick={() => activateLocation(true)} className="h-10 px-3 text-[13px] font-medium text-[#6B6B6B] cursor-pointer">{t('Tentar outra vez')}</button>
+            <button onClick={() => { setPesquisarLocal(true); setDestinationQuery(''); }} className="h-10 px-3 text-[13px] font-semibold text-[#111111] cursor-pointer">{t('Escolher um local')}</button>
+          </div>
+        </div>
+      );
+    }
     if (bloqueada || semSinal) {
       // ligada e autorizada, mas sem posição do telemóvel (no metro, num túnel, dentro de um edifício): não é «desligada»
       const gpsSemSinal = semSinal && semSinalGps && !bloqueada;
