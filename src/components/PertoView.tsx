@@ -22,8 +22,6 @@ import {
   Footprints,
   MapPin,
   MapPinOff,
-  Maximize2,
-  Minimize2,
   TrainFront,
   TrainFrontTunnel,
   Navigation,
@@ -506,56 +504,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const aBordo = useABordo(userCoords, localizacaoPronta && !userCoords?.isManual);
   const [busTocado, setBusTocado] = useState<{ v: VeiculoLeve; agora: number } | null>(null);
   const aBordoNoMapa = aBordo.fase === 'a-bordo' && aBordo.paragens.length > 1;
-  const [mapaExpandido, setMapaExpandido] = useState<boolean>(false);
-  // Painel de baixo (telemóvel) arrastável com o dedo, como nas apps de mapas: segue o dedo e,
-  // ao largar, encaixa na posição mais próxima (ou na direção de um gesto rápido).
+  // O painel de baixo tem um só tamanho (27/11/2026: «há pessoas menos tecnológicas que não vão saber estender/diminuir
+  // o tamanho dessa aba»): sem pega, sem arrastar e sem o botão de aumentar o mapa
+  const mapaExpandido = false;
   const mapaElRef = useRef<HTMLElement | null>(null);
-  const arrastoRef = useRef<{ x0: number; y0: number; h0: number; t0: number; total: number; ativo: boolean; cancelado: boolean } | null>(null);
-  const gestoPainel = {
-    onTouchStart: (e: React.TouchEvent) => {
-      const t = e.touches[0];
-      const el = mapaElRef.current;
-      if (!t || !el || window.innerWidth >= 1024) { arrastoRef.current = null; return; }
-      const total = el.parentElement?.clientHeight || window.innerHeight;
-      arrastoRef.current = { x0: t.clientX, y0: t.clientY, h0: el.getBoundingClientRect().height, t0: Date.now(), total, ativo: false, cancelado: false };
-    },
-    onTouchMove: (e: React.TouchEvent) => {
-      const a = arrastoRef.current;
-      const t = e.touches[0];
-      const el = mapaElRef.current;
-      if (!a || !t || !el || a.cancelado) return;
-      const dy = t.clientY - a.y0;
-      const dx = t.clientX - a.x0;
-      if (!a.ativo) {
-        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { a.cancelado = true; return; } // deslize de lado (fila de chips)
-        if (Math.abs(dy) < 8) return;
-        a.ativo = true;
-      }
-      const h = Math.max(a.total * 0.28, Math.min(a.total * 0.86, a.h0 + dy));
-      el.style.transition = 'none';
-      el.style.height = `${h}px`;
-      el.style.minHeight = '0px';
-      el.style.maxHeight = 'none';
-    },
-    onTouchEnd: (e: React.TouchEvent) => {
-      const a = arrastoRef.current;
-      arrastoRef.current = null;
-      const el = mapaElRef.current;
-      if (!a || !el || !a.ativo) return;
-      const t = e.changedTouches[0];
-      const dy = (t?.clientY ?? a.y0) - a.y0;
-      const velocidade = dy / Math.max(1, Date.now() - a.t0); // px/ms
-      const fracao = (a.h0 + dy) / a.total;
-      const expandir = Math.abs(velocidade) > 0.45 ? velocidade > 0 : fracao > 0.56;
-      // Larga o tamanho do dedo: a altura da classe volta a mandar, com animação a partir daqui
-      el.style.transition = '';
-      el.style.height = '';
-      el.style.minHeight = '';
-      el.style.maxHeight = '';
-      setMapaExpandido(expandir);
-      setTimeout(() => mapRef.current?.invalidateSize(), 340);
-    },
-  };
   const [pesquisarLocal, setPesquisarLocal] = useState<boolean>(false);
   const [pedidoLento, setPedidoLento] = useState<boolean>(false);
   // Aviso no mapa quando a posição está pouco precisa ou sem sinal (ver utils/qualidadeGps.ts)
@@ -2472,14 +2424,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       <aside className="relative z-10 -mt-4 lg:mt-0 flex-1 min-h-0 lg:flex-none lg:w-[460px] lg:h-full flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none shadow-[0_-8px_24px_rgba(17,17,17,0.08)] lg:shadow-none lg:border-r lg:border-[#E6E6E3]">
         {/* Cabeçalho (telemóvel): na rota, seta para voltar aos transportes perto */}
         {emRota && (selectedDestination || emViagem) && (
-          <div className="lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none" {...gestoPainel}>
-            <button
-              onClick={() => setMapaExpandido((v) => !v)}
-              className="flex items-center justify-center w-full h-6 cursor-pointer"
-              aria-label={t(mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa')}
-            >
-              <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
-            </button>
+          <div className="lg:hidden shrink-0 px-4 pt-2 pb-2.5">
             <div className="mt-2 flex items-center gap-3">
               <button
                 onClick={handleClearDestination}
@@ -2509,14 +2454,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
           </div>
         )}
         {/* Cabeçalho (telemóvel) */}
-        <div className={`${emRota ? 'hidden ' : ''}lg:hidden shrink-0 px-4 pt-1 pb-2.5 touch-none`} {...gestoPainel}>
-          <button
-            onClick={() => setMapaExpandido((v) => !v)}
-            className="flex items-center justify-center w-full h-6 cursor-pointer"
-            aria-label={t(mapaExpandido ? 'Aumentar a lista' : 'Encolher a lista e ver o mapa')}
-          >
-            <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
-          </button>
+        <div className={`${emRota ? 'hidden ' : ''}lg:hidden shrink-0 px-4 pt-2 pb-2.5`}>
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <h2 className="font-condensada text-[22px] leading-none font-bold text-[#111111]">
@@ -2972,15 +2910,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
         {/* Detalhe da paragem escolhida */}
         {selectedStop && (
           <div className="painel-paragem absolute inset-0 z-20 flex flex-col bg-[#FFFFFF] rounded-t-[20px] lg:rounded-none">
-            <div className={`shrink-0 px-3 pt-2 border-b border-[#E6E6E3] ${linhaAberta ? 'pb-1 max-lg:border-b-0' : 'pb-3'} touch-pan-x`} {...gestoPainel}>
-              {/* Pega do painel: toca ou desliza para encolher/aumentar (área de toque maior que a barrinha) */}
-              <button
-                onClick={() => setMapaExpandido((v) => !v)}
-                className="lg:hidden flex items-center justify-center w-full h-6 -mt-1 mb-1 cursor-pointer"
-                aria-label={mapaExpandido ? 'Aumentar o painel' : 'Encolher o painel'}
-              >
-                <span className="block w-10 h-1.5 rounded-full bg-[#D4D4D0]" />
-              </button>
+            <div className={`shrink-0 px-3 pt-2 border-b border-[#E6E6E3] ${linhaAberta ? 'pb-1 max-lg:border-b-0' : 'pb-3'}`}>
               <div className={`flex items-start gap-2.5 ${linhaAberta ? 'max-lg:hidden' : ''}`}>
                 <button
                   onClick={fecharParagem}
@@ -3170,7 +3100,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             {/* Percurso da linha escolhida (também desenhado no mapa) */}
             {linhaAberta && (
               <div className="flex-1 min-h-0 flex flex-col" data-teste="percurso-linha">
-                <div className="shrink-0 px-4 py-2.5 flex items-center gap-2.5 border-b border-[#E6E6E3] touch-none" {...gestoPainel}>
+                <div className="shrink-0 px-4 py-2.5 flex items-center gap-2.5 border-b border-[#E6E6E3]">
                   <button
                     onClick={fecharLinha}
                     className="shrink-0 h-9 pl-2 pr-3 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[13px] font-semibold text-[#111111] flex items-center gap-1 cursor-pointer"
@@ -3200,15 +3130,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     '-mx-1',
                     'favorito-linha',
                   )}
-                  <button
-                    onClick={() => setMapaExpandido((v) => !v)}
-                    className="lg:hidden shrink-0 w-10 h-10 -mr-1.5 rounded-full bg-[#F4F4F2] active:bg-[#E6E6E3] text-[#111111] flex items-center justify-center cursor-pointer"
-                    aria-label={t(mapaExpandido ? 'Aumentar a lista de paragens' : 'Encolher a lista e ver o mapa')}
-                    aria-expanded={!mapaExpandido}
-                    data-teste="encolher-percurso"
-                  >
-                    {mapaExpandido ? <ChevronUp className="w-5 h-5 stroke-[2.25]" /> : <ChevronDown className="w-5 h-5 stroke-[2.25]" />}
-                  </button>
                 </div>
                 {/* Horário do dia nesta paragem: todas as partidas desta linha (e sentido) até à última, noutro dia também */}
                 {linhaAberta.id && linhaAberta.paragemId && (
@@ -3619,14 +3540,6 @@ export const PertoView: React.FC<PertoViewProps> = ({
                 <ZoomOut className="w-4 h-4 stroke-[2]" />
               </button>
             </div>
-            <button
-              onClick={() => setMapaExpandido((v) => !v)}
-              className="lg:hidden w-11 h-11 rounded-[12px] bg-[#FFFFFF] text-[#111111] flex items-center justify-center shadow-[0_4px_14px_rgba(17,17,17,0.12)] cursor-pointer"
-              title={mapaExpandido ? t('Reduzir o mapa') : t('Aumentar o mapa')}
-              aria-label={mapaExpandido ? t('Reduzir o mapa') : t('Aumentar o mapa')}
-            >
-              {mapaExpandido ? <Minimize2 className="w-4 h-4 stroke-[2]" /> : <Maximize2 className="w-4 h-4 stroke-[2]" />}
-            </button>
           </div>
         )}
 
