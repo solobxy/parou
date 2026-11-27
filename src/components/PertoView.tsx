@@ -3665,16 +3665,16 @@ export const PertoView: React.FC<PertoViewProps> = ({
   );
 };
 
-/** Madeira sem paragens por perto e Açores (sem dados): explica porquê, em vez de parecer avaria */
+/** Madeira e Açores sem paragens por perto: explica porquê, em vez de parecer avaria */
 const SemHorariosNaZona: React.FC<{ zona: 'madeira' | 'acores' }> = ({ zona }) => (
   <div className="px-6 py-8 text-center space-y-2.5">
     <p className="text-[15px] font-semibold text-[#111111]">
-      {zona === 'madeira' ? t('Sem paragens com horários perto daqui') : t('Ainda não temos os autocarros dos Açores')}
+      {t('Sem paragens com horários perto daqui')}
     </p>
     <p className="text-[13px] leading-relaxed text-[#6B6B6B] max-w-sm mx-auto">
       {zona === 'madeira'
         ? t('Na Madeira, a PAROU tem os autocarros dos Horários do Funchal, da SIGA Rodoeste e da CAM. Perto deste sítio não há paragens com horários.')
-        : t('Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.')}
+        : t('Nos Açores, a PAROU tem os autocarros da AzoresBus em São Miguel. Nas outras ilhas, os operadores ainda não publicam os horários num formato que a app consiga ler.')}
     </p>
     {zona === 'madeira' && (
       <a

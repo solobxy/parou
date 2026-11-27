@@ -407,6 +407,7 @@ const NOME_REGIAO_EN: Record<string, string> = {
   Norte: 'Tâmega e Sousa, Alto Tâmega and Trás-os-Montes',
   Algarve: 'Algarve',
   Madeira: 'Madeira',
+  'Açores': 'Azores (São Miguel)',
   'Todo o país': 'Trains nationwide',
   Outros: 'Other operators',
 };
@@ -425,6 +426,7 @@ const NOME_REGIAO_DE: Record<string, string> = {
   Norte: 'Tâmega e Sousa, Alto Tâmega und Trás-os-Montes',
   Algarve: 'Algarve',
   Madeira: 'Madeira',
+  'Açores': 'Azoren (São Miguel)',
   'Todo o país': 'Züge im ganzen Land',
   Outros: 'Weitere Verkehrsunternehmen',
 };
@@ -438,6 +440,7 @@ const NOME_REGIAO_FR: Record<string, string> = {
   Norte: 'Tâmega e Sousa, Alto Tâmega et Trás-os-Montes',
   Algarve: 'Algarve',
   Madeira: 'Madeira',
+  'Açores': 'Açores (São Miguel)',
   'Todo o país': 'Trains dans tout le pays',
   Outros: 'Autres opérateurs',
 };

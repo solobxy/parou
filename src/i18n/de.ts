@@ -1310,6 +1310,7 @@ export const DE: Record<string, string> = {
   'Sem paragens com horários perto daqui': 'Keine Haltestellen mit Fahrplan in der Nähe',
   'Ainda não temos os autocarros dos Açores': 'Die Busse der Azoren haben wir noch nicht',
   'Na Madeira, a PAROU tem os autocarros dos Horários do Funchal, da SIGA Rodoeste e da CAM. Perto deste sítio não há paragens com horários.': 'Auf Madeira hat PAROU die Busse von Horários do Funchal, SIGA Rodoeste und CAM. In der Nähe dieses Ortes gibt es keine Haltestellen mit Fahrplan.',
+  'Nos Açores, a PAROU tem os autocarros da AzoresBus em São Miguel. Nas outras ilhas, os operadores ainda não publicam os horários num formato que a app consiga ler.': 'Auf den Azoren hat PAROU die Busse von AzoresBus auf São Miguel. Auf den anderen Inseln veröffentlichen die Unternehmen ihre Fahrpläne noch nicht in einem Format, das die App lesen kann.',
   'Os operadores de autocarros dos Açores ainda não publicam os horários num formato que a app consiga ler. Quando o fizerem, aparecem aqui.': 'Die Busunternehmen der Azoren veröffentlichen ihre Fahrpläne noch nicht in einem Format, das die App lesen kann. Sobald sie es tun, erscheinen sie hier.',
   'Ver os horários oficiais da SIGA': 'Offizielle SIGA-Fahrpläne ansehen',
   'Sem avisos meteorológicos para esta zona · IPMA, Open-Meteo': 'Keine Wetterwarnungen für dieses Gebiet · IPMA, Open-Meteo',

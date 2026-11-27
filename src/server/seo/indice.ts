@@ -58,6 +58,7 @@ const SLUG_OPERADOR: Record<string, string> = {
   sit_coimbra: 'sit-regiao-de-coimbra', busway_aveiro: 'busway-regiao-de-aveiro', ave_mobilidade: 'ave-mobilidade', mov_cavado: 'mov-cavado',
   transdev_cavado: 'transdev-avic-cavado', flaviamobil: 'flaviamobil', cim_ttm: 'terras-de-tras-os-montes', tamega_sousa: 'tamega-e-sousa',
   barraqueiro_oeste: 'tut-torres-vedras', rodoviaria_lis: 'rodoviaria-do-lis', mobilis_leiria: 'mobilis-leiria', pombus: 'pombus',
+  azoresbus: 'azoresbus-sao-miguel',
 };
 
 const NOME_OPERADOR: Record<string, string> = {
@@ -71,7 +72,7 @@ const NOME_OPERADOR: Record<string, string> = {
   sit_coimbra: 'SIT Metropolitano (Região de Coimbra)', busway_aveiro: 'Busway (Região de Aveiro)', ave_mobilidade: 'Ave Mobilidade',
   mov_cavado: 'Mov Cávado', transdev_cavado: 'Transdev & Avic Cávado', flaviamobil: 'Flaviamobil', cim_ttm: 'Terras de Trás-os-Montes',
   tamega_sousa: 'Tâmega e Sousa', barraqueiro_oeste: 'TUT Torres Vedras', rodoviaria_lis: 'Rodoviária do Lis', mobilis_leiria: 'Mobilis',
-  pombus: 'Pombus',
+  pombus: 'Pombus', azoresbus: 'AzoresBus',
 };
 
 export const REGIAO_OPERADOR: Record<string, string> = {
@@ -85,6 +86,7 @@ export const REGIAO_OPERADOR: Record<string, string> = {
   rodoviaria_lis: 'Leiria', mobilis_leiria: 'Leiria', pombus: 'Leiria', barraqueiro_oeste: 'Leiria',
   vamus: 'Algarve', proximo_faro: 'Algarve', giro: 'Algarve', sobe_desce_tavira: 'Algarve', 'tld-4319': 'Algarve',
   horarios_funchal: 'Madeira', siga_rodoeste: 'Madeira', cam_madeira: 'Madeira',
+  azoresbus: 'Açores',
   cp: 'Todo o país',
 };
 
@@ -98,6 +100,7 @@ export const NOME_REGIAO: Record<string, string> = {
   Norte: 'Tâmega e Sousa, Alto Tâmega e Trás-os-Montes',
   Algarve: 'Algarve',
   Madeira: 'Madeira',
+  'Açores': 'Açores (São Miguel)',
   'Todo o país': 'Comboios em todo o país',
   Outros: 'Outros operadores',
 };
@@ -240,7 +243,7 @@ function construir(): Indice {
     operadores.push(op);
     porSlugOperador.set(opSlug, op);
   }
-  const ordemRegiao = ['Lisboa', 'Porto', 'Todo o país', 'Minho', 'Norte', 'Aveiro', 'Coimbra', 'Leiria', 'Algarve', 'Madeira', 'Outros'];
+  const ordemRegiao = ['Lisboa', 'Porto', 'Todo o país', 'Minho', 'Norte', 'Aveiro', 'Coimbra', 'Leiria', 'Algarve', 'Madeira', 'Açores', 'Outros'];
   operadores.sort((a, b) => ordemRegiao.indexOf(a.regiao) - ordemRegiao.indexOf(b.regiao) || b.linhas.length - a.linhas.length);
   console.log(`[SEO] Índice: ${operadores.length} operadores, ${linhaPorRoute.size} linhas, ${paragemPorSlug.size} paragens (${Date.now() - t0} ms)`);
   return { versao: versaoAtual(), operadores, porSlugOperador, linhaPorSlug, linhaPorRoute, paragemPorSlug, grupoPorStop, grelha };
