@@ -15,7 +15,7 @@ import { greveDoTroco } from './grevesPlaneador';
 import { viagemNomes, estacoesEntre, mesmaEstacao, chaveEstacao } from './grevesEstacoes';
 import type { GreveTroco } from '../types/perto';
 
-export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido';
+export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' | 'desvio';
 
 export interface GreveNaPartida {
   estado: EstadoGreve;
@@ -42,13 +42,15 @@ export interface ResumoGreve {
   minimos?: boolean;
   /** Plenário de trabalhadores: constrangimentos entre estas horas («13:15», «18:15») */
   plenario?: { das: string; as: string };
+  /** Aviso do operador para algumas linhas (não é greve): supressão ou desvio */
+  aviso?: 'suprimido' | 'desvio';
 }
 
 const COR_LINHA: Record<string, string> = { amarela: 'Amarela', azul: 'Azul', vermelha: 'Vermelha', verde: 'Verde', violeta: 'Violeta', laranja: 'Laranja', rosa: 'Rosa', rubi: 'Rubi' };
 
 export function estadoDaGreve(g: GreveTroco | undefined): GreveNaPartida | undefined {
   if (!g) return undefined;
-  return { estado: g.semServico ? 'sem-servico' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta', operador: g.operador };
+  return { estado: g.semServico ? 'sem-servico' : g.aviso === 'desvio' ? 'desvio' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta', operador: g.operador };
 }
 
 /** Uma partida para marcar: operador, hora (ms), viagem, paragem de onde parte e código da linha */
@@ -128,6 +130,7 @@ export function resumoDaGreve(db: any, feed: string, g: AvisoGreve, vespera: boo
     ...(!vespera && funciona.length ? { funciona } : {}),
     ...(!vespera && s?.frequencia ? { frequencia: s.frequencia } : {}),
     ...(!vespera && g.comboiosMinimos ? { minimos: true } : {}),
+    ...(g.efeito ? { aviso: g.efeito } : {}),
     ...(g.plenario ? { plenario: { das: DateTime.fromMillis(g.inicioMs, { zone: 'Europe/Lisbon' }).toFormat('HH:mm'), as: DateTime.fromMillis(g.fimMs, { zone: 'Europe/Lisbon' }).toFormat('HH:mm') } } : {}),
   };
 }

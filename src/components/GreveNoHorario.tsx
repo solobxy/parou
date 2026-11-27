@@ -6,7 +6,7 @@ import { TriangleAlert, ArrowUpRight } from 'lucide-react';
 import { t } from '../i18n';
 import { proximosDias } from './HorarioDoDia';
 
-export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido';
+export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' | 'desvio';
 
 export interface ResumoGreve {
   titulo: string;
@@ -21,7 +21,17 @@ export interface ResumoGreve {
   /** CP: há lista dos comboios dos serviços mínimos */
   minimos?: boolean;
   plenario?: { das: string; as: string };
+  /** Aviso do operador para algumas linhas (não é greve): supressão ou desvio */
+  aviso?: 'suprimido' | 'desvio';
 }
+
+/** Títulos dos avisos escritos todos em maiúsculas («SUPRESSÃO DA LINHA - …») ficam em letra normal */
+const semGritar = (s: string): string => {
+  const letras = s.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (letras.length < 8 || letras !== letras.toUpperCase()) return s;
+  const m = s.toLocaleLowerCase('pt-PT');
+  return m.charAt(0).toLocaleUpperCase('pt-PT') + m.slice(1);
+};
 
 /** «Hoje», «Amanhã», «Sex 27» ou a data */
 function rotuloDia(data: string): string {
@@ -35,12 +45,16 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
   return (
     <div className={`space-y-2 ${className}`} data-teste="greve-horario">
       {greves.map((g) => {
-        const titulo = g.plenario
+        const titulo = g.aviso
+          ? `${t('Aviso da {o}', { o: g.operador })} · ${rotuloDia(g.dia)}`
+          : g.plenario
           ? `${t('Plenário na {o}', { o: g.operador })} · ${rotuloDia(g.dia)}`
           : g.vespera
           ? t('Véspera da greve na {o}', { o: g.operador })
           : `${t('Greve na {o}', { o: g.operador })} · ${rotuloDia(g.dia)}`;
-        const texto = g.plenario
+        const texto = g.aviso
+          ? `${semGritar(g.titulo)}. ${g.aviso === 'desvio' ? t('O percurso está alterado: algumas paragens podem não ser servidas.') : t('Algumas viagens desta linha podem não se realizar.')}`
+          : g.plenario
           ? t('Preveem-se constrangimentos entre as {a} e as {b}: algumas viagens podem não se realizar.', { a: g.plenario.das, b: g.plenario.as })
           : g.vespera
           ? (g.fimVespera ? t('O serviço acaba por volta das {h}: depois disso já não há viagens.', { h: g.fimVespera }) : t('O serviço acaba mais cedo.'))
@@ -51,7 +65,7 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
               : t('Algumas viagens podem não se realizar.');
         return (
           <div key={`${g.titulo}-${g.vespera ? 'v' : 'g'}`} className="flex items-start gap-2 text-[13px] leading-snug text-[#111111]">
-            <TriangleAlert className="w-4 h-4 mt-px shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
+            <TriangleAlert className={`w-4 h-4 mt-px shrink-0 stroke-[2.25] ${g.aviso === 'desvio' ? 'text-[#111111]' : 'text-[#D92D20]'}`} aria-hidden="true" />
             <div className="min-w-0">
               <p className="font-semibold">{titulo}</p>
               <p className="mt-0.5 text-[#111111]">{texto}</p>
@@ -76,5 +90,5 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
 
 /** Texto curto da marca de uma partida */
 export function textoGreve(e: EstadoGreve): string {
-  return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : e === 'garantido' ? t('Serviço mínimo (greve)') : t('Serviço reduzido');
+  return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : e === 'garantido' ? t('Serviço mínimo (greve)') : e === 'desvio' ? t('Percurso alterado') : t('Serviço reduzido');
 }

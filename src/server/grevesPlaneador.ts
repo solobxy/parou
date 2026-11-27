@@ -110,7 +110,15 @@ export interface AvisoGreve {
   comboiosMinimos?: Record<string, string[]>;
   /** Plenário de trabalhadores: entre inicioMs e fimMs preveem-se constrangimentos (não é greve) */
   plenario?: boolean;
+  /** Aviso do dia a dia de algumas linhas (supressão, interrupção, desvio): só essas linhas, entre inicioMs e fimMs */
+  linhasAfetadas?: string[];
+  efeito?: 'suprimido' | 'desvio';
 }
+
+/** Código de linha para comparar avisos e partidas: maiúsculas, sem zeros à esquerda («072» = «72», «6f» = «6F») */
+export const codigoLinha = (l: unknown): string => String(l ?? '').trim().toUpperCase().replace(/^0+(?=\d)/, '');
+const TIPOS_SUPRIMIDO = new Set(['cancelamento', 'interrupção', 'linha suspensa']);
+const TIPOS_DESVIO = new Set(['alteração de percurso', 'desvio', 'obras']);
 
 /** Troço de um trajeto, para saber se fica na parte que funciona durante a greve */
 export interface TrocoParaGreve {
@@ -154,8 +162,21 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
     if (acaba < agoraMs) continue;
     out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}), ...(a.plenario && a.tipo !== 'greve' ? { plenario: true } : {}), ...(a.comboios_minimos && typeof a.comboios_minimos === 'object' && Object.keys(a.comboios_minimos).length ? { comboiosMinimos: a.comboios_minimos } : {}) });
   }
-  // avisos que dizem o que funciona primeiro (o «Estado das Linhas» pode dizer só «greve» na mesma altura)
-  return out.sort((x, y) => Number(!!y.servico) - Number(!!x.servico));
+  // avisos do dia a dia com linhas e prazo (supressões, interrupções, desvios): marcam só as partidas dessas linhas
+  for (const a of alertas || []) {
+    if (!a || a.tipo === 'greve' || a.plenario || (a.status !== 'Ativo' && a.status !== 'Futuro')) continue;
+    const efeito = TIPOS_SUPRIMIDO.has(a.tipo) ? 'suprimido' : TIPOS_DESVIO.has(a.tipo) ? 'desvio' : null;
+    const linhas = Array.isArray(a.linhas) ? [...new Set(a.linhas.map(codigoLinha).filter(Boolean))] as string[] : [];
+    if (!efeito || !linhas.length || linhas.length > 30 || /^Not[ií]cia/.test(String(a.source || ''))) continue;
+    const inicioMs = Date.parse(String(a.start_datetime || ''));
+    const fimMs = a.end_datetime ? Date.parse(String(a.end_datetime)) : NaN;
+    // sem fim não se sabe até quando: fica na lista de avisos, mas não marca horários
+    if (!Number.isFinite(inicioMs) || !Number.isFinite(fimMs) || fimMs < agoraMs || fimMs - inicioMs > 62 * 24 * 3600_000) continue;
+    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias: [], linhasAfetadas: linhas, efeito });
+  }
+  // avisos que dizem o que funciona primeiro (o «Estado das Linhas» pode dizer só «greve» na mesma altura); os avisos de
+  // linhas no fim (uma greve manda)
+  return out.sort((x, y) => Number(!!x.efeito) - Number(!!y.efeito) || Number(!!y.servico) - Number(!!x.servico));
 }
 
 /** CP: true = o comboio está nos serviços mínimos desse dia; false = há lista desse dia e não está; undefined = sem lista */
@@ -175,8 +196,16 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
   if (!nomes.length || !Number.isFinite(partidaMs)) return undefined;
   const dia = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' }).toISODate();
   let previsto: GreveTroco | undefined;
+  let deLinha: GreveTroco | undefined;
   for (const g of greves) {
     if (!nomes.includes(norm(g.operador))) continue;
+    // aviso de algumas linhas: só a linha do troço, nas horas do aviso (uma greve, se houver, manda)
+    if (g.efeito) {
+      if (!deLinha && troco?.linha && g.linhasAfetadas?.includes(codigoLinha(troco.linha)) && partidaMs >= g.inicioMs && partidaMs < g.fimMs) {
+        deLinha = { titulo: g.titulo, url: g.url, operador: g.operador, aviso: g.efeito };
+      }
+      continue;
+    }
     // plenário: só nas horas anunciadas, como perturbação prevista (pode não se realizar)
     if (g.plenario) {
       if (partidaMs >= g.inicioMs && partidaMs < g.fimMs) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true, plenario: true };
@@ -211,7 +240,7 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
     if (g.vesperaMs !== undefined && partidaMs >= g.vesperaMs && partidaMs < g.inicioMs) previsto = previsto || { ...doAviso, previsto: true };
     if (dia && g.dias.includes(dia)) previsto = previsto || { titulo: g.titulo, url: g.url, operador: g.operador, previsto: true };
   }
-  return previsto;
+  return previsto || deLinha;
 }
 
 /** Avisos de greve em memória, já lidos (síncrono: partidas e horário do dia) */

@@ -299,6 +299,19 @@ export function avisoServicoOficial(site: SiteOperador, url: string, titulo: str
     if (!fim) fim = inicio.plus({ days: ap || /a partir d/.test(t.slice(0, 1500)) ? 30 : 10 }).endOf('day');
   }
   if (!fim) fim = inicio.plus({ days: 10 }).endOf('day');
+  // horas num só dia: «entre as 22h00 e as 6h00 do dia seguinte», «das 9h às 17h», «a partir das 15h30»
+  const hh = (h: string, m?: string) => ({ hour: Math.min(23, Number(h)), minute: Math.min(59, Number(m || 0)) });
+  const corpo = t.slice(0, 1500);
+  const janela = /\b(?:entre\s+as|das)\s+(\d{1,2})[h:](\d{2})?\s*(?:horas)?\s+(?:e\s+as|as)\s+(\d{1,2})(?:[h:](\d{2})?)?/.exec(corpo);
+  if (fim.diff(inicio, 'hours').hours <= 31 && janela) {
+    const a = inicio.set(hh(janela[1], janela[2]));
+    let b = inicio.set(hh(janela[3], janela[4]));
+    if (b <= a) b = b.plus({ days: 1 });
+    inicio = a; fim = b;
+  } else {
+    const desde = /a partir das\s+(\d{1,2})[h:](\d{2})?/.exec(corpo);
+    if (desde && inicio.hour === 0 && inicio.minute === 0) inicio = inicio.set(hh(desde[1], desde[2]));
+  }
   if (fim.toMillis() < agora.getTime()) return null;
   const tipo = tipoDoAvisoDeServico(t.slice(0, 400));
   const opId = semAc(site.operador).replace(/[^a-z0-9]+/g, '-');

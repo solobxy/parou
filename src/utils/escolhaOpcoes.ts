@@ -41,6 +41,8 @@ export function greveNaOpcao(o: Pick<TransitRouteOption, 'legs'>): 0 | 1 | 2 {
   let g: 0 | 1 | 2 = 0;
   for (const l of o.legs) {
     if (l.mode !== 'TRANSIT' || !l.greve) continue;
+    // desvio anunciado: a viagem faz-se (outro percurso); não muda a escolha
+    if (l.greve.aviso === 'desvio') continue;
     // serviço reduzido na parte que funciona durante a greve conta como perturbação, não como «pode não circular»
     // sem serviço (o operador disse o que funciona e isto fica de fora, ou já passou o fim do serviço na véspera)
     if (l.greve.semServico || (!l.greve.previsto && !l.greve.reduzido)) return 2;

@@ -76,7 +76,7 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
     const marcas = new Set<EstadoGreve>();
     // o dia inteiro «pode não se realizar» (greve sem o operador dizer o que funciona): o aviso por cima chega, sem marcar
     // cada minuto
-    const todasIncertas = partidas.length > 0 && partidas.every((p) => p.greve === 'incerta');
+    const todasIncertas = partidas.length > 0 && (partidas.every((p) => p.greve === 'incerta') || partidas.every((p) => p.greve === 'desvio'));
     // CP com serviços mínimos: marcam-se só os comboios garantidos (o aviso por cima diz que os outros podem não se realizar)
     const comMinimos = partidas.some((p) => p.greve === 'garantido');
     for (const p of partidas) {
@@ -140,6 +140,12 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
               {t('pode não se realizar')}
             </span>
           )}
+          {marcas.has('desvio') && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="font-condensada text-[13px] font-semibold tabular-nums text-[#111111] underline decoration-dashed decoration-[1.5px] underline-offset-[3px]" aria-hidden="true">10</span>
+              {t('percurso alterado')}
+            </span>
+          )}
           {marcas.has('garantido') && (
             <span className="inline-flex items-center gap-1.5">
               <span className="font-condensada text-[13px] font-bold tabular-nums text-[#111111] border-b-2 border-[#111111] leading-none" aria-hidden="true">10</span>
@@ -161,7 +167,8 @@ export const HorarioDoDiaPainel: React.FC<{ lineId: string; stopId: string; sent
                   className={m.greve === 'sem-servico'
                     ? 'text-[#6B6B6B] font-medium line-through decoration-[1.5px]'
                     : m.greve === 'incerta' ? 'underline decoration-dotted decoration-[1.5px] underline-offset-[3px]'
-                      : m.greve === 'garantido' ? 'font-bold underline decoration-2 underline-offset-[3px]' : undefined}
+                      : m.greve === 'garantido' ? 'font-bold underline decoration-2 underline-offset-[3px]'
+                      : m.greve === 'desvio' ? 'underline decoration-dashed decoration-[1.5px] underline-offset-[3px]' : undefined}
                 >
                   {m.min}
                   {m.letra && <sup className="ml-px text-[10px] font-semibold text-[#6B6B6B]">{m.letra}</sup>}

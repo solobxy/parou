@@ -129,6 +129,8 @@ export interface GreveTroco {
   frequencia?: string;
   /** O operador disse o que funciona e isto fica de fora (ou fora das horas, ou depois do fim do serviço na véspera) */
   semServico?: boolean;
+  /** Aviso do operador para esta linha a esta hora: supressão/interrupção (pode não se realizar) ou desvio (percurso alterado) */
+  aviso?: 'suprimido' | 'desvio';
   /** Plenário de trabalhadores (não é greve), à hora desta viagem */
   plenario?: boolean;
   /** Este comboio está nos serviços mínimos da greve (a CP garante que se realiza) */
