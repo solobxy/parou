@@ -1,3 +1,4 @@
+import { linhaDoFavorito } from './linhaFavorita';
 // Avisos das linhas guardadas: que linhas mandar ao servidor e quando convidar a ligar os avisos.
 // Funções puras (testadas em auditoria/avisos-linha.mjs); o ecrã está em components/ConviteAvisosLinha.tsx.
 
@@ -39,7 +40,8 @@ export function linhasParaAvisos(favoritos: FavoritoLinha[], idsAntigos: unknown
     if (!out.has(k)) out.set(k, nome ? { op, ln, nome } : { op, ln });
   };
   for (const f of favoritos || []) {
-    if (f && typeof f.id === 'string' && f.id.startsWith('line-')) juntar(f.id.slice(5), f);
+    const l = f ? linhaDoFavorito(f.id) : null;
+    if (l) juntar(l.routeId, f);
   }
   for (const id of idsAntigos || []) if (typeof id === 'string') juntar(id);
   return Array.from(out.values()).slice(0, MAX_LINHAS_AVISOS);

@@ -11,7 +11,8 @@ import {
   LigacaoUnir,
 } from '../types/perto';
 import { CentralAlert } from '../types/alerts';
-import { getLocalFavorites, addFavorite, removeFavorite } from './favoritesService';
+import { getLocalFavorites, addFavorite, removeFavorite, removerFavoritosDaLinha } from './favoritesService';
+import { linhaDoFavorito } from '../utils/linhaFavorita';
 
 const FAVORITE_STOPS_KEY = 'parou_favorite_stops_v1';
 
@@ -214,7 +215,7 @@ export function getFavoriteLineIds(): Set<string> {
     if (Array.isArray(v)) v.forEach((id) => { if (typeof id === 'string') set.add(id); });
   } catch { /* lista ilegível: conta só a dos favoritos */ }
   try {
-    for (const f of getLocalFavorites()) if (f.id.startsWith('line-')) set.add(f.id.slice(5));
+    for (const f of getLocalFavorites()) { const l = linhaDoFavorito(f.id); if (l) set.add(l.routeId); }
   } catch { /* sem favoritos locais */ }
   return set;
 }
@@ -234,7 +235,7 @@ export function toggleFavoriteLineId(lineId: string, meta?: DadosLinhaFavorita):
     : (guardadas.includes(lineId) ? guardadas : [...guardadas, lineId]);
   try { localStorage.setItem(FAVORITE_LINES_KEY, JSON.stringify(seguinte)); } catch { /* sem espaço: fica só nos Favoritos */ }
   if (eraFavorita) {
-    removeFavorite(`line-${lineId}`).catch(() => {});
+    removerFavoritosDaLinha(lineId).catch(() => {});
   } else {
     addFavorite({
       id: `line-${lineId}`,

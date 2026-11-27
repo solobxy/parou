@@ -15,6 +15,8 @@ interface LineCardProps {
   showExactTimeAsBig?: boolean;
   /** Mostra o operador por baixo (distingue linhas com o mesmo nome, ex.: Linha Azul de Lisboa e do Porto) */
   mostrarOperador?: boolean;
+  /** Favorito de um só sentido (direction_id): a linha mostra só esse destino e as partidas dele */
+  sentido?: number;
 }
 
 export const LineCard: React.FC<LineCardProps> = ({
@@ -24,6 +26,7 @@ export const LineCard: React.FC<LineCardProps> = ({
   onToggleFavorite,
   showExactTimeAsBig = false,
   mostrarOperador = false,
+  sentido,
 }) => {
   // Título e paragem da partida que aparece à direita (o destino e a paragem dessa partida,
   // não os da linha em geral — senão "Cordoaria" aparecia com a hora do outro sentido)
@@ -45,6 +48,7 @@ export const LineCard: React.FC<LineCardProps> = ({
     <div
       onClick={onClick}
       data-linha={line.id}
+      data-sentido={sentido}
       className="p-3.5 bg-[#FFFFFF] hover:bg-[#F4F4F2] border-b border-[#E6E6E3] transition-colors cursor-pointer flex items-center justify-between gap-3 min-h-[44px]"
     >
       {/* Left: Line Chip + Details */}

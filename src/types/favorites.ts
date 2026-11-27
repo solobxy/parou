@@ -27,6 +27,9 @@ export interface FavoriteItem {
   lineName?: string;
   lineColor?: string;
   transportMode?: TransportMode;
+  /** Só um sentido da linha (direction_id) e o destino desse sentido; sem isto é a linha inteira */
+  sentido?: number;
+  destino?: string;
   // Geo coordinates
   latitude?: number;
   longitude?: number;

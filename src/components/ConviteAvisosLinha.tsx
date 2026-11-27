@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { linhaDoFavorito } from '../utils/linhaFavorita';
 import { Bell, X } from 'lucide-react';
 import { t } from '../i18n';
 import { getLocalFavorites } from '../services/favoritesService';
@@ -23,8 +24,9 @@ function linhasAgora(): Map<string, LinhaGuardada> {
   const m = new Map<string, LinhaGuardada>();
   try {
     for (const f of getLocalFavorites() as any[]) {
-      if (!f || typeof f.id !== 'string' || !f.id.startsWith('line-')) continue;
-      const id = f.id.slice(5);
+      const l = f ? linhaDoFavorito(f.id) : null;
+      if (!l) continue;
+      const id = l.routeId;
       const op = String(f.operatorName || f.operatorId || id.split(':')[0] || '');
       // Metro de Lisboa: a linha é a cor («Azul»); nos outros, o código («1001»)
       const cor = /metro(politano)? de lisboa|metro_lisboa/i.test(`${op} ${id}`)

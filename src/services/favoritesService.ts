@@ -1,4 +1,5 @@
 import { utilizadorAutenticado, favoritosDaConta } from './conta';
+import { linhaDoFavorito } from '../utils/linhaFavorita';
 type Unsubscribe = () => void;
 import { FavoriteItem, FavoriteCategory, FavoriteLiveStatus } from '../types/favorites';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
@@ -99,6 +100,12 @@ export async function removeFavorite(id: string): Promise<void> {
       console.warn('[FavoritesService] Não foi possível apagar o favorito na conta:', err);
     }
   }
+}
+
+/** Tira a linha inteira e todos os sentidos guardados dela (estrela das listas). */
+export async function removerFavoritosDaLinha(routeId: string): Promise<void> {
+  const ids = getLocalFavorites().filter((f) => linhaDoFavorito(f.id)?.routeId === routeId).map((f) => f.id);
+  for (const id of ids) await removeFavorite(id);
 }
 
 /**
@@ -204,7 +211,7 @@ let linhasPertoCache: { chave: string; em: number; promessa: Promise<LinhaApi[]>
 
 /** Id da linha na base (os favoritos guardam-no como "line-<id>"). */
 function idDaLinha(item: FavoriteItem): string {
-  return item.id.replace(/^line-/, '');
+  return linhaDoFavorito(item.id)?.routeId || item.id.replace(/^line-/, '');
 }
 
 /** A linha guardada, se ela passar perto de ti: pelo id ou, se as variantes foram juntas, pelo número e operador. */
@@ -333,7 +340,11 @@ export async function enrichFavoritesLiveStatus(
         // Nunca se inventa um tempo: sem dados fica sem hora.
         const real = linhaPerto(item, linhasPerto);
         if (real) {
-          const partida = sortDepartures(real.departures || []).find((d) => d.state !== 'Sem dados' && d.state !== 'Suprimido');
+          // Favorito de um só sentido: só as partidas desse sentido
+          const sentido = linhaDoFavorito(item.id)?.sentido;
+          const partida = sortDepartures(real.departures || [])
+            .filter((d) => sentido == null || (d.direction_id ?? 0) === sentido)
+            .find((d) => d.state !== 'Sem dados' && d.state !== 'Suprimido');
           if (partida) {
             nextDepartureTime = partida.time;
             nextDeparture = partida;

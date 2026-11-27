@@ -160,6 +160,9 @@ export const FR: Record<string, string> = {
   '{n} próxima': '{n} prochain',
   '{n} próximas': '{n} prochains',
   'Horários {op} podem estar desatualizados': 'Les horaires de {op} peuvent ne pas être à jour',
+  'Guardar «{d}» nos favoritos': 'Enregistrer «{d}» dans les favoris',
+  'Tirar «{d}» dos favoritos': 'Retirer «{d}» des favoris',
+  'Nos favoritos': 'Dans les favoris',
   'Guardar nos favoritos': 'Enregistrer dans les favoris',
   'Favorito': 'Favori',
 

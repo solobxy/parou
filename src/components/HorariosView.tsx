@@ -30,7 +30,9 @@ import { sortDepartures, parseDepartureTime } from '../utils/transitFormatter';
 import { lembrarPosicao, ultimaPosicaoConhecida } from '../hooks/useUserLocation';
 import { SeletorCidades, BotaoCidades } from './SeletorCidades';
 import { useCidades, lerCidades, listaDeCidades } from '../utils/cidades';
-import { addFavorite, removeFavorite, getLocalFavorites } from '../services/favoritesService';
+import { addFavorite, removeFavorite, getLocalFavorites, removerFavoritosDaLinha } from '../services/favoritesService';
+import { idFavoritoLinha, linhaDoFavorito, sentidosGuardados, alternarSentido, type SentidoDaLinha } from '../utils/linhaFavorita';
+import type { FavoriteItem } from '../types/favorites';
 import { t, tn } from '../i18n';
 import { linhasMaisProcuradas } from '../services/procuras';
 
@@ -157,10 +159,13 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   const [selectedLineId, setSelectedLineId] = useState<string | null>(() => lerLinhaDoEndereco());
 
   // Quando uma linha é tirada (ou posta) no separador Favoritos, a estrela daqui acompanha
-  const linhasNosFavoritos = () => new Set(getLocalFavorites().filter((f) => f.id.startsWith('line-')).map((f) => f.id.slice(5)));
+  const linhasNosFavoritos = () => new Set(getLocalFavorites().map((f) => linhaDoFavorito(f.id)?.routeId).filter((id): id is string => !!id));
+  // Os favoritos em si (para saber que sentidos de cada linha estão guardados)
+  const [favoritosLocais, setFavoritosLocais] = useState<FavoriteItem[]>(() => getLocalFavorites());
   const linhasNosFavoritosRef = useRef<Set<string>>(linhasNosFavoritos());
   useEffect(() => {
     const aoMudar = () => {
+      setFavoritosLocais(getLocalFavorites());
       const agora = linhasNosFavoritos();
       const antes = linhasNosFavoritosRef.current;
       const removidas = [...antes].filter((id) => !agora.has(id));
@@ -221,9 +226,36 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           operatorName: linha?.operator,
         } as any).catch(() => {});
       } else {
-        removeFavorite(`line-${lineId}`).catch(() => {});
+        // A estrela das listas é a da linha: tira a linha inteira e os sentidos guardados
+        removerFavoritosDaLinha(lineId).catch(() => {});
       }
     }, 0);
+  }, []);
+
+  // Estrela de um sentido (no detalhe da linha): «801 → Cordoaria» e «801 → S. Pedro da Cova» são favoritos separados
+  const toggleSentido = useCallback((lineId: string, sentido: number, todos: SentidoDaLinha[], meta?: Partial<ApiLineItem>) => {
+    const favs = getLocalFavorites();
+    const { tirar, juntar } = alternarSentido(favs, lineId, sentido, todos.map((d) => d.direction_id));
+    const linha = { ...(linhasConhecidasRef.current.get(lineId) || {}), ...(meta || {}) } as Partial<ApiLineItem>;
+    // Primeiro junta e só depois tira: a linha nunca sai da lista dos Horários a meio da troca
+    for (const d of juntar) {
+      const destino = todos.find((x) => x.direction_id === d)?.headsign || undefined;
+      addFavorite({
+        id: idFavoritoLinha(lineId, d),
+        type: 'linha',
+        category: 'transportes',
+        title: destino || linha.name || linha.code || lineId,
+        subtitle: linha.operator,
+        lineCode: linha.code,
+        lineName: linha.name,
+        lineColor: linha.color,
+        operatorId: linha.operator_id,
+        operatorName: linha.operator,
+        sentido: d,
+        destino,
+      } as any).catch(() => {});
+    }
+    for (const id of tirar) removeFavorite(id).catch(() => {});
   }, []);
 
   // Posição: usa logo a última conhecida (do Perto ou de outra visita) e depois atualiza
@@ -433,11 +465,45 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
   }, [searchQuery, selectedMode, currentPage, loadAllLines]);
 
   // Abrir uma linha: fica nas "tuas linhas" e, se veio de uma pesquisa, guarda a pesquisa
-  const abrirLinha = useCallback((id: string) => {
+  // Sentido a mostrar primeiro no detalhe (quando se abre um favorito de um só sentido)
+  const [sentidoAberto, setSentidoAberto] = useState<number | undefined>(undefined);
+  const abrirLinha = useCallback((id: string, sentido?: number) => {
     registarLinhaVista(id);
     if (searchQuery.trim().length >= 2) registarPesquisa(searchQuery);
+    setSentidoAberto(sentido);
     setSelectedLineId(id);
   }, [searchQuery]);
+
+  // Favoritas: uma linha por favorito. A linha inteira fica como estava; cada sentido guardado é uma linha própria,
+  // com o destino desse sentido e as partidas dele (quando a linha passa perto de ti)
+  const linhasFavoritasMostradas = useMemo(() => {
+    const perto = new Map(nearLines.map((l) => [l.id, l] as const));
+    const out: Array<{ chave: string; line: ApiLineItem; sentido?: number }> = [];
+    for (const line of favoriteLines) {
+      const guardados = sentidosGuardados(favoritosLocais, line.id);
+      if (guardados === 'toda' || guardados.size === 0) {
+        out.push({ chave: line.id, line });
+        continue;
+      }
+      const daqui = perto.get(line.id);
+      for (const s of Array.from(guardados).sort((a, b) => a - b)) {
+        const fav = favoritosLocais.find((f) => f.id === idFavoritoLinha(line.id, s));
+        const partidas = (daqui?.departures || []).filter((d) => (d.direction_id ?? 0) === s);
+        const destino = fav?.destino || partidas[0]?.destination;
+        out.push({
+          chave: idFavoritoLinha(line.id, s),
+          sentido: s,
+          line: {
+            ...line,
+            destinations: destino ? [destino] : line.destinations,
+            departures: partidas,
+            nearest_stop: partidas.length ? daqui?.nearest_stop : undefined,
+          },
+        });
+      }
+    }
+    return out;
+  }, [favoriteLines, favoritosLocais, nearLines]);
 
   // As tuas linhas (mais vistas / recentes) e as que estavam perto da última vez
   const [tuasLinhas, setTuasLinhas] = useState<ApiLineItem[]>([]);
@@ -642,27 +708,29 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
         )}
 
         {/* Favoritos */}
-        {!aPesquisar && favoriteLines.length > 0 && (
+        {!aPesquisar && linhasFavoritasMostradas.length > 0 && (
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-[18px] font-semibold text-[#111111]">
                 {t('Favoritas')}
               </h2>
               <span className="font-condensada text-xs font-bold text-[#6B6B6B] tabular-nums">
-                {favoriteLines.length}
+                {linhasFavoritasMostradas.length}
               </span>
             </div>
 
             <div className="border border-[#E6E6E3] rounded-[8px] bg-[#FFFFFF] divide-y divide-[#E6E6E3] overflow-hidden">
-              {favoriteLines.map((line) => (
+              {linhasFavoritasMostradas.map(({ chave, line, sentido }) => (
                 <LineCard
-                  key={line.id}
+                  key={chave}
                   line={line}
-                  onClick={() => abrirLinha(line.id)}
+                  sentido={sentido}
+                  onClick={() => abrirLinha(line.id, sentido)}
                   isFavorite={true}
                   onToggleFavorite={(e, id) => {
                     e.stopPropagation();
-                    toggleFavoriteLine(id);
+                    if (sentido == null) toggleFavoriteLine(id);
+                    else toggleSentido(id, sentido, [{ direction_id: sentido, headsign: line.destinations?.[0] }]);
                   }}
                 />
               ))}
@@ -950,6 +1018,9 @@ export const HorariosView: React.FC<HorariosViewProps> = ({
           userCoords={userCoords}
           isFavorite={favoriteLineIds.includes(selectedLineId)}
           onToggleFavorite={(id) => toggleFavoriteLine(id)}
+          sentidosGuardados={sentidosGuardados(favoritosLocais, selectedLineId)}
+          sentidoInicial={sentidoAberto}
+          onToggleSentido={(sentido, todos, meta) => toggleSentido(selectedLineId, sentido, todos, meta)}
         />
       )}
     </div>

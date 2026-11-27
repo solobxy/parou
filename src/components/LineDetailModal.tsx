@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import {
   ApiLineDetail,
+  ApiLineItem,
   ApiStopDeparture,
   fetchLineDetail,
   fetchStopDepartures,
@@ -26,8 +27,18 @@ interface LineDetailModalProps {
   lineId: string;
   onClose: () => void;
   userCoords?: { lat: number; lon: number } | null;
+  /** Linha inteira (só quando a linha não tem sentidos conhecidos) */
   isFavorite: boolean;
   onToggleFavorite: (lineId: string) => void;
+  /** Sentidos guardados desta linha: 'toda' ou os direction_id guardados */
+  sentidosGuardados?: 'toda' | Set<number>;
+  /** Sentido a mostrar primeiro (direction_id), ex.: ao abrir o favorito «→ Cordoaria» */
+  sentidoInicial?: number;
+  onToggleSentido?: (
+    sentido: number,
+    todos: Array<{ direction_id: number; headsign?: string }>,
+    meta: Partial<ApiLineItem>,
+  ) => void;
 }
 
 export const LineDetailModal: React.FC<LineDetailModalProps> = ({
@@ -36,6 +47,9 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
   userCoords,
   isFavorite,
   onToggleFavorite,
+  sentidosGuardados,
+  sentidoInicial,
+  onToggleSentido,
 }) => {
   useVoltarFecha(true, onClose);
   const [line, setLine] = useState<ApiLineDetail | null>(null);
@@ -65,6 +79,10 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
       .then((data) => {
         if (!isMounted) return;
         setLine(data);
+        if (sentidoInicial != null) {
+          const idx = (data?.directions || []).findIndex((d) => d.direction_id === sentidoInicial);
+          if (idx >= 0) setActiveDirectionIdx(idx);
+        }
       })
       .catch((err) => {
         if (!isMounted) return;
@@ -115,6 +133,27 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
 
   const activeDirection = line?.directions[activeDirectionIdx] || line?.directions[0];
 
+  // A estrela guarda o sentido que está à vista (cada sentido é um favorito à parte)
+  const porSentido = !!(onToggleSentido && sentidosGuardados && line && line.directions.length > 0 && activeDirection);
+  const sentidoGuardado = (dirId: number) =>
+    sentidosGuardados === 'toda' || (sentidosGuardados instanceof Set && sentidosGuardados.has(dirId));
+  const estrelaAcesa = porSentido ? sentidoGuardado(activeDirection!.direction_id) : isFavorite;
+  const destinoAtivo = activeDirection?.headsign ? formatTransitName(activeDirection.headsign) : '';
+  const rotuloEstrela = porSentido && destinoAtivo
+    ? (estrelaAcesa ? t('Tirar «{d}» dos favoritos', { d: destinoAtivo }) : t('Guardar «{d}» nos favoritos', { d: destinoAtivo }))
+    : (estrelaAcesa ? t('Remover dos favoritos') : t('Guardar nos favoritos'));
+  const tocarEstrela = () => {
+    if (porSentido && line && activeDirection) {
+      onToggleSentido!(
+        activeDirection.direction_id,
+        line.directions.map((d) => ({ direction_id: d.direction_id, headsign: d.headsign })),
+        { code: line.code, name: line.name, color: line.color, operator: line.operator, operator_id: line.operator_id },
+      );
+    } else {
+      onToggleFavorite(lineId);
+    }
+  };
+
   let nearestStopId: string | null = null;
   if (userCoords && activeDirection?.stops && activeDirection.stops.length > 0) {
     let minDist = Infinity;
@@ -150,12 +189,14 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
-              onClick={() => onToggleFavorite(lineId)}
+              onClick={tocarEstrela}
+              data-teste="estrela-linha"
               className="p-2 text-[#6B6B6B] hover:text-[#111111] rounded-[8px] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-              title={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
-              aria-label={isFavorite ? t('Remover dos favoritos') : t('Guardar nos favoritos')}
+              title={rotuloEstrela}
+              aria-label={rotuloEstrela}
+              aria-pressed={estrelaAcesa}
             >
-              <Star className={`w-5 h-5 stroke-[2] ${isFavorite ? 'fill-[#111111] text-[#111111]' : ''}`} />
+              <Star className={`w-5 h-5 stroke-[2] ${estrelaAcesa ? 'fill-[#111111] text-[#111111]' : ''}`} />
             </button>
 
             <button
@@ -189,6 +230,8 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                     {line.directions.map((dir, idx) => (
                       <button
                         key={idx}
+                        data-sentido={dir.direction_id}
+                        aria-pressed={activeDirectionIdx === idx}
                         onClick={() => {
                           setActiveDirectionIdx(idx);
                           setSelectedStopIdx(null);
@@ -199,7 +242,12 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                             : 'bg-[#F4F4F2] text-[#6B6B6B] hover:text-[#111111]'
                         }`}
                       >
-                        {dir.headsign ? t('Destino: {d}', { d: dir.headsign }) : t('Sentido {n}', { n: idx + 1 })}
+                        <span className="inline-flex items-center gap-1">
+                          {porSentido && sentidoGuardado(dir.direction_id) && (
+                            <Star className={`w-3 h-3 stroke-[2] ${activeDirectionIdx === idx ? 'fill-[#FFFFFF] text-[#FFFFFF]' : 'fill-[#111111] text-[#111111]'}`} aria-label={t('Nos favoritos')} />
+                          )}
+                          {dir.headsign ? t('Destino: {d}', { d: dir.headsign }) : t('Sentido {n}', { n: idx + 1 })}
+                        </span>
                       </button>
                     ))}
                   </div>
