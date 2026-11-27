@@ -50,7 +50,7 @@ function guardar(): void {
 
 async function traduzirMyMemory(texto: string, lingua: LinguaAviso): Promise<string | null> {
   // caixa de contacto do projeto (aumenta a quota diária do serviço); pode trocar-se em TRADUCOES_CONTACTO
-  const caixa = process.env.TRADUCOES_CONTACTO || 'contacto@parou.pt';
+  const caixa = process.env.TRADUCOES_CONTACTO || 'dinis@parou.pt';
   const contacto = `&de=${encodeURIComponent(caixa)}`;
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(texto)}&langpair=pt-PT|${lingua}${contacto}`;
   const r = await fetch(url, { signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'PAROU.PT/1.0 (+https://parou.pt)' } });
