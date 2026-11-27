@@ -22,7 +22,7 @@ export interface SiteOperador {
 
 /** Sites oficiais com página de avisos ou notícias (verificados a 26/11/2026). Metro do Porto e CP têm leitores próprios. */
 export const SITES_OPERADORES: SiteOperador[] = [
-  { operador: 'STCP', regiao: 'Área Metropolitana do Porto', municipios: ['Porto', 'Matosinhos', 'Maia', 'Gondomar', 'Vila Nova de Gaia'], paginas: ['https://stcp.pt/pt/noticias', 'https://stcp.pt/'] },
+  { operador: 'STCP', regiao: 'Área Metropolitana do Porto', municipios: ['Porto', 'Matosinhos', 'Maia', 'Gondomar', 'Vila Nova de Gaia'], paginas: ['https://stcp.pt/pt/alteracoes-de-servico', 'https://stcp.pt/pt/noticias'] },
   { operador: 'UNIR', regiao: 'Área Metropolitana do Porto', municipios: ['Porto'], paginas: ['https://unir.pt/noticias/'] },
   { operador: 'Metro de Lisboa', regiao: 'Área Metropolitana de Lisboa', municipios: ['Lisboa', 'Amadora', 'Odivelas'], paginas: ['https://www.metrolisboa.pt/institucional/comunicar/noticias-2/', 'https://www.metrolisboa.pt/'] },
   { operador: 'Fertagus', regiao: 'Área Metropolitana de Lisboa', municipios: ['Lisboa', 'Almada', 'Seixal', 'Setúbal'], paginas: ['https://www.fertagus.pt/Fertagus-pt/Viajar/Comunicados-e-Campanhas', 'https://www.fertagus.pt/'] },
@@ -102,10 +102,12 @@ export function textoLimpo(html: string): string {
 
 /** Palavras de um aviso de greve (no texto da ligação ou no endereço) */
 const RE_LIGACAO_GREVE = /greve|paralisa|pre-?aviso|servicos?[ -]minimos|plenario/;
+/** Palavras de um aviso do serviço: desvios, percursos, horários, paragens, interrupções, obras, supressões, reforços */
+const RE_LIGACAO_SERVICO = /desvio|alterac|percurso|horario|interrup|condicionad|constrangiment|obras|supress|paragem|paragens|encerra|interdi|suspens|reforco|cancelad|cancelament|carreira|\blinhas?\b|comunicado|aviso/;
 const semAc = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Ligações de uma página de avisos que falam de greve (do mesmo site; sem repetidos; no máximo 6) */
-export function ligacoesDeGreve(html: string, base: string): string[] {
+export function ligacoesDeGreve(html: string, base: string, re: RegExp = RE_LIGACAO_GREVE, maximo = 6): string[] {
   const out: string[] = [];
   const host = new URL(base).hostname.replace(/^www\./, '');
   for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,400}?)<\/a>/gi)) {
@@ -113,15 +115,20 @@ export function ligacoesDeGreve(html: string, base: string): string[] {
     let url: URL;
     try { url = new URL(m[1].replace(/&amp;/g, '&'), base); } catch { continue; }
     if (url.hostname.replace(/^www\./, '') !== host || !/^https?:$/.test(url.protocol)) continue;
-    if (!RE_LIGACAO_GREVE.test(texto) && !RE_LIGACAO_GREVE.test(semAc(decodeURIComponent(url.pathname)))) continue;
+    let caminho = url.pathname;
+    try { caminho = decodeURIComponent(url.pathname); } catch { /* endereço mal codificado */ }
+    if (!re.test(texto) && !re.test(semAc(caminho))) continue;
     // páginas de listas («categoria», «avisos/») não são um aviso
     if (/\/(category|categoria|tag|page)\//.test(url.pathname)) continue;
     const s = url.toString();
     if (!out.includes(s) && s !== base) out.push(s);
-    if (out.length >= 6) break;
+    if (out.length >= maximo) break;
   }
   return out;
 }
+
+/** Ligações de avisos do serviço (desvios, horários, paragens…) numa página de avisos ou notícias (no máximo 15) */
+export const ligacoesDeServico = (html: string, base: string) => ligacoesDeGreve(html, base, RE_LIGACAO_SERVICO, 15);
 
 const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -191,8 +198,122 @@ export function avisoDoSite(site: SiteOperador, url: string, html: string, agora
   if (RE_PLENARIO.test(semAcentosP(a.titulo)) && !/\bgreve/i.test(a.titulo)) {
     return avisoPlenarioOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada, url, fonte: FONTE_AVISOS_OPERADORES }, agora);
   }
-  return avisoGreveOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada || agora.toISOString(),
+  const greve = avisoGreveOficial({ operador: site.operador, regiao: site.regiao, municipios: site.municipios, titulo: a.titulo, texto, publicada: a.publicada || agora.toISOString(),
     semData: !a.publicada, url, fonte: FONTE_AVISOS_OPERADORES }, agora);
+  if (greve || /\bgreve|paralisa|pre-?aviso/.test(semAc(a.titulo))) return greve;
+  return avisoServicoOficial(site, url, a.titulo, texto, a.publicada, agora);
+}
+
+// ---------------------------------------------------------------------------------
+// Avisos do serviço (não greves): desvios, alterações de percurso e de horário, paragens desativadas, interrupções, obras.
+// Só com data de publicação (as páginas fixas de horários e serviços não têm) e publicados nos últimos 45 dias. Início: «a
+// partir de [dia] D de mês» ou a publicação; fim: «até D de mês», «de D a D de mês», «entre D e D de mês»; sem fim escrito,
+// fica 10 dias depois do início (um desvio sem prazo raramente passa disso e o aviso não fica esquecido para sempre).
+// ---------------------------------------------------------------------------------
+const RE_TITULO_SERVICO = /desvio|alterac|percurso|horario|interrup|condiciona|constrangiment|obras|supress|paragem|paragens|encerra|interdi|suspens|reforco|cancelad|cancelament|nova linha|\blinhas?\b|carreiras?\b|viage(m|ns)|ligac(ao|oes)|circulacao|servico (especial|reduzido)|transito|corte/;
+const RE_FORA_SERVICO = /concurso|campanha|passatempo|sorteio|premio|recrutamento|emprego|candidatura|relatorio|contas|resultados|comissao europeia|financiamento|investimento|aniversario|parceria|protocolo|inaugura(?!cao das luzes)|exposicao|cultura|natal solidario|publicidade|fretamento|auditorio|fotografias|espacos comerciais|horario dos parques|acessibilidades/;
+const MESES_RE = MESES.join('|');
+
+function diaDe(dia: string, mes: string, ano: string | undefined, ref: DateTime): DateTime | null {
+  const m = MESES.indexOf(mes.replace('ç', 'c')) + 1;
+  if (m < 1) return null;
+  let d = DateTime.fromObject({ year: ano ? Number(ano) : ref.year, month: m, day: Number(dia) }, { zone: 'Europe/Lisbon' });
+  if (!d.isValid) return null;
+  if (!ano && d < ref.minus({ months: 3 })) d = d.plus({ years: 1 });
+  return d;
+}
+
+/** Tipo de um aviso do serviço pelo título e texto */
+export function tipoDoAvisoDeServico(t: string): CentralAlert['tipo'] {
+  if (/interrup|suspens|sem circulacao|nao ha (circulacao|servico)/.test(t)) return 'interrupção';
+  if (/paragem (desativad|suprimid|encerrad)|desativacao (provisoria )?de paragem|paragens? (desativad|suprimid|encerrad)/.test(t)) return 'paragem encerrada';
+  if (/supress|cancelad|cancelament/.test(t)) return 'cancelamento';
+  if (/desvio/.test(t)) return 'desvio';
+  if (/percurso|interdi|condiciona|constrangiment/.test(t)) return 'alteração de percurso';
+  if (/reforco|prolongamento/.test(t)) return 'reforço de serviço';
+  if (/novos? horarios?|nova linha/.test(t)) return 'novo horário';
+  if (/horario/.test(t)) return 'alteração de horário';
+  if (/obras/.test(t)) return 'obras';
+  return 'outros alertas oficiais';
+}
+
+/** Linhas citadas («linhas 200, 201 e 300», «Linha 204», «linhas 072, 073», «carreira 3») */
+export function linhasCitadas(texto: string): string[] {
+  const out = new Set<string>();
+  const juntar = (n: string) => out.add(/^\d+$/.test(n) ? String(Number(n)) : n.toUpperCase());
+  for (const m of String(texto || '').matchAll(/\b(?:linhas?|carreiras?|carreira\(s\))\s*(?:n\.?\s*[ºo°]s?\s*:?\s*)?((?:[A-Z]?\d{1,3}[A-Z]{0,2}(?:\s*\([^)]{1,6}\))?\s*(?:,|\be\b|\/|-(?=\s*[A-Z]?\d))?\s*)+)/gi)) {
+    for (const n of m[1].replace(/\([^)]*\)/g, ' ').match(/\b[A-Z]?\d{1,3}[A-Z]{0,2}\b/gi) || []) juntar(n);
+  }
+  // STCP: «402 IDA … VOLTA» (o percurso de cada linha)
+  for (const m of String(texto || '').matchAll(/\b([A-Z]{0,2}\d{1,3}[A-Z]?)\s*\.?\s+(?:IDA|VOLTA)\b/g)) juntar(m[1]);
+  return [...out].slice(0, 30);
+}
+
+export function avisoServicoOficial(site: SiteOperador, url: string, titulo: string, texto: string, publicada: string | null, agora: Date = new Date()): CentralAlert | null {
+  const hoje = DateTime.fromJSDate(agora, { zone: 'Europe/Lisbon' });
+  const tTit = semAc(titulo);
+  if (!RE_TITULO_SERVICO.test(tTit) || RE_FORA_SERVICO.test(tTit) || tTit.trim().split(/\s+/).length < 3) return null;
+  const t = semAc(`${titulo}. ${texto}`).replace(/\s+/g, ' ');
+  // data: a da publicação; senão a do endereço (/2026/07/29/); senão o 1.º dia escrito no aviso («No dia 27 de novembro»)
+  let pub: DateTime | null = publicada ? DateTime.fromISO(publicada, { zone: 'Europe/Lisbon' }) : null;
+  const nUrl = /\/(20\d{2})\/(\d{2})\/(\d{2})\//.exec(url);
+  if (!pub?.isValid && nUrl) pub = DateTime.fromObject({ year: +nUrl[1], month: +nUrl[2], day: +nUrl[3] }, { zone: 'Europe/Lisbon' });
+  let doTexto = false;
+  if (!pub?.isValid) {
+    const d1 = new RegExp(`\\b(?:no\\s+)?(?:dia\\s+)?(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(t.slice(0, 1200));
+    let d = d1 ? diaDe(d1[1], d1[2], d1[3], hoje.minus({ months: 2 })) : null;
+    // «No dia 28, a partir das 15h30» (sem mês): este mês, ou o seguinte se esse dia já passou há mais de 20 dias
+    const sóDia = !d ? /\bno(?:\s+proximo)?\s+dia\s+(\d{1,2})\b(?!\s*(?:de|\/))/.exec(t.slice(0, 1200)) : null;
+    if (sóDia) {
+      let x = hoje.set({ day: Math.min(Number(sóDia[1]), hoje.daysInMonth || 28) }).startOf('day');
+      if (hoje.diff(x, 'days').days > 20) x = x.plus({ months: 1 });
+      d = x;
+    }
+    if (!d) return null;
+    pub = d; doTexto = true;
+  }
+  if (!pub.isValid || pub > hoje.plus({ days: 60 }) || hoje.diff(pub, 'days').days > 45) return null;
+  // a data de alguns sites (Horários do Funchal) é a da mudança, à frente: é o início
+  let inicio: DateTime = pub.startOf('day');
+  let fim: DateTime | null = null;
+  // «de 3 a 7 de dezembro», «entre 3 e 7 de dezembro»
+  const intervalo = new RegExp(`\\b(?:de|entre)\\s+(?:dia\\s+)?(\\d{1,2})\\s+(?:a|e|ate)\\s+(?:dia\\s+)?(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(t);
+  if (intervalo) {
+    const a = diaDe(intervalo[1], intervalo[3], intervalo[4], pub), b = diaDe(intervalo[2], intervalo[3], intervalo[4], pub);
+    if (a && b && b >= a) { inicio = a.startOf('day'); fim = b.endOf('day'); }
+  }
+  if (!fim) {
+    const ap = new RegExp(`a partir d[eoa]s?\\s+(?:proxim[oa]\\s+)?(?:[a-z-]+(?:-feira)?,?\\s+)?(?:dia\\s+)?(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(t);
+    if (ap) { const d = diaDe(ap[1], ap[2], ap[3], pub); if (d) inicio = d.startOf('day'); }
+    const ate = new RegExp(`\\bate\\s+(?:ao\\s+)?(?:dia\\s+)?(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(t);
+    if (ate) { const d = diaDe(ate[1], ate[2], ate[3], pub); if (d && d >= inicio) fim = d.endOf('day'); }
+    // um só dia («… – 7 de dezembro» no título, «No dia 27 de novembro, entre as 22h00 e as 6h00 do dia seguinte»): esse
+    // dia, até às 6h do seguinte (obras e eventos de noite)
+    if (!fim && !ap && doTexto && !intervalo) { inicio = pub.startOf('day'); fim = pub.plus({ days: 1 }).set({ hour: 6, minute: 0 }); }
+    if (!fim && !ap) {
+      const um = new RegExp(`\\b(?:dia\\s+)?(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(tTit)
+        || new RegExp(`\\bno(?:\\s+proximo)?\\s+dia\\s+(\\d{1,2})\\s+de\\s+(${MESES_RE})(?:\\s+de\\s+(20\\d{2}))?`).exec(t.slice(0, 1200));
+      if (um) { const d = diaDe(um[1], um[2], um[3], pub); if (d) { inicio = d.startOf('day'); fim = d.plus({ days: 1 }).set({ hour: 6, minute: 0 }); } }
+    }
+    // «a partir de …» sem fim: mudança que fica (percurso alternativo, horário novo): 30 dias; o resto 10
+    if (!fim) fim = inicio.plus({ days: ap || /a partir d/.test(t.slice(0, 1500)) ? 30 : 10 }).endOf('day');
+  }
+  if (!fim) fim = inicio.plus({ days: 10 }).endOf('day');
+  if (fim.toMillis() < agora.getTime()) return null;
+  const tipo = tipoDoAvisoDeServico(t.slice(0, 400));
+  const opId = semAc(site.operador).replace(/[^a-z0-9]+/g, '-');
+  let h = 0; for (const c of url) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const id = `oficial-servico-${opId}-${(h >>> 0).toString(36)}`;
+  const start = inicio.toUTC().toISO()!, end = fim.toUTC().toISO()!;
+  return {
+    id, external_id: id, tipo, título: titulo.replace(/\s+/g, ' ').trim(), descrição: texto.replace(/\s+/g, ' ').trim().slice(0, 1500),
+    operador: site.operador, linhas: linhasCitadas(`${titulo}. ${texto.slice(0, 1500)}`), paragens: [],
+    região: site.regiao, municípios: site.municipios,
+    start_datetime: start, end_datetime: end, published_datetime: pub.toUTC().toISO() || start,
+    source: FONTE_AVISOS_OPERADORES, source_url: url, last_update: agora.toISOString(),
+    status: Date.parse(start) > agora.getTime() ? 'Futuro' : 'Ativo',
+    severity: tipo === 'interrupção' ? 'Grave' : 'Moderada',
+  };
 }
 
 const UA = { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (+https://parou.pt)' };
@@ -231,7 +352,8 @@ export async function lerAvisosDosOperadores(agora: Date = new Date(), forcar = 
       try { lista = await pagina(p, 9 * 60_000); base = p; if (lista) break; } catch { /* a seguinte */ }
     }
     if (!lista) { falhas.push(site.operador); return; }
-    for (const url of ligacoesDeGreve(lista, base)) {
+    const ligacoes = [...new Set([...ligacoesDeGreve(lista, base), ...ligacoesDeServico(lista, base)])];
+    for (const url of ligacoes) {
       try {
         const html = await pagina(url, 30 * 60_000);
         if (!html) continue;
