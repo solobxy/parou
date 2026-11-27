@@ -6,9 +6,10 @@ export function podePartilharFicheiros(): boolean {
 }
 
 /** 'ok' partilhou, 'cancelado' a pessoa fechou a folha, 'falhou' não deu para partilhar. */
-export async function partilharComImagens(texto: string, imagens: string[]): Promise<'ok' | 'cancelado' | 'falhou'> {
+export async function partilharComImagens(texto: string, imagens: Array<string | File>): Promise<'ok' | 'cancelado' | 'falhou'> {
   try {
     const ficheiros = await Promise.all(imagens.map(async (src) => {
+      if (typeof src !== 'string') return src; // imagem já feita no telemóvel (cartaz do aviso)
       const r = await fetch(src);
       if (!r.ok) throw new Error('imagem');
       const blob = await r.blob();

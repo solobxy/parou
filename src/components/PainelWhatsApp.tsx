@@ -11,6 +11,7 @@ import type { CentralAlert } from '../types/alerts';
 import { avisoDoCanal, avisosImportantes, categoriaDoPainel, chaveDoAviso, eDoCanal, ordenarAvisos, quandoDoAviso, RASCUNHOS, semRepetidos, textoDeNovidade, textoDoAviso, TipoNovidade } from '../utils/whatsapp';
 import { CATEGORIAS_AVISO, imagemDaCategoria, nomeDaCategoria, type CategoriaAviso } from '../utils/imagemAviso';
 import { partilharComImagens, podePartilharFicheiros } from '../utils/partilhaImagem';
+import { dadosDoCartaz, gerarCartaz, nomeDoCartaz } from '../utils/cartazAviso';
 
 // Painel só para o administrador. O WhatsApp não deixa programas publicarem em canais, por isso aqui
 // ficam os textos prontos para copiar e colar. Os avisos já publicados ficam lembrados neste telemóvel.
@@ -286,7 +287,7 @@ const Conteudo: React.FC<{ onFechar: () => void }> = ({ onFechar }) => {
 function usePartilha() {
   const [aPartilhar, setAPartilhar] = useState(false);
   const [falhouPartilha, setFalhouPartilha] = useState(false);
-  const partilhar = async (texto: string, imagens: string[]) => {
+  const partilhar = async (texto: string, imagens: Array<string | File>) => {
     setFalhouPartilha(false); setAPartilhar(true);
     const r = await partilharComImagens(texto, imagens);
     if (r === 'falhou') setFalhouPartilha(true);
@@ -297,12 +298,35 @@ function usePartilha() {
 
 type EscolhaImagem = CategoriaAviso | 'nenhuma';
 
+/** Imagem própria do aviso (zona, transporte, tipo), feita no telemóvel; se falhar, fica a imagem fixa do tipo. */
+function useCartaz(a: CentralAlert, valor: EscolhaImagem): { url: string; ficheiro: File | null; nome: string } {
+  const [estado, setEstado] = useState<{ url: string; ficheiro: File | null; nome: string }>({ url: '', ficheiro: null, nome: '' });
+  useEffect(() => {
+    if (valor === 'nenhuma') { setEstado({ url: '', ficheiro: null, nome: '' }); return; }
+    let vivo = true;
+    let url = '';
+    const nome = nomeDoCartaz(dadosDoCartaz(a, valor));
+    gerarCartaz(a, valor)
+      .then((blob) => {
+        if (!vivo) return;
+        url = URL.createObjectURL(blob);
+        setEstado({ url, ficheiro: new File([blob], nome, { type: 'image/jpeg' }), nome });
+      })
+      .catch(() => { if (vivo) setEstado({ url: imagemDaCategoria(valor), ficheiro: null, nome: `${valor}.jpg` }); });
+    return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.id, a['título'], a.status, a.start_datetime, a.end_datetime, valor]);
+  return estado;
+}
+
 // Imagem fixa do tipo de aviso: miniatura (toca para guardar) e lista para trocar de tipo ou tirar a imagem
-const SeletorImagemAviso: React.FC<{ id: string; valor: EscolhaImagem; onMudar: (v: EscolhaImagem) => void }> = ({ id, valor, onMudar }) => (
+const SeletorImagemAviso: React.FC<{ id: string; valor: EscolhaImagem; onMudar: (v: EscolhaImagem) => void; imagem?: { url: string; nome: string } }> = ({ id, valor, onMudar, imagem }) => (
   <div className="mb-2 flex items-center gap-3" data-teste="imagem-aviso">
     {valor !== 'nenhuma' ? (
-      <a href={imagemDaCategoria(valor)} download className="shrink-0 block w-[88px] h-[88px] rounded-[12px] overflow-hidden border border-[#E6E6E3] bg-[#111111]" aria-label={`Guardar a imagem: ${nomeDaCategoria(valor)}`}>
-        <img src={imagemDaCategoria(valor)} alt={`Imagem para o aviso: ${nomeDaCategoria(valor)}`} width={88} height={88} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+      <a href={imagem ? imagem.url || undefined : imagemDaCategoria(valor)} download={imagem?.nome || true} className="shrink-0 block w-[88px] h-[88px] rounded-[12px] overflow-hidden border border-[#E6E6E3] bg-[#111111]" aria-label={`Guardar a imagem: ${nomeDaCategoria(valor)}`} data-teste="imagem-aviso-guardar">
+        {(imagem ? imagem.url : imagemDaCategoria(valor)) ? (
+          <img src={imagem ? imagem.url : imagemDaCategoria(valor)} alt={`Imagem para o aviso: ${nomeDaCategoria(valor)}`} width={88} height={88} decoding="async" className="w-full h-full object-cover" data-teste="imagem-aviso-previa" />
+        ) : <span className="sr-only">A preparar a imagem…</span>}
       </a>
     ) : (
       <div className="shrink-0 w-[88px] h-[88px] rounded-[12px] border-2 border-dashed border-[#E6E6E3] flex items-center justify-center text-[12px] font-semibold text-[#6B6B6B] text-center px-2">Sem imagem</div>
@@ -376,6 +400,7 @@ const CartaoAviso: React.FC<{
 }> = ({ a, valor, onMudar, copiado, onCopiar, onPublicado }) => {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [imagem, setImagem] = useState<EscolhaImagem>(() => categoriaDoPainel(a));
+  const cartaz = useCartaz(a, imagem);
   const { aPartilhar, falhouPartilha, partilhar } = usePartilha();
   const podePartilhar = imagem !== 'nenhuma' && podePartilharFicheiros();
   const cor = a.severity === 'Grave' ? 'bg-[#FDE8E6] text-[#9F1D14]' : a.severity === 'Moderada' ? 'bg-[#FFF1DC] text-[#8A4B00]' : 'bg-[#F4F4F2] text-[#4A4A4A]';
@@ -386,7 +411,7 @@ const CartaoAviso: React.FC<{
         <span className="px-2 h-6 inline-flex items-center rounded-full bg-[#F4F4F2] text-[12px] font-semibold text-[#4A4A4A]">{eDoCanal(a) ? nomeDaCategoria(categoriaDoPainel(a)) : a.tipo}</span>
         {!eDoCanal(a) && <span className="text-[12.5px] text-[#6B6B6B]">{a.status === 'Futuro' ? 'Vai começar' : 'Ativo'}{quandoDoAviso(a) ? ` · ${quandoDoAviso(a)}` : ''}</span>}
       </div>
-      <SeletorImagemAviso id={`wa-img-${a.id}`} valor={imagem} onMudar={setImagem} />
+      <SeletorImagemAviso id={`wa-img-${a.id}`} valor={imagem} onMudar={setImagem} imagem={cartaz} />
       <label className="sr-only" htmlFor={`wa-${a.id}`}>Texto para o WhatsApp: {a['título']}</label>
       <textarea
         id={`wa-${a.id}`}
@@ -401,7 +426,7 @@ const CartaoAviso: React.FC<{
           {copiado ? <><Check className="w-4 h-4 stroke-[3]" aria-hidden="true" />Copiado</> : <><Copy className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />Copiar</>}
         </button>
         {podePartilhar && (
-          <button type="button" onClick={() => void partilhar(valor, [imagemDaCategoria(imagem as CategoriaAviso)])} disabled={aPartilhar} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-aviso">
+          <button type="button" onClick={() => void partilhar(valor, [cartaz.ficheiro || imagemDaCategoria(imagem as CategoriaAviso)])} disabled={aPartilhar || (!cartaz.ficheiro && !cartaz.url)} className={`${botao} bg-[#111111] text-[#FFFFFF] disabled:opacity-60`} data-teste="partilhar-aviso">
             <Share2 className="w-4 h-4 stroke-[2.4]" aria-hidden="true" />{aPartilhar ? 'A preparar…' : 'Partilhar com imagem'}
           </button>
         )}

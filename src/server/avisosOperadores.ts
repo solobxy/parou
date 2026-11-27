@@ -132,6 +132,24 @@ export const ligacoesDeServico = (html: string, base: string) => ligacoesDeGreve
 
 const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
+/**
+ * Lista de categorias do blogue logo a seguir ao título (WordPress da SMTUC e afins):
+ * «. em Avisos , Dicas , Novidades . Os Serviços…» -> «Os Serviços…». Também tira pontuação solta no início.
+ */
+export function semCategoriasNoInicio(texto: string): string {
+  let t = String(texto || '');
+  for (let k = 0; k < 3; k++) {
+    const antes = t;
+    t = t.replace(/^[\s.,;:·|•–—-]+/, '');
+    // cada categoria começa por maiúscula, tem até 4 palavras e vem separada por « , » (espaço antes da vírgula,
+    // como o WordPress escreve); uma só, se for das habituais
+    t = t.replace(/^(?:publicad[oa]\s+)?(?:em|in|categorias?:?)\s+((?:[A-ZÀ-Ú][^.,;:\s]*(?:\s+[^.,;:\s]+){0,3}\s+,\s*)*[A-ZÀ-Ú][^.,;:\s]*(?:\s+[^.,;:\s]+){0,3})\s*\.\s+/, (m, lista: string) =>
+      (lista.includes(',') || /^(avisos?|not[ií]cias?|novidades|comunicados?|geral|destaques?|informa[cç][oõ]es)$/i.test(lista.trim()) ? '' : m));
+    if (t === antes) break;
+  }
+  return t.trim();
+}
+
 /** Título, data de publicação (ISO, ou null se a página não a diz) e texto de um aviso, em qualquer site */
 export function artigoGenerico(html: string): { titulo: string; publicada: string | null; texto: string } | null {
   const meta = (re: RegExp) => re.exec(html)?.[1];
@@ -178,7 +196,7 @@ export function avisoDoSite(site: SiteOperador, url: string, html: string, agora
   if (!a) return null;
   // o texto do aviso começa no título (os menus e rodapés já saíram); o título conta para os dias
   const i = a.texto.indexOf(a.titulo);
-  let texto = (i >= 0 ? a.texto.slice(i + a.titulo.length) : a.texto).trim();
+  let texto = semCategoriasNoInicio((i >= 0 ? a.texto.slice(i + a.titulo.length) : a.texto).trim());
   // carimbos de data das páginas («25 de Novembro, 2026 em Avisos», a data de alteração no fim do artigo, «Dia 13 de Novembro
   // de 2026 às 12:13») não são dias de greve: saem do texto (um aviso escreve «dia 2 de dezembro», sem vírgula nem hora)
   texto = texto.normalize('NFC')
