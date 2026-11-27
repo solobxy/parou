@@ -165,6 +165,8 @@ export const EN: Record<string, string> = {
   'Nos favoritos': 'In favourites',
   'Só até {e} (greve)': 'Only to {e} (strike)',
   'Não vai até {d} (greve)': 'Does not go to {d} (strike)',
+  'de {n} em {n} min': 'every {n} min',
+  'sem hora certa': 'no exact time',
   'Guardar nos favoritos': 'Save to favourites',
   'Favorito': 'Favourite',
 

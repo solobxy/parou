@@ -35,7 +35,7 @@ import {
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
 import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
-import { AvisosGreve, EtiquetaGreve, type ResumoGreve } from './GreveNoHorario';
+import { AvisosGreve, EtiquetaGreve, HoraDeNEmN, type ResumoGreve } from './GreveNoHorario';
 
 /** Onde a partida acaba de facto: na greve, a última estação que funciona (ex.: Senhora da Hora em vez de Fórum Maia) */
 function destinoReal(dep: any, destino: string): string {
@@ -1194,7 +1194,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             horaFixa: true,
             epoch: Number(d.dep_epoch_secs) || 0,
             jaPassou: (Number(d.dep_epoch_secs) || 0) < agoraS,
-            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}) } : {}),
+            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}), ...(d.greve.cada ? { greveCada: d.greve.cada } : {}) } : {}),
           }));
           // a partir de uma hora: por hora; últimas: o servidor já manda as que faltam primeiro e as que já partiram no fim
           if (horaVer.modo === 'hora') deps.sort((x: any, y: any) => x.epoch - y.epoch);
@@ -1239,7 +1239,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             statusDescription: d.state_reason || d.state,
             ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
             ...(d.mesma_hora_que ? { mesmaHoraQue: d.mesma_hora_que } : {}),
-            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}) } : {}),
+            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}), ...(d.greve.cada ? { greveCada: d.greve.cada } : {}) } : {}),
           }));
           setPartidasExtra({ id, deps, aCarregar: false, greves: Array.isArray(data?.greves) ? data.greves : undefined });
         })
@@ -2879,11 +2879,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 </div>
                                 {etiquetaGreve(dep, destination)}
                                 {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="mt-1" />}
-                                <AvisoMesmaHora linha={dep.mesmaHoraQue} />
+                                {!dep.greve && <AvisoMesmaHora linha={dep.mesmaHoraQue} />}
                               </div>
                             </div>
                             <div className="shrink-0 flex items-center gap-1 pl-2">
-                              <div className="flex flex-col items-end text-right">
+                              {dep.greveCada ? <HoraDeNEmN cada={dep.greveCada} /> : (
+<div className="flex flex-col items-end text-right">
                                 <div className="flex items-center gap-1">
                                   {parsed.isRealtime && (
                                     <Radio 
@@ -2902,6 +2903,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   </span>
                                 )}
                               </div>
+)}
                               {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
                             </div>
                           </div>
@@ -3367,7 +3369,8 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               </div>
                             </div>
                             <div className="shrink-0 flex items-center gap-1">
-                              <div className="flex flex-col items-end text-right">
+                              {dep.greveCada ? <HoraDeNEmN cada={dep.greveCada} /> : (
+<div className="flex flex-col items-end text-right">
                                 <span className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.jaPassou || dep.greve === 'sem-servico' ? 'text-[#6B6B6B]' : 'text-[#111111]'} ${dep.greve === 'sem-servico' ? 'line-through decoration-2' : ''}`}>
                                   {dep.scheduledTime}
                                 </span>
@@ -3375,6 +3378,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
                                 )}
                               </div>
+)}
                               {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
                             </div>
                           </div>
@@ -3462,11 +3466,12 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 </div>
                               )}
                               {etiquetaGreve(dep, destination)}
-                              <AvisoMesmaHora linha={dep.mesmaHoraQue} />
+                              {!dep.greve && <AvisoMesmaHora linha={dep.mesmaHoraQue} />}
                             </div>
                           </div>
                           <div className="shrink-0 flex items-center gap-1">
-                            <div className="flex flex-col items-end text-right">
+                            {dep.greveCada ? <HoraDeNEmN cada={dep.greveCada} /> : (
+<div className="flex flex-col items-end text-right">
                               <div className="flex items-center gap-1">
                                 {parsed.isRealtime && (
                                   <Radio
@@ -3485,6 +3490,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 </span>
                               )}
                             </div>
+)}
                             {podeAbrir && <ChevronRight className="w-4 h-4 text-[#6B6B6B] stroke-[2] -mr-1" aria-hidden="true" />}
                           </div>
                         </div>

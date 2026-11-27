@@ -111,6 +111,19 @@ export function EtiquetaGreve({ estado, ate, destinoDeSempre, className = '' }: 
   );
 }
 
+/**
+ * No lugar da hora, numa greve com serviço de N em N minutos: as horas do horário normal não valem
+ * (27/11/2026: Metro do Porto de 15 em 15 min e a app mostrava metros a cada 2–3 min).
+ */
+export function HoraDeNEmN({ cada, className = '' }: { cada: number; className?: string }) {
+  return (
+    <div className={`flex flex-col items-end text-right ${className}`} data-teste="greve-de-n-em-n">
+      <span className="font-condensada text-[20px] font-bold tabular-nums leading-none text-[#111111] whitespace-nowrap">{t('de {n} em {n} min', { n: cada })}</span>
+      <span className="text-xs text-[#6B6B6B] mt-0.5 whitespace-nowrap">{t('sem hora certa')}</span>
+    </div>
+  );
+}
+
 /** Destino a mostrar numa partida em greve: onde a viagem acaba de facto (ex.: Senhora da Hora em vez de Fórum Maia) */
 export function destinoNaGreve(estado: EstadoGreve | undefined, ate: string | undefined, destino: string): string {
   return estado === 'reduzido' && ate ? ate : destino;

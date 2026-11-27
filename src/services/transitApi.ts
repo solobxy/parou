@@ -707,6 +707,8 @@ export interface GreveDaPartidaApi {
   estado: 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' | 'desvio';
   operador: string;
   ate?: string;
+  /** Serviço reduzido de N em N minutos (as horas normais não valem) */
+  cada?: number;
 }
 
 export async function fetchLinesNear(

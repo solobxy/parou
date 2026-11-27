@@ -816,7 +816,9 @@ app.get('/api/lines', async (req: Request, res: Response) => {
       }
       const lines = await LinesEngine.getLinesNear(lat, lon, r);
       marcarGrevesNasLinhas(lines);
-      return res.json({ lines, total: lines.length });
+      // cópias: a lista vem da cache e as partidas repetidas (serviço de N em N min na greve) só saem desta resposta
+      const visiveis = lines.map((l: any) => (l.departures?.some((d: any) => d?.greve?.repetida) ? { ...l, departures: semRepetidas(l.departures) } : l));
+      return res.json({ lines: visiveis, total: visiveis.length });
     }
 
     if (ids) {
@@ -925,7 +927,7 @@ app.get('/api/stops/:id/departures', async (req: Request, res: Response) => {
     const limit = Number(req.query.n) || 5;
     const departures = await LinesEngine.getStopDepartures(req.params.id, limit);
     try { marcarGrevesPorOrigem(getDatabase(), departures.departures as any[], grevesAgora()); } catch (e) { console.error('[greves nas partidas da paragem]', e); }
-    return res.json(departures);
+    return res.json({ ...departures, departures: semRepetidas(departures.departures as any[]) });
   } catch (err: any) {
     console.error('[API /api/stops/:id/departures] Erro:', err);
     return res.status(500).json({ error: 'Erro ao obter partidas da paragem.', details: err.message });
@@ -1231,7 +1233,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
             try { marcarGrevesNasPartidas(getDatabase(), depResult.departures as any[], grevesAgora(), nomeDaParagem); } catch (e) { console.error('[greves no Perto]', e); }
             return {
               ...stop,
-              departures: depResult.departures,
+              // serviço de N em N minutos na greve: uma partida por destino (as horas do horário normal não valem)
+              departures: semRepetidas(depResult.departures as any[]),
               status_notice: depResult.status_notice,
               has_realtime: depResult.has_realtime,
             };
@@ -1289,7 +1292,7 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         state: d.state,
         statusDescription: d.state_reason || d.state,
         isDelayed: d.is_delayed,
-        ...((d as any).greve?.estado ? { greve: (d as any).greve.estado, ...((d as any).greve.ate ? { greveAte: (d as any).greve.ate } : {}) } : {}),
+        ...((d as any).greve?.estado ? { greve: (d as any).greve.estado, ...((d as any).greve.ate ? { greveAte: (d as any).greve.ate } : {}), ...((d as any).greve.cada ? { greveCada: (d as any).greve.cada } : {}) } : {}),
         // Atraso indicado pela própria fonte em tempo real (GPS / API do operador); sem ele não há aviso de atraso
         ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
       }));
@@ -1935,7 +1938,7 @@ import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
 import { calcularABordo } from './src/server/aBordo';
 import { horarioDoDia, lerDataPedida } from './src/server/horarioDoDia';
 import { grevesAgora } from './src/server/grevesPlaneador';
-import { marcarGrevesNasPartidas, marcarGrevesPorOrigem } from './src/server/grevesPartidas';
+import { marcarGrevesNasPartidas, marcarGrevesPorOrigem, semRepetidas } from './src/server/grevesPartidas';
 
 /** Linhas perto de ti: cada partida com a greve/aviso do operador (a lista vem da cache; a marca é posta a cada pedido) */
 function marcarGrevesNasLinhas(lines: Array<{ departures?: any[] }>): void {
@@ -1969,6 +1972,8 @@ function comGreves<T extends { departures?: any[]; partidas?: any[] }>(r: T): T 
     const greves = marcarGrevesNasPartidas(db, (r.departures || r.partidas || []) as any[], grevesAgora(), nome);
     // cópia por fora (a resposta pode vir da cache): só o resumo muda
     const { greves: _antigas, ...resto } = r as any;
+    if (Array.isArray(resto.departures)) resto.departures = semRepetidas(resto.departures);
+    if (Array.isArray(resto.partidas)) resto.partidas = semRepetidas(resto.partidas);
     return (greves.length ? { ...resto, greves } : resto) as T & { greves?: any[] };
   } catch (e) {
     console.error('[greves nas partidas]', e);

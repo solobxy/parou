@@ -5,7 +5,7 @@ import { LineChip } from './LineChip';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoGenerico } from '../utils/transitFormatter';
 import { t } from '../i18n';
-import { EtiquetaGreve } from './GreveNoHorario';
+import { EtiquetaGreve, HoraDeNEmN } from './GreveNoHorario';
 
 interface LineCardProps {
   line: ApiLineItem;
@@ -85,7 +85,7 @@ export const LineCard: React.FC<LineCardProps> = ({
 
       {/* Right: Next departure or favorite button */}
       <div className="flex items-center gap-3 shrink-0">
-        {proxima && (() => {
+        {proxima && proxima.greve?.cada ? <HoraDeNEmN cada={proxima.greve.cada} /> : proxima && (() => {
           const nextDep = proxima;
           const greve = nextDep.greve;
           const parsed = parseDepartureTime(nextDep);

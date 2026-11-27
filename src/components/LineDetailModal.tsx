@@ -18,7 +18,7 @@ import {
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
 import { HorarioDoDiaPainel, SeletorDias, proximosDias } from './HorarioDoDia';
-import { EtiquetaGreve } from './GreveNoHorario';
+import { EtiquetaGreve, HoraDeNEmN } from './GreveNoHorario';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 import { registarProcura } from '../services/procuras';
@@ -344,6 +344,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                 )}
                                               </div>
                                             </div>
+                                            {dep.greve?.cada ? <HoraDeNEmN cada={dep.greve.cada} className="shrink-0" /> : (
                                             <div className="flex flex-col items-end text-right shrink-0">
                                               <div className="flex items-center gap-1">
                                                 {parsed.isRealtime && (
@@ -363,6 +364,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                 </span>
                                               )}
                                             </div>
+                                            )}
                                           </div>
                                         );
                                       })}

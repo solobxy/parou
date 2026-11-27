@@ -22,6 +22,54 @@ export interface GreveNaPartida {
   operador: string;
   /** Na greve a viagem só vai até aqui (ex.: o B para a Póvoa só até à Senhora da Hora) */
   ate?: string;
+  /** Serviço reduzido com frequência anunciada: passa um a cada N minutos (as horas do horário normal não valem) */
+  cada?: number;
+  /** Outra partida para o mesmo destino já representa este serviço (de N em N min): não se mostra */
+  repetida?: boolean;
+}
+
+/**
+ * Minutos entre viagens anunciados para a greve à hora da partida. «15 min (7h–20h) · 30 min (6h–7h, 20h–0h)» às 16h → 15.
+ * Sem horas indicadas, vale o dia todo.
+ */
+export function frequenciaNaHora(frequencia: string | undefined, partidaMs: number): number | undefined {
+  if (!frequencia || !Number.isFinite(partidaMs)) return undefined;
+  const l = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' });
+  const min = l.hour * 60 + l.minute;
+  let semHoras: number | undefined;
+  for (const parte of String(frequencia).split(/[·;]/)) {
+    const m = parte.match(/(\d{1,3})\s*min/i);
+    if (!m) continue;
+    const n = Number(m[1]);
+    const faixas = [...parte.matchAll(/(\d{1,2})\s*h(?:(\d{2}))?\s*[–\-a]+\s*(\d{1,2})\s*h(?:(\d{2}))?/gi)];
+    if (!faixas.length) { semHoras = semHoras ?? n; continue; }
+    for (const f of faixas) {
+      const ini = Number(f[1]) * 60 + Number(f[2] || 0);
+      let fim = Number(f[3]) * 60 + Number(f[4] || 0);
+      if (fim <= ini) fim += 1440;
+      if ((min >= ini && min < fim) || (min + 1440 >= ini && min + 1440 < fim)) return n;
+    }
+  }
+  return semHoras;
+}
+
+/**
+ * Serviço reduzido de N em N minutos: as horas do horário normal não valem (27/11/2026: o Metro do Porto passava de 15 em
+ * 15 min e a app mostrava um metro a cada 2–3 min). Fica uma partida por operador e destino real (a primeira), com «cada»;
+ * as outras ficam marcadas como repetidas para as respostas as tirarem.
+ */
+export function juntarRepetidas<T>(deps: T[], info: (d: T) => { greve?: GreveNaPartida; feed: string; destino: string; ms: number; linha?: string } | null): void {
+  const vistos = new Set<string>();
+  // também as sem serviço: uma por linha e destino chega para dizer que não há (não uma lista de horas riscadas)
+  const ordem = deps.map((d) => ({ d, i: info(d) })).filter((x) => x.i && (x.i.greve?.cada || x.i.greve?.estado === 'sem-servico')).sort((a, b) => a.i!.ms - b.i!.ms);
+  for (const { i } of ordem) {
+    const g = i!.greve!;
+    const k = g.estado === 'sem-servico'
+      ? `${i!.feed}|x|${String(i!.linha || '').toLowerCase()}|${String(i!.destino).toLowerCase()}`
+      : `${i!.feed}|${String(g.ate || i!.destino).toLowerCase()}`;
+    if (vistos.has(k)) g.repetida = true;
+    else vistos.add(k);
+  }
 }
 
 /** Resumo de um aviso de greve para mostrar por cima de uma lista de partidas */
@@ -50,10 +98,11 @@ export interface ResumoGreve {
 
 const COR_LINHA: Record<string, string> = { amarela: 'Amarela', azul: 'Azul', vermelha: 'Vermelha', verde: 'Verde', violeta: 'Violeta', laranja: 'Laranja', rosa: 'Rosa', rubi: 'Rubi' };
 
-export function estadoDaGreve(g: GreveTroco | undefined): GreveNaPartida | undefined {
+export function estadoDaGreve(g: GreveTroco | undefined, partidaMs?: number): GreveNaPartida | undefined {
   if (!g) return undefined;
   const estado: EstadoGreve = g.semServico ? 'sem-servico' : g.aviso === 'desvio' ? 'desvio' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta';
-  return { estado, operador: g.operador, ...(estado === 'reduzido' && g.ate ? { ate: g.ate } : {}) };
+  const cada = estado === 'reduzido' && partidaMs !== undefined ? frequenciaNaHora(g.frequencia, partidaMs) : undefined;
+  return { estado, operador: g.operador, ...(estado === 'reduzido' && g.ate ? { ate: g.ate } : {}), ...(cada ? { cada } : {}) };
 }
 
 /** Uma partida para marcar: operador, hora (ms), viagem, paragem de onde parte e código da linha */
@@ -199,11 +248,12 @@ export function marcarGrevesNasPartidas(db: any, deps: any[], greves: AvisoGreve
     const ms = Number(d.dep_epoch_secs) * 1000;
     if (!Number.isFinite(ms) || !d.feed_id) continue;
     const g = greveDaPartida(db, { feed: String(d.feed_id), partidaMs: ms, trip: d.trip_id ? String(d.trip_id) : undefined, paragem: d.stop_id ? nomeParagem(String(d.stop_id)) : undefined, linha: d.route_short_name ? String(d.route_short_name) : undefined }, relevantes);
-    const e = estadoDaGreve(g);
+    const e = estadoDaGreve(g, ms);
     if (!e || !g) continue;
     d.greve = e;
     juntarResumo(resumos, db, String(d.feed_id), relevantes, g, ms);
   }
+  juntarRepetidas(deps, (d: any) => d && d.greve ? { greve: d.greve, feed: String(d.feed_id || ''), destino: String(d.headsign || d.trip_headsign || ''), ms: Number(d.dep_epoch_secs) * 1000, linha: String(d.route_short_name || d.route_id || '') } : null);
   return [...resumos.values()];
 }
 
@@ -241,7 +291,13 @@ export function marcarGrevesPorOrigem(db: any, deps: any[], greves: AvisoGreve[]
     const o = origemDaPartida.get(d)!;
     if (o.tempoReal || d.state === 'Tempo Real' || d.is_realtime || !Number.isFinite(o.partidaMs)) continue;
     const g = greveDaPartida(db, { feed: o.feed, partidaMs: o.partidaMs, trip: o.trip, paragem: o.paragemId ? nome(o.paragemId) : undefined, linha: o.linha }, relevantes);
-    const e = estadoDaGreve(g);
+    const e = estadoDaGreve(g, o.partidaMs);
     if (e) d.greve = e;
   }
+  juntarRepetidas(comOrigem, (d: any) => d.greve ? { greve: d.greve, feed: origemDaPartida.get(d)!.feed, destino: String(d.destination || ''), ms: origemDaPartida.get(d)!.partidaMs, linha: String(origemDaPartida.get(d)!.linha || d.line_code || '') } : null);
+}
+
+/** Cópia da lista sem as partidas repetidas de um serviço de N em N minutos (a lista original pode estar em cache) */
+export function semRepetidas<T>(deps: T[] | undefined): T[] {
+  return (deps || []).filter((d: any) => !d?.greve?.repetida);
 }
