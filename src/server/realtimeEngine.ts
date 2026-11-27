@@ -6,6 +6,7 @@ import { getDatabase, registerCacheClearCallback } from './db/gtfsDatabase';
 import { estimativaTub, posicoesTub, viagensTub } from './tubTempoReal';
 import { anotarAnteriores } from './historicoPosicoes';
 import { podarMapa } from './cacheLimitada';
+import { aindaNaOrigem, horaEstimada, soHorario } from './stcpFantasmas';
 
 registerCacheClearCallback(() => RealtimeEngine.clearCaches());
 
@@ -79,6 +80,8 @@ const ARRIVALS_CACHE_TTL_MS = 30 * 1000; // 30 s
 // 10 em 10 s, com limite de 15 000 pedidos por dia); reserva: https://stcp.pt/api/stops/{código}/realtime
 const STCP_CACHE_TTL_MS = 30 * 1000; // 30 s por paragem (a API oficial tem limite de 15 000 pedidos por dia)
 const stcpArrivalsCache = new Map<string, { data: any[]; timestamp: number }>();
+// Paragem de origem de cada linha STCP (para reconhecer viagens que ainda não saíram); a base só muda com dados novos
+const origemStcpCache = new Map<string, boolean>();
 const stcpPedidosEmCurso = new Map<string, Promise<any[]>>();
 const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
 const MAX_STALE_AGE_SECS = 120;          // Data older than 2 min (120 s) ignored
@@ -121,6 +124,7 @@ export class RealtimeEngine {
     vehiclesCache.data = [];
     vehiclesCache.timestamp = 0;
     arrivalsCache.clear();
+    origemStcpCache.clear();
     metroStatusCache.data = null;
     metroStatusCache.timestamp = 0;
   }
@@ -488,6 +492,32 @@ export class RealtimeEngine {
     return pedido;
   }
 
+  /** A paragem é o início da linha (no sentido com este destino)? Guardado por paragem, linha e destino. */
+  private static paragemDeOrigemStcp(stopId: string, linha: string, destino: string): boolean {
+    const chave = `${stopId}|${linha}|${destino}`;
+    const guardado = origemStcpCache.get(chave);
+    if (guardado !== undefined) return guardado;
+    let origem = false;
+    try {
+      const db = getDatabase();
+      const viagens = db.prepare(`
+        SELECT st.trip_id AS trip_id, st.stop_sequence AS seq, t.trip_headsign AS destino
+        FROM stop_times st JOIN trips t ON t.trip_id = st.trip_id JOIN routes r ON r.route_id = t.route_id
+        WHERE st.stop_id = ? AND r.route_short_name = ? LIMIT 12`).all(stopId, linha) as { trip_id: string; seq: number; destino: string }[];
+      const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const doSentido = destino ? viagens.filter((v) => norm(v.destino || '') === norm(destino)) : [];
+      const amostra = (doSentido.length ? doSentido : viagens).slice(0, 3);
+      const primeira = db.prepare('SELECT MIN(stop_sequence) AS m FROM stop_times WHERE trip_id = ?');
+      const naOrigem = amostra.filter((v) => (primeira.get(v.trip_id) as { m: number } | undefined)?.m === v.seq).length;
+      origem = amostra.length > 0 && naOrigem * 2 > amostra.length;
+    } catch {
+      origem = false;
+    }
+    origemStcpCache.set(chave, origem);
+    podarMapa(origemStcpCache, 3000);
+    return origem;
+  }
+
   public static async mergeRealtimeData(
     departures: LiveDeparture[],
     stop: UnifiedStop,
@@ -506,18 +536,22 @@ export class RealtimeEngine {
     for (const sid of paragensStcp) {
       const chegadas = await this.getStcpArrivals(sid);
       for (const a of chegadas) {
-        // API oficial: hora exata (epoch); fonte anterior: minutos até à chegada
-        const estEpoch = Number.isFinite(Number(a?.epoch))
-          ? Math.round(Number(a.epoch))
-          : nowEpochSecs + Math.round(Number(a?.arrival_minutes) * 60);
+        // API oficial: hora exata (epoch); fonte anterior: hora estimada ou minutos até à chegada
+        const estEpoch = horaEstimada(a, nowEpochSecs);
         const mins = (estEpoch - nowEpochSecs) / 60;
         if (!Number.isFinite(mins) || mins < -0.5 || mins > 180) continue;
         const linha = String(a.route_short_name || '').trim();
         if (!linha) continue;
+        const cancelada = /CANCEL/i.test(String(a.status || ''));
+        // Só o horário (sem GPS, atraso 0): fica a partida programada, não é tempo real
+        if (!cancelada && soHorario(a)) continue;
         const porGps = a.com_gps !== false;
         const atrasoMin = Number(a.delay_minutes);
         const progEpoch = Number.isFinite(atrasoMin) ? estEpoch - Math.round(atrasoMin * 60) : estEpoch;
-        const cancelada = /CANCEL/i.test(String(a.status || ''));
+        // Viagem que ainda não saiu do início da linha: a STCP dá-a «a chegar agora» com o atraso a crescer
+        // minuto a minuto. Não há autocarro a chegar nem hora de saída conhecida: não se mostra.
+        if (!cancelada && aindaNaOrigem({ estEpoch, atrasoS: estEpoch - progEpoch, agora: nowEpochSecs,
+          naOrigem: this.paragemDeOrigemStcp(sid, linha, String(a.trip_headsign || '')) })) continue;
         // Mesma viagem (identificador igual, quando os horários são os oficiais) ou, senão, a partida
         // da mesma linha com a hora mais próxima (até 6 min)
         let melhor: LiveDeparture | null = a.trip_id
