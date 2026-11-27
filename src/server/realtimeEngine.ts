@@ -82,6 +82,7 @@ const STCP_CACHE_TTL_MS = 30 * 1000; // 30 s por paragem (a API oficial tem limi
 const stcpArrivalsCache = new Map<string, { data: any[]; timestamp: number }>();
 // Paragem de origem de cada linha STCP (para reconhecer viagens que ainda não saíram); a base só muda com dados novos
 const origemStcpCache = new Map<string, boolean>();
+const primeiraParagemCache = new Map<string, { stopId: string; seq: number } | null>();
 const stcpPedidosEmCurso = new Map<string, Promise<any[]>>();
 const ALERTS_CACHE_TTL_MS = 60 * 1000;   // 60 s
 const MAX_STALE_AGE_SECS = 120;          // Data older than 2 min (120 s) ignored
@@ -125,6 +126,7 @@ export class RealtimeEngine {
     vehiclesCache.timestamp = 0;
     arrivalsCache.clear();
     origemStcpCache.clear();
+    primeiraParagemCache.clear();
     metroStatusCache.data = null;
     metroStatusCache.timestamp = 0;
   }
@@ -335,6 +337,11 @@ export class RealtimeEngine {
         const feedTime = arr.timestamp ? arr.timestamp : nowEpochSecs;
         const isStale = Math.abs(nowEpochSecs - feedTime) > MAX_STALE_AGE_SECS;
 
+        const seqCm = Number(arr.stop_sequence);
+        // 1.ª paragem, hora «agora» e mais de 10 min de atraso: a viagem ainda não saiu (não é um autocarro a chegar)
+        if (!isStale && Number.isFinite(seqCm) && aindaNaOrigem({ estEpoch, atrasoS: estEpoch - depEpoch, agora: nowEpochSecs, naOrigem: seqCm <= 1 })) {
+          continue;
+        }
         if (!isStale && estEpoch >= nowEpochSecs) {
           state = 'TEMPO REAL';
           isRealtime = true;
@@ -436,6 +443,24 @@ export class RealtimeEngine {
    * Devolve [] se nenhuma responder em 2,5 s ou se os dados não forem de tempo real.
    */
   public static async getStcpArrivals(stopId: string): Promise<any[]> {
+    // Só estimativas verdadeiras: sai o que é só horário (sem GPS, atraso 0) e as viagens que ainda não
+    // saíram do início da linha (a STCP dá-as «a chegar agora» com o atraso a crescer). Vale para todos os
+    // ecrãs que usam o tempo real da STCP (Perto, paragem, linhas, favoritos).
+    const brutas = await this.getStcpArrivalsBrutas(stopId);
+    const agora = Math.floor(Date.now() / 1000);
+    const sid = stopId.startsWith('stcp:') ? stopId : `stcp:${stopId}`;
+    return brutas.filter((a) => {
+      if (/CANCEL/i.test(String(a?.status || ''))) return true;
+      if (soHorario(a)) return false;
+      const est = horaEstimada(a, agora);
+      const atraso = Number(a?.delay_minutes);
+      if (!Number.isFinite(atraso) || atraso * 60 <= 10 * 60) return true;
+      return !aindaNaOrigem({ estEpoch: est, atrasoS: atraso * 60, agora,
+        naOrigem: this.paragemDeOrigemStcp(sid, String(a?.route_short_name || '').trim(), String(a?.trip_headsign || '')) });
+    });
+  }
+
+  private static async getStcpArrivalsBrutas(stopId: string): Promise<any[]> {
     const code = stopId.replace(/^stcp:/, '').trim();
     if (!code) return [];
     const now = Date.now();
@@ -490,6 +515,27 @@ export class RealtimeEngine {
     })();
     stcpPedidosEmCurso.set(code, pedido);
     return pedido;
+  }
+
+  /** Esta paragem é a primeira da viagem? (pela ordem das paragens na base; guardado por viagem) */
+  private static primeiraParagemDaViagem(tripId: string, stopId: string, seq: number | undefined): boolean {
+    if (!tripId) return false;
+    let info = primeiraParagemCache.get(tripId);
+    if (info === undefined) {
+      try {
+        const r = getDatabase().prepare(
+          'SELECT stop_id AS s, stop_sequence AS q FROM stop_times WHERE trip_id = ? ORDER BY stop_sequence LIMIT 1'
+        ).get(tripId) as { s: string; q: number } | undefined;
+        info = r ? { stopId: r.s, seq: r.q } : null;
+      } catch {
+        info = null;
+      }
+      primeiraParagemCache.set(tripId, info);
+      podarMapa(primeiraParagemCache, 5000);
+    }
+    if (!info) return false;
+    // pela ordem quando a há (numa linha circular a 1.ª paragem também é a última)
+    return seq !== undefined && seq !== null ? seq === info.seq : info.stopId === stopId;
   }
 
   /** A paragem é o início da linha (no sentido com este destino)? Guardado por paragem, linha e destino. */
@@ -732,6 +778,15 @@ export class RealtimeEngine {
           mergedDep.is_realtime = false;
           mergedDep.state_reason = 'Horário oficial programado da CP (dados em tempo real não oficiais desativados por omissão)';
         }
+      }
+
+      // Todos os operadores: hora estimada «agora» com mais de 10 min de atraso na 1.ª paragem da viagem
+      // é a hora marcada que já passou, não um autocarro a chegar (não se sabe quando sai)
+      if (mergedDep.state === 'TEMPO REAL' && mergedDep.realtime_epoch_secs !== undefined
+        && aindaNaOrigem({ estEpoch: mergedDep.realtime_epoch_secs, atrasoS: mergedDep.delay_seconds ?? 0, agora: nowEpochSecs,
+          naOrigem: this.primeiraParagemDaViagem(dep.trip_id, dep.stop_id, dep.stop_sequence) })) {
+        if (dep.dep_epoch_secs < nowEpochSecs - 60) continue;
+        mergedDep = { ...dep };
       }
 
       result.push(mergedDep);
