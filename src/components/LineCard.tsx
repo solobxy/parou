@@ -5,7 +5,7 @@ import { LineChip } from './LineChip';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoGenerico } from '../utils/transitFormatter';
 import { t } from '../i18n';
-import { textoGreveDaPartida } from './GreveNoHorario';
+import { EtiquetaGreve } from './GreveNoHorario';
 
 interface LineCardProps {
   line: ApiLineItem;
@@ -38,11 +38,14 @@ export const LineCard: React.FC<LineCardProps> = ({
   // "Destino"/"Destino terminal" não diz nada ao passageiro: nesse caso usa-se o nome da linha
   const destinoUtil = destinoProxima && !destinoGenerico(destinoProxima) ? destinoProxima : undefined;
   const destinosUteis = (line.destinations || []).filter(d => !destinoGenerico(d));
-  const rawDest = destinoUtil
+  const destinoDeSempre = destinoUtil
     ? formatTransitName(destinoUtil)
     : destinosUteis.length > 0
       ? destinosUteis.map(d => formatTransitName(d)).join(' ⇄ ')
       : formatTransitName(line.name || 'Destino');
+  // Greve: a viagem acaba antes (ex.: o C só vai até à Senhora da Hora): mostra-se onde acaba de facto
+  const greveProxima = proxima && proxima.state !== 'Sem dados' ? proxima.greve : undefined;
+  const rawDest = greveProxima?.estado === 'reduzido' && greveProxima.ate ? formatTransitName(greveProxima.ate) : destinoDeSempre;
   const paragemProxima: string | undefined = (proxima as any)?.stop_name || line.nearest_stop?.name;
   // Atraso da próxima partida, só quando o operador o indica em tempo real
   const atraso = proxima && proxima.state !== 'Sem dados' ? parseDepartureTime(proxima).delayMinutes : null;
@@ -64,6 +67,9 @@ export const LineCard: React.FC<LineCardProps> = ({
               {rawDest}
             </p>
           </div>
+          {greveProxima && (
+            <EtiquetaGreve estado={greveProxima.estado} ate={greveProxima.ate} destinoDeSempre={greveProxima.ate ? destinoDeSempre : undefined} className="mt-1" />
+          )}
           {(paragemProxima || (mostrarOperador && line.operator) || atraso != null) && (
             <div className="flex items-center gap-1.5 min-w-0 text-xs text-[#6B6B6B] mt-0.5">
               {atraso != null && <EtiquetaAtraso minutos={atraso} />}
@@ -99,9 +105,7 @@ export const LineCard: React.FC<LineCardProps> = ({
                   {bigDisplay}
                 </span>
               </div>
-              {greve ? (
-                <span className={`text-xs mt-0.5 ${greve.estado === 'reduzido' || greve.estado === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(greve.estado, greve.ate)}</span>
-              ) : !showExactTimeAsBig && parsed.subText && (
+              {!showExactTimeAsBig && parsed.subText && (
                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                   {parsed.subText}
                 </span>

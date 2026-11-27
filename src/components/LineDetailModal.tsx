@@ -18,7 +18,7 @@ import {
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
 import { HorarioDoDiaPainel, SeletorDias, proximosDias } from './HorarioDoDia';
-import { textoGreveDaPartida } from './GreveNoHorario';
+import { EtiquetaGreve } from './GreveNoHorario';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 import { registarProcura } from '../services/procuras';
@@ -334,11 +334,14 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                               <LineChip number={dep.line_code} color={dep.color} />
                                               <div className="min-w-0">
                                                 <div className="text-[#111111] font-medium truncate">
-                                                  {destinoLegivel(dep.destination, line?.name) || t('Destino')}
+                                                  {dep.greve?.estado === 'reduzido' && dep.greve.ate ? formatTransitName(dep.greve.ate) : (destinoLegivel(dep.destination, line?.name) || t('Destino'))}
                                                 </div>
                                                 <div className="text-[11px] text-[#6B6B6B] truncate">
                                                   {formatTransitName(stop.name)}
                                                 </div>
+                                                {dep.greve && (
+                                                  <EtiquetaGreve estado={dep.greve.estado} ate={dep.greve.ate} destinoDeSempre={dep.greve.ate ? (destinoLegivel(dep.destination, line?.name) || undefined) : undefined} className="mt-1" />
+                                                )}
                                               </div>
                                             </div>
                                             <div className="flex flex-col items-end text-right shrink-0">
@@ -354,9 +357,7 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                   {parsed.bigText}
                                                 </span>
                                               </div>
-                                              {dep.greve ? (
-                                                <span className={`text-[11px] mt-0.5 ${dep.greve.estado === 'reduzido' || dep.greve.estado === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve.estado, dep.greve.ate)}</span>
-                                              ) : parsed.subText && (
+                                              {parsed.subText && (
                                                 <span className="font-condensada text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
                                                   {parsed.subText}
                                                 </span>

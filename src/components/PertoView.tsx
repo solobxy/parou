@@ -35,7 +35,15 @@ import {
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
 import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
-import { AvisosGreve, textoGreve, textoGreveDaPartida, type ResumoGreve } from './GreveNoHorario';
+import { AvisosGreve, EtiquetaGreve, type ResumoGreve } from './GreveNoHorario';
+
+/** Onde a partida acaba de facto: na greve, a última estação que funciona (ex.: Senhora da Hora em vez de Fórum Maia) */
+function destinoReal(dep: any, destino: string): string {
+  return dep?.greve === 'reduzido' && dep?.greveAte ? formatTransitName(String(dep.greveAte)) : destino;
+}
+const etiquetaGreve = (dep: any, destino: string) => dep?.greve
+  ? <EtiquetaGreve estado={dep.greve} ate={dep.greveAte} destinoDeSempre={dep.greveAte ? destino : undefined} className="mt-1" />
+  : null;
 
 /** As 3 partidas do cartão de uma paragem: primeiro as que se realizam (numa greve, as sem serviço vão para o fim) */
 function partidasDoCartao(deps: any[]): any[] {
@@ -2867,8 +2875,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                               <LineChip number={lineCode} color={lineColor} />
                               <div className="min-w-0">
                                 <div className="text-[15px] font-medium text-[#111111] leading-tight truncate">
-                                  {destination}
+                                  {destinoReal(dep, destination)}
                                 </div>
+                                {etiquetaGreve(dep, destination)}
                                 {parsed.delayMinutes != null && <EtiquetaAtraso minutos={parsed.delayMinutes} horario={dep.scheduledTime} className="mt-1" />}
                                 <AvisoMesmaHora linha={dep.mesmaHoraQue} />
                               </div>
@@ -2887,9 +2896,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                     {parsed.bigText}
                                   </span>
                                 </div>
-                                {dep.greve ? (
-                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
-                                ) : parsed.subText && (
+                                {parsed.subText && (
                                   <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                     {parsed.subText}
                                   </span>
@@ -3354,8 +3361,9 @@ export const PertoView: React.FC<PertoViewProps> = ({
                             <div className="flex items-center gap-2.5 min-w-0">
                               <LineChip number={dep.lineCode || '—'} color={dep.lineColor} />
                               <div className="min-w-0">
-                                <div className="text-[15px] font-medium text-[#111111] truncate">{destination}</div>
+                                <div className="text-[15px] font-medium text-[#111111] truncate">{destinoReal(dep, destination)}</div>
                                 {dep.operatorName && <div className="text-xs text-[#6B6B6B] truncate">{dep.operatorName}</div>}
+                                {etiquetaGreve(dep, destination)}
                               </div>
                             </div>
                             <div className="shrink-0 flex items-center gap-1">
@@ -3363,9 +3371,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 <span className={`font-condensada text-[22px] font-bold tabular-nums leading-none ${dep.jaPassou || dep.greve === 'sem-servico' ? 'text-[#6B6B6B]' : 'text-[#111111]'} ${dep.greve === 'sem-servico' ? 'line-through decoration-2' : ''}`}>
                                   {dep.scheduledTime}
                                 </span>
-                                {dep.greve ? (
-                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
-                                ) : (outroDia || dep.jaPassou) && (
+                                {(outroDia || dep.jaPassou) && (
                                   <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
                                 )}
                               </div>
@@ -3447,7 +3453,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                             <LineChip number={dep.lineCode || dep.route_short_name || '—'} color={dep.lineColor} />
                             <div className="min-w-0">
                               <div className="text-[15px] font-medium text-[#111111] truncate">
-                                {destination}
+                                {destinoReal(dep, destination)}
                               </div>
                               {(dep.operatorName || parsed.delayMinutes != null) && (
                                 <div className="flex items-center gap-1.5 min-w-0 text-xs text-[#6B6B6B]">
@@ -3455,6 +3461,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {dep.operatorName && <span className="truncate">{dep.operatorName}</span>}
                                 </div>
                               )}
+                              {etiquetaGreve(dep, destination)}
                               <AvisoMesmaHora linha={dep.mesmaHoraQue} />
                             </div>
                           </div>
@@ -3472,9 +3479,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {parsed.bigText}
                                 </span>
                               </div>
-                              {dep.greve ? (
-                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
-                              ) : parsed.subText && (
+                              {parsed.subText && (
                                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}
                                 </span>

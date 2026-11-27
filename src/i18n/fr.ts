@@ -164,6 +164,7 @@ export const FR: Record<string, string> = {
   'Tirar «{d}» dos favoritos': 'Retirer «{d}» des favoris',
   'Nos favoritos': 'Dans les favoris',
   'Só até {e} (greve)': 'Seulement jusqu\'à {e} (grève)',
+  'Não vai até {d} (greve)': 'Ne va pas jusqu\'à {d} (grève)',
   'Guardar nos favoritos': 'Enregistrer dans les favoris',
   'Favorito': 'Favori',
 

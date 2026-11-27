@@ -89,11 +89,32 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
 };
 
 /** Texto curto da marca de uma partida */
-/** Texto de uma partida na greve; «Só até X» quando a viagem só faz parte do percurso */
-export function textoGreveDaPartida(e: EstadoGreve, ate?: string): string {
-  return e === 'reduzido' && ate ? t('Só até {e} (greve)', { e: formatarNomeAte(ate) }) : textoGreve(e);
+/** Texto de uma partida na greve; quando a viagem só faz parte do percurso, diz até onde não vai */
+export function textoGreveDaPartida(e: EstadoGreve, ate?: string, destinoDeSempre?: string): string {
+  if (e === 'reduzido' && ate) return destinoDeSempre ? t('Não vai até {d} (greve)', { d: destinoDeSempre }) : t('Só até {e} (greve)', { e: String(ate).trim() });
+  return textoGreve(e);
 }
-const formatarNomeAte = (n: string) => String(n || '').trim();
+
+/**
+ * Etiqueta da greve numa partida: bem à vista (as mesmas cores dos avisos do topo, com o triângulo), por baixo do destino.
+ * 27/11/2026: em letra cinzenta pequena ao lado da hora «quase nem se percebia».
+ */
+export function EtiquetaGreve({ estado, ate, destinoDeSempre, className = '' }: { estado: EstadoGreve; ate?: string; destinoDeSempre?: string; className?: string }) {
+  return (
+    <span
+      data-teste="greve-partida"
+      className={`inline-flex items-center gap-1 max-w-full rounded-[6px] bg-[#FFF7ED] border border-[#FFEDD5] px-1.5 py-0.5 text-[12px] font-semibold leading-tight text-[#9A3412] ${className}`}
+    >
+      <TriangleAlert className="w-3.5 h-3.5 shrink-0 stroke-[2] text-[#C2410C]" aria-hidden="true" />
+      <span className="truncate">{textoGreveDaPartida(estado, ate, destinoDeSempre)}</span>
+    </span>
+  );
+}
+
+/** Destino a mostrar numa partida em greve: onde a viagem acaba de facto (ex.: Senhora da Hora em vez de Fórum Maia) */
+export function destinoNaGreve(estado: EstadoGreve | undefined, ate: string | undefined, destino: string): string {
+  return estado === 'reduzido' && ate ? ate : destino;
+}
 
 export function textoGreve(e: EstadoGreve): string {
   return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : e === 'garantido' ? t('Serviço mínimo (greve)') : e === 'desvio' ? t('Percurso alterado') : t('Serviço reduzido');
