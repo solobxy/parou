@@ -3303,7 +3303,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {dep.scheduledTime}
                                 </span>
                                 {dep.greve ? (
-                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
                                 ) : (outroDia || dep.jaPassou) && (
                                   <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
                                 )}
@@ -3412,7 +3412,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 </span>
                               </div>
                               {dep.greve ? (
-                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
                               ) : parsed.subText && (
                                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}

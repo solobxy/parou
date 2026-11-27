@@ -15,7 +15,7 @@ import { greveDoTroco } from './grevesPlaneador';
 import { viagemNomes, estacoesEntre, mesmaEstacao, chaveEstacao } from './grevesEstacoes';
 import type { GreveTroco } from '../types/perto';
 
-export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido';
+export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido';
 
 export interface GreveNaPartida {
   estado: EstadoGreve;
@@ -38,13 +38,15 @@ export interface ResumoGreve {
   /** O que funciona, com os nomes das estações como estão na base ("Linha Amarela", "entre Senhora da Hora e Estádio do Dragão") */
   funciona?: string[];
   frequencia?: string;
+  /** CP: o aviso tem a lista dos comboios dos serviços mínimos (marcados nas partidas); os outros podem não se realizar */
+  minimos?: boolean;
 }
 
 const COR_LINHA: Record<string, string> = { amarela: 'Amarela', azul: 'Azul', vermelha: 'Vermelha', verde: 'Verde', violeta: 'Violeta', laranja: 'Laranja', rosa: 'Rosa', rubi: 'Rubi' };
 
 export function estadoDaGreve(g: GreveTroco | undefined): GreveNaPartida | undefined {
   if (!g) return undefined;
-  return { estado: g.semServico ? 'sem-servico' : g.reduzido ? 'reduzido' : 'incerta', operador: g.operador };
+  return { estado: g.semServico ? 'sem-servico' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta', operador: g.operador };
 }
 
 /** Uma partida para marcar: operador, hora (ms), viagem, paragem de onde parte e código da linha */
@@ -62,6 +64,7 @@ export function greveDaPartida(db: any, p: PartidaParaGreve, greves: AvisoGreve[
   if (!greves.length) return undefined;
   return greveDoTroco(p.feed, p.partidaMs, greves, {
     linha: p.linha,
+    viagem: p.trip,
     dentroDe: (a, b) => {
       if (!db || !p.trip) return { dentro: false, passa: false };
       const nomes = viagemNomes(db, p.trip);
@@ -122,6 +125,7 @@ export function resumoDaGreve(db: any, feed: string, g: AvisoGreve, vespera: boo
     ...(vespera ? { vespera: true, ...(fimV ? { fimVespera: fimV } : {}) } : {}),
     ...(!vespera && funciona.length ? { funciona } : {}),
     ...(!vespera && s?.frequencia ? { frequencia: s.frequencia } : {}),
+    ...(!vespera && g.comboiosMinimos ? { minimos: true } : {}),
   };
 }
 

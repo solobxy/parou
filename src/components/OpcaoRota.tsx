@@ -166,7 +166,7 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
               <TriangleAlert className="w-3.5 h-3.5 mt-[2px] shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
               <span>
                 <span className="font-semibold">{greve.previsto ? t('Perturbações previstas na {o}', { o: greve.operador }) : t('Greve na {o}', { o: greve.operador })}</span>
-                {` · ${greve.semServico ? t('sem serviço') : greve.reduzido ? t('menos viagens') : t('pode não circular')}`}
+                {` · ${greve.semServico ? t('sem serviço') : greve.garantido ? t('serviço mínimo') : greve.reduzido ? t('menos viagens') : t('pode não circular')}`}
               </span>
             </p>
           )}
@@ -237,6 +237,8 @@ export function OpcaoRota({ route, selecionada, destinoNome, detalhes = false, a
                                   : t('Greve na {o}: este troço não funciona a esta hora.', { o: leg.greve.operador }))
                                 : leg.greve.previsto
                                 ? t('A {o} prevê perturbações neste dia por causa da greve.', { o: leg.greve.operador })
+                                : leg.greve.garantido
+                                  ? t('Greve na {o}: este comboio está nos serviços mínimos e realiza-se.', { o: leg.greve.operador })
                                 : leg.greve.reduzido
                                   ? (leg.greve.frequencia
                                     ? t('Greve na {o}: este troço funciona, com uma viagem a cada {f}.', { o: leg.greve.operador, f: leg.greve.frequencia })

@@ -765,7 +765,7 @@ export interface HorarioDoDia {
   estado: 'ok' | 'sem-partidas' | 'ultima-paragem' | 'sem-dados';
   previsto: boolean;
   dataReferencia?: string;
-  partidas: Array<{ s: number; hora: string; destino: string; greve?: 'sem-servico' | 'incerta' | 'reduzido' }>;
+  partidas: Array<{ s: number; hora: string; destino: string; greve?: 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' }>;
   /** Avisos de greve que mudam este dia (lidos dos operadores pelo servidor) */
   greves?: import('../components/GreveNoHorario').ResumoGreve[];
 }

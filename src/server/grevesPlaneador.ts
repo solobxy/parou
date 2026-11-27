@@ -6,6 +6,7 @@
 // do trajeto que usa esse operador, se a viagem sai dentro do período da greve, ou num dia em que o operador avisa que
 // ainda há perturbações. Sem aviso do operador (no site dele ou comunicado nas notícias), não se mostra nada.
 // =====================================================================================
+import { numeroDoComboio } from './cpServicosMinimos';
 import { DateTime } from 'luxon';
 import { avisosEmMemoria } from './centralAlertsEngine';
 import { getDatabase } from './db/gtfsDatabase';
@@ -97,6 +98,8 @@ export interface AvisoGreve {
   vesperaFimMs?: number;
   /** O que continua a funcionar (linhas pela cor e troços entre duas estações) e a que horas (minutos desde a meia-noite) */
   servico?: { linhas: string[]; trocos: Array<[string, string]>; frequencia?: string; horas?: [number, number]; janelas?: Array<[number, number]> };
+  /** CP: comboios dos serviços mínimos por dia (AAAA-MM-DD → números); os outros podem não se realizar */
+  comboiosMinimos?: Record<string, string[]>;
 }
 
 /** Troço de um trajeto, para saber se fica na parte que funciona durante a greve */
@@ -106,6 +109,8 @@ export interface TrocoParaGreve {
   /** O troço em relação ao troço anunciado [a, b] (nomes sem acentos): `dentro` = as duas estações do troço ficam entre a e b
    *  (em qualquer linha que lá passe); `passa` = a viagem deste troço passa por a e por b (o troço anunciado é desta linha) */
   dentroDe?: (a: string, b: string) => { dentro: boolean; passa: boolean };
+  /** Viagem (trip_id): na CP dá o número do comboio, para os serviços mínimos */
+  viagem?: string;
 }
 
 /** Cor de cada linha pelo código (Metro do Porto: letras; Metro de Lisboa: Az, Am, Vd, Vm) */
@@ -137,10 +142,21 @@ export function grevesDosAvisos(alertas: any[], agoraMs = Date.now()): AvisoGrev
     const ultimoDia = dias.length ? DateTime.fromISO(dias.slice().sort().pop()!, { zone: 'Europe/Lisbon' }).endOf('day').toMillis() : NaN;
     const acaba = Math.max(Number.isFinite(fimMs) ? fimMs : inicioMs + 30 * 3600_000, Number.isFinite(ultimoDia) ? ultimoDia : 0);
     if (acaba < agoraMs) continue;
-    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}) });
+    out.push({ operador: String(a.operador || ''), titulo: String(a.título || '').replace(/\s+/g, ' ').trim(), url: String(a.source_url || ''), inicioMs, fimMs, dias, ...(/^Not[ií]cia/.test(String(a.source || '')) ? { noticia: true } : {}), ...(a.servico_na_greve ? { servico: a.servico_na_greve } : {}), ...(a.vespera_desde && Number.isFinite(Date.parse(a.vespera_desde)) ? { vesperaMs: Date.parse(a.vespera_desde) } : {}), ...(a.vespera_fim && Number.isFinite(Date.parse(a.vespera_fim)) ? { vesperaFimMs: Date.parse(a.vespera_fim) } : {}), ...(a.comboios_minimos && typeof a.comboios_minimos === 'object' && Object.keys(a.comboios_minimos).length ? { comboiosMinimos: a.comboios_minimos } : {}) });
   }
   // avisos que dizem o que funciona primeiro (o «Estado das Linhas» pode dizer só «greve» na mesma altura)
   return out.sort((x, y) => Number(!!y.servico) - Number(!!x.servico));
+}
+
+/** CP: true = o comboio está nos serviços mínimos desse dia; false = há lista desse dia e não está; undefined = sem lista */
+function minimoDaCp(g: AvisoGreve, partidaMs: number, viagem?: string): boolean | undefined {
+  const lista = g.comboiosMinimos;
+  const n = numeroDoComboio(viagem);
+  if (!lista || !n) return undefined;
+  const l = DateTime.fromMillis(partidaMs, { zone: 'Europe/Lisbon' });
+  const dias = [l.toISODate()!, ...(l.hour < 3 ? [l.minus({ days: 1 }).toISODate()!] : [])].filter((d) => Array.isArray(lista[d]) && lista[d].length);
+  if (!dias.length) return undefined;
+  return dias.some((d) => lista[d].includes(n));
 }
 
 /** Greve que afeta um troço (operador da app e hora de partida), ou undefined */
@@ -158,6 +174,10 @@ export function greveDoTroco(feed: string, partidaMs: number, greves: AvisoGreve
     if (fimL.hour === 23 && fimL.minute === 59) fim = fimL.plus({ hours: 3 }).toMillis();
     if (partidaMs >= g.inicioMs && partidaMs <= fim) {
       const base: GreveTroco = { titulo: g.titulo, url: g.url, operador: g.operador, ...(g.noticia ? { noticia: true } : {}) };
+      // CP: os comboios dos serviços mínimos realizam-se (dia da partida, ou o anterior para os que saem depois da meia-noite)
+      const minimo = minimoDaCp(g, partidaMs, troco?.viagem);
+      if (minimo === true) return { ...base, reduzido: true, garantido: true };
+      if (minimo === false) return base;
       if (!funcionaNaGreve(feed, g, troco)) return g.servico ? { ...base, semServico: true } : base;
       // fora das horas anunciadas («de 30 em 30 minutos entre as 6h00 e as 7h00 … e as 00h00») não há viagens
       const h = g.servico?.horas;

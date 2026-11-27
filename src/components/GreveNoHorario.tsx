@@ -6,7 +6,7 @@ import { TriangleAlert, ArrowUpRight } from 'lucide-react';
 import { t } from '../i18n';
 import { proximosDias } from './HorarioDoDia';
 
-export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido';
+export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido';
 
 export interface ResumoGreve {
   titulo: string;
@@ -18,6 +18,8 @@ export interface ResumoGreve {
   fimVespera?: string;
   funciona?: string[];
   frequencia?: string;
+  /** CP: há lista dos comboios dos serviços mínimos */
+  minimos?: boolean;
 }
 
 /** «Hoje», «Amanhã», «Sex 27» ou a data */
@@ -39,7 +41,9 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
           ? (g.fimVespera ? t('O serviço acaba por volta das {h}: depois disso já não há viagens.', { h: g.fimVespera }) : t('O serviço acaba mais cedo.'))
           : g.funciona?.length
             ? `${t('Só funciona: {t}', { t: juntarComE(g.funciona) })}${g.frequencia ? `, ${t('com uma viagem a cada {f}', { f: g.frequencia })}` : ''}. ${t('Fora disso não há viagens.')}`
-            : t('Algumas viagens podem não se realizar.');
+            : g.minimos
+              ? t('Só os comboios dos serviços mínimos estão garantidos. Os outros podem não se realizar.')
+              : t('Algumas viagens podem não se realizar.');
         return (
           <div key={`${g.titulo}-${g.vespera ? 'v' : 'g'}`} className="flex items-start gap-2 text-[13px] leading-snug text-[#111111]">
             <TriangleAlert className="w-4 h-4 mt-px shrink-0 stroke-[2.25] text-[#D92D20]" aria-hidden="true" />
@@ -67,5 +71,5 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
 
 /** Texto curto da marca de uma partida */
 export function textoGreve(e: EstadoGreve): string {
-  return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : t('Serviço reduzido');
+  return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : e === 'garantido' ? t('Serviço mínimo (greve)') : t('Serviço reduzido');
 }

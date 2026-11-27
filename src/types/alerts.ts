@@ -44,6 +44,8 @@ export interface CentralAlert {
   vespera_desde?: string;
   /** Véspera: hora (ISO) a que o operador diz que o serviço acaba */
   vespera_fim?: string;
+  /** Greves da CP: comboios dos serviços mínimos de cada dia (AAAA-MM-DD → números dos comboios), lidos dos PDFs do aviso */
+  comboios_minimos?: Record<string, string[]>;
   /** Tirado porque a fonte deixou de responder e o aviso não tinha data de fim */
   sem_confirmacao?: boolean;
 }

@@ -1,3 +1,4 @@
+import { ligacoesServicosMinimos, comboiosDosServicosMinimos } from './cpServicosMinimos';
 import { 
   CentralAlert, 
   CentralAlertType, 
@@ -827,10 +828,24 @@ async function ingestCpAlerts(): Promise<number> {
       const a = avisoDaCp(item);
       if (!a) continue;
       reconhecidos++;
+      // greve: os PDFs dos serviços mínimos ligados no aviso dão os comboios que se realizam em cada dia
+      if (a.tipo === 'greve' && a.status !== 'Terminado') {
+        const pdfs = ligacoesServicosMinimos(item);
+        if (pdfs.length) {
+          const ano = DateTime.fromISO(a.start_datetime, { zone: 'Europe/Lisbon' }).year;
+          const comboios = await comboiosDosServicosMinimos(pdfs, ano).catch(() => ({} as Record<string, string[]>));
+          if (Object.keys(comboios).length) a.comboios_minimos = comboios;
+        }
+      }
       const key = `${sourceName}:${a.external_id}`;
       vistos.add(key);
       const existing = centralState.alerts.get(key);
-      if (existing && existing.content_hash === a.content_hash) { existing.status = a.status; centralState.duplicatesAvoidedCount++; continue; }
+      if (existing && existing.content_hash === a.content_hash) {
+        existing.status = a.status;
+        if (a.comboios_minimos) existing.comboios_minimos = a.comboios_minimos;
+        centralState.duplicatesAvoidedCount++;
+        continue;
+      }
       centralState.alerts.set(key, a);
       if (!existing) imported++;
     }

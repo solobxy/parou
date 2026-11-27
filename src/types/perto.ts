@@ -129,6 +129,8 @@ export interface GreveTroco {
   frequencia?: string;
   /** O operador disse o que funciona e isto fica de fora (ou fora das horas, ou depois do fim do serviço na véspera) */
   semServico?: boolean;
+  /** Este comboio está nos serviços mínimos da greve (a CP garante que se realiza) */
+  garantido?: boolean;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }
