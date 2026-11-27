@@ -288,7 +288,13 @@ export const BemVindo: React.FC<BemVindoProps> = ({ demo = false, passoInicial =
           <button
             type="button"
             data-avancar
-            onClick={() => (ultimo ? fechar() : ir(passo + 1))}
+            onClick={() => {
+              if (!ultimo) { ir(passo + 1); return; }
+              fechar();
+              // Primeira vez: «Finalizar» pede já a localização (no mesmo toque, como as apps nativas no primeiro arranque).
+              // 27/11/2026: 16 telemóveis novos ficaram no convite sem nunca tocar em «Ativar localização».
+              if (!demo) window.dispatchEvent(new Event('parou:pedir-localizacao'));
+            }}
             className={`flex-1 min-h-[48px] rounded-[12px] text-[15px] font-bold cursor-pointer ${ultimo ? 'bg-[#FF6B1A] text-[#111111] brand-chamfer' : 'bg-[#111111] text-[#FFFFFF]'}`}
           >
             {ultimo ? t('Finalizar') : t('Seguinte')}

@@ -454,6 +454,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
   const naAppPlay = typeof document !== 'undefined' && String(document.referrer || '').startsWith('android-app://');
   const [permGeo, setPermGeo] = useState<string>('');
   useEffect(() => { if (gpsStatus === 'active') setAjudaLocalizacao(false); }, [gpsStatus]);
+  // No fim das boas-vindas («Finalizar»): pede a localização no mesmo toque, se ainda não está ligada
+  const gpsStatusRef = useRef(gpsStatus);
+  gpsStatusRef.current = gpsStatus;
+  useEffect(() => {
+    const pedir = () => { if (gpsStatusRef.current === 'idle') activateLocation(true); };
+    window.addEventListener('parou:pedir-localizacao', pedir);
+    return () => window.removeEventListener('parou:pedir-localizacao', pedir);
+  }, [activateLocation]);
   // Só na app da Play: que autorização o Chrome diz ter (para mostrar «Abrir no Chrome» quando a app não recebe a posição)
   useEffect(() => {
     if (!naAppPlay || gpsStatus === 'active' || typeof navigator === 'undefined' || !navigator.permissions?.query) return;
