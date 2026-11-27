@@ -54,6 +54,11 @@ export const DIRECT_GTFS_ZIP_URLS: Record<string, string> = {
   'tld-7876': 'https://files.mobilitydatabase.org/tld-7876/latest.zip',
   'tld-7877': 'https://files.mobilitydatabase.org/tld-7877/latest.zip',
   flixbus_pt: 'https://gtfs.gis.flix.tech/gtfs_generic_eu.zip',
+  sit_coimbra: 'https://gtfs.itbusway.eu/GTFS_SIT_Metropolitano.zip',
+  busway_aveiro: 'https://gtfs.itbusway.eu/GTFS_CIRA.zip',
+  flaviamobil: 'https://go.tmlmobilidade.pt/hub/api/v1/QCY2N/plans/gtfs',
+  cim_ttm: 'https://transporte-regular.cim-ttm.pt/MobilityHub.Api/api/Gtfs',
+  tamega_sousa: 'https://transportes.cimtamegaesousa.pt/Servico/services/consultas.svc/Feed/OpenGTFS',
 };
 
 // Fontes concretas de telemetria em tempo real (URL/API real) ou "não integrado"

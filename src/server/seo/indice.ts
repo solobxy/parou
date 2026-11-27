@@ -55,6 +55,9 @@ const SLUG_OPERADOR: Record<string, string> = {
   siga_rodoeste: 'siga-rodoeste', cam_madeira: 'cam-madeira',
   'mdb-1272': 'mobicascais', carris_metropolitana: 'carris-metropolitana', 'tld-4257': 'autna', 'tld-4316': 'a-onda',
   'tld-4317': 'vai-e-vem', 'tld-4318': 'apanha-me', 'tld-4319': 'circuito-olhao', unir: 'unir',
+  sit_coimbra: 'sit-regiao-de-coimbra', busway_aveiro: 'busway-regiao-de-aveiro', ave_mobilidade: 'ave-mobilidade', mov_cavado: 'mov-cavado',
+  transdev_cavado: 'transdev-avic-cavado', flaviamobil: 'flaviamobil', cim_ttm: 'terras-de-tras-os-montes', tamega_sousa: 'tamega-e-sousa',
+  barraqueiro_oeste: 'tut-torres-vedras',
 };
 
 const NOME_OPERADOR: Record<string, string> = {
@@ -65,6 +68,9 @@ const NOME_OPERADOR: Record<string, string> = {
   tcb_barreiro: 'TCB Barreiro',
   transtejo_soflusa: 'Transtejo e Soflusa', carris_metropolitana: 'Carris Metropolitana', fertagus: 'Fertagus',
   'tld-4257': 'AUTNA', 'tld-4316': 'A Onda', 'tld-4317': 'Vai e Vem', 'tld-4318': 'Apanha-me!', 'tld-4319': 'Circuito Olhão',
+  sit_coimbra: 'SIT Metropolitano (Região de Coimbra)', busway_aveiro: 'Busway (Região de Aveiro)', ave_mobilidade: 'Ave Mobilidade',
+  mov_cavado: 'Mov Cávado', transdev_cavado: 'Transdev & Avic Cávado', flaviamobil: 'Flaviamobil', cim_ttm: 'Terras de Trás-os-Montes',
+  tamega_sousa: 'Tâmega e Sousa', barraqueiro_oeste: 'TUT Torres Vedras',
 };
 
 export const REGIAO_OPERADOR: Record<string, string> = {
@@ -72,7 +78,9 @@ export const REGIAO_OPERADOR: Record<string, string> = {
   mts: 'Lisboa', tcb_barreiro: 'Lisboa', 'mdb-1272': 'Lisboa',
   stcp: 'Porto', metro_porto: 'Porto', unir: 'Porto',
   tub_braga: 'Minho', guimabus: 'Minho', tuba_barcelos: 'Minho', mobiave: 'Minho',
-  smtuc: 'Coimbra', metro_mondego: 'Coimbra',
+  smtuc: 'Coimbra', metro_mondego: 'Coimbra', sit_coimbra: 'Coimbra', busway_aveiro: 'Aveiro',
+  ave_mobilidade: 'Minho', mov_cavado: 'Minho', transdev_cavado: 'Minho',
+  flaviamobil: 'Norte', cim_ttm: 'Norte', tamega_sousa: 'Norte',
   vamus: 'Algarve', proximo_faro: 'Algarve', giro: 'Algarve', sobe_desce_tavira: 'Algarve', 'tld-4319': 'Algarve',
   horarios_funchal: 'Madeira', siga_rodoeste: 'Madeira', cam_madeira: 'Madeira',
   cp: 'Todo o país',
@@ -81,8 +89,10 @@ export const REGIAO_OPERADOR: Record<string, string> = {
 export const NOME_REGIAO: Record<string, string> = {
   Lisboa: 'Lisboa e Setúbal (Área Metropolitana de Lisboa)',
   Porto: 'Porto (Área Metropolitana do Porto)',
-  Minho: 'Braga, Guimarães, Barcelos e Famalicão',
-  Coimbra: 'Coimbra',
+  Minho: 'Braga, Guimarães, Barcelos, Famalicão, Ave e Cávado',
+  Coimbra: 'Coimbra e Região de Coimbra',
+  Aveiro: 'Região de Aveiro',
+  Norte: 'Tâmega e Sousa, Alto Tâmega e Trás-os-Montes',
   Algarve: 'Algarve',
   Madeira: 'Madeira',
   'Todo o país': 'Comboios em todo o país',
@@ -227,7 +237,7 @@ function construir(): Indice {
     operadores.push(op);
     porSlugOperador.set(opSlug, op);
   }
-  const ordemRegiao = ['Lisboa', 'Porto', 'Todo o país', 'Minho', 'Coimbra', 'Algarve', 'Madeira', 'Outros'];
+  const ordemRegiao = ['Lisboa', 'Porto', 'Todo o país', 'Minho', 'Norte', 'Aveiro', 'Coimbra', 'Algarve', 'Madeira', 'Outros'];
   operadores.sort((a, b) => ordemRegiao.indexOf(a.regiao) - ordemRegiao.indexOf(b.regiao) || b.linhas.length - a.linhas.length);
   console.log(`[SEO] Índice: ${operadores.length} operadores, ${linhaPorRoute.size} linhas, ${paragemPorSlug.size} paragens (${Date.now() - t0} ms)`);
   return { versao: versaoAtual(), operadores, porSlugOperador, linhaPorSlug, linhaPorRoute, paragemPorSlug, grupoPorStop, grelha };

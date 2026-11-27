@@ -211,7 +211,7 @@ export function avisoDoSite(site: SiteOperador, url: string, html: string, agora
 // fica 10 dias depois do início (um desvio sem prazo raramente passa disso e o aviso não fica esquecido para sempre).
 // ---------------------------------------------------------------------------------
 const RE_TITULO_SERVICO = /desvio|alterac|percurso|horario|interrup|condiciona|constrangiment|obras|supress|paragem|paragens|encerra|interdi|suspens|reforco|cancelad|cancelament|nova linha|\blinhas?\b|carreiras?\b|viage(m|ns)|ligac(ao|oes)|circulacao|servico (especial|reduzido)|transito|corte/;
-const RE_FORA_SERVICO = /concurso|campanha|passatempo|sorteio|premio|recrutamento|emprego|candidatura|relatorio|contas|resultados|comissao europeia|financiamento|investimento|aniversario|parceria|protocolo|inaugura(?!cao das luzes)|exposicao|cultura|natal solidario|publicidade|fretamento|auditorio|fotografias|espacos comerciais|horario dos parques|acessibilidades/;
+const RE_FORA_SERVICO = /retorno|reposicao|reposto|retoma|volta ao (percurso )?normal|concurso|campanha|passatempo|sorteio|premio|recrutamento|emprego|candidatura|relatorio|contas|resultados|comissao europeia|financiamento|investimento|aniversario|parceria|protocolo|inaugura(?!cao das luzes)|exposicao|cultura|natal solidario|publicidade|fretamento|auditorio|fotografias|espacos comerciais|horario dos parques|acessibilidades/;
 const MESES_RE = MESES.join('|');
 
 function diaDe(dia: string, mes: string, ano: string | undefined, ref: DateTime): DateTime | null {

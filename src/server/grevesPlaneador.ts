@@ -54,6 +54,14 @@ const OPERADORES: Record<string, string[]> = {
   mobicascais: ['mobicascais', 'cascais proxima'],
   mobilis_leiria: ['mobilis', 'mobilis (leiria)'],
   aveirobus: ['aveirobus'],
+  sit_coimbra: ['sit metropolitano', 'busway coimbra', 'busway'],
+  busway_aveiro: ['busway', 'busway aveiro', 'ciraveiro', 'busway ciraveiro'],
+  ave_mobilidade: ['ave mobilidade'],
+  mov_cavado: ['mov cavado'],
+  transdev_cavado: ['transdev', 'avic', 'transdev cavado'],
+  flaviamobil: ['flaviamobil'],
+  cim_ttm: ['terras de tras-os-montes'],
+  tamega_sousa: ['transdev', 'transdev tamega e sousa'],
 };
 
 /** Nomes de um operador: os da lista acima ou, para um operador que ainda não está nela, o nome com que está na base
