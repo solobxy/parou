@@ -299,5 +299,6 @@ export function marcarGrevesPorOrigem(db: any, deps: any[], greves: AvisoGreve[]
 
 /** Cópia da lista sem as partidas repetidas de um serviço de N em N minutos (a lista original pode estar em cache) */
 export function semRepetidas<T>(deps: T[] | undefined): T[] {
-  return (deps || []).filter((d: any) => !d?.greve?.repetida);
+  // numa greve, o aviso «mesma hora que a F» deixa de fazer sentido (as horas normais não valem e a outra pode ter saído)
+  return (deps || []).filter((d: any) => !d?.greve?.repetida).map((d: any) => (d?.greve && d.mesma_hora_que ? { ...d, mesma_hora_que: undefined } : d));
 }
