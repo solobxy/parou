@@ -37,6 +37,20 @@ import FonteOperador from './FonteOperador';
 import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
 import { AvisosGreve, EtiquetaGreve, HoraDeNEmN, type ResumoGreve } from './GreveNoHorario';
 
+/** Rótulo do tipo de aviso (quando o título ainda não foi traduzido para a língua da app) */
+const ROTULO_TIPO_AVISO: Record<string, string> = {
+  greve: 'Greve', 'interrupção': 'Interrupção do serviço', 'linha suspensa': 'Linha suspensa', cancelamento: 'Viagens canceladas',
+  desvio: 'Desvio', obras: 'Obras', 'alteração de percurso': 'Desvio', 'alteração de horário': 'Novo horário',
+  'atraso significativo': 'Atrasos', 'paragem encerrada': 'Paragem fechada', 'reforço de serviço': 'Reforço',
+  'novo horário': 'Novo horário',
+};
+/** Título do aviso na língua da app: o original em português, a tradução do servidor, ou o tipo do aviso */
+function tituloDoAviso(a: any): string {
+  const pt = String(a?.título || a?.title || '');
+  if (idioma === 'pt') return pt;
+  return a?.titulos?.[idioma] || t(ROTULO_TIPO_AVISO[a?.tipo] || 'Aviso');
+}
+
 /** Onde a partida acaba de facto: na greve, a última estação que funciona (ex.: Senhora da Hora em vez de Fórum Maia) */
 function destinoReal(dep: any, destino: string): string {
   return dep?.greve === 'reduzido' && dep?.greveAte ? formatTransitName(String(dep.greveAte)) : destino;
@@ -88,7 +102,7 @@ import { opcoesComUnir } from '../services/hibridasUnir';
 import { registarProcura } from '../services/procuras';
 import { momentoDeValor } from '../services/momentoDeValor';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
-import { t, tn, LOCALE } from '../i18n';
+import { t, tn, LOCALE, idioma } from '../i18n';
 import { carregarCelulas, celulasDosLimites, paragensNosLimites, aoChegarCelula, type ParagemLeve, type Limites } from './paragensDoMapa';
 import { observarRumo, ligarBussola, rumoAtual } from '../utils/bussola';
 import { observarPosicaoSuave, posicaoSuaveAtiva } from '../utils/posicaoSuave';
@@ -2596,7 +2610,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                     {aviso.operador && !new RegExp(`^\\W*${aviso.operador.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(aviso.título || '') && (
                       <span className="font-bold">{aviso.operador} · </span>
                     )}
-                    <span className="font-semibold">{aviso.título || (aviso as any).title}</span>
+                    <span className="font-semibold">{tituloDoAviso(aviso)}</span>
                   </span>
                 </span>
                 <span data-teste="aviso-perto-quando" className="font-condensada text-[11px] font-bold text-[#C2410C] uppercase tracking-wide shrink-0 ml-2">

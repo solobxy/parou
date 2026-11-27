@@ -167,6 +167,8 @@ export const DE: Record<string, string> = {
   'Não vai até {d} (greve)': 'Fährt nicht bis {d} (Streik)',
   'de {n} em {n} min': 'alle {n} Min.',
   'sem hora certa': 'keine genaue Zeit',
+  'Interrupção do serviço': 'Betriebsunterbrechung',
+  'Viagens canceladas': 'Fahrten fallen aus',
   'Guardar nos favoritos': 'In Favoriten speichern',
   'Favorito': 'Favorit',
 

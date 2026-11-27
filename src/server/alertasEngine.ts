@@ -1,3 +1,4 @@
+import { pedirTraducoes, titulosTraduzidos } from './traducoesAvisos';
 // =====================================================================================
 // PAROU.PT — Alertas
 // Junta numa só resposta o que interessa a quem anda de transportes:
@@ -760,9 +761,17 @@ export async function obterAlertas(opcoes: { lat?: number; lon?: number; area?: 
     tempo: { agora, dias },
     avisosMeteo: avisos,
     feriados: proximosFeriados(distrito),
-    ocorrencias,
-    noticias: listaNoticias,
+    // títulos (e o resumo das greves) nas outras línguas da app, quando já há tradução; os que faltam ficam na fila
+    ocorrencias: ocorrencias.map((o) => ({ ...o, ...comTraducoes(o.titulo, o.categoria === 'greve' ? o.resumo : undefined) })),
+    noticias: listaNoticias.map((n) => ({ ...n, ...comTraducoes(n.titulo) })),
   };
+}
+
+function comTraducoes(titulo: string, resumo?: string): { titulos?: Record<string, string>; resumos?: Record<string, string> } {
+  void pedirTraducoes([titulo, resumo]).catch(() => {});
+  const t = titulosTraduzidos(titulo);
+  const r = resumo ? titulosTraduzidos(resumo) : undefined;
+  return { ...(t ? { titulos: t as Record<string, string> } : {}), ...(r ? { resumos: r as Record<string, string> } : {}) };
 }
 
 // Aquece as caches gerais (avisos, notícias) logo no arranque do servidor

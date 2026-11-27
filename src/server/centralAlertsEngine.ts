@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pedirTraducoes, titulosTraduzidos } from './traducoesAvisos';
 import { ligacoesServicosMinimos, comboiosDosServicosMinimos } from './cpServicosMinimos';
 import { 
   CentralAlert, 
@@ -53,14 +54,15 @@ function guardarCopiaDosAvisos(): void {
     console.warn('[Central Alerts] cópia dos avisos:', e?.message || e);
   }
 }
-/** O mesmo aviso (mesmo id) uma só vez, mesmo que tenha ficado no mapa com duas chaves */
+/** O mesmo aviso (mesmo id) uma só vez, mesmo que tenha ficado no mapa com duas chaves; com o título nas outras línguas */
 export function semAvisosRepetidos<T extends { id?: string }>(lista: T[]): T[] {
   const vistos = new Set<string>();
   return lista.filter((a) => {
     const id = a?.id ? String(a.id) : '';
-    if (!id) return true;
-    if (vistos.has(id)) return false;
-    vistos.add(id);
+    if (id && vistos.has(id)) return false;
+    if (id) vistos.add(id);
+    const t = titulosTraduzidos((a as any)?.título);
+    if (t) (a as any).titulos = t;
     return true;
   });
 }
@@ -1277,6 +1279,8 @@ export async function runCentralAlertsSync(): Promise<{
   retirarSemConfirmacao(centralState.alerts.values(), falhaDesde, Date.now());
   centralState.lastSync = Date.now();
   guardarCopiaDosAvisos();
+  // títulos nas outras línguas da app (em segundo plano; só os avisos que ainda valem)
+  void pedirTraducoes([...centralState.alerts.values()].filter((a) => a.status === 'Ativo' || a.status === 'Futuro').map((a) => a.título)).catch(() => {});
   // Arquivo permanente: cada aviso e cada mudança (para relatórios e notícias); uma falha aqui não estraga a sincronização
   try { arquivarAvisos([...centralState.alerts.values()]); } catch (e: any) { console.warn('[Histórico] avisos:', e?.message || e); }
 

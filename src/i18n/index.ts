@@ -84,6 +84,11 @@ export function t(pt: string, vars?: Record<string, string | number>): string {
   return s;
 }
 
+/** Texto que vem de fora em português (títulos dos avisos, notícias) na língua da app, se o servidor já o traduziu */
+export function naLingua(pt: string, traducoes?: Partial<Record<string, string>> | null): string {
+  return (idioma !== 'pt' && traducoes?.[idioma]) || pt;
+}
+
 /** Plural simples: tn(n, '{n} paragem', '{n} paragens'). O francês trata 0 como singular ("0 arrêt"). */
 export function tn(n: number, um: string, varios: string, vars?: Record<string, string | number>): string {
   const singular = idioma === 'fr' ? n >= 0 && n < 2 : n === 1;

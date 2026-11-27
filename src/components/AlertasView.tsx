@@ -42,7 +42,7 @@ import {
 import { CIDADES_OPTIONS } from '../data/mockData';
 import { Occurrence } from '../types';
 import { ultimaPosicaoConhecida } from '../hooks/useUserLocation';
-import { t, LOCALE, idioma } from '../i18n';
+import { t, LOCALE, idioma, naLingua } from '../i18n';
 import { FONTES_OFICIAIS, AVISO_NAO_GOVERNAMENTAL } from '../utils/fontesOficiais';
 
 // ---------------------------------------------------------------------------------
@@ -555,8 +555,8 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
         filtro: filtroItem,
         etiqueta,
         cor: o.categoria === 'greve' ? '#D92D20' : o.gravidade === 'Grave' ? '#D92D20' : '#FF6B1A',
-        titulo: o.titulo,
-        resumo: o.resumo,
+        titulo: naLingua(o.titulo, (o as any).titulos),
+        resumo: o.resumo ? naLingua(o.resumo, (o as any).resumos) : o.resumo,
         meta: [o.operador, o.fim ? quandoTermina(o.fim) : futuro ? t('a partir de {d}', { d: dataCurta(o.inicio) }) : ''].filter(Boolean).join(' · '),
         quando: Date.parse(o.inicio) || 0,
         url: o.url || undefined,
@@ -1021,7 +1021,7 @@ export const AlertasView: React.FC<AlertasViewProps> = ({ ocorrenciasComunidade 
                   {n.local && <span className="text-[#111111]">· {dados?.local.distrito}</span>}
                   {eNovo(n.id) && <span className="ml-auto text-[10px] font-bold uppercase tracking-wide px-1.5 h-[18px] inline-flex items-center rounded-full bg-[#FF6B1A] text-[#111111]">{t('Novo')}</span>}
                 </div>
-                <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-0.5 line-clamp-2">{n.titulo}</div>
+                <div className="text-[15px] font-semibold text-[#111111] leading-snug mt-0.5 line-clamp-2">{naLingua(n.titulo, (n as any).titulos)}</div>
                 <div className="text-[12px] text-[#6B6B6B] mt-1 flex items-center gap-1">
                   {n.fonte} · {haQuanto(Date.parse(n.data))}
                   <ExternalLink className="w-3 h-3 ml-0.5" />

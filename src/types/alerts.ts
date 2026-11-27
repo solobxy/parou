@@ -20,6 +20,8 @@ export interface CentralAlert {
   external_id: string;
   tipo: CentralAlertType;
   título: string;
+  /** O título nas outras línguas da app (traduzido no servidor, quando já há tradução) */
+  titulos?: Partial<Record<'en' | 'fr' | 'de', string>>;
   descrição: string;
   operador: string;
   linhas: string[];
