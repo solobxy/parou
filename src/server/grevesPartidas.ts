@@ -20,6 +20,8 @@ export type EstadoGreve = 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' |
 export interface GreveNaPartida {
   estado: EstadoGreve;
   operador: string;
+  /** Na greve a viagem só vai até aqui (ex.: o B para a Póvoa só até à Senhora da Hora) */
+  ate?: string;
 }
 
 /** Resumo de um aviso de greve para mostrar por cima de uma lista de partidas */
@@ -50,7 +52,8 @@ const COR_LINHA: Record<string, string> = { amarela: 'Amarela', azul: 'Azul', ve
 
 export function estadoDaGreve(g: GreveTroco | undefined): GreveNaPartida | undefined {
   if (!g) return undefined;
-  return { estado: g.semServico ? 'sem-servico' : g.aviso === 'desvio' ? 'desvio' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta', operador: g.operador };
+  const estado: EstadoGreve = g.semServico ? 'sem-servico' : g.aviso === 'desvio' ? 'desvio' : g.garantido ? 'garantido' : g.reduzido ? 'reduzido' : 'incerta';
+  return { estado, operador: g.operador, ...(estado === 'reduzido' && g.ate ? { ate: g.ate } : {}) };
 }
 
 /** Uma partida para marcar: operador, hora (ms), viagem, paragem de onde parte e código da linha */
@@ -66,6 +69,36 @@ export interface PartidaParaGreve {
 /** A greve de uma partida numa paragem: dentro do troço anunciado = a paragem fica entre as duas pontas */
 export function greveDaPartida(db: any, p: PartidaParaGreve, greves: AvisoGreve[]): GreveTroco | undefined {
   if (!greves.length) return undefined;
+  const g = greveDoTrocoDaPartida(db, p, greves);
+  if (!g || !g.reduzido || !p.trip || !p.paragem) return g;
+  const ate = ateOndeVai(db, p, avisoDe(greves, g));
+  return ate ? { ...g, ate } : g;
+}
+
+/**
+ * Viagem que sai de dentro do troço que funciona e continua para lá dele (ex.: o B do Dragão para a Póvoa, com só o tronco
+ * comum Senhora da Hora–Dragão a funcionar): a última estação dentro do troço, onde a viagem acaba nesse dia.
+ */
+function ateOndeVai(db: any, p: PartidaParaGreve, aviso: AvisoGreve | undefined): string | undefined {
+  const trocos = aviso?.servico?.trocos || [];
+  if (!trocos.length || !p.trip || !p.paragem) return undefined;
+  const nomes = viagemNomes(db, p.trip);
+  const aqui = chaveEstacao(p.paragem);
+  const i = nomes.findIndex((x) => chaveEstacao(x.nome) === aqui);
+  if (i < 0) return undefined;
+  for (const [a, b] of trocos) {
+    const est = estacoesEntre(db, p.feed, a, b);
+    if (!est || !est.has(aqui)) continue;
+    let j = i;
+    while (j + 1 < nomes.length && est.has(chaveEstacao(nomes[j + 1].nome))) j++;
+    // fica tudo dentro: vai até ao destino de sempre
+    if (j === nomes.length - 1) return undefined;
+    return j > i ? nomes[j].nome : undefined;
+  }
+  return undefined;
+}
+
+function greveDoTrocoDaPartida(db: any, p: PartidaParaGreve, greves: AvisoGreve[]): GreveTroco | undefined {
   return greveDoTroco(p.feed, p.partidaMs, greves, {
     linha: p.linha,
     viagem: p.trip,
@@ -172,4 +205,43 @@ export function marcarGrevesNasPartidas(db: any, deps: any[], greves: AvisoGreve
     juntarResumo(resumos, db, String(d.feed_id), relevantes, g, ms);
   }
   return [...resumos.values()];
+}
+
+/** De onde vem uma partida (para a marcar com a greve), guardado à parte para não ir na resposta */
+export interface OrigemPartida {
+  feed: string;
+  partidaMs: number;
+  trip?: string;
+  /** id da paragem de onde parte */
+  paragemId?: string;
+  linha?: string;
+  tempoReal?: boolean;
+}
+export const origemDaPartida = new WeakMap<object, OrigemPartida>();
+
+/**
+ * Marca as partidas que têm origem conhecida (linhas perto de ti, partidas de uma paragem no detalhe da linha):
+ * cada uma leva `greve` ({estado, operador, ate}). Apaga marcas antigas (as respostas podem vir da cache).
+ */
+export function marcarGrevesPorOrigem(db: any, deps: any[], greves: AvisoGreve[]): void {
+  if (!Array.isArray(deps) || !deps.length) return;
+  const comOrigem = deps.filter((d) => d && typeof d === 'object' && origemDaPartida.has(d));
+  for (const d of deps) if (d && typeof d === 'object') delete d.greve;
+  if (!comOrigem.length || !greves.length) return;
+  const ms = comOrigem.map((d) => origemDaPartida.get(d)!.partidaMs).filter(Number.isFinite);
+  if (!ms.length) return;
+  const relevantes = grevesDoIntervalo(greves, Math.min(...ms), Math.max(...ms));
+  if (!relevantes.length) return;
+  const nomes = new Map<string, string | undefined>();
+  const nome = (id: string) => {
+    if (!nomes.has(id)) { try { nomes.set(id, (db.prepare('SELECT stop_name AS n FROM stops WHERE stop_id = ?').get(id) as any)?.n); } catch { nomes.set(id, undefined); } }
+    return nomes.get(id);
+  };
+  for (const d of comOrigem) {
+    const o = origemDaPartida.get(d)!;
+    if (o.tempoReal || d.state === 'Tempo Real' || d.is_realtime || !Number.isFinite(o.partidaMs)) continue;
+    const g = greveDaPartida(db, { feed: o.feed, partidaMs: o.partidaMs, trip: o.trip, paragem: o.paragemId ? nome(o.paragemId) : undefined, linha: o.linha }, relevantes);
+    const e = estadoDaGreve(g);
+    if (e) d.greve = e;
+  }
 }

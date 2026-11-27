@@ -815,6 +815,7 @@ app.get('/api/lines', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Parâmetro near inválido. Use near=lat,lon' });
       }
       const lines = await LinesEngine.getLinesNear(lat, lon, r);
+      marcarGrevesNasLinhas(lines);
       return res.json({ lines, total: lines.length });
     }
 
@@ -923,6 +924,7 @@ app.get('/api/stops/:id/departures', async (req: Request, res: Response) => {
     }
     const limit = Number(req.query.n) || 5;
     const departures = await LinesEngine.getStopDepartures(req.params.id, limit);
+    try { marcarGrevesPorOrigem(getDatabase(), departures.departures as any[], grevesAgora()); } catch (e) { console.error('[greves nas partidas da paragem]', e); }
     return res.json(departures);
   } catch (err: any) {
     console.error('[API /api/stops/:id/departures] Erro:', err);
@@ -1225,6 +1227,8 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         topStops.map(async (stop) => {
           try {
             const depResult = await DepartureEngine.nextDepartures(stop, now, 5);
+            // greve/avisos em cada partida (como no detalhe da paragem): sem isto a lista do Perto mostrava o horário normal
+            try { marcarGrevesNasPartidas(getDatabase(), depResult.departures as any[], grevesAgora(), nomeDaParagem); } catch (e) { console.error('[greves no Perto]', e); }
             return {
               ...stop,
               departures: depResult.departures,
@@ -1285,6 +1289,7 @@ app.get('/api/transit/nearby', async (req: Request, res: Response) => {
         state: d.state,
         statusDescription: d.state_reason || d.state,
         isDelayed: d.is_delayed,
+        ...((d as any).greve?.estado ? { greve: (d as any).greve.estado, ...((d as any).greve.ate ? { greveAte: (d as any).greve.ate } : {}) } : {}),
         // Atraso indicado pela própria fonte em tempo real (GPS / API do operador); sem ele não há aviso de atraso
         ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
       }));
@@ -1930,7 +1935,27 @@ import { filtrarVeiculos, lerCaixa, lerLinhas } from './src/server/veiculos';
 import { calcularABordo } from './src/server/aBordo';
 import { horarioDoDia, lerDataPedida } from './src/server/horarioDoDia';
 import { grevesAgora } from './src/server/grevesPlaneador';
-import { marcarGrevesNasPartidas } from './src/server/grevesPartidas';
+import { marcarGrevesNasPartidas, marcarGrevesPorOrigem } from './src/server/grevesPartidas';
+
+/** Linhas perto de ti: cada partida com a greve/aviso do operador (a lista vem da cache; a marca é posta a cada pedido) */
+function marcarGrevesNasLinhas(lines: Array<{ departures?: any[] }>): void {
+  try {
+    const db = getDatabase();
+    const greves = grevesAgora();
+    for (const l of lines || []) marcarGrevesPorOrigem(db, l.departures || [], greves);
+  } catch (e) {
+    console.error('[greves nas linhas perto]', e);
+  }
+}
+
+const nomesDasParagens = new Map<string, string | undefined>();
+function nomeDaParagem(id: string): string | undefined {
+  if (!nomesDasParagens.has(id)) {
+    try { nomesDasParagens.set(id, (getDatabase().prepare('SELECT stop_name AS n FROM stops WHERE stop_id = ?').get(id) as any)?.n); } catch { return undefined; }
+    if (nomesDasParagens.size > 20000) nomesDasParagens.clear();
+  }
+  return nomesDasParagens.get(id);
+}
 
 /** Partidas de uma paragem com a greve de cada uma (aviso do operador) e o resumo dos avisos por cima */
 function comGreves<T extends { departures?: any[]; partidas?: any[] }>(r: T): T & { greves?: any[] } {

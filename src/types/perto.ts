@@ -135,6 +135,8 @@ export interface GreveTroco {
   plenario?: boolean;
   /** Este comboio está nos serviços mínimos da greve (a CP garante que se realiza) */
   garantido?: boolean;
+  /** Durante a greve a viagem só vai até esta estação (o resto do percurso fica fora do que funciona) */
+  ate?: string;
 }
 
 export interface PontoRota { lat: number; lon: number; nome?: string }

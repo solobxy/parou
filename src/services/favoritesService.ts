@@ -344,7 +344,7 @@ export async function enrichFavoritesLiveStatus(
           const sentido = linhaDoFavorito(item.id)?.sentido;
           const partida = sortDepartures(real.departures || [])
             .filter((d) => sentido == null || (d.direction_id ?? 0) === sentido)
-            .find((d) => d.state !== 'Sem dados' && d.state !== 'Suprimido');
+            .find((d) => d.state !== 'Sem dados' && d.state !== 'Suprimido' && (d as any).greve?.estado !== 'sem-servico');
           if (partida) {
             nextDepartureTime = partida.time;
             nextDeparture = partida;

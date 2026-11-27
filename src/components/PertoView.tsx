@@ -35,7 +35,13 @@ import {
 import { useUserLocation } from '../hooks/useUserLocation';
 import FonteOperador from './FonteOperador';
 import { SeletorDias, proximosDias, HorarioDoDiaPainel } from './HorarioDoDia';
-import { AvisosGreve, textoGreve, type ResumoGreve } from './GreveNoHorario';
+import { AvisosGreve, textoGreve, textoGreveDaPartida, type ResumoGreve } from './GreveNoHorario';
+
+/** As 3 partidas do cartão de uma paragem: primeiro as que se realizam (numa greve, as sem serviço vão para o fim) */
+function partidasDoCartao(deps: any[]): any[] {
+  const ordem = sortDepartures(deps);
+  return [...ordem.filter((d: any) => d?.greve !== 'sem-servico'), ...ordem.filter((d: any) => d?.greve === 'sem-servico')].slice(0, 3);
+}
 import { passagensUnir, partidasParaMostrar, codigosUnir, viagemUnir, motivosFalhaUnir, type PassagemUnir } from '../services/unirAmp';
 import { 
   fetchNearbyTransit, 
@@ -1180,7 +1186,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             horaFixa: true,
             epoch: Number(d.dep_epoch_secs) || 0,
             jaPassou: (Number(d.dep_epoch_secs) || 0) < agoraS,
-            ...(d.greve?.estado ? { greve: d.greve.estado } : {}),
+            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}) } : {}),
           }));
           // a partir de uma hora: por hora; últimas: o servidor já manda as que faltam primeiro e as que já partiram no fim
           if (horaVer.modo === 'hora') deps.sort((x: any, y: any) => x.epoch - y.epoch);
@@ -1225,7 +1231,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
             statusDescription: d.state_reason || d.state,
             ...(d.is_realtime && typeof d.delay_seconds === 'number' ? { delaySeconds: d.delay_seconds } : {}),
             ...(d.mesma_hora_que ? { mesmaHoraQue: d.mesma_hora_que } : {}),
-            ...(d.greve?.estado ? { greve: d.greve.estado } : {}),
+            ...(d.greve?.estado ? { greve: d.greve.estado, ...(d.greve.ate ? { greveAte: d.greve.ate } : {}) } : {}),
           }));
           setPartidasExtra({ id, deps, aCarregar: false, greves: Array.isArray(data?.greves) ? data.greves : undefined });
         })
@@ -1854,6 +1860,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
       const deps = [...(stop.nextDepartures || []), ...partidasUnirDe(stop)];
       let melhor = Infinity;
       for (const d of deps) {
+        if ((d as any).greve === 'sem-servico') continue;
         const m = parseDepartureTime(d).minutesDiff;
         if (m < 999 && m < melhor) melhor = Math.max(0, m);
       }
@@ -2836,7 +2843,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                         </div>
                       )}
 
-                      {sortDepartures(stopDeps).slice(0, 3).map((dep: any, dIdx: number) => {
+                      {partidasDoCartao(stopDeps).map((dep: any, dIdx: number) => {
                         const parsed = parseDepartureTime(dep);
                         const lineCode = dep.lineCode || dep.route_short_name || stop.lines?.[0]?.code || '—';
                         const lineColor = dep.lineColor || stop.lines?.[0]?.color;
@@ -2875,12 +2882,14 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                     />
                                   )}
                                   <span 
-                                    className={`font-condensada text-[26px] font-bold leading-none tabular-nums ${parsed.textColorClass}`}
+                                    className={`font-condensada text-[26px] font-bold leading-none tabular-nums ${dep.greve === 'sem-servico' ? 'text-[#6B6B6B] line-through decoration-2' : parsed.textColorClass}`}
                                   >
                                     {parsed.bigText}
                                   </span>
                                 </div>
-                                {parsed.subText && (
+                                {dep.greve ? (
+                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
+                                ) : parsed.subText && (
                                   <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                     {parsed.subText}
                                   </span>
@@ -3355,7 +3364,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                   {dep.scheduledTime}
                                 </span>
                                 {dep.greve ? (
-                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                                  <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
                                 ) : (outroDia || dep.jaPassou) && (
                                   <span className="text-xs text-[#6B6B6B] mt-0.5">{dep.jaPassou ? t('já passou') : t('dia seguinte')}</span>
                                 )}
@@ -3464,7 +3473,7 @@ export const PertoView: React.FC<PertoViewProps> = ({
                                 </span>
                               </div>
                               {dep.greve ? (
-                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreve(dep.greve)}</span>
+                                <span className={`text-xs mt-0.5 ${dep.greve === 'reduzido' || dep.greve === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve, dep.greveAte)}</span>
                               ) : parsed.subText && (
                                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                                   {parsed.subText}

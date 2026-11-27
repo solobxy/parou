@@ -89,6 +89,12 @@ export const AvisosGreve: React.FC<{ greves?: ResumoGreve[]; className?: string 
 };
 
 /** Texto curto da marca de uma partida */
+/** Texto de uma partida na greve; «Só até X» quando a viagem só faz parte do percurso */
+export function textoGreveDaPartida(e: EstadoGreve, ate?: string): string {
+  return e === 'reduzido' && ate ? t('Só até {e} (greve)', { e: formatarNomeAte(ate) }) : textoGreve(e);
+}
+const formatarNomeAte = (n: string) => String(n || '').trim();
+
 export function textoGreve(e: EstadoGreve): string {
   return e === 'sem-servico' ? t('Sem serviço (greve)') : e === 'incerta' ? t('Pode não se realizar') : e === 'garantido' ? t('Serviço mínimo (greve)') : e === 'desvio' ? t('Percurso alterado') : t('Serviço reduzido');
 }

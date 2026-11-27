@@ -656,6 +656,8 @@ export interface ApiLineItem {
     aviso_horario?: string;
     /** Paragem de onde parte esta partida */
     stop_name?: string;
+    /** Greve ou aviso do operador nesta partida (sem serviço, serviço reduzido, só até X…) */
+    greve?: GreveDaPartidaApi;
   }>;
 }
 
@@ -698,6 +700,13 @@ export interface ApiStopDeparture {
   delay_minutes?: number;
   displayText: string;
   aviso_horario?: string;
+  greve?: GreveDaPartidaApi;
+}
+
+export interface GreveDaPartidaApi {
+  estado: 'sem-servico' | 'incerta' | 'reduzido' | 'garantido' | 'desvio';
+  operador: string;
+  ate?: string;
 }
 
 export async function fetchLinesNear(

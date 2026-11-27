@@ -5,6 +5,7 @@ import { LineChip } from './LineChip';
 import { EtiquetaAtraso } from './EtiquetaAtraso';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoGenerico } from '../utils/transitFormatter';
 import { t } from '../i18n';
+import { textoGreveDaPartida } from './GreveNoHorario';
 
 interface LineCardProps {
   line: ApiLineItem;
@@ -30,7 +31,9 @@ export const LineCard: React.FC<LineCardProps> = ({
 }) => {
   // Título e paragem da partida que aparece à direita (o destino e a paragem dessa partida,
   // não os da linha em geral — senão "Cordoaria" aparecia com a hora do outro sentido)
-  const proxima = line.departures && line.departures.length > 0 ? sortDepartures(line.departures)[0] : undefined;
+  // Numa greve, a próxima que se realiza (as sem serviço só se não houver outra)
+  const ordenadas = line.departures && line.departures.length > 0 ? sortDepartures(line.departures) : [];
+  const proxima = ordenadas.find((d) => d.greve?.estado !== 'sem-servico') || ordenadas[0];
   const destinoProxima = proxima && proxima.state !== 'Sem dados' ? (proxima as any).destination : undefined;
   // "Destino"/"Destino terminal" não diz nada ao passageiro: nesse caso usa-se o nome da linha
   const destinoUtil = destinoProxima && !destinoGenerico(destinoProxima) ? destinoProxima : undefined;
@@ -76,9 +79,9 @@ export const LineCard: React.FC<LineCardProps> = ({
 
       {/* Right: Next departure or favorite button */}
       <div className="flex items-center gap-3 shrink-0">
-        {line.departures && line.departures.length > 0 && (() => {
-          const sorted = sortDepartures(line.departures);
-          const nextDep = sorted[0];
+        {proxima && (() => {
+          const nextDep = proxima;
+          const greve = nextDep.greve;
           const parsed = parseDepartureTime(nextDep);
           const bigDisplay = showExactTimeAsBig ? (parsed.exactTime || parsed.bigText) : parsed.bigText;
 
@@ -91,12 +94,14 @@ export const LineCard: React.FC<LineCardProps> = ({
                   />
                 )}
                 <span 
-                  className={`font-condensada text-xl font-bold tabular-nums leading-none ${showExactTimeAsBig ? 'text-[#111111]' : parsed.textColorClass}`}
+                  className={`font-condensada text-xl font-bold tabular-nums leading-none ${greve?.estado === 'sem-servico' ? 'text-[#6B6B6B] line-through decoration-2' : showExactTimeAsBig ? 'text-[#111111]' : parsed.textColorClass}`}
                 >
                   {bigDisplay}
                 </span>
               </div>
-              {!showExactTimeAsBig && parsed.subText && (
+              {greve ? (
+                <span className={`text-xs mt-0.5 ${greve.estado === 'reduzido' || greve.estado === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(greve.estado, greve.ate)}</span>
+              ) : !showExactTimeAsBig && parsed.subText && (
                 <span className="font-condensada text-xs text-[#6B6B6B] tabular-nums mt-0.5">
                   {parsed.subText}
                 </span>

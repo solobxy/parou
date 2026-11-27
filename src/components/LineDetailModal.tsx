@@ -18,6 +18,7 @@ import {
 } from '../services/transitApi';
 import { LineChip } from './LineChip';
 import { HorarioDoDiaPainel, SeletorDias, proximosDias } from './HorarioDoDia';
+import { textoGreveDaPartida } from './GreveNoHorario';
 import { formatTransitName, sortDepartures, parseDepartureTime, destinoLegivel } from '../utils/transitFormatter';
 import { t } from '../i18n';
 import { registarProcura } from '../services/procuras';
@@ -348,12 +349,14 @@ export const LineDetailModal: React.FC<LineDetailModalProps> = ({
                                                   />
                                                 )}
                                                 <span 
-                                                  className={`font-condensada text-base font-bold tabular-nums leading-none ${parsed.textColorClass}`}
+                                                  className={`font-condensada text-base font-bold tabular-nums leading-none ${dep.greve?.estado === 'sem-servico' ? 'text-[#6B6B6B] line-through decoration-2' : parsed.textColorClass}`}
                                                 >
                                                   {parsed.bigText}
                                                 </span>
                                               </div>
-                                              {parsed.subText && (
+                                              {dep.greve ? (
+                                                <span className={`text-[11px] mt-0.5 ${dep.greve.estado === 'reduzido' || dep.greve.estado === 'garantido' ? 'text-[#6B6B6B]' : 'text-[#111111] font-semibold'}`} data-teste="greve-partida">{textoGreveDaPartida(dep.greve.estado, dep.greve.ate)}</span>
+                                              ) : parsed.subText && (
                                                 <span className="font-condensada text-[11px] text-[#6B6B6B] tabular-nums mt-0.5">
                                                   {parsed.subText}
                                                 </span>

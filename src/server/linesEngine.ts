@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import { getActiveServices, isServiceActive, filtroServicosHoje } from './dadosProntos';
 import { RealtimeEngine } from './realtimeEngine';
 import { podarMapa } from './cacheLimitada';
+import { origemDaPartida } from './grevesPartidas';
 
 // Um dia de serviço GTFS vai até ~30h (viagens depois da meia-noite contam no dia anterior)
 const JANELA_DIA_SERVICO_SECS = 30 * 3600;
@@ -1044,6 +1045,13 @@ export class LinesEngine {
                 ...(avisoHorario ? { aviso_horario: avisoHorario } : {}),
               };
               if (nextT.stop_id && !nextT.frequency_label) paragemDaPartida.set(partida, nextT.stop_id);
+              // para a marcar com a greve na resposta (a lista fica em cache; a marca é posta a cada pedido)
+              if ((nextT as any).trip_id && !nextT.frequency_label) {
+                origemDaPartida.set(partida, {
+                  feed: card.feed_id, trip: (nextT as any).trip_id, paragemId: nextT.stop_id, linha: card.code,
+                  partidaMs: Date.now() - currentSecs * 1000 + (nextT.departure_secs + (nextT.amanha ? 86400 : 0)) * 1000,
+                });
+              }
               departures.push(partida);
             }
           } else {
@@ -1055,7 +1063,7 @@ export class LinesEngine {
             const diffMins = Math.round(((24 * 3600 - currentSecs) + tomorrowT.departure_secs) / 60);
             const avisoHorario = feedsAviso.has(card.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
-            departures.push({
+            const partidaAmanha: any = {
               direction_id: dirId,
               destination: tomorrowT.trip_headsign || card.destinations[0] || 'Destino',
               time: timeStr,
@@ -1063,7 +1071,14 @@ export class LinesEngine {
               countdown_minutes: diffMins,
               displayText: tomorrowT.frequency_label || `amanhã às ${timeStr}`,
               ...(avisoHorario ? { aviso_horario: avisoHorario } : {}),
-            });
+            };
+            if ((tomorrowT as any).trip_id && !tomorrowT.frequency_label) {
+              origemDaPartida.set(partidaAmanha, {
+                feed: card.feed_id, trip: (tomorrowT as any).trip_id, paragemId: (tomorrowT as any).stop_id, linha: card.code,
+                partidaMs: Date.now() - currentSecs * 1000 + (tomorrowT.departure_secs + 86400) * 1000,
+              });
+            }
+            departures.push(partidaAmanha);
           }
         }
       } else {
@@ -1739,7 +1754,7 @@ export class LinesEngine {
         const color = r.route_color ? (r.route_color.startsWith('#') ? r.route_color : `#${r.route_color}`) : '#2563EB';
         const avisoHorario = feedsAviso.has(r.feed_id) ? 'horário possivelmente desatualizado' : undefined;
 
-        departures.push({
+        const partida: any = {
           line_id: r.route_id,
           line_code: norm.code || r.route_short_name || r.route_id,
           line_name: norm.name || r.route_long_name || '',
@@ -1754,7 +1769,12 @@ export class LinesEngine {
           delay_minutes: 0,
           displayText,
           ...(avisoHorario ? { aviso_horario: avisoHorario } : {}),
+        };
+        origemDaPartida.set(partida, {
+          feed: r.feed_id, trip: r.trip_id, paragemId: stopId, linha: r.route_short_name || undefined,
+          partidaMs: Date.now() - currentSecs * 1000 + (r.departure_secs + (r.is_tomorrow === 1 ? 86400 : 0)) * 1000,
         });
+        departures.push(partida);
       }
     }
 
