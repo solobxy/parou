@@ -214,7 +214,11 @@ export function desenhosDaLinha(op: string, linha: string): string[] {
       SELECT t.shape_id AS id, COUNT(*) AS n FROM trips t JOIN routes r ON r.route_id = t.route_id
       WHERE r.feed_id IN (${feeds.map(() => '?').join(',')}) AND UPPER(r.route_short_name) = ? AND t.shape_id IS NOT NULL
       GROUP BY t.shape_id ORDER BY n DESC LIMIT 8`).all(...feeds, codigo) as Array<{ id: string }>;
-    saida = ids.map((x) => formaPorId(x.id)?.forma.texto).filter((t): t is string => !!t);
+    // Carris Metropolitana: as viagens do horário ("cmh:<linha>") não têm a linha na tabela das linhas; vai-se direto às viagens
+    const lista = ids.length || op !== 'cm' ? ids : getDatabase().prepare(`
+      SELECT shape_id AS id, COUNT(*) AS n FROM trips WHERE route_id = ? AND shape_id IS NOT NULL
+      GROUP BY shape_id ORDER BY n DESC LIMIT 8`).all(`cmh:${codigo}`) as Array<{ id: string }>;
+    saida = lista.map((x) => formaPorId(x.id)?.forma.texto).filter((t): t is string => !!t);
   } catch {
     saida = [];
   }
