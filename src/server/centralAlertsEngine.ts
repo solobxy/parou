@@ -42,23 +42,36 @@ function guardarCopiaDosAvisos(): void {
   if (Date.now() - ultimaCopia < 30_000) return;
   ultimaCopia = Date.now();
   try {
-    const lista = [...centralState.alerts.values()].filter((a: any) => a && (a.status === 'Ativo' || a.status === 'Futuro'));
+    // guarda a chave de cada aviso no mapa (nem sempre é o id): repor com outra chave duplicava os avisos
+    // (27/11/2026: cada greve aparecia duas vezes depois de reiniciar)
+    const entradas = [...centralState.alerts.entries()].filter(([, a]: any) => a && (a.status === 'Ativo' || a.status === 'Futuro'));
     fs.mkdirSync(path.dirname(FICHEIRO_AVISOS), { recursive: true });
     const tmp = `${FICHEIRO_AVISOS}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ em: Date.now(), avisos: lista }));
+    fs.writeFileSync(tmp, JSON.stringify({ em: Date.now(), versao: 2, entradas }));
     fs.renameSync(tmp, FICHEIRO_AVISOS);
   } catch (e: any) {
     console.warn('[Central Alerts] cópia dos avisos:', e?.message || e);
   }
 }
+/** O mesmo aviso (mesmo id) uma só vez, mesmo que tenha ficado no mapa com duas chaves */
+export function semAvisosRepetidos<T extends { id?: string }>(lista: T[]): T[] {
+  const vistos = new Set<string>();
+  return lista.filter((a) => {
+    const id = a?.id ? String(a.id) : '';
+    if (!id) return true;
+    if (vistos.has(id)) return false;
+    vistos.add(id);
+    return true;
+  });
+}
 export function reporCopiaDosAvisos(agora = Date.now()): number {
   try {
     const j = JSON.parse(fs.readFileSync(FICHEIRO_AVISOS, 'utf8'));
-    if (!j || !Array.isArray(j.avisos) || !(agora - Number(j.em) < VALIDADE_COPIA_MS)) return 0;
+    if (!j || j.versao !== 2 || !Array.isArray(j.entradas) || !(agora - Number(j.em) < VALIDADE_COPIA_MS)) return 0;
     let n = 0;
-    for (const a of j.avisos) {
-      if (!a || !a.id || centralState.alerts.has(a.id)) continue;
-      centralState.alerts.set(a.id, a);
+    for (const e of j.entradas) {
+      if (!Array.isArray(e) || typeof e[0] !== 'string' || !e[1] || centralState.alerts.has(e[0])) continue;
+      centralState.alerts.set(e[0], e[1]);
       n++;
     }
     return n;
@@ -1296,7 +1309,7 @@ export function avisosEmMemoria(): CentralAlert[] {
     atualizacaoEmCurso = runCentralAlertsSync().catch(() => {}).finally(() => { atualizacaoEmCurso = null; });
   }
   reevaluateAllAlertStatuses();
-  return Array.from(centralState.alerts.values());
+  return semAvisosRepetidos(Array.from(centralState.alerts.values()));
 }
 
 // Retrieve filtered central alerts
@@ -1308,7 +1321,7 @@ export async function getCentralAlerts(query: CentralAlertQuery = {}): Promise<C
     reevaluateAllAlertStatuses();
   }
 
-  let list = Array.from(centralState.alerts.values());
+  let list = semAvisosRepetidos(Array.from(centralState.alerts.values()));
 
   // Filter: status
   if (query.status && query.status !== 'Todos') {
@@ -1378,7 +1391,7 @@ export async function getCentralAlerts(query: CentralAlertQuery = {}): Promise<C
 // Generate the official Diagnostic Dashboard report requested by user
 export function getCentralAlertsDiagnostic(): AlertCenterDiagnostic {
   reevaluateAllAlertStatuses();
-  const all = Array.from(centralState.alerts.values());
+  const all = semAvisosRepetidos(Array.from(centralState.alerts.values()));
 
   return {
     future_alerts_count: all.filter(a => a.status === 'Futuro').length,
