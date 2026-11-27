@@ -1007,6 +1007,87 @@ async function ingestMetroPortoAlerts(): Promise<number> {
   }
 }
 
+// ---------------------------------------------------------------------------------
+// TUB (Braga): feed oficial dos avisos, cedido pela TUB a 27/11/2026 (Rui Martins, Inovação). Lista dos avisos publicados
+// agora no site: {status:'success', result:[{id, titulo, desccurta, datainiciopubli}]}. Sem data de fim: cada aviso vale
+// enquanto estiver no feed (o que sai deixa de contar). Ficam só os do serviço (percursos, horários, paragens, linhas,
+// greves); campanhas, concursos e tarifários de estacionamento ficam de fora.
+// ---------------------------------------------------------------------------------
+export const FONTE_AVISOS_TUB = 'TUB — avisos oficiais';
+export const URL_AVISOS_TUB = 'https://tub.pt/core/request.php?action=getavisos';
+const RE_TUB_SERVICO = /percurso|horari|paragem|paragens|\blinhas?\b|interdi|desvio|shuttle|substitui|greve|plenario|interface|supress|servico|obras|corte|cancel|condicionad|altera/;
+const RE_TUB_FORA = /concurso|\bjogo\b|whatsapp|multibanco|carregamento|passe x|\btaxas?\b|estacionamento|zedl|mapa da rede|campanha|aplicacao|\bapp\b|inquerito|sorteio/;
+
+/** Linhas de um aviso da TUB («Linhas 72 e 92», «LINHA 09», «Linhas 7, 14, 21 … 914 e 933») sem zeros à esquerda */
+export function linhasDoAvisoTub(texto: string): string[] {
+  const out = new Set<string>();
+  for (const m of String(texto || '').matchAll(/\blinhas?\s+((?:\d{1,3}\s*(?:,|\be\b|\/|\|)?\s*)+)/gi)) {
+    for (const n of m[1].match(/\d{1,3}/g) || []) out.add(String(Number(n)));
+  }
+  return [...out].slice(0, 30);
+}
+
+/** Um aviso do feed da TUB (null se não é do serviço ou não tem título e data) */
+export function avisoDaTub(item: any, agoraIso = new Date().toISOString()): CentralAlert | null {
+  const titulo = String(item?.titulo || '').replace(/\s+/g, ' ').trim();
+  const desc = String(item?.desccurta || '').replace(/[⠀\s]+/g, ' ').trim();
+  const inicio = DateTime.fromSQL(String(item?.datainiciopubli || ''), { zone: 'Europe/Lisbon' });
+  if (!titulo || !inicio.isValid) return null;
+  const t = `${titulo} ${desc}`.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (RE_TUB_FORA.test(t) || !RE_TUB_SERVICO.test(t)) return null;
+  const descricao = desc && desc !== titulo ? desc : titulo;
+  const fim = fimNoTexto(`${titulo}. ${desc}`, inicio);
+  const start = inicio.toUTC().toISO()!;
+  const end = fim ? fim.toUTC().toISO()! : null;
+  let tipo = classifyAlertType(titulo, desc);
+  if (tipo === 'outros alertas oficiais' && /percurso/.test(t)) tipo = 'alteração de percurso';
+  if (tipo === 'outros alertas oficiais' && /horari/.test(t)) tipo = 'alteração de horário';
+  const extId = `tub-${String(item?.id || titulo).replace(/[^a-zA-Z0-9-]+/g, '-')}`;
+  return {
+    id: `alert-${extId}`, external_id: extId, tipo, título: titulo, descrição: descricao,
+    operador: 'TUB', linhas: linhasDoAvisoTub(`${titulo} ${desc}`), paragens: [],
+    região: 'Braga', municípios: ['Braga'],
+    start_datetime: start, end_datetime: end, published_datetime: start,
+    source: FONTE_AVISOS_TUB, source_url: 'https://www.tub.pt/', last_update: agoraIso,
+    status: computeAlertStatus(start, end, false),
+    content_hash: generateContentHash(titulo, descricao, start, end),
+    severity: tipo === 'greve' ? 'Grave' : 'Moderada',
+  };
+}
+
+let ultimaLeituraTub = 0;
+async function ingestTubAlerts(): Promise<number> {
+  if (Date.now() - ultimaLeituraTub < 5 * 60_000) return 0;
+  ultimaLeituraTub = Date.now();
+  try {
+    const r = await fetch(URL_AVISOS_TUB, { headers: { 'User-Agent': 'PAROU.PT/AlertCenter/2.0 (+https://parou.pt)', Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j: any = JSON.parse(await r.text());
+    // formato desconhecido: regista-se a falha e nada é dado como terminado
+    if (j?.status !== 'success' || !Array.isArray(j?.result)) throw new Error('Avisos da TUB num formato desconhecido');
+    const agora = new Date().toISOString();
+    const vistos = new Set<string>();
+    let imported = 0;
+    for (const item of j.result) {
+      const a = avisoDaTub(item, agora);
+      if (!a) continue;
+      const key = `${FONTE_AVISOS_TUB}:${a.external_id}`;
+      vistos.add(key);
+      const existing = centralState.alerts.get(key);
+      if (existing && existing.content_hash === a.content_hash) { existing.status = a.status; centralState.duplicatesAvoidedCount++; continue; }
+      centralState.alerts.set(key, a);
+      if (!existing) imported++;
+    }
+    // os que saíram do feed acabaram (feed vazio de avisos do serviço: acabaram todos)
+    if (vistos.size === 0) retirarTodos(FONTE_AVISOS_TUB); else retirarDesaparecidos(FONTE_AVISOS_TUB, vistos);
+    return imported;
+  } catch (err: any) {
+    ultimaLeituraTub = Date.now() - 4 * 60_000; // volta a tentar daqui a 1 min
+    centralState.sourcesErrorList.push({ source: FONTE_AVISOS_TUB, error: err?.message || 'Falha ao ler os avisos da TUB', last_attempt: new Date().toISOString() });
+    return 0;
+  }
+}
+
 // Avisos de greve nos sites dos operadores do país todo e das ilhas (avisosOperadores.ts), de 10 em 10 minutos
 async function ingestAvisosOperadores(): Promise<number> {
   const r = await lerAvisosDosOperadores();
@@ -1129,6 +1210,7 @@ export async function runCentralAlertsSync(): Promise<{
     ingestCpAlerts(),
     ingestMetroPortoAlerts(),
     ingestAvisosOperadores(),
+    ingestTubAlerts(),
   ]);
   await ingestGrevesNoticias();
 

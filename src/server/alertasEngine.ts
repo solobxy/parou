@@ -813,6 +813,7 @@ const CENTRO_OPERADOR: Array<{ re: RegExp; lat: number; lon: number }> = [
   { re: /\bunir\b/, lat: 41.18, lon: -8.60 },
   { re: /mts|metro transportes do sul/, lat: 38.66, lon: -9.16 },
   { re: /\bcp\b|comboios de portugal/, lat: 38.7139, lon: -9.1225 },
+  { re: /\btub\b|transportes urbanos de braga/, lat: 41.5503, lon: -8.4200 },
 ];
 
 function jitter(id: string, raio = 0.035): [number, number] {
@@ -1104,6 +1105,7 @@ const OPERADORES_PUSH: Array<{ chave: string; nome: string; re: RegExp; distrito
   { chave: 'metro-porto', nome: 'Metro do Porto', re: /metro do porto/, distritos: ['Porto'] },
   { chave: 'stcp', nome: 'STCP', re: /\bstcp\b/, distritos: ['Porto'] },
   { chave: 'unir', nome: 'UNIR', re: /\bunir\b/, distritos: ['Porto', 'Aveiro'] },
+  { chave: 'tub', nome: 'TUB', re: /\btub\b|transportes urbanos de braga/, distritos: ['Braga'] },
   { chave: 'cp', nome: 'CP — Comboios de Portugal', re: /\bcp\b|comboios de portugal|comboios|ferrovi|maquinistas|revisores|infraestruturas de portugal/, distritos: [] },
   { chave: 'aviacao', nome: 'Aeroportos e companhias aéreas', re: /\btap\b|ryanair|easyjet|aeroporto|aeroportos|pilotos|tripulantes|controladores aereos|handling|menzies|groundforce/, distritos: [] },
 ];
