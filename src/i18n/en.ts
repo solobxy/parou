@@ -1401,4 +1401,7 @@ export const EN: Record<string, string> = {
   'O telemóvel não está a dar a posição (no metro, num túnel ou dentro de um edifício). A PAROU continua a tentar sozinha.': 'Your phone is not giving a position (on the metro, in a tunnel or indoors). PAROU keeps trying on its own.',
   'Chega-te a uma janela ou sai do túnel: a posição volta sozinha.': 'Move near a window or out of the tunnel: the position comes back on its own.',
   'Ou escolhe um local para ver o que passa perto.': 'Or choose a place to see what runs nearby.',
+  'Confirma em Definições › Privacidade › Serviços de localização › Safari: «Durante a utilização» e «Localização exata».': 'Check Settings › Privacy › Location Services › Safari: “While Using” and “Precise Location”.',
+  'Nas definições do telemóvel, em Localização, liga «Precisão da localização Google» (usa o Wi-Fi e a rede: funciona dentro de casa).': 'In your phone settings, under Location, turn on “Google Location Accuracy” (uses Wi-Fi and the network: works indoors).',
+  'Confirma que o Chrome pode usar a localização exata: Definições › Aplicações › Chrome › Autorizações › Localização.': 'Check that Chrome may use your precise location: Settings › Apps › Chrome › Permissions › Location.',
 };

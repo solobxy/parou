@@ -59,6 +59,13 @@ export function notaGps(e: string): void {
 // a localização já ligada e nenhum registo chegava ao servidor). Só estado técnico e tempos, nunca a posição. No máximo
 // 3 por visita.
 let contexto: () => string = () => '';
+// Modelo e marca do telemóvel (Chrome dá-os a pedido): há telemóveis sem os serviços de localização da Google, em que o browser
+// não recebe a posição e as apps nativas sim. Só o modelo, nada que identifique a pessoa.
+let aparelho = '';
+try {
+  (navigator as any).userAgentData?.getHighEntropyValues?.(['model', 'platformVersion'])
+    .then((v: any) => { aparelho = `${v?.model || '?'} · Android ${v?.platformVersion || '?'}`; }).catch(() => {});
+} catch { /* browser sem userAgentData */ }
 /** A app diz como se lê o que está guardado no telemóvel (já deu a localização? desligou-a na app?) */
 export function contextoGps(f: () => string): void {
   contexto = f;
@@ -78,7 +85,7 @@ function relatarParada(motivo: string, espera: number): void {
     try { foco = document.hasFocus() ? '1' : '0'; } catch { /* sem foco */ }
     let ctx = '';
     try { ctx = contexto(); } catch { /* sem contexto */ }
-    reportarErro('gps', `parada há ${Math.round((Date.now() - paradaDesde) / 1000)} s (${motivo}) | permissão ${perm} | ${document.visibilityState} | foco ${foco} | ${ctx}`, eventos.slice(-45).map((x) => `${x.t}:${x.e}`).join(' '));
+    reportarErro('gps', `parada há ${Math.round((Date.now() - paradaDesde) / 1000)} s (${motivo}) | permissão ${perm} | ${document.visibilityState} | foco ${foco} | ${ctx}${aparelho ? ` | ${aparelho}` : ''}`, eventos.slice(-45).map((x) => `${x.t}:${x.e}`).join(' '));
   }, espera);
 }
 

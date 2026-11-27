@@ -2248,7 +2248,10 @@ export const PertoView: React.FC<PertoViewProps> = ({
           ? 'Toca em Ativar localização e escolhe Permitir quando o telemóvel perguntar.'
           : 'O browser não está a deixar a PAROU usar a localização.';
       const passos: string[] = gpsSemSinal
-        ? ['Chega-te a uma janela ou sai do túnel: a posição volta sozinha.', 'Ou escolhe um local para ver o que passa perto.']
+        ? (eIphone
+            ? ['Chega-te a uma janela ou sai do túnel: a posição volta sozinha.', 'Confirma em Definições › Privacidade › Serviços de localização › Safari: «Durante a utilização» e «Localização exata».', 'Ou escolhe um local para ver o que passa perto.']
+            // dentro de casa o GPS sozinho pode nunca dar a posição; com a precisão da Google (Wi-Fi e rede) dá em segundos
+            : ['Nas definições do telemóvel, em Localização, liga «Precisão da localização Google» (usa o Wi-Fi e a rede: funciona dentro de casa).', 'Confirma que o Chrome pode usar a localização exata: Definições › Aplicações › Chrome › Autorizações › Localização.', 'Ou escolhe um local para ver o que passa perto.'])
         : semAvisoAndroid
         ? ['Desliza o dedo de cima para baixo e liga a Localização.', 'Para o aviso voltar: toca no ícone ao lado do endereço, repõe as permissões e toca outra vez em Ativar localização.']
         : desligada

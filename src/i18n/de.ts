@@ -1401,4 +1401,7 @@ export const DE: Record<string, string> = {
   'O telemóvel não está a dar a posição (no metro, num túnel ou dentro de um edifício). A PAROU continua a tentar sozinha.': 'Das Handy liefert keine Position (in der U-Bahn, im Tunnel oder in einem Gebäude). PAROU versucht es weiter von selbst.',
   'Chega-te a uma janela ou sai do túnel: a posição volta sozinha.': 'Geh an ein Fenster oder aus dem Tunnel: Die Position kommt von selbst zurück.',
   'Ou escolhe um local para ver o que passa perto.': 'Oder wähle einen Ort, um zu sehen, was in der Nähe fährt.',
+  'Confirma em Definições › Privacidade › Serviços de localização › Safari: «Durante a utilização» e «Localização exata».': 'Prüfe Einstellungen › Datenschutz › Ortungsdienste › Safari: „Beim Verwenden“ und „Genauer Standort“.',
+  'Nas definições do telemóvel, em Localização, liga «Precisão da localização Google» (usa o Wi-Fi e a rede: funciona dentro de casa).': 'Schalte in den Handy-Einstellungen unter Standort „Google Standortgenauigkeit“ ein (nutzt WLAN und Netz: funktioniert auch drinnen).',
+  'Confirma que o Chrome pode usar a localização exata: Definições › Aplicações › Chrome › Autorizações › Localização.': 'Prüfe, ob Chrome den genauen Standort nutzen darf: Einstellungen › Apps › Chrome › Berechtigungen › Standort.',
 };
