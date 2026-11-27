@@ -48,7 +48,7 @@ function publicar(autorId: string, p: Proposta, agoraMs: number): string {
   const id = `pub-${agoraMs.toString(36)}-${crypto.randomBytes(5).toString('hex')}`;
   emTransacao(() => {
     b.prepare(`INSERT INTO publicacoes (id, autor_id, titulo, texto, tipo, imagens, criado) VALUES (?, ?, ?, ?, 'aviso', ?, ?)`)
-      .run(id, autorId, p.post.titulo, p.post.texto, JSON.stringify([p.post.imagem]), agoraMs);
+      .run(id, autorId, p.post.titulo, p.post.texto, JSON.stringify([p.post.imagem, ...(p.post.cartaz ? [`cartaz:${JSON.stringify(p.post.cartaz)}`] : [])]), agoraMs);
     const ins = b.prepare('INSERT OR IGNORE INTO avisos_publicados (id, grupo, publicacao_id, tipo, urgente, criado) VALUES (?, ?, ?, ?, ?, ?)');
     for (const x of p.ids) ins.run(x.id, x.grupo, id, p.tipo, p.urgente ? 1 : 0, agoraMs);
   });

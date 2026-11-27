@@ -1,6 +1,7 @@
 // Textos das publicações automáticas da Comunidade (avisos importantes). Sem base de dados nem datas aqui,
 // para poderem ser testados à parte. Escrevem-se na voz do Criador: diretos, em português de Portugal, sem alarmismo
 // e sem inventar nada — só o que a fonte oficial (Proteção Civil, IPMA, operadores) diz, mais dicas de segurança conhecidas.
+import { TIPOS_COMUNIDADE, diaCurto, zonaDosLugares, type DadosCartaz } from '../../utils/cartazAviso';
 
 export const MAX_TITULO = 90;
 export const MAX_TEXTO = 600;
@@ -8,8 +9,10 @@ export const MAX_TEXTO = 600;
 export interface PostAviso {
   titulo: string;
   texto: string;
-  /** Imagem da PAROU (public/avisos/<categoria>.jpg) */
+  /** Imagem da PAROU (public/avisos/<categoria>.jpg): fica para quem não consegue desenhar a imagem própria */
   imagem: string;
+  /** Imagem própria do aviso (zona, tipo, datas), desenhada no telemóvel de quem vê */
+  cartaz?: DadosCartaz;
 }
 
 const semAcentos = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -52,7 +55,17 @@ export function postIncendios(lista: IncendioGrave[]): PostAviso {
     abertura = `Incêndios com muitos meios no terreno (Proteção Civil / Fogos.pt):\n${ordenados.map((i) => `• ${i.concelho}: ${meios(i)}`).join('\n')}`;
   }
   const texto = `${abertura}\n\n${DICAS_INCENDIO}\n\nPartilha com quem esteja na zona. O mapa em direto está na PAROU.`;
-  return { titulo: cortar(titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/incendio.jpg' };
+  const top = ordenados[0];
+  const cartaz: DadosCartaz = {
+    // um incêndio: o nome do concelho em grande (é o que interessa a quem lá vive), com o desenho da região do distrito
+    zona: ordenados.length === 1 && top.concelho
+      ? { nome: top.concelho.toUpperCase().slice(0, 30), silhueta: zonaDosLugares([top.distrito || top.concelho]).silhueta }
+      : zonaDosLugares(ordenados.map((i) => i.distrito || i.concelho).filter(Boolean)),
+    modo: null, tipo: TIPOS_COMUNIDADE.incendio,
+    operador: 'PROTEÇÃO CIVIL', quando: 'EM CURSO', titulo: cortar(titulo, MAX_TITULO).replace(' · ', ' em '),
+    destaque: top ? { etiqueta: 'MEIOS NO TERRENO', texto: `${top.humanos} operacionais${top.aereos ? ` · ${top.aereos} meios aéreos` : ''}` } : null,
+  };
+  return { titulo: cortar(titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/incendio.jpg', cartaz };
 }
 
 // ------------------------------------------------------------------ aviso vermelho (IPMA)
@@ -84,18 +97,27 @@ export function postAvisoVermelho(o: { distritos: string[]; tipos: string[]; qua
     'Se puderes, adia deslocações: os transportes podem ser afetados. Acompanha os Alertas na PAROU.',
   ].join('\n\n');
   const titulo = `Aviso vermelho do IPMA · ${distritos.length > 3 ? `${distritos.slice(0, 3).join(', ')}…` : distritos.join(', ')}`;
-  return { titulo: cortar(titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/tempo.jpg' };
+  const cartaz: DadosCartaz = {
+    zona: zonaDosLugares(distritos), modo: null, tipo: TIPOS_COMUNIDADE.avisoVermelho, operador: 'IPMA',
+    quando: (o.quando || '').toUpperCase().slice(0, 40), titulo: 'O nível mais grave de aviso do IPMA',
+    destaque: tipos.length ? { etiqueta: 'AVISO PARA', texto: tipos.slice(0, 3).map((t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' · ') } : null,
+  };
+  return { titulo: cortar(titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/tempo.jpg', cartaz };
 }
 
 // ------------------------------------------------------------------ greves
-export function postGreve(o: { titulo: string; corpo: string }): PostAviso {
+export function postGreve(o: { titulo: string; corpo: string; cartaz?: DadosCartaz }): PostAviso {
   const corpo = o.corpo.replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '').replace(/\s·\s([^·]+)$/, ' ($1)');
   const texto = `${corpo}.\n\nSe vais precisar deste transporte, confirma o estado da tua linha na PAROU antes de saíres de casa e vê as alternativas. Os horários e os avisos dos operadores estão na página de greves.`;
-  return { titulo: cortar(o.titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/greve.jpg' };
+  return { titulo: cortar(o.titulo, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/greve.jpg', ...(o.cartaz ? { cartaz: o.cartaz } : {}) };
 }
 
 // ------------------------------------------------------------------ feriados
-export function postFeriado(o: { nome: string; diaSemana: string }): PostAviso {
+export function postFeriado(o: { nome: string; diaSemana: string; data?: string }): PostAviso {
   const texto = `Amanhã, ${o.diaSemana}, é feriado nacional (${o.nome}).\n\nOs transportes costumam seguir o horário de domingos e feriados, por isso confirma a tua linha na PAROU antes de saíres: os horários seguem os dados oficiais de cada operador. Se houver greves ou alterações, vão aparecer nos Alertas.\n\nBom feriado!`;
-  return { titulo: cortar(`Amanhã é feriado · ${o.nome}`, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/horario.jpg' };
+  const cartaz: DadosCartaz = {
+    zona: { nome: 'PORTUGAL', silhueta: 'portugal' }, modo: null, tipo: TIPOS_COMUNIDADE.feriado, operador: 'FERIADO NACIONAL',
+    quando: o.data ? diaCurto(o.data) : '', titulo: o.nome, destaque: { etiqueta: 'TRANSPORTES', texto: 'Horário de domingos e feriados' },
+  };
+  return { titulo: cortar(`Amanhã é feriado · ${o.nome}`, MAX_TITULO), texto: cortar(texto, MAX_TEXTO), imagem: '/avisos/horario.jpg', cartaz };
 }

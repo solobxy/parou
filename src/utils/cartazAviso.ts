@@ -166,30 +166,26 @@ function partesLisboa(iso: string): { ano: number; mes: number; dia: number; hor
 
 const dd = (n: number) => String(n).padStart(2, '0');
 
-/** «SEX 27/11», «HOJE», «AMANHÃ · QUA 02/12», «02/12 → 05/12», «EM CURSO». */
-export function quandoCurto(a: Pick<CentralAlert, 'status' | 'start_datetime'> & { end_datetime?: string | null }, agora: Date = new Date()): string {
-  const hoje = partesLisboa(agora.toISOString());
-  const amanha = partesLisboa(new Date(agora.getTime() + 864e5).toISOString());
+/**
+ * «SEX 27/11», «QUA 02/12 ATÉ 14:00», «02/12 → 05/12», «ATÉ SEX 27/11», «EM CURSO».
+ * Sempre com o dia escrito (nunca «hoje» ou «amanhã»): a imagem fica no canal e na Comunidade e continua certa nos dias seguintes.
+ */
+export function quandoCurto(a: Pick<CentralAlert, 'status' | 'start_datetime'> & { end_datetime?: string | null }, _agora: Date = new Date()): string {
   const ini = a.start_datetime ? partesLisboa(a.start_datetime) : null;
-  const fim = a.end_datetime ? partesLisboa(a.end_datetime) : null;
+  const fim0 = a.end_datetime ? partesLisboa(a.end_datetime) : null;
+  // termina às 00:00 = acaba no dia anterior
+  const fim = fim0 && fim0.hora === 0 && fim0.min === 0 && a.end_datetime ? partesLisboa(new Date(new Date(a.end_datetime).getTime() - 60000).toISOString()) : fim0;
   const mesmoDia = (x: typeof ini, y: typeof ini) => !!x && !!y && x.ano === y.ano && x.mes === y.mes && x.dia === y.dia;
-  const dia = (x: NonNullable<typeof ini>) => {
-    if (mesmoDia(x, hoje)) return 'HOJE';
-    if (mesmoDia(x, amanha)) return `AMANHÃ · ${DIAS[x.sem]} ${dd(x.dia)}/${dd(x.mes)}`;
-    return `${DIAS[x.sem]} ${dd(x.dia)}/${dd(x.mes)}`;
-  };
-  const ate = (x: NonNullable<typeof ini>) => (x.hora === 23 && x.min >= 59) || (x.hora === 0 && x.min === 0) ? '' : ` ATÉ ${dd(x.hora)}:${dd(x.min)}`;
+  const dia = (x: NonNullable<typeof ini>) => `${DIAS[x.sem]} ${dd(x.dia)}/${dd(x.mes)}`;
+  const ate = (x: NonNullable<typeof ini>) => (x.hora === 23 && x.min >= 59) ? '' : ` ATÉ ${dd(x.hora)}:${dd(x.min)}`;
   if (a.status === 'Ativo') {
-    if (fim && mesmoDia(fim, hoje)) return `HOJE${ate(fim)}`;
-    if (fim) return `ATÉ ${DIAS[fim.sem]} ${dd(fim.dia)}/${dd(fim.mes)}`;
+    if (fim && ini && mesmoDia(ini, fim)) return `${dia(fim)}${ate(fim)}`;
+    if (fim) return `ATÉ ${dia(fim)}`;
     return 'EM CURSO';
   }
-  if (ini && fim && !mesmoDia(ini, fim)) {
-    // termina às 00:00 do dia seguinte = acaba no dia anterior
-    const fimReal = fim.hora === 0 && fim.min === 0 ? partesLisboa(new Date(new Date(a.end_datetime as string).getTime() - 60000).toISOString()) : fim;
-    if (fimReal && !mesmoDia(ini, fimReal)) return `${dd(ini.dia)}/${dd(ini.mes)} → ${dd(fimReal.dia)}/${dd(fimReal.mes)}`;
-  }
-  if (ini) return a.status === 'Futuro' && !fim ? `A PARTIR DE ${dia(ini)}` : dia(ini);
+  if (ini && fim && !mesmoDia(ini, fim)) return `${dd(ini.dia)}/${dd(ini.mes)} → ${dd(fim.dia)}/${dd(fim.mes)}`;
+  if (ini && fim) return `${dia(ini)}${ate(fim)}`;
+  if (ini) return a.status === 'Futuro' ? `A PARTIR DE ${dia(ini)}` : dia(ini);
   return '';
 }
 
@@ -219,7 +215,8 @@ export function operadorCurto(op: string): string {
 }
 
 export interface DadosCartaz {
-  zona: ZonaCartaz; modo: ModoCartaz; tipo: TipoCartaz; operador: string; quando: string; titulo: string;
+  /** null: sem transporte desenhado (incêndio, mau tempo, feriado) — fica o ícone do tipo em grande */
+  zona: ZonaCartaz; modo: ModoCartaz | null; tipo: TipoCartaz; operador: string; quando: string; titulo: string;
   destaque: { etiqueta: string; texto: string } | null;
 }
 
@@ -473,8 +470,9 @@ export function desenharCartaz(ctx: Ctx, d: DadosCartaz): void {
   ctx.fillStyle = brilho;
   ctx.fillRect(0, 0, W, W);
 
-  // transporte desenhado atrás, à direita
-  tracos(ctx, TRANSPORTES[d.modo], 600, 300, 0.92, `${cor}38`, 7);
+  // transporte desenhado atrás, à direita (ou o ícone do tipo em grande, quando não é de um transporte)
+  if (d.modo && TRANSPORTES[d.modo]) tracos(ctx, TRANSPORTES[d.modo], 600, 300, 0.92, `${cor}38`, 7);
+  else tracos(ctx, ICONES[d.tipo.icone] || ICONES.info, 600, 290, 420 / 24, `${cor}30`, 6);
 
   // silhueta da zona por cima da faixa de baixo
   tracos(ctx, SILHUETAS[d.zona.silhueta], 0, 792, 1, 'rgba(255,255,255,0.22)', 4);
@@ -568,24 +566,107 @@ export function desenharCartaz(ctx: Ctx, d: DadosCartaz): void {
 }
 
 /** Gera a imagem (JPEG) de um aviso, já com as letras da marca carregadas. */
-export async function gerarCartaz(a: CentralAlert, categoria?: CategoriaAviso): Promise<Blob> {
+async function carregarLetras(): Promise<void> {
   try {
     await Promise.all([
       document.fonts.load(`800 100px "Barlow Condensed"`), document.fonts.load(`700 40px "Barlow Condensed"`),
       document.fonts.load(`600 40px "Barlow Condensed"`), document.fonts.load('700 40px Barlow'), document.fonts.load('600 40px Barlow'),
     ]);
   } catch { /* segue com as letras de recurso */ }
-  const canvas = document.createElement('canvas');
-  canvas.width = LADO;
-  canvas.height = LADO;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('canvas');
-  desenharCartaz(ctx, dadosDoCartaz(a, categoria));
-  return await new Promise<Blob>((ok, falha) => canvas.toBlob((b) => (b ? ok(b) : falha(new Error('imagem'))), 'image/jpeg', 0.92));
+}
+
+export async function gerarCartaz(a: CentralAlert, categoria?: CategoriaAviso): Promise<Blob> {
+  return gerarCartazDeDados(dadosDoCartaz(a, categoria));
 }
 
 /** Nome do ficheiro da imagem (ex.: aviso-porto-greve.jpg). */
 export function nomeDoCartaz(d: Pick<DadosCartaz, 'zona' | 'tipo'>): string {
   const s = (x: string) => semAc(x).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `aviso-${s(d.zona.nome)}-${s(d.tipo.rotulo)}.jpg`;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Comunidade: zona por nomes de lugares (concelhos, distritos do IPMA) e validação do que vem da base de dados
+// ---------------------------------------------------------------------------------------------------------
+const DISTRITOS: Array<[RegExp, ZonaCartaz]> = [
+  [/porto/, Z('PORTO', 'porto')], [/lisboa/, Z('LISBOA', 'lisboa')], [/setubal/, Z('SETÚBAL', 'lisboa')],
+  [/braga/, Z('BRAGA', 'braga')], [/coimbra/, Z('COIMBRA', 'coimbra')],
+  [/viana do castelo/, Z('VIANA DO CASTELO', 'norte')], [/vila real/, Z('VILA REAL', 'norte')], [/braganca/, Z('BRAGANÇA', 'norte')],
+  [/aveiro/, Z('AVEIRO', 'centro')], [/viseu/, Z('VISEU', 'centro')], [/guarda/, Z('GUARDA', 'centro')],
+  [/castelo branco/, Z('CASTELO BRANCO', 'centro')], [/leiria/, Z('LEIRIA', 'centro')], [/santarem/, Z('SANTARÉM', 'alentejo')],
+  [/portalegre/, Z('PORTALEGRE', 'alentejo')], [/evora/, Z('ÉVORA', 'alentejo')], [/beja/, Z('BEJA', 'alentejo')],
+  [/faro/, Z('ALGARVE', 'algarve')], [/(madeira|funchal|porto santo)/, Z('MADEIRA', 'madeira')],
+  [/(acores|ponta delgada|angra|horta|flores|corvo|graciosa|pico|faial|terceira|sao miguel|santa maria|sao jorge)/, Z('AÇORES', 'acores')],
+];
+const REGIAO_DA_SILHUETA: Partial<Record<Silhueta, string>> = { porto: 'NORTE', braga: 'NORTE', norte: 'NORTE', coimbra: 'CENTRO', centro: 'CENTRO', alentejo: 'ALENTEJO', algarve: 'ALGARVE', acores: 'AÇORES', madeira: 'MADEIRA', lisboa: 'LISBOA' };
+const SILHUETA_DA_REGIAO: Record<string, Silhueta> = { NORTE: 'norte', CENTRO: 'centro', ALENTEJO: 'alentejo', ALGARVE: 'algarve', 'AÇORES': 'acores', MADEIRA: 'madeira', LISBOA: 'lisboa' };
+
+/** Zona a partir de nomes de lugares: um só sítio -> esse; vários na mesma região -> a região; senão PORTUGAL. */
+export function zonaDosLugares(lugares: string[]): ZonaCartaz {
+  const zonas: ZonaCartaz[] = [];
+  for (const l of lugares) {
+    const n = semAc(l);
+    const z = CIDADES.find(([re]) => re.test(n))?.[1] || DISTRITOS.find(([re]) => re.test(n))?.[1]
+      || (AMP.test(n) ? Z('PORTO', 'porto') : AML.test(n) ? Z('LISBOA', 'lisboa') : null);
+    if (z) zonas.push(z);
+  }
+  if (!zonas.length) return Z('PORTUGAL', 'portugal');
+  if (zonas.every((z) => z.nome === zonas[0].nome)) return zonas[0];
+  const regioes = zonas.map((z) => REGIAO_DA_SILHUETA[z.silhueta] || 'PORTUGAL');
+  if (regioes.every((r) => r === regioes[0]) && SILHUETA_DA_REGIAO[regioes[0]]) return Z(regioes[0], SILHUETA_DA_REGIAO[regioes[0]]);
+  return Z('PORTUGAL', 'portugal');
+}
+
+export const TIPOS_COMUNIDADE = {
+  incendio: TIPOS.incendio,
+  avisoVermelho: { rotulo: 'AVISO VERMELHO', cor: '#FF4D3D', icone: 'chuva' } as TipoCartaz,
+  feriado: { rotulo: 'FERIADO', cor: '#4DA3FF', icone: 'calendario' } as TipoCartaz,
+};
+
+/** Dia por extenso curto a partir de AAAA-MM-DD (ex.: «SEG 08/12»). */
+export function diaCurto(data: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(data || '');
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  return `${DIAS[d.getUTCDay()]} ${m[3]}/${m[2]}`;
+}
+
+const SILHUETAS_VALIDAS = new Set<string>(['porto', 'lisboa', 'braga', 'coimbra', 'norte', 'centro', 'alentejo', 'algarve', 'acores', 'madeira', 'portugal']);
+const MODOS_VALIDOS = new Set<string>(['metro', 'autocarro', 'comboio', 'barco']);
+const ICONES_VALIDOS = new Set<string>(['megafone', 'chave', 'triangulo', 'relogio', 'cone', 'desvio', 'proibido', 'calendario', 'mais', 'estrela', 'chuva', 'chama', 'sismo', 'info', 'visto', 'octogono', 'raio']);
+const txt = (x: unknown, max: number) => (typeof x === 'string' ? x.replace(/[\u0000-\u001f]/g, ' ').slice(0, max) : '');
+
+/** O que vem guardado numa publicação (ou de fora) só passa se tiver a forma certa; senão null. */
+export function cartazValido(x: unknown): DadosCartaz | null {
+  if (!x || typeof x !== 'object') return null;
+  const o = x as Record<string, any>;
+  const nome = txt(o.zona?.nome, 30).trim();
+  const silhueta = String(o.zona?.silhueta || '');
+  const rotulo = txt(o.tipo?.rotulo, 24).trim();
+  const cor = String(o.tipo?.cor || '');
+  const icone = String(o.tipo?.icone || '');
+  if (!nome || !SILHUETAS_VALIDAS.has(silhueta) || !rotulo || !/^#[0-9A-Fa-f]{6}$/.test(cor) || !ICONES_VALIDOS.has(icone)) return null;
+  const modo = o.modo == null ? null : MODOS_VALIDOS.has(String(o.modo)) ? (o.modo as ModoCartaz) : null;
+  const destaque = o.destaque && typeof o.destaque === 'object' && txt(o.destaque.texto, 160).trim()
+    ? { etiqueta: txt(o.destaque.etiqueta, 30).trim(), texto: txt(o.destaque.texto, 160).replace(/ {2,}/g, ' ').trim() } : null;
+  // o \n do destaque (um troço por linha) foi trocado por espaço acima: repõe-se a partir do original
+  if (destaque && typeof o.destaque.texto === 'string' && o.destaque.texto.includes('\n')) {
+    destaque.texto = o.destaque.texto.split('\n').slice(0, 2).map((p: string) => txt(p, 80).trim()).join('\n');
+  }
+  return {
+    zona: { nome, silhueta: silhueta as Silhueta }, modo, tipo: { rotulo, cor, icone: icone as IconeCartaz },
+    operador: txt(o.operador, 40).trim(), quando: txt(o.quando, 40).trim(), titulo: txt(o.titulo, 160).trim(), destaque,
+  };
+}
+
+/** Gera a imagem (JPEG) a partir de dados já prontos (publicações da Comunidade). */
+export async function gerarCartazDeDados(d: DadosCartaz): Promise<Blob> {
+  await carregarLetras();
+  const canvas = document.createElement('canvas');
+  canvas.width = LADO;
+  canvas.height = LADO;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas');
+  desenharCartaz(ctx, d);
+  return await new Promise<Blob>((ok, falha) => canvas.toBlob((b) => (b ? ok(b) : falha(new Error('imagem'))), 'image/jpeg', 0.9));
 }

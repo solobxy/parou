@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { t } from '../../i18n';
 import { useVoltarFecha } from '../../utils/janelas';
+import { gerarCartazDeDados, type DadosCartaz } from '../../utils/cartazAviso';
 
 /**
  * Imagem inteira por cima da Comunidade: fica DENTRO da app (nunca abre o ficheiro da imagem como se fosse uma página,
@@ -104,7 +105,26 @@ const Visualizador: React.FC<{ imagens: string[]; inicio: number; alt: string; a
 };
 
 /** Imagens de uma novidade da PAROU: quadradas, com cantos redondos; tocar abre a imagem inteira, dentro da app. */
-export const ImagensPost: React.FC<{ imagens?: string[]; alt: string; grande?: boolean }> = ({ imagens, alt, grande }) => {
+/** Imagem própria do aviso desenhada no telemóvel; enquanto não está pronta (ou se falhar) fica a imagem fixa. */
+function useImagemDoCartaz(cartaz: DadosCartaz | undefined): string {
+  const [url, setUrl] = useState('');
+  const chave = cartaz ? JSON.stringify(cartaz) : '';
+  useEffect(() => {
+    if (!cartaz) { setUrl(''); return; }
+    let vivo = true;
+    let feito = '';
+    gerarCartazDeDados(cartaz)
+      .then((b) => { if (vivo) { feito = URL.createObjectURL(b); setUrl(feito); } })
+      .catch(() => { if (vivo) setUrl(''); });
+    return () => { vivo = false; if (feito) URL.revokeObjectURL(feito); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chave]);
+  return url;
+}
+
+export const ImagensPost: React.FC<{ imagens?: string[]; alt: string; grande?: boolean; cartaz?: DadosCartaz }> = ({ imagens: fixas, alt, grande, cartaz }) => {
+  const urlCartaz = useImagemDoCartaz(cartaz);
+  const imagens = urlCartaz ? [urlCartaz, ...(fixas || []).slice(1)] : fixas;
   const [aberta, setAberta] = useState<number | null>(null);
   const origem = useRef<HTMLElement | null>(null);
   const fechar = useCallback(() => {

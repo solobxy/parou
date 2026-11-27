@@ -10,6 +10,7 @@ import { pedirTraducoes, titulosTraduzidos } from './traducoesAvisos';
 // =====================================================================================
 import { DateTime } from 'luxon';
 import { categoriaDoAviso } from '../utils/imagemAviso';
+import { dadosDoCartaz, type DadosCartaz } from '../utils/cartazAviso';
 import { getCentralAlerts, ePlenarioOuConstrangimento } from './centralAlertsEngine';
 import { obterIncidentes, IncidenteProtecaoCivil } from './fogosEngine';
 import { getDatabase } from './db/gtfsDatabase';
@@ -1098,6 +1099,8 @@ export interface CandidatoPush {
   url: string;
   /** Tipo de aviso (greve, incendio, tempo…), para escolher a imagem no canal do WhatsApp */
   categoria?: string;
+  /** Imagem própria do aviso (zona, transporte, tipo, datas) para as publicações automáticas da Comunidade */
+  cartaz?: DadosCartaz;
   /** Avisos por linha: só vão a quem guardou uma destas linhas (chaves de chaveLinha), seja qual for o distrito */
   linhas?: string[];
   /** Nome do operador, para o título personalizado com a linha de cada pessoa */
@@ -1358,6 +1361,7 @@ export async function candidatosPush(opcoes: { canal?: boolean } = {}): Promise<
       urgente: false,
       url: '/alertas',
       categoria: greve ? 'greve' : categoriaDoAviso(a),
+      cartaz: dadosDoCartaz(a),
     });
   }
 

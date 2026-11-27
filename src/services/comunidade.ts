@@ -29,6 +29,8 @@ export interface Publicacao {
   tipo: TipoConversa;
   /** Imagens da publicação (só nas novidades da PAROU) */
   imagens?: string[];
+  /** Imagem própria dos avisos automáticos (zona, tipo, datas): desenhada no telemóvel em vez da imagem fixa */
+  cartaz?: import('../utils/cartazAviso').DadosCartaz;
   operador?: string;
   linha?: string;
   concelho?: string;

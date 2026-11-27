@@ -5,6 +5,7 @@
 //  - sem links, emails nem telefones nos textos (spam e dados pessoais);
 //  - 3 denúncias de contas diferentes escondem o conteúdo até a administração o rever;
 //  - quem apaga a conta fica como "Utilizador PAROU" e o texto mantém-se (como nas ocorrências).
+import { cartazValido, type DadosCartaz } from '../../utils/cartazAviso';
 import crypto from 'crypto';
 import { base, emTransacao } from './baseDados';
 import { Conta, ErroConta, avatarDaLinha, contaEAdmin, contaPioneira, ganharPontos, medalhaPorDefeito } from './contas';
@@ -56,6 +57,8 @@ export interface PublicacaoSaida {
   texto: string;
   tipo: string;
   imagens?: string[];
+  /** Imagem própria do aviso (publicações automáticas), desenhada no telemóvel */
+  cartaz?: DadosCartaz;
   operador?: string;
   linha?: string;
   concelho?: string;
@@ -151,6 +154,16 @@ function imagensDe(bruto: unknown): string[] {
   } catch { return []; }
 }
 
+/** Imagem própria do aviso guardada com as imagens («cartaz:{…}»), já validada */
+function cartazDe(bruto: unknown): DadosCartaz | null {
+  if (!bruto) return null;
+  try {
+    const lista = JSON.parse(String(bruto));
+    const c = Array.isArray(lista) ? lista.find((x) => typeof x === 'string' && x.startsWith('cartaz:')) : null;
+    return c ? cartazValido(JSON.parse(c.slice(7))) : null;
+  } catch { return null; }
+}
+
 function paraPublicacao(l: any, viewer: Conta | null, votos: Map<string, number>, denuncias: Set<string>, origem?: { lat: number; lon: number }): PublicacaoSaida {
   const tem = l.lat !== null && l.lat !== undefined && l.lon !== null && l.lon !== undefined;
   return {
@@ -159,6 +172,7 @@ function paraPublicacao(l: any, viewer: Conta | null, votos: Map<string, number>
     texto: l.estado === 'apagada' ? '' : String(l.texto || ''),
     tipo: String(l.tipo),
     ...(l.estado !== 'apagada' && imagensDe(l.imagens).length ? { imagens: imagensDe(l.imagens) } : {}),
+    ...(l.estado !== 'apagada' && cartazDe(l.imagens) ? { cartaz: cartazDe(l.imagens) as DadosCartaz } : {}),
     ...(l.operador ? { operador: String(l.operador) } : {}),
     ...(l.linha ? { linha: String(l.linha) } : {}),
     ...(l.concelho ? { concelho: String(l.concelho) } : {}),

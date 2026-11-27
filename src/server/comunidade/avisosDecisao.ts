@@ -14,6 +14,8 @@ export interface CandidatoLike {
   distritos: string[];
   urgente: boolean;
   categoria?: string;
+  /** Imagem própria do aviso (dados para desenhar) */
+  cartaz?: import('../../utils/cartazAviso').DadosCartaz;
 }
 
 export interface IncidenteLike {
@@ -123,10 +125,10 @@ export function decidirAvisos(
     const dia = s.hora >= LIMITES.DIA_INICIO && s.hora < LIMITES.DIA_FIM;
     const greve = dia ? e.candidatos.find((c) => c.id.startsWith('oficial:') && c.categoria === 'greve' && novo(c)) : undefined;
     if (greve) {
-      propostas.push({ tipo: 'greve', urgente: false, ids: [{ id: greve.id, grupo: grupoDe(greve) }], post: postGreve({ titulo: greve.titulo, corpo: greve.corpo }) });
+      propostas.push({ tipo: 'greve', urgente: false, ids: [{ id: greve.id, grupo: grupoDe(greve) }], post: postGreve({ titulo: greve.titulo, corpo: greve.corpo, cartaz: greve.cartaz }) });
     } else if (s.hora >= LIMITES.FERIADO_DE && s.hora < LIMITES.FERIADO_ATE) {
       const f = e.feriados.find((x) => x.emDias === 1 && x.diaSemana !== 'sábado' && x.diaSemana !== 'domingo' && !s.jaPublicados.has(`feriado:${x.data}`));
-      if (f) propostas.push({ tipo: 'feriado', urgente: false, ids: [{ id: `feriado:${f.data}`, grupo: 'feriado' }], post: postFeriado({ nome: f.nome, diaSemana: f.diaSemana }) });
+      if (f) propostas.push({ tipo: 'feriado', urgente: false, ids: [{ id: `feriado:${f.data}`, grupo: 'feriado' }], post: postFeriado({ nome: f.nome, diaSemana: f.diaSemana, data: f.data }) });
     }
   }
   return propostas;
